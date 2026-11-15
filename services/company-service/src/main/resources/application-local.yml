@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:sanigest_company}
+    username: ${POSTGRES_USER:sanigest_company}
+    password: ${POSTGRES_PASSWORD}
+    hikari:
+      connection-timeout: 5000
+      validation-timeout: 3000
+      initialization-fail-timeout: 5000
+
