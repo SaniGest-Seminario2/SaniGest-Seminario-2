@@ -84,8 +84,45 @@ El módulo inicial carga el contexto Spring Boot sin depender de otros servicios
 mvn -pl services/company-service -am spring-boot:run
 ```
 
-Spring Web, el puerto HTTP, los perfiles, Spring Data JPA, PostgreSQL y Actuator
-se incorporan en `S2-295` y tickets posteriores.
+Spring Web, el puerto HTTP, Spring Data JPA y Actuator se incorporan en `S2-295`
+y tickets posteriores.
+
+## PostgreSQL local para Company Service
+
+Crea el archivo local de variables (está ignorado por Git) y levanta la base:
+
+```bash
+cp .env.example .env
+docker compose up -d company-postgres
+docker compose ps
+```
+
+Exporta las mismas variables y arranca Company con el perfil `local`:
+
+```bash
+set -a
+. ./.env
+set +a
+mvn -pl services/company-service -am spring-boot:run \
+  -Dspring-boot.run.profiles=local
+```
+
+Para detener PostgreSQL sin perder los datos:
+
+```bash
+docker compose down
+```
+
+El volumen `sanigest_company-postgres-data` conserva los datos. Elimínalo sólo
+cuando se quiera reiniciar deliberadamente la base local:
+
+```bash
+docker compose down --volumes
+```
+
+Si la conexión falla, verifica `docker compose ps`, el puerto y que las
+variables cargadas en la terminal coincidan con `.env`. No se deben versionar
+contraseñas reales ni reutilizar estas credenciales fuera del entorno local.
 
 ## Convenciones
 
