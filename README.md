@@ -64,6 +64,20 @@ Para reconstruir desde cero:
 mvn -B clean verify
 ```
 
+GitHub Actions ejecuta dos jobs por cada `push` y `pull_request`:
+
+```bash
+# Syntax and compilation
+mvn -B -DskipTests compile
+
+# Unit tests
+mvn -B verify
+```
+
+El job de pruebas se ejecuta únicamente después de una compilación correcta. Si
+falla, los reportes Surefire y Failsafe disponibles se publican como artefactos
+durante siete días.
+
 Si Maven no está instalado, se puede ejecutar la misma verificación con Docker:
 
 ```bash
