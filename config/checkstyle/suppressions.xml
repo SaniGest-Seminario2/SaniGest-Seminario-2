@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+        "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<suppressions>
+    <!--
+      Add only narrow, reviewed exceptions here. Every suppression must identify
+      its Jira ticket and explain why changing the code is not the safer option.
+    -->
+</suppressions>

@@ -67,7 +67,7 @@ mvn -B clean verify
 GitHub Actions ejecuta dos jobs por cada `push` y `pull_request`:
 
 ```bash
-# Syntax and compilation
+# Syntax, format and static analysis
 mvn -B -DskipTests compile
 
 # Unit tests
@@ -77,6 +77,39 @@ mvn -B verify
 El job de pruebas se ejecuta únicamente después de una compilación correcta. Si
 falla, los reportes Surefire y Failsafe disponibles se publican como artefactos
 durante siete días.
+
+## Formato y análisis estático Java
+
+El POM padre aplica las mismas reglas a todos los servicios y librerías Maven.
+Spotless es la autoridad del formato automático y Checkstyle valida convenciones
+que no deben corregirse silenciosamente.
+
+```bash
+# Corregir automáticamente formato e imports
+mvn spotless:apply
+
+# Comprobar formato sin modificar archivos
+mvn spotless:check
+
+# Ejecutar análisis estático
+mvn checkstyle:check
+
+# Ejecutar todos los gates, incluidas las pruebas
+mvn -B verify
+```
+
+Los checks se enlazan a la fase Maven `validate`, por lo que también se ejecutan
+antes de `compile`, `test`, `package` y `verify`. Las reglas viven en
+`config/checkstyle`; no deben copiarse dentro de los servicios.
+
+Una excepción requiere modificar `config/checkstyle/suppressions.xml` mediante
+pull request. Debe ser específica para el archivo y la regla, incluir el ticket
+de Jira y explicar por qué corregir el código no es la opción más segura. No se
+aceptan supresiones generales ni anotaciones dispersas para silenciar el build.
+
+Al actualizar Spotless, Google Java Format o Checkstyle, se debe ejecutar primero
+`spotless:apply` en una rama dedicada, revisar por separado el cambio mecánico y
+finalizar con `mvn -B verify` antes de integrar la nueva versión.
 
 Si Maven no está instalado, se puede ejecutar la misma verificación con Docker:
 
