@@ -131,8 +131,27 @@ El módulo inicial carga el contexto Spring Boot sin depender de otros servicios
 mvn -pl services/company-service -am spring-boot:run
 ```
 
-Spring Web, el puerto HTTP, Spring Data JPA y Actuator se incorporan en `S2-295`
-y tickets posteriores.
+El servicio escucha en el puerto `8080` por defecto. Se puede cambiar sin
+modificar el artefacto mediante `SERVER_PORT`:
+
+```bash
+SERVER_PORT=8081 mvn -pl services/company-service -am spring-boot:run
+```
+
+Company Service expone únicamente los endpoints operativos necesarios:
+
+| Endpoint | Propósito |
+| --- | --- |
+| `GET /actuator/health` | Estado general sin detalles internos |
+| `GET /actuator/health/liveness` | Confirma que el proceso puede continuar ejecutándose |
+| `GET /actuator/health/readiness` | Confirma que la instancia está lista para recibir tráfico |
+| `GET /actuator/info` | Identifica nombre, artefacto, versión y fecha del build |
+
+La respuesta pública no incluye componentes de salud, variables de entorno,
+credenciales, cadenas JDBC ni tokens. Endpoints sensibles como `env` y
+`configprops` no están expuestos. La metadata de `/actuator/info` se genera al
+construir el artefacto con Maven, de modo que la versión corresponde al build
+en ejecución.
 
 ## PostgreSQL local para Company Service
 
