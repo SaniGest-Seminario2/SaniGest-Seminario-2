@@ -153,15 +153,23 @@ credenciales, cadenas JDBC ni tokens. Endpoints sensibles como `env` y
 construir el artefacto con Maven, de modo que la versión corresponde al build
 en ejecución.
 
-## PostgreSQL local para Company Service
+## Dependencias locales: PostgreSQL y Valkey
 
-Crea el archivo local de variables (está ignorado por Git) y levanta la base:
+Crea el archivo local de variables (está ignorado por Git) y levanta la base y
+la cache:
 
 ```bash
 cp .env.example .env
-docker compose up -d company-postgres
+docker compose up -d company-postgres valkey
 docker compose ps
 ```
+
+Ambos contenedores deben aparecer como `healthy`. Valkey queda disponible sólo
+en la interfaz local, en `localhost:${SPRING_DATA_REDIS_PORT:-6379}`. Los
+servicios que se ejecuten dentro de la red `sanigest-local` deben usar
+`valkey:6379` en lugar de `localhost`. La conexión se configura externamente con
+`SPRING_DATA_REDIS_HOST`, `SPRING_DATA_REDIS_PORT` y
+`SPRING_DATA_REDIS_PASSWORD`; no se deben incluir credenciales en el artefacto.
 
 Exporta las mismas variables y arranca Company con el perfil `local`:
 
@@ -189,6 +197,38 @@ docker compose down --volumes
 Si la conexión falla, verifica `docker compose ps`, el puerto y que las
 variables cargadas en la terminal coincidan con `.env`. No se deben versionar
 contraseñas reales ni reutilizar estas credenciales fuera del entorno local.
+
+### Operación de la cache local
+
+Valkey contiene únicamente datos derivados y reconstruibles; PostgreSQL sigue
+siendo la fuente de verdad. Por eso el contenedor se inicia sin persistencia
+RDB ni AOF y reiniciarlo o limpiar sus claves no elimina datos de negocio. Cada
+integración debe aplicar un TTL explícito. El valor local recomendado es
+`CACHE_DEFAULT_TTL=5m`, que podrá ajustarse por servicio o tipo de cache cuando
+se implemente la integración de Spring Cache.
+
+Para inspeccionar la cache sin escribir la contraseña en el historial del
+shell, usa el valor disponible dentro del contenedor:
+
+```bash
+docker compose exec valkey sh -c \
+  'valkey-cli --no-auth-warning -a "$VALKEY_PASSWORD" INFO keyspace'
+docker compose exec valkey sh -c \
+  'valkey-cli --no-auth-warning -a "$VALKEY_PASSWORD" SCAN 0'
+```
+
+Para limpiar exclusivamente la cache local:
+
+```bash
+docker compose exec valkey sh -c \
+  'valkey-cli --no-auth-warning -a "$VALKEY_PASSWORD" FLUSHALL'
+```
+
+También se puede reiniciar Valkey con una cache vacía sin afectar PostgreSQL:
+
+```bash
+docker compose restart valkey
+```
 
 ## Convenciones
 
