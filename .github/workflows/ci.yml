@@ -58,6 +58,9 @@ jobs:
       - name: Run unit tests and Maven verification
         run: mvn -B verify
 
+      - name: Smoke test executable Spring Boot artifact
+        run: sh scripts/qa/smoke-company-service.sh
+
       - name: Upload test reports on failure
         if: failure()
         uses: actions/upload-artifact@v7

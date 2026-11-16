@@ -127,6 +127,13 @@ docker run --rm \
 
 La regresión del servicio se ejecuta con `mvn -B verify` y comprueba las
 migraciones de Company, sus restricciones y los contratos públicos de Actuator.
+El smoke test del artefacto arranca el JAR real sin infraestructura externa y
+valida health, metadata segura y la ausencia de endpoints sensibles:
+
+```bash
+sh scripts/qa/smoke-company-service.sh
+```
+
 El smoke test de infraestructura levanta dependencias desechables y valida el
 comportamiento real de PostgreSQL y Valkey:
 
@@ -142,7 +149,8 @@ GitHub Actions ejecuta esta prueba en cada `push` y `pull_request`.
 
 ## Validar el arranque de Company Service
 
-El módulo inicial carga el contexto Spring Boot sin depender de otros servicios:
+El módulo inicial carga el contexto Spring Boot sin depender de otros servicios
+ni de una base local cuando se usa el perfil predeterminado:
 
 ```bash
 mvn -pl services/company-service -am spring-boot:run

@@ -3,6 +3,10 @@
 Cada subdirectorio representa un microservicio desplegable y dueño exclusivo de
 su modelo, persistencia y migraciones.
 
+La guía [SPRING_BOOT_SERVICE_TEMPLATE.md](SPRING_BOOT_SERVICE_TEMPLATE.md)
+describe la plantilla ejecutable, las capas permitidas y el procedimiento para
+incorporar un servicio sin copiar reglas de otro dominio.
+
 Topología prevista según el contrato funcional y ADR-001:
 
 | Directorio | Responsabilidad | Ticket de implementación |

@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class CompanyServiceApplicationTests {
+class CompanyServiceApplicationIT {
 
   @Autowired private Flyway flyway;
 
