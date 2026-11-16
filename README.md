@@ -7,7 +7,7 @@ Backend de SaniGest basado en microservicios con Java, Spring Boot y PostgreSQL.
 Los siguientes documentos se están incorporando mediante los PRs de `S2-293` y
 `S2-303`; sus rutas se consideran parte estable de la estructura del monorepo:
 
-- [Contrato funcional y mapa de APIs v0.7](SaniGest_T1001_Contrato_Funcional_v0.7.md)
+- [Contrato funcional y mapa de APIs v0.7](docs/SaniGest_T1001_Contrato_Funcional_v0.7.md)
 - [ADR-001: propietarios de datos y comunicación entre servicios](docs/adr/ADR-001-propiedad-datos-comunicacion-servicios.md)
 
 El ADR-001 es la referencia obligatoria para definir nuevas historias, tablas,
@@ -122,6 +122,23 @@ docker run --rm \
   -e MAVEN_CONFIG=/var/maven/.m2 \
   maven:3.9.11-eclipse-temurin-21 mvn -B verify
 ```
+
+## Pruebas de QA automatizadas
+
+La regresión del servicio se ejecuta con `mvn -B verify` y comprueba las
+migraciones de Company, sus restricciones y los contratos públicos de Actuator.
+El smoke test de infraestructura levanta dependencias desechables y valida el
+comportamiento real de PostgreSQL y Valkey:
+
+```bash
+sh scripts/qa/smoke-infrastructure.sh
+```
+
+La prueba exige Docker Compose, usa puertos alternos por defecto y elimina sus
+contenedores y volúmenes al terminar. Comprueba health checks, autenticación de
+Valkey, persistencia tras reiniciar PostgreSQL y que reiniciar la cache no afecte
+los datos de negocio.
+GitHub Actions ejecuta esta prueba en cada `push` y `pull_request`.
 
 ## Validar el arranque de Company Service
 

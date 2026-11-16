@@ -48,5 +48,5 @@ volumes:
 
 networks:
   sanigest-local:
-    name: sanigest-local
+    name: ${SANIGEST_NETWORK_NAME:-sanigest-local}
 
