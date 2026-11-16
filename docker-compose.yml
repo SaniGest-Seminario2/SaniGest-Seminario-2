@@ -21,6 +21,28 @@ services:
     networks:
       - sanigest-local
 
+  valkey:
+    image: valkey/valkey:8.1.11-alpine
+    environment:
+      VALKEY_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:?Define SPRING_DATA_REDIS_PASSWORD in .env}
+    command:
+      - /bin/sh
+      - -c
+      - exec valkey-server --requirepass "$$VALKEY_PASSWORD" --save "" --appendonly no
+    ports:
+      - "127.0.0.1:${SPRING_DATA_REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - valkey-cli --no-auth-warning -a "$$VALKEY_PASSWORD" ping | grep -q PONG
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - sanigest-local
+
 volumes:
   company-postgres-data:
 
