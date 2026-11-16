@@ -1,23 +1,24 @@
 # Plantilla base para servicios Spring Boot
 
-Esta convención define la base de los servicios de negocio de SaniGest. El
-`company-service` es la implementación de referencia ejecutable; los demás
+Esta convención define la base de los servicios de negocio de SaniGest. La
+implementación neutral y ejecutable vive en `templates/spring-boot-service`;
+`company-service` es un consumidor de la convención, no la plantilla. Los demás
 directorios se incorporan al reactor Maven únicamente cuando su ticket de
 dominio entregue un esqueleto propio.
 
 ## Crear un módulo nuevo
 
-1. Crear `services/<dominio>-service` y un `pom.xml` hijo de
-   `com.sanigest:sanigest-parent`.
-2. Añadir Spring Web, Validation, Data JPA y Actuator. Agregar Flyway y el driver
-   de la base únicamente cuando el servicio sea propietario de datos.
-3. Crear una clase `<Dominio>ServiceApplication` con `@SpringBootApplication` en
+1. Copiar `templates/spring-boot-service` a `services/<dominio>-service`.
+2. Reemplazar `spring-boot-service-template`, `ServiceTemplateApplication` y
+   `com.sanigest.template` por los nombres del nuevo servicio y dominio.
+3. Mantener Spring Web, Validation, Data JPA y Actuator. Agregar Flyway y las
+   migraciones únicamente cuando el servicio sea propietario de datos.
+4. Mantener la clase `<Dominio>ServiceApplication` con `@SpringBootApplication` en
    `com.sanigest.<dominio>`. Ese paquete raíz limita el component scan al
    servicio y evita importar componentes de otro dominio.
-4. Copiar solamente la configuración técnica de `application.yml`,
-   `application-local.yml` y `application-test.yml`; cambiar el nombre de la
-   aplicación, base y variables que pertenezcan al módulo.
-5. Añadir el módulo al reactor raíz y crear sus pruebas antes de eliminar el
+5. Cambiar el nombre de aplicación y las variables que pertenezcan al módulo,
+   conservando los perfiles `local` y `test` y la política segura de Actuator.
+6. Añadir el módulo al reactor raíz y adaptar sus pruebas antes de eliminar el
    README que reserva el directorio.
 
 El API Gateway aplica la misma configuración operativa, pero su ticket puede
@@ -57,19 +58,25 @@ existen al menos dos consumidores y el ADR-001 permite compartirlo.
 - `*Test`: pruebas unitarias rápidas, ejecutadas por Surefire en `mvn test`.
 - `*IT`: integración y regresión de configuración, migraciones y contratos HTTP,
   ejecutadas por Failsafe en `mvn verify`.
-- `scripts/qa/smoke-company-service.sh`: arranca el JAR real, consulta health e
-  info y comprueba que endpoints sensibles no estén publicados.
+- `scripts/qa/smoke-spring-boot-service.sh`: smoke reutilizable que arranca un
+  JAR real, consulta health e info y comprueba que endpoints sensibles no estén
+  publicados.
 
 Para validar la referencia completa:
 
 ```bash
 mvn -B clean verify
-sh scripts/qa/smoke-company-service.sh
+sh scripts/qa/smoke-spring-boot-service.sh \
+  templates/spring-boot-service/target/spring-boot-service-template-0.1.0-SNAPSHOT.jar \
+  spring-boot-service-template
 ```
 
-Para desarrollo con PostgreSQL local, cargar `.env` y ejecutar:
+La plantilla arranca sin infraestructura externa desde la raíz:
 
 ```bash
-mvn -pl services/company-service -am spring-boot:run \
-  -Dspring-boot.run.profiles=local
+mvn -pl templates/spring-boot-service -am spring-boot:run
 ```
+
+Para usar PostgreSQL local, definir `DATABASE_URL`, `DATABASE_USERNAME` y
+`DATABASE_PASSWORD`, y activar el perfil `local`. Cada ticket de dominio debe
+renombrar esas variables cuando necesite aislarlas por servicio.

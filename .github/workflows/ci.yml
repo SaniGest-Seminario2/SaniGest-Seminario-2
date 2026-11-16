@@ -58,7 +58,14 @@ jobs:
       - name: Run unit tests and Maven verification
         run: mvn -B verify
 
-      - name: Smoke test executable Spring Boot artifact
+      - name: Smoke test generic Spring Boot template
+        run: |
+          sh scripts/qa/smoke-spring-boot-service.sh \
+            templates/spring-boot-service/target/spring-boot-service-template-0.1.0-SNAPSHOT.jar \
+            spring-boot-service-template \
+            "Spring Boot Service Template"
+
+      - name: Smoke test Company Service consumer
         run: sh scripts/qa/smoke-company-service.sh
 
       - name: Upload test reports on failure

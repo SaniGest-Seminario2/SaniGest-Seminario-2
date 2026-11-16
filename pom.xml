@@ -20,6 +20,7 @@
     <description>Parent Maven del backend SaniGest</description>
 
     <modules>
+        <module>templates/spring-boot-service</module>
         <module>services/company-service</module>
     </modules>
 
