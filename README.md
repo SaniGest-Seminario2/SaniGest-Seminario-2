@@ -40,6 +40,7 @@ docker --version
 │   ├── sales-service/      Ciclo de ventas (reservado para S2-331)
 │   ├── expense-service/    Ciclo de gastos (reservado para S2-342)
 │   └── finance-service/    Caja y reportes (reservado para S2-349)
+├── templates/              Plantillas técnicas ejecutables para nuevos módulos
 ├── libraries/              Contratos técnicos compartidos ya demostrados
 ├── infrastructure/         Terraform, Docker y despliegue
 ├── docs/                   ADRs y documentación técnica
@@ -127,6 +128,14 @@ docker run --rm \
 
 La regresión del servicio se ejecuta con `mvn -B verify` y comprueba las
 migraciones de Company, sus restricciones y los contratos públicos de Actuator.
+El smoke test reutilizable arranca cualquier JAR de servicio sin infraestructura
+externa y valida health, metadata segura y la ausencia de endpoints sensibles.
+El wrapper de Company demuestra su uso por un servicio concreto:
+
+```bash
+sh scripts/qa/smoke-company-service.sh
+```
+
 El smoke test de infraestructura levanta dependencias desechables y valida el
 comportamiento real de PostgreSQL y Valkey:
 
@@ -142,7 +151,8 @@ GitHub Actions ejecuta esta prueba en cada `push` y `pull_request`.
 
 ## Validar el arranque de Company Service
 
-El módulo inicial carga el contexto Spring Boot sin depender de otros servicios:
+El módulo inicial carga el contexto Spring Boot sin depender de otros servicios
+ni de una base local cuando se usa el perfil predeterminado:
 
 ```bash
 mvn -pl services/company-service -am spring-boot:run

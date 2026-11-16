@@ -20,6 +20,7 @@
     <description>Parent Maven del backend SaniGest</description>
 
     <modules>
+        <module>templates/spring-boot-service</module>
         <module>services/company-service</module>
     </modules>
 
@@ -31,6 +32,7 @@
         <spotless-maven-plugin.version>3.11.0</spotless-maven-plugin.version>
         <google-java-format.version>2.0.0</google-java-format.version>
         <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
+        <maven-failsafe-plugin.version>3.5.5</maven-failsafe-plugin.version>
         <checkstyle.version>14.4.0</checkstyle.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -71,6 +73,20 @@
                                 <banDuplicatePomDependencyVersions/>
                             </rules>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>${maven-failsafe-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>
