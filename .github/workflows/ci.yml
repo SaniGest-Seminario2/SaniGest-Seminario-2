@@ -13,7 +13,8 @@ concurrency:
 
 jobs:
   syntax:
-    name: Syntax, format and static analysis
+    # Keep this name stable: it is the required status check in branch protection.
+    name: Syntax and compilation
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
