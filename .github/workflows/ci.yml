@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   syntax:
+    # Keep this name stable: it is the required status check in branch protection.
     name: Syntax and compilation
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -31,7 +32,7 @@ jobs:
             pom.xml
             **/pom.xml
 
-      - name: Validate Java syntax and compile
+      - name: Validate format, static analysis and compilation
         run: mvn -B -DskipTests compile
 
   unit-tests:
