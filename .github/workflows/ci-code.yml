@@ -2,6 +2,7 @@ name: Code CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -36,7 +37,8 @@ jobs:
         run: mvn -B -DskipTests compile
 
   automated-tests:
-    name: Unit, integration and regression tests
+    # Keep this name stable: it is a required status check in branch protection.
+    name: Unit tests
     needs: syntax
     runs-on: ubuntu-latest
     timeout-minutes: 15

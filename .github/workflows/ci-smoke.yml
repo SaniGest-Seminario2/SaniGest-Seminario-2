@@ -2,6 +2,7 @@ name: Application Smoke CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
