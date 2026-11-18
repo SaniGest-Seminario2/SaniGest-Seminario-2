@@ -180,24 +180,48 @@ credenciales, cadenas JDBC ni tokens. Endpoints sensibles como `env` y
 construir el artefacto con Maven, de modo que la versión corresponde al build
 en ejecución.
 
-## Dependencias locales: PostgreSQL y Valkey
+## Entorno local con Docker Compose
 
-Crea el archivo local de variables (está ignorado por Git) y levanta la base y
-la cache:
+El Compose de desarrollo ofrece dos perfiles: `infra` levanta sólo PostgreSQL,
+Valkey y Kafka; `apps` levanta el stack completo, incluidas esas dependencias y
+los microservicios ejecutables. Crea primero el archivo local de variables, que
+Git ignora:
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres valkey
+```
+
+Los valores de `.env.example` son credenciales ficticias exclusivas para local;
+se deben reemplazar en `.env` cuando el entorno lo requiera. Nunca se deben
+copiar secretos reales al archivo de ejemplo ni reutilizar estas contraseñas en
+otro ambiente.
+
+Para ejecutar sólo las dependencias y arrancar las aplicaciones desde Maven:
+
+```bash
+docker compose --profile infra up -d --wait
 docker compose ps
 ```
 
-Ambos contenedores deben aparecer como `healthy`. PostgreSQL y Valkey quedan
-disponibles sólo en la interfaz local, en
-`localhost:${POSTGRES_PORT:-5432}` y
-`localhost:${SPRING_DATA_REDIS_PORT:-6379}` respectivamente. Los servicios que
-se ejecuten dentro de la red `sanigest-local` deben usar `postgres:5432` y
-`valkey:6379` en lugar de `localhost`. La conexión se configura externamente;
-no se deben incluir credenciales en el artefacto.
+Para construir y ejecutar Company Service junto con sus dependencias saludables:
+
+```bash
+docker compose --profile apps up -d --build --wait
+docker compose --profile apps ps
+```
+
+Las dependencias pertenecen a ambos perfiles para que el comando `apps` sea
+portable entre versiones de Compose. `depends_on` espera sus health checks antes
+de crear Company Service. El perfil sólo incorpora aplicaciones que ya tienen
+un artefacto ejecutable; los directorios reservados se añadirán conforme se
+implementen.
+
+Todos los puertos publicados están ligados a `127.0.0.1`. PostgreSQL, Valkey,
+Kafka y Company Service quedan disponibles en `localhost:${POSTGRES_PORT:-5432}`,
+`localhost:${SPRING_DATA_REDIS_PORT:-6379}`, `localhost:${KAFKA_PORT:-9092}` y
+`localhost:${COMPANY_SERVICE_PORT:-8080}`. Dentro de la red interna de Compose
+se usan `postgres:5432`, `valkey:6379` y `kafka:29092`; `localhost` nunca debe
+usarse entre contenedores.
 
 El bootstrap crea las bases y roles `sanigest_identity`, `sanigest_company`,
 `sanigest_catalog`, `sanigest_sales`, `sanigest_expense` y `sanigest_finance`.
@@ -216,17 +240,27 @@ mvn -pl services/company-service -am spring-boot:run \
   -Dspring-boot.run.profiles=local
 ```
 
-Para detener PostgreSQL sin perder los datos:
+### Operación cotidiana
+
+Consulta logs de todo el stack o de un componente:
 
 ```bash
-docker compose down
+docker compose --profile apps logs -f --tail=100
+docker compose logs -f company-service
 ```
 
-El volumen `sanigest_postgres-data` conserva los datos. Elimínalo sólo
-cuando se quiera reiniciar deliberadamente la base local:
+Detén el entorno conservando PostgreSQL y Kafka:
 
 ```bash
-docker compose down --volumes
+docker compose --profile apps down --remove-orphans
+```
+
+Los volúmenes `sanigest_postgres-data` y `sanigest_kafka-data` conservan sus
+datos. Valkey no tiene volumen porque sólo almacena cache reconstruible. Para
+reiniciar deliberadamente todo el estado local:
+
+```bash
+docker compose --profile apps down --volumes --remove-orphans
 ```
 
 Si la conexión falla, verifica `docker compose ps`, el puerto y que las
@@ -257,6 +291,19 @@ Para limpiar exclusivamente la cache local:
 ```bash
 docker compose exec valkey sh -c \
   'valkey-cli --no-auth-warning -a "$VALKEY_PASSWORD" FLUSHALL'
+```
+
+### Validaciones automatizadas de Compose
+
+La validación rápida comprueba perfiles, health checks, dependencias, red,
+puertos y política de persistencia sin arrancar contenedores. El smoke test
+levanta infraestructura desechable y además prueba aislamiento/persistencia de
+PostgreSQL, autenticación/volatilidad de Valkey y operaciones reales de topics
+en Kafka:
+
+```bash
+sh scripts/qa/validate-compose.sh
+sh scripts/qa/smoke-infrastructure.sh
 ```
 
 También se puede reiniciar Valkey con una cache vacía sin afectar PostgreSQL:

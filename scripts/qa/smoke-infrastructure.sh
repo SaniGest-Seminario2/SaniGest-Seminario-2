@@ -7,6 +7,7 @@ postgres_admin_password="${POSTGRES_ADMIN_PASSWORD:-sanigest-qa-admin}"
 postgres_port="${POSTGRES_PORT:-55432}"
 valkey_password="${SPRING_DATA_REDIS_PASSWORD:-sanigest-qa-valkey}"
 valkey_port="${SPRING_DATA_REDIS_PORT:-56379}"
+kafka_port="${KAFKA_PORT:-59092}"
 network_name="${SANIGEST_NETWORK_NAME:-${project_name}-network}"
 
 export COMPOSE_PROJECT_NAME="$project_name"
@@ -21,9 +22,10 @@ export EXPENSE_DB_PASSWORD="${EXPENSE_DB_PASSWORD:-qa-expense-password}"
 export FINANCE_DB_PASSWORD="${FINANCE_DB_PASSWORD:-qa-finance-password}"
 export SPRING_DATA_REDIS_PASSWORD="$valkey_password"
 export SPRING_DATA_REDIS_PORT="$valkey_port"
+export KAFKA_PORT="$kafka_port"
 export SANIGEST_NETWORK_NAME="$network_name"
 
-cleanup() { docker compose down --volumes --remove-orphans; }
+cleanup() { docker compose --profile infra down --volumes --remove-orphans; }
 trap cleanup EXIT INT TERM
 
 fail() {
@@ -62,10 +64,23 @@ service_psql() {
     -d "sanigest_${service}" "$@"
 }
 
-docker compose config --quiet
-docker compose up -d postgres valkey
+docker compose --profile infra config --quiet
+docker compose --profile infra up -d postgres valkey kafka
 wait_for_health postgres
 wait_for_health valkey
+wait_for_health kafka
+
+kafka_broker_count="$(docker compose exec -T kafka \
+  /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:29092 2>/dev/null | \
+  grep -c 'id: 1')"
+[ "$kafka_broker_count" -ge 1 ] || fail "Kafka did not expose its internal listener"
+
+docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server kafka:29092 --create --if-not-exists \
+  --topic qa.smoke.v1 --partitions 1 --replication-factor 1 >/dev/null
+kafka_topic="$(docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server kafka:29092 --list | grep -Fx 'qa.smoke.v1' || true)"
+[ "$kafka_topic" = "qa.smoke.v1" ] || fail "Kafka could not create and list a topic"
 
 # Re-running the bootstrap must converge without duplicate roles or databases.
 docker compose exec -T postgres \
@@ -127,4 +142,4 @@ business_rows="$(service_psql company "$COMPANY_DB_PASSWORD" \
 [ "$business_rows" = "1" ] || fail "PostgreSQL did not retain Company data"
 
 printf '%s\n' \
-  'QA smoke passed: bootstrap is idempotent, six databases are isolated, concurrent connections work, PostgreSQL persists, and Valkey requires authentication.'
+  'QA smoke passed: PostgreSQL is isolated and persistent, Valkey is authenticated and disposable, and Kafka accepts topic operations.'
