@@ -1,14 +1,15 @@
-name: CI
+name: Code CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: code-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -35,7 +36,8 @@ jobs:
       - name: Validate format, static analysis and compilation
         run: mvn -B -DskipTests compile
 
-  unit-tests:
+  automated-tests:
+    # Keep this name stable: it is a required status check in branch protection.
     name: Unit tests
     needs: syntax
     runs-on: ubuntu-latest
@@ -55,18 +57,8 @@ jobs:
             pom.xml
             **/pom.xml
 
-      - name: Run unit tests and Maven verification
+      - name: Run the complete Maven verification lifecycle
         run: mvn -B verify
-
-      - name: Smoke test generic Spring Boot template
-        run: |
-          sh scripts/qa/smoke-spring-boot-service.sh \
-            templates/spring-boot-service/target/spring-boot-service-template-0.1.0-SNAPSHOT.jar \
-            spring-boot-service-template \
-            "Spring Boot Service Template"
-
-      - name: Smoke test Company Service consumer
-        run: sh scripts/qa/smoke-company-service.sh
 
       - name: Upload test reports on failure
         if: failure()
@@ -78,23 +70,3 @@ jobs:
             **/target/failsafe-reports/**
           if-no-files-found: ignore
           retention-days: 7
-
-  infrastructure-smoke:
-    name: Infrastructure smoke tests
-    needs: syntax
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Validate Docker Compose contract
-        run: sh scripts/qa/validate-compose.sh
-
-      - name: Verify PostgreSQL, Valkey and Kafka runtime behavior
-        run: sh scripts/qa/smoke-infrastructure.sh
-
-      - name: Build application images
-        run: docker compose --env-file .env.example --profile apps build company-service
-

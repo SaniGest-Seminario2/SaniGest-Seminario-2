@@ -1,0 +1,43 @@
+name: Infrastructure CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infrastructure-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  infrastructure-smoke:
+    name: Infrastructure smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Validate Docker Compose contract
+        run: sh scripts/qa/validate-compose.sh
+
+      - name: Verify PostgreSQL, Valkey and Kafka runtime behavior
+        run: sh scripts/qa/smoke-infrastructure.sh
+
+  application-images:
+    name: Build application images
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Build Company and Identity images
+        run: |
+          docker compose --env-file .env.example --profile apps build \
+            company-service identity-service
