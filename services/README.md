@@ -19,10 +19,10 @@ Topología prevista según el contrato funcional y ADR-001:
 | `expense-service` | Compras, gastos y cuentas por pagar | `S2-342` |
 | `finance-service` | Caja, dashboard y reportes | `S2-349` |
 
-`S2-294` reserva la estructura completa, pero solamente `company-service` es un
-módulo Maven compilable en esta etapa. Cada directorio reservado se incorpora al
-reactor raíz cuando su ticket entregue al menos un esqueleto ejecutable y sus
-pruebas básicas.
+`S2-294` reserva la estructura completa. `company-service` e `identity-service`
+son módulos Maven compilables; cada directorio restante se incorpora al reactor
+raíz cuando su ticket entregue al menos un esqueleto ejecutable y sus pruebas
+básicas.
 
 Notificaciones no constituyen un microservicio separado en el MVP. La auditoría
 se conserva junto al servicio propietario de cada operación; cualquier cambio a
