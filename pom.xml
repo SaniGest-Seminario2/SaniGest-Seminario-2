@@ -170,6 +170,17 @@
                         <artifactId>maven-failsafe-plugin</artifactId>
                         <configuration>
                             <groups>smoke</groups>
+                            <statelessTestsetReporter
+                                implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5Xml30StatelessReporter">
+                                <usePhrasedTestCaseMethodName>true</usePhrasedTestCaseMethodName>
+                            </statelessTestsetReporter>
+                            <consoleOutputReporter
+                                implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5ConsoleOutputReporter"/>
+                            <statelessTestsetInfoReporter
+                                implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5StatelessTestsetInfoReporter">
+                                <usePhrasedClassNameInRunning>true</usePhrasedClassNameInRunning>
+                                <usePhrasedClassNameInTestCaseSummary>true</usePhrasedClassNameInTestCaseSummary>
+                            </statelessTestsetInfoReporter>
                         </configuration>
                     </plugin>
                 </plugins>
@@ -192,6 +203,17 @@
                         <artifactId>maven-failsafe-plugin</artifactId>
                         <configuration>
                             <groups>regression</groups>
+                            <statelessTestsetReporter
+                                implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5Xml30StatelessReporter">
+                                <usePhrasedTestCaseMethodName>true</usePhrasedTestCaseMethodName>
+                            </statelessTestsetReporter>
+                            <consoleOutputReporter
+                                implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5ConsoleOutputReporter"/>
+                            <statelessTestsetInfoReporter
+                                implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5StatelessTestsetInfoReporter">
+                                <usePhrasedClassNameInRunning>true</usePhrasedClassNameInRunning>
+                                <usePhrasedClassNameInTestCaseSummary>true</usePhrasedClassNameInTestCaseSummary>
+                            </statelessTestsetInfoReporter>
                         </configuration>
                     </plugin>
                 </plugins>
