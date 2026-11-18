@@ -1,5 +1,6 @@
 package com.sanigest.identity.infrastructure.persistence;
 
+import com.sanigest.identity.domain.model.AccountType;
 import com.sanigest.identity.domain.model.UserStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -26,6 +27,10 @@ class UserJpaEntity {
   private String name;
 
   @Enumerated(EnumType.STRING)
+  @Column(name = "account_type", nullable = false, length = 20)
+  private AccountType accountType;
+
+  @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 20)
   private UserStatus status;
 
@@ -42,6 +47,7 @@ class UserJpaEntity {
       String email,
       String passwordHash,
       String name,
+      AccountType accountType,
       UserStatus status,
       Instant createdAt,
       Instant updatedAt) {
@@ -49,6 +55,7 @@ class UserJpaEntity {
     this.email = email;
     this.passwordHash = passwordHash;
     this.name = name;
+    this.accountType = accountType;
     this.status = status;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
@@ -68,6 +75,10 @@ class UserJpaEntity {
 
   String getName() {
     return name;
+  }
+
+  AccountType getAccountType() {
+    return accountType;
   }
 
   UserStatus getStatus() {
