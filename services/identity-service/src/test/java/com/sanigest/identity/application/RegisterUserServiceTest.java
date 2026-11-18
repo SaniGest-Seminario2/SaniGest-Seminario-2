@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.sanigest.identity.domain.model.EmailAddress;
 import com.sanigest.identity.domain.model.User;
 import com.sanigest.identity.domain.model.UserStatus;
+import com.sanigest.identity.domain.port.DuplicateUserEmailException;
 import com.sanigest.identity.domain.port.PasswordHasher;
 import com.sanigest.identity.domain.port.UserRepository;
 import java.time.Clock;
@@ -78,5 +79,17 @@ class RegisterUserServiceTest {
             service.register(new RegisterUserCommand("person@example.com", "short", "Person")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("12");
+  }
+
+  @Test
+  void translatesAConcurrentDuplicateDetectedWhileSaving() {
+    when(hasher.hash("a-secure-password")).thenReturn("$2a$12$encoded");
+    when(repository.save(org.mockito.ArgumentMatchers.any(User.class)))
+        .thenThrow(new DuplicateUserEmailException(new RuntimeException("unique constraint")));
+
+    assertThatThrownBy(() ->
+            service.register(
+                new RegisterUserCommand("person@example.com", "a-secure-password", "Person")))
+        .isInstanceOf(DuplicateEmailException.class);
   }
 }

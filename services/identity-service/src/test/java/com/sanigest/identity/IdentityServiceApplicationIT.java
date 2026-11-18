@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -21,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -49,6 +51,100 @@ class IdentityServiceApplicationIT {
 
     assertThat(applied).isEqualTo(1);
     assertThat(flyway.migrate().migrationsExecuted).isZero();
+  }
+
+  @Test
+  @Transactional
+  void registersARegularUserThroughThePublicApi() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "email": " Person@Example.COM ",
+                      "password": "a-secure-password",
+                      "name": "Person"
+                    }
+                    """))
+        .andExpect(status().isCreated())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.userId").isNotEmpty())
+        .andExpect(jsonPath("$.email").value("person@example.com"))
+        .andExpect(jsonPath("$.password").doesNotExist())
+        .andExpect(jsonPath("$.passwordHash").doesNotExist());
+
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM users WHERE email = 'person@example.com'", Integer.class))
+        .isEqualTo(1);
+  }
+
+  @Test
+  @Transactional
+  void rejectsInvalidEmailAndWeakPasswordThroughThePublicApi() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "email": "not-an-email",
+                      "password": "short",
+                      "name": "Person"
+                    }
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:sanigest:problem:validation"))
+        .andExpect(jsonPath("$.errors.email").exists())
+        .andExpect(jsonPath("$.errors.password").exists());
+
+    assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isZero();
+  }
+
+  @Test
+  @Transactional
+  void returnsConflictForADuplicateEmailRegardlessOfCasing() throws Exception {
+    String firstRequest =
+        """
+        {
+          "email": "duplicate@example.com",
+          "password": "a-secure-password",
+          "name": "First"
+        }
+        """;
+    String duplicateRequest =
+        """
+        {
+          "email": "DUPLICATE@EXAMPLE.COM",
+          "password": "another-password",
+          "name": "Second"
+        }
+        """;
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(firstRequest))
+        .andExpect(status().isCreated());
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(duplicateRequest))
+        .andExpect(status().isConflict())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.type").value("urn:sanigest:problem:duplicate-email"));
+
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM users WHERE email = 'duplicate@example.com'", Integer.class))
+        .isEqualTo(1);
   }
 
   @Test
