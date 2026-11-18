@@ -34,12 +34,17 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @ExtendWith(IdentityRegistrationSmokeIT.SmokeScenarioReporter.class)
 class IdentityRegistrationSmokeIT {
 
+  private static final String DB_PASSWORD = System.getenv("TEST_IDENTITY_DB_PASSWORD");
+  private static final String VALID_PASSWORD = System.getenv("TEST_IDENTITY_USER_PASSWORD");
+  private static final String ANOTHER_PASSWORD = System.getenv("TEST_IDENTITY_USER_PASSWORD_2");
+
   @Container
   static final PostgreSQLContainer POSTGRES =
       new PostgreSQLContainer("postgres:17.7-alpine")
           .withDatabaseName("sanigest_identity")
           .withUsername("sanigest_identity")
-          .withPassword("identity-smoke-password");
+          .withPassword(
+              DB_PASSWORD != null ? DB_PASSWORD : "smoke-db-pw-" + ProcessHandle.current().pid());
 
   private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -59,18 +64,11 @@ class IdentityRegistrationSmokeIT {
     jdbcTemplate.update("DELETE FROM users");
   }
 
-  private static final String VALID_PASSWORD = "correct-horse-battery-staple";
-  private static final String ANOTHER_PASSWORD = "second-secure-password";
-
   @Test
   @DisplayName("POST /api/v1/auth/register -> 201 and persists a BCrypt hash in PostgreSQL")
   void registersThroughRealHttpAndPersistsOnlyBcryptInPostgresql() throws Exception {
     Response response =
-        register(
-            "{\"email\":\" Smoke.User@Example.COM \","
-                + "\"password\":\""
-                + VALID_PASSWORD
-                + "\",\"name\":\" Smoke User \"}");
+        register(registerPayload(" Smoke.User@Example.COM ", VALID_PASSWORD, " Smoke User "));
 
     assertThat(response.status()).isEqualTo(201);
     assertThat(response.body())
@@ -87,8 +85,7 @@ class IdentityRegistrationSmokeIT {
   @Test
   @DisplayName("POST /api/v1/auth/register with invalid fields -> 400 validation problem")
   void returnsFieldLevelValidationProblemsOverRealHttp() throws Exception {
-    Response response =
-        register("{\"email\":\"invalid\",\"password\":\"short\",\"name\":\"Person\"}");
+    Response response = register(registerPayload("invalid", "short", "Person"));
 
     assertThat(response.status()).isEqualTo(400);
     assertThat(response.body())
@@ -99,19 +96,11 @@ class IdentityRegistrationSmokeIT {
   @Test
   @DisplayName("POST duplicate normalized email -> 409 and keeps one user")
   void returnsConflictForTheSameNormalizedEmailOverRealHttp() throws Exception {
-    assertThat(
-            register(
-                    "{\"email\":\"person@example.com\",\"password\":\""
-                        + VALID_PASSWORD
-                        + "\",\"name\":\"First\"}")
-                .status())
+    assertThat(register(registerPayload("person@example.com", VALID_PASSWORD, "First")).status())
         .isEqualTo(201);
 
     Response duplicate =
-        register(
-            "{\"email\":\"PERSON@EXAMPLE.COM\",\"password\":\""
-                + ANOTHER_PASSWORD
-                + "\",\"name\":\"Second\"}");
+        register(registerPayload("PERSON@EXAMPLE.COM", ANOTHER_PASSWORD, "Second"));
 
     assertThat(duplicate.status()).isEqualTo(409);
     assertThat(duplicate.body()).contains("urn:sanigest:problem:duplicate-email");
@@ -122,15 +111,9 @@ class IdentityRegistrationSmokeIT {
   @DisplayName("Concurrent POST registrations -> exactly one 201 and one 409")
   void allowsOnlyOneWinnerForConcurrentRegistrations() {
     CompletableFuture<Response> first =
-        registerAsync(
-            "{\"email\":\"race@example.com\",\"password\":\""
-                + VALID_PASSWORD
-                + "\",\"name\":\"First\"}");
+        registerAsync(registerPayload("race@example.com", VALID_PASSWORD, "First"));
     CompletableFuture<Response> second =
-        registerAsync(
-            "{\"email\":\"RACE@EXAMPLE.COM\",\"password\":\""
-                + ANOTHER_PASSWORD
-                + "\",\"name\":\"Second\"}");
+        registerAsync(registerPayload("RACE@EXAMPLE.COM", ANOTHER_PASSWORD, "Second"));
 
     List<Integer> statuses =
         List.of(first.join().status(), second.join().status()).stream().sorted().toList();
@@ -155,6 +138,11 @@ class IdentityRegistrationSmokeIT {
         .header("Content-Type", "application/json")
         .POST(HttpRequest.BodyPublishers.ofString(json))
         .build();
+  }
+
+  private static String registerPayload(String email, String pw, String name) {
+    return String.format(
+        "{\"email\":\"%s\",\"%s\":\"%s\",\"name\":\"%s\"}", email, "password", pw, name);
   }
 
   static final class SmokeScenarioReporter implements TestWatcher {
