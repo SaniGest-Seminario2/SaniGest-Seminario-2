@@ -34,17 +34,17 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @ExtendWith(IdentityRegistrationSmokeIT.SmokeScenarioReporter.class)
 class IdentityRegistrationSmokeIT {
 
-  private static final String DB_PASSWORD = System.getenv("TEST_IDENTITY_DB_PASSWORD");
-  private static final String VALID_PASSWORD = System.getenv("TEST_IDENTITY_USER_PASSWORD");
-  private static final String ANOTHER_PASSWORD = System.getenv("TEST_IDENTITY_USER_PASSWORD_2");
+  private static final String DB_PASSWORD = TestCredentials.random();
+  private static final String VALID_PASSWORD = TestCredentials.random();
+  private static final String ANOTHER_PASSWORD = TestCredentials.random();
 
   @Container
   static final PostgreSQLContainer POSTGRES =
       new PostgreSQLContainer("postgres:17.7-alpine")
           .withDatabaseName("sanigest_identity")
           .withUsername("sanigest_identity")
-          .withPassword(
-              DB_PASSWORD != null ? DB_PASSWORD : "smoke-db-pw-" + ProcessHandle.current().pid());
+          .withPassword(DB_PASSWORD)
+          .withEnv("POSTGRES_PASSWORD", DB_PASSWORD);
 
   private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -115,6 +115,7 @@ class IdentityRegistrationSmokeIT {
     CompletableFuture<Response> second =
         registerAsync(registerPayload("RACE@EXAMPLE.COM", ANOTHER_PASSWORD, "Second"));
 
+    CompletableFuture.allOf(first, second).join();
     List<Integer> statuses =
         List.of(first.join().status(), second.join().status()).stream().sorted().toList();
     assertThat(statuses).containsExactly(201, 409);
@@ -130,7 +131,7 @@ class IdentityRegistrationSmokeIT {
   private CompletableFuture<Response> registerAsync(String json) {
     return httpClient
         .sendAsync(request(json), HttpResponse.BodyHandlers.ofString())
-        .thenApplyAsync(response -> new Response(response.statusCode(), response.body()));
+        .thenApply(response -> new Response(response.statusCode(), response.body()));
   }
 
   private HttpRequest request(String json) {

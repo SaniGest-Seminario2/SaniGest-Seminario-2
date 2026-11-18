@@ -134,11 +134,6 @@ jobs:
             **/pom.xml
 
       - name: Run regression tests
-        env:
-          TEST_IDENTITY_DB_PASSWORD: ${{ secrets.TEST_IDENTITY_DB_PASSWORD }}
-          TEST_IDENTITY_USER_PASSWORD: ${{ secrets.TEST_IDENTITY_USER_PASSWORD }}
-          TEST_IDENTITY_USER_PASSWORD_2: ${{ secrets.TEST_IDENTITY_USER_PASSWORD_2 }}
-          TEST_IDENTITY_RAW_PASSWORD: ${{ secrets.TEST_IDENTITY_RAW_PASSWORD }}
         run: mvn -B -pl services/identity-service -am -Pregression verify
 
       - name: Publish regression reports
@@ -169,10 +164,6 @@ jobs:
             **/pom.xml
 
       - name: Run smoke tests
-        env:
-          TEST_IDENTITY_DB_PASSWORD: ${{ secrets.TEST_IDENTITY_DB_PASSWORD }}
-          TEST_IDENTITY_USER_PASSWORD: ${{ secrets.TEST_IDENTITY_USER_PASSWORD }}
-          TEST_IDENTITY_USER_PASSWORD_2: ${{ secrets.TEST_IDENTITY_USER_PASSWORD_2 }}
         run: mvn -B -pl services/identity-service -am -Psmoke verify
 
       - name: Publish smoke reports

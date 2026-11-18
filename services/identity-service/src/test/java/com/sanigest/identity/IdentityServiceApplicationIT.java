@@ -35,20 +35,18 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class IdentityServiceApplicationIT {
 
-  private static final String DB_PASSWORD = System.getenv("TEST_IDENTITY_DB_PASSWORD");
-  private static final String VALID_PASSWORD = System.getenv("TEST_IDENTITY_USER_PASSWORD");
-  private static final String ANOTHER_PASSWORD = System.getenv("TEST_IDENTITY_USER_PASSWORD_2");
-  private static final String RAW_PASSWORD = System.getenv("TEST_IDENTITY_RAW_PASSWORD");
+  private static final String DB_PASSWORD = TestCredentials.random();
+  private static final String VALID_PASSWORD = TestCredentials.random();
+  private static final String ANOTHER_PASSWORD = TestCredentials.random();
+  private static final String RAW_PASSWORD = TestCredentials.random();
 
   @Container
   static final PostgreSQLContainer POSTGRES =
       new PostgreSQLContainer("postgres:17.7-alpine")
           .withDatabaseName("sanigest_identity")
           .withUsername("sanigest_identity")
-          .withPassword(
-              DB_PASSWORD != null
-                  ? DB_PASSWORD
-                  : "regression-db-pw-" + ProcessHandle.current().pid());
+          .withPassword(DB_PASSWORD)
+          .withEnv("POSTGRES_PASSWORD", DB_PASSWORD);
 
   @LocalServerPort private int port;
 
