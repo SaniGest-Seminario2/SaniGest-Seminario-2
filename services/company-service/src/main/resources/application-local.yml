@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:sanigest_company}
-    username: ${POSTGRES_USER}
-    password: ${POSTGRES_PASSWORD}
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${COMPANY_DB_NAME:sanigest_company}
+    username: ${COMPANY_DB_USER:sanigest_company}
+    password: ${COMPANY_DB_PASSWORD}
     hikari:
       connection-timeout: 5000
       validation-timeout: 3000
