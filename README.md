@@ -143,6 +143,19 @@ comportamiento real de PostgreSQL y Valkey:
 sh scripts/qa/smoke-infrastructure.sh
 ```
 
+El smoke funcional de Identity levanta un PostgreSQL desechable, arranca el JAR
+con el perfil `local` y ejecuta llamadas HTTP reales al registro. Comprueba el
+caso exitoso, validaciones, duplicados por casing, concurrencia, respuesta segura
+y persistencia exclusiva de BCrypt:
+
+```bash
+mvn -B -pl services/identity-service -am verify
+sh scripts/qa/smoke-identity-registration.sh
+```
+
+Esta suite cubre el contrato previo al despliegue. Las pruebas E2E contra la URL
+de un ambiente AWS se incorporarán junto con el pipeline de despliegue.
+
 La prueba exige Docker Compose, usa puertos alternos por defecto y elimina sus
 contenedores y volúmenes al terminar. Comprueba health checks, autenticación de
 Valkey, persistencia tras reiniciar PostgreSQL y que reiniciar la cache no afecte

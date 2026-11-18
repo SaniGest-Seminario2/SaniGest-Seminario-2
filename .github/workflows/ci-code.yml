@@ -57,7 +57,7 @@ jobs:
             pom.xml
             **/pom.xml
 
-      - name: Run the complete Maven verification lifecycle
+      - name: Run unit, integration and regression tests
         run: mvn -B verify
 
       - name: Upload test reports on failure
