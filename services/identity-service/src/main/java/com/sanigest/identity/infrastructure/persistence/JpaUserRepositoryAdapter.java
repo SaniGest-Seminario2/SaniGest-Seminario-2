@@ -2,9 +2,11 @@ package com.sanigest.identity.infrastructure.persistence;
 
 import com.sanigest.identity.domain.model.EmailAddress;
 import com.sanigest.identity.domain.model.User;
+import com.sanigest.identity.domain.port.DuplicateUserEmailException;
 import com.sanigest.identity.domain.port.UserRepository;
 import java.util.Objects;
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -24,8 +26,12 @@ class JpaUserRepositoryAdapter implements UserRepository {
 
   @Override
   public User save(User user) {
-    UserJpaEntity saved = repository.saveAndFlush(toEntity(user));
-    return toDomain(saved);
+    try {
+      UserJpaEntity saved = repository.saveAndFlush(toEntity(user));
+      return toDomain(saved);
+    } catch (DataIntegrityViolationException exception) {
+      throw new DuplicateUserEmailException(exception);
+    }
   }
 
   private static UserJpaEntity toEntity(User user) {

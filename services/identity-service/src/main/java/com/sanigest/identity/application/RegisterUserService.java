@@ -2,6 +2,7 @@ package com.sanigest.identity.application;
 
 import com.sanigest.identity.domain.model.EmailAddress;
 import com.sanigest.identity.domain.model.User;
+import com.sanigest.identity.domain.port.DuplicateUserEmailException;
 import com.sanigest.identity.domain.port.PasswordHasher;
 import com.sanigest.identity.domain.port.UserRepository;
 import java.time.Clock;
@@ -53,7 +54,11 @@ public class RegisterUserService {
     User user =
         User.register(
             idSupplier.get(), email, passwordHasher.hash(command.password()), command.name(), now);
-    return userRepository.save(user);
+    try {
+      return userRepository.save(user);
+    } catch (DuplicateUserEmailException exception) {
+      throw new DuplicateEmailException();
+    }
   }
 
   private static void validatePassword(String password) {
