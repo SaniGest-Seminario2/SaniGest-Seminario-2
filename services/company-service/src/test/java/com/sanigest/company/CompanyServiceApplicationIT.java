@@ -2,35 +2,34 @@ package com.sanigest.company;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-@SpringBootTest
-@AutoConfigureMockMvc
+@Tag("regression")
 @ActiveProfiles("test")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class CompanyServiceApplicationIT {
 
-  @Autowired private Flyway flyway;
+  @LocalServerPort private int port;
 
+  @Autowired private Flyway flyway;
   @Autowired private JdbcTemplate jdbcTemplate;
 
-  @Autowired private MockMvc mockMvc;
+  private final HttpClient httpClient = HttpClient.newHttpClient();
 
   @Test
   void appliesInitialMigrationExactlyOnce() {
@@ -91,36 +90,35 @@ class CompanyServiceApplicationIT {
 
   @Test
   void exposesHealthAndDedicatedAvailabilityProbesWithoutDetails() throws Exception {
-    mockMvc
-        .perform(get("/actuator/health"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("UP"))
-        .andExpect(jsonPath("$.components").doesNotExist());
+    HttpResponse<String> health = get("/actuator/health");
+    HttpResponse<String> liveness = get("/actuator/health/liveness");
+    HttpResponse<String> readiness = get("/actuator/health/readiness");
 
-    mockMvc
-        .perform(get("/actuator/health/liveness"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("UP"));
-
-    mockMvc
-        .perform(get("/actuator/health/readiness"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("UP"));
+    assertThat(health.statusCode()).isEqualTo(200);
+    assertThat(health.body()).contains("\"status\":\"UP\"").doesNotContain("components");
+    assertThat(liveness.statusCode()).isEqualTo(200);
+    assertThat(liveness.body()).contains("\"status\":\"UP\"");
+    assertThat(readiness.statusCode()).isEqualTo(200);
+    assertThat(readiness.body()).contains("\"status\":\"UP\"");
   }
 
   @Test
   void exposesOnlySafeBuildInformation() throws Exception {
-    mockMvc
-        .perform(get("/actuator/info"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.build.name").value("SaniGest Company Service"))
-        .andExpect(jsonPath("$.build.artifact").value("company-service"))
-        .andExpect(jsonPath("$.build.version").isNotEmpty())
-        .andExpect(content().string(not(containsString("jdbc:"))))
-        .andExpect(content().string(not(containsString("password"))))
-        .andExpect(content().string(not(containsString("token"))));
+    HttpResponse<String> info = get("/actuator/info");
+    HttpResponse<String> env = get("/actuator/env");
+    HttpResponse<String> configprops = get("/actuator/configprops");
 
-    mockMvc.perform(get("/actuator/env")).andExpect(status().isNotFound());
-    mockMvc.perform(get("/actuator/configprops")).andExpect(status().isNotFound());
+    assertThat(info.statusCode()).isEqualTo(200);
+    assertThat(info.body())
+        .contains("\"name\":\"SaniGest Company Service\"", "\"artifact\":\"company-service\"")
+        .doesNotContain("jdbc:", "password", "token");
+    assertThat(env.statusCode()).isEqualTo(404);
+    assertThat(configprops.statusCode()).isEqualTo(404);
+  }
+
+  private HttpResponse<String> get(String path) throws Exception {
+    return httpClient.send(
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path)).GET().build(),
+        HttpResponse.BodyHandlers.ofString());
   }
 }

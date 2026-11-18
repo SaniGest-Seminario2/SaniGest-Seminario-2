@@ -8,4 +8,16 @@
       Add only narrow, reviewed exceptions here. Every suppression must identify
       its Jira ticket and explain why changing the code is not the safer option.
     -->
+
+    <!--
+      S2-XXX: SmokeScenarioReporter inner classes in smoke ITs use System.out.println
+      intentionally to emit [SMOKE PASSED]/[SMOKE FAILED] markers that are captured
+      directly by Failsafe and visible in CI logs without a logging framework dependency
+      in test scope. Introducing SLF4J/Logback just for these two reporters would add
+      unnecessary complexity to test-only code.
+    -->
+    <suppress
+        checks="RegexpSinglelineJava"
+        files="(CompanyServiceSmokeIT|IdentityRegistrationSmokeIT)\.java"
+        message="System\.out\.println"/>
 </suppressions>

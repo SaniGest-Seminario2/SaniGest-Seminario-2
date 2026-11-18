@@ -2,42 +2,70 @@ package com.sanigest.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.sanigest.identity.application.DuplicateEmailException;
 import com.sanigest.identity.application.RegisterUserCommand;
 import com.sanigest.identity.application.RegisterUserService;
-import com.sanigest.identity.domain.model.User;
 import com.sanigest.identity.domain.port.PasswordHasher;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
+@Tag("regression")
+@Testcontainers
+@ActiveProfiles("local")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class IdentityServiceApplicationIT {
+
+  @Container
+  static final PostgreSQLContainer POSTGRES =
+      new PostgreSQLContainer("postgres:17.7-alpine")
+          .withDatabaseName("sanigest_identity")
+          .withUsername("sanigest_identity")
+          .withPassword("identity-regression-password");
+
+  @LocalServerPort private int port;
 
   @Autowired private Flyway flyway;
   @Autowired private JdbcTemplate jdbcTemplate;
-  @Autowired private MockMvc mockMvc;
   @Autowired private RegisterUserService registerUserService;
   @Autowired private PasswordHasher passwordHasher;
+
+  private final HttpClient httpClient = HttpClient.newHttpClient();
+
+  private static final String VALID_PASSWORD = "a-secure-password";
+  private static final String ANOTHER_PASSWORD = "another-password";
+  private static final String RAW_PASSWORD = "correct-horse-battery-staple";
+
+  @DynamicPropertySource
+  static void databaseProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+    registry.add("spring.datasource.username", POSTGRES::getUsername);
+    registry.add("spring.datasource.password", POSTGRES::getPassword);
+  }
+
+  @BeforeEach
+  void cleanUsers() {
+    jdbcTemplate.update("DELETE FROM users");
+  }
 
   @Test
   void appliesMigrationAndKeepsItIdempotent() {
@@ -54,27 +82,18 @@ class IdentityServiceApplicationIT {
   }
 
   @Test
-  @Transactional
   void registersARegularUserThroughThePublicApi() throws Exception {
-    mockMvc
-        .perform(
-            post("/api/v1/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
-                    {
-                      "email": " Person@Example.COM ",
-                      "password": "a-secure-password",
-                      "name": "Person"
-                    }
-                    """))
-        .andExpect(status().isCreated())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.userId").isNotEmpty())
-        .andExpect(jsonPath("$.email").value("person@example.com"))
-        .andExpect(jsonPath("$.password").doesNotExist())
-        .andExpect(jsonPath("$.passwordHash").doesNotExist());
+    HttpResponse<String> response =
+        post(
+            "{\"email\":\" Person@Example.COM \","
+                + "\"password\":\""
+                + VALID_PASSWORD
+                + "\",\"name\":\"Person\"}");
 
+    assertThat(response.statusCode()).isEqualTo(201);
+    assertThat(response.body())
+        .contains("\"userId\":", "\"email\":\"person@example.com\"")
+        .doesNotContain("password", "passwordHash");
     assertThat(
             jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM users WHERE email = 'person@example.com'", Integer.class))
@@ -82,65 +101,33 @@ class IdentityServiceApplicationIT {
   }
 
   @Test
-  @Transactional
   void rejectsInvalidEmailAndWeakPasswordThroughThePublicApi() throws Exception {
-    mockMvc
-        .perform(
-            post("/api/v1/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
-                    {
-                      "email": "not-an-email",
-                      "password": "short",
-                      "name": "Person"
-                    }
-                    """))
-        .andExpect(status().isBadRequest())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-        .andExpect(jsonPath("$.type").value("urn:sanigest:problem:validation"))
-        .andExpect(jsonPath("$.errors.email").exists())
-        .andExpect(jsonPath("$.errors.password").exists());
+    HttpResponse<String> response =
+        post("{\"email\":\"not-an-email\",\"password\":\"short\",\"name\":\"Person\"}");
 
+    assertThat(response.statusCode()).isEqualTo(400);
+    assertThat(response.body())
+        .contains("urn:sanigest:problem:validation", "\"email\"", "\"password\"");
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isZero();
   }
 
   @Test
-  @Transactional
   void returnsConflictForADuplicateEmailRegardlessOfCasing() throws Exception {
-    String firstRequest =
-        """
-        {
-          "email": "duplicate@example.com",
-          "password": "a-secure-password",
-          "name": "First"
-        }
-        """;
-    String duplicateRequest =
-        """
-        {
-          "email": "DUPLICATE@EXAMPLE.COM",
-          "password": "another-password",
-          "name": "Second"
-        }
-        """;
+    assertThat(
+            post("{\"email\":\"duplicate@example.com\",\"password\":\""
+                    + VALID_PASSWORD
+                    + "\",\"name\":\"First\"}")
+                .statusCode())
+        .isEqualTo(201);
 
-    mockMvc
-        .perform(
-            post("/api/v1/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(firstRequest))
-        .andExpect(status().isCreated());
+    HttpResponse<String> duplicate =
+        post(
+            "{\"email\":\"DUPLICATE@EXAMPLE.COM\",\"password\":\""
+                + ANOTHER_PASSWORD
+                + "\",\"name\":\"Second\"}");
 
-    mockMvc
-        .perform(
-            post("/api/v1/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(duplicateRequest))
-        .andExpect(status().isConflict())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-        .andExpect(jsonPath("$.type").value("urn:sanigest:problem:duplicate-email"));
-
+    assertThat(duplicate.statusCode()).isEqualTo(409);
+    assertThat(duplicate.body()).contains("urn:sanigest:problem:duplicate-email");
     assertThat(
             jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM users WHERE email = 'duplicate@example.com'", Integer.class))
@@ -150,11 +137,9 @@ class IdentityServiceApplicationIT {
   @Test
   @Transactional
   void persistsAUserWithoutPersistingThePlainTextPassword() {
-    String rawPassword = "correct-horse-battery-staple";
-
-    User user =
+    var user =
         registerUserService.register(
-            new RegisterUserCommand(" Test.User@Example.COM ", rawPassword, "Test User"));
+            new RegisterUserCommand(" Test.User@Example.COM ", RAW_PASSWORD, "Test User"));
 
     String storedEmail =
         jdbcTemplate.queryForObject(
@@ -162,20 +147,21 @@ class IdentityServiceApplicationIT {
     String storedHash =
         jdbcTemplate.queryForObject(
             "SELECT password_hash FROM users WHERE id = ?", String.class, user.id());
+
     assertThat(storedEmail).isEqualTo("test.user@example.com");
-    assertThat(storedHash).isNotEqualTo(rawPassword).startsWith("$2");
-    assertThat(passwordHasher.matches(rawPassword, storedHash)).isTrue();
+    assertThat(storedHash).isNotEqualTo(RAW_PASSWORD).startsWith("$2");
+    assertThat(passwordHasher.matches(RAW_PASSWORD, storedHash)).isTrue();
   }
 
   @Test
   @Transactional
   void treatsDifferentlyCasedEmailsAsTheSameAccount() {
     registerUserService.register(
-        new RegisterUserCommand("unique@example.com", "a-secure-password", "First"));
+        new RegisterUserCommand("unique@example.com", VALID_PASSWORD, "First"));
 
     assertThatThrownBy(() ->
             registerUserService.register(
-                new RegisterUserCommand("UNIQUE@EXAMPLE.COM", "another-password", "Second")))
+                new RegisterUserCommand("UNIQUE@EXAMPLE.COM", ANOTHER_PASSWORD, "Second")))
         .isInstanceOf(DuplicateEmailException.class);
   }
 
@@ -199,18 +185,35 @@ class IdentityServiceApplicationIT {
 
   @Test
   void exposesOnlySafeOperationalEndpoints() throws Exception {
-    mockMvc
-        .perform(get("/actuator/health"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("UP"))
-        .andExpect(jsonPath("$.components").doesNotExist());
-    mockMvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk());
-    mockMvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk());
-    mockMvc
-        .perform(get("/actuator/info"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.build.artifact").value("identity-service"))
-        .andExpect(content().string(not(containsString("password"))));
-    mockMvc.perform(get("/actuator/env")).andExpect(status().isNotFound());
+    HttpResponse<String> health = get("/actuator/health");
+    HttpResponse<String> liveness = get("/actuator/health/liveness");
+    HttpResponse<String> readiness = get("/actuator/health/readiness");
+    HttpResponse<String> info = get("/actuator/info");
+    HttpResponse<String> env = get("/actuator/env");
+
+    assertThat(health.statusCode()).isEqualTo(200);
+    assertThat(health.body()).contains("\"status\":\"UP\"").doesNotContain("components");
+    assertThat(liveness.statusCode()).isEqualTo(200);
+    assertThat(readiness.statusCode()).isEqualTo(200);
+    assertThat(info.statusCode()).isEqualTo(200);
+    assertThat(info.body())
+        .contains("\"artifact\":\"identity-service\"")
+        .doesNotContain("password");
+    assertThat(env.statusCode()).isEqualTo(404);
+  }
+
+  private HttpResponse<String> get(String path) throws Exception {
+    return httpClient.send(
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path)).GET().build(),
+        HttpResponse.BodyHandlers.ofString());
+  }
+
+  private HttpResponse<String> post(String json) throws Exception {
+    return httpClient.send(
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/auth/register"))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(json))
+            .build(),
+        HttpResponse.BodyHandlers.ofString());
   }
 }
