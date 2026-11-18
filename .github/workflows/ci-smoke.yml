@@ -32,30 +32,14 @@ jobs:
             pom.xml
             **/pom.xml
 
-      - name: Package executable applications
-        run: mvn -B -DskipTests package
+      - name: Run Java HTTP smoke scenarios
+        run: mvn -B -Psmoke verify
 
-      - name: Smoke test generic Spring Boot template
-        run: |
-          sh scripts/qa/smoke-spring-boot-service.sh \
-            templates/spring-boot-service/target/spring-boot-service-template-0.1.0-SNAPSHOT.jar \
-            spring-boot-service-template \
-            "Spring Boot Service Template"
-
-      - name: Smoke test Company Service
-        run: sh scripts/qa/smoke-company-service.sh
-
-      - name: Smoke test Identity Service
-        run: sh scripts/qa/smoke-identity-service.sh
-
-      - name: Identity registration functional smoke
-        run: sh scripts/qa/smoke-identity-registration.sh
-
-      - name: Upload application logs on failure
-        if: failure()
+      - name: Publish smoke scenario reports
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: application-smoke-logs-${{ github.run_id }}
-          path: "**/target/*.log"
-          if-no-files-found: ignore
+          name: java-smoke-reports-${{ github.run_id }}
+          path: "**/target/failsafe-reports/**"
+          if-no-files-found: error
           retention-days: 7

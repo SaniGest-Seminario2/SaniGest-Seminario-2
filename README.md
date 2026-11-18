@@ -126,15 +126,9 @@ docker run --rm \
 
 ## Pruebas de QA automatizadas
 
-La regresión del servicio se ejecuta con `mvn -B verify` y comprueba las
-migraciones de Company, sus restricciones y los contratos públicos de Actuator.
-El smoke test reutilizable arranca cualquier JAR de servicio sin infraestructura
-externa y valida health, metadata segura y la ausencia de endpoints sensibles.
-El wrapper de Company demuestra su uso por un servicio concreto:
-
-```bash
-sh scripts/qa/smoke-company-service.sh
-```
+La regresión Java comprueba migraciones, restricciones y contratos HTTP de cada
+servicio. Surefire ejecuta unitarias `*Test`; Failsafe ejecuta integración,
+regresión y smokes `*IT`.
 
 El smoke test de infraestructura levanta dependencias desechables y valida el
 comportamiento real de PostgreSQL y Valkey:
@@ -143,18 +137,19 @@ comportamiento real de PostgreSQL y Valkey:
 sh scripts/qa/smoke-infrastructure.sh
 ```
 
-El smoke funcional de Identity levanta un PostgreSQL desechable, arranca el JAR
-con el perfil `local` y ejecuta llamadas HTTP reales al registro. Comprueba el
-caso exitoso, validaciones, duplicados por casing, concurrencia, respuesta segura
-y persistencia exclusiva de BCrypt:
+Los smokes de aplicación están implementados como escenarios JUnit 5 etiquetados
+con `smoke`. Arrancan cada servidor en un puerto aleatorio y ejecutan HTTP real;
+Identity usa PostgreSQL 17 mediante Testcontainers y comprueba éxito, validación,
+duplicados por casing, concurrencia, respuesta segura y persistencia BCrypt:
 
 ```bash
-mvn -B -pl services/identity-service -am verify
-sh scripts/qa/smoke-identity-registration.sh
+mvn -B -Psmoke verify
 ```
 
-Esta suite cubre el contrato previo al despliegue. Las pruebas E2E contra la URL
-de un ambiente AWS se incorporarán junto con el pipeline de despliegue.
+Los reportes Failsafe XML se publican siempre como artefacto del job, con una
+entrada por clase y método de prueba. La regresión sin smokes se ejecuta con
+`mvn -B -DexcludedGroups=smoke verify`. Las pruebas E2E contra la URL de un
+ambiente AWS se incorporarán junto con el pipeline de despliegue.
 
 La prueba exige Docker Compose, usa puertos alternos por defecto y elimina sus
 contenedores y volúmenes al terminar. Comprueba health checks, autenticación de

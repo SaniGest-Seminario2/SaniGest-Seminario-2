@@ -58,17 +58,14 @@ existen al menos dos consumidores y el ADR-001 permite compartirlo.
 - `*Test`: pruebas unitarias rápidas, ejecutadas por Surefire en `mvn test`.
 - `*IT`: integración y regresión de configuración, migraciones y contratos HTTP,
   ejecutadas por Failsafe en `mvn verify`.
-- `scripts/qa/smoke-spring-boot-service.sh`: smoke reutilizable que arranca un
-  JAR real, consulta health e info y comprueba que endpoints sensibles no estén
-  publicados.
+- `*SmokeIT` con `@Tag("smoke")`: smoke HTTP real en Java, ejecutado de forma
+  aislada con `mvn -B -Dgroups=smoke verify`.
 
 Para validar la referencia completa:
 
 ```bash
 mvn -B clean verify
-sh scripts/qa/smoke-spring-boot-service.sh \
-  templates/spring-boot-service/target/spring-boot-service-template-0.1.0-SNAPSHOT.jar \
-  spring-boot-service-template
+mvn -B -Psmoke verify
 ```
 
 La plantilla arranca sin infraestructura externa desde la raíz:
