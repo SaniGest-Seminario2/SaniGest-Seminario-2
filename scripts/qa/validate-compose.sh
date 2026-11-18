@@ -22,6 +22,7 @@ expected_profiles = {
     "valkey": ["infra", "apps"],
     "kafka": ["infra", "apps"],
     "company-service": ["apps"],
+    "identity-service": ["apps"],
 }
 for service, profiles in expected_profiles.items():
     assert services[service]["profiles"] == profiles, (service, services[service]["profiles"])
@@ -32,6 +33,9 @@ for service, profiles in expected_profiles.items():
 dependencies = services["company-service"]["depends_on"]
 assert set(dependencies) == {"postgres", "valkey", "kafka"}
 assert all(value["condition"] == "service_healthy" for value in dependencies.values())
+identity_dependencies = services["identity-service"]["depends_on"]
+assert set(identity_dependencies) == {"postgres"}
+assert identity_dependencies["postgres"]["condition"] == "service_healthy"
 assert compose["networks"]["sanigest-local"]["internal"] is True
 assert set(compose["volumes"]) == {"postgres-data", "kafka-data"}
 assert services["valkey"].get("volumes") is None, "Valkey cache must remain disposable"
