@@ -12,3 +12,4 @@ sanigest:
     audience: sanigest-api-test
     secret: dGVzdC1vbmx5LWtleS13aXRoLWF0LWxlYXN0LTMyLWJ5dGVzLTEyMzQ1Ng==
     access-token-ttl: PT5M
+    refresh-token-ttl: PT30M
