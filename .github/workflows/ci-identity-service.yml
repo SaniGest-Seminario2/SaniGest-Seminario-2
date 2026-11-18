@@ -74,7 +74,7 @@ jobs:
 
   regression:
     name: Regression tests
-    needs: syntax
+    needs: smoke
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

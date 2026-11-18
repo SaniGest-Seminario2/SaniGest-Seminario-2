@@ -87,7 +87,8 @@ class IdentityRegistrationSmokeIT {
   @Test
   @DisplayName("POST /api/v1/auth/register with invalid fields -> 400 validation problem")
   void returnsFieldLevelValidationProblemsOverRealHttp() throws Exception {
-    Response response = register("{\"email\":\"invalid\",\"password\":\"short\",\"name\":\"Person\"}");
+    Response response =
+        register("{\"email\":\"invalid\",\"password\":\"short\",\"name\":\"Person\"}");
 
     assertThat(response.status()).isEqualTo(400);
     assertThat(response.body())
