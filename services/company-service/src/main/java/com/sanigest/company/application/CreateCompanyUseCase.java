@@ -68,7 +68,7 @@ public class CreateCompanyUseCase {
           hash,
           companyId);
     } catch (DataIntegrityViolationException e) {
-      throw new ConflictException("Company registration conflicts with existing data");
+      throw new ConflictException("Company registration conflicts with existing data", e);
     }
     return response(companyId);
   }
@@ -118,6 +118,10 @@ public class CreateCompanyUseCase {
   record Prior(String hash, UUID companyId) {}
 
   public static class ConflictException extends RuntimeException {
+    public ConflictException(String m, Throwable cause) {
+      super(m, cause);
+    }
+
     public ConflictException(String m) {
       super(m);
     }
