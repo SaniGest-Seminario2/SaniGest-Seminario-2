@@ -39,6 +39,8 @@ class IdentityServiceApplicationIT {
   private static final String VALID_PASSWORD = TestCredentials.random();
   private static final String ANOTHER_PASSWORD = TestCredentials.random();
   private static final String RAW_PASSWORD = TestCredentials.random();
+  private static final String JWT_SECRET =
+      "dGVzdC1vbmx5LWtleS13aXRoLWF0LWxlYXN0LTMyLWJ5dGVzLTEyMzQ1Ng==";
 
   @Container
   static final PostgreSQLContainer POSTGRES =
@@ -62,6 +64,9 @@ class IdentityServiceApplicationIT {
     registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
     registry.add("spring.datasource.username", POSTGRES::getUsername);
     registry.add("spring.datasource.password", POSTGRES::getPassword);
+    registry.add("sanigest.jwt.issuer", () -> "sanigest-it");
+    registry.add("sanigest.jwt.audience", () -> "sanigest-api-it");
+    registry.add("sanigest.jwt.secret", () -> JWT_SECRET);
   }
 
   @BeforeEach
@@ -189,7 +194,39 @@ class IdentityServiceApplicationIT {
     assertThat(info.body())
         .contains("\"artifact\":\"identity-service\"")
         .doesNotContain("password");
-    assertThat(env.statusCode()).isEqualTo(404);
+    assertThat(env.statusCode()).isEqualTo(401);
+  }
+
+  @Test
+  void logsInPersistedActiveUsersAndReturnsOnlyTheTokenContract() throws Exception {
+    assertThat(post(registerPayload("login@example.com", VALID_PASSWORD, "Login")).statusCode())
+        .isEqualTo(201);
+
+    HttpResponse<String> response = login("login@example.com", VALID_PASSWORD);
+
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(response.body())
+        .contains("\"accessToken\":", "\"tokenType\":\"Bearer\"", "\"expiresIn\":")
+        .doesNotContain("password", "passwordHash");
+  }
+
+  @Test
+  void rejectsInvalidCredentialsInactiveUsersAndMissingBearerTokensGenerically() throws Exception {
+    assertThat(
+            post(registerPayload("inactive@example.com", VALID_PASSWORD, "Inactive")).statusCode())
+        .isEqualTo(201);
+    jdbcTemplate.update(
+        "UPDATE users SET status = 'DISABLED' WHERE email = 'inactive@example.com'");
+
+    HttpResponse<String> wrong = login("missing@example.com", "wrong-password");
+    HttpResponse<String> inactive = login("inactive@example.com", VALID_PASSWORD);
+    HttpResponse<String> unauthenticated = get("/api/v1/private-resource");
+
+    assertThat(wrong.statusCode()).isEqualTo(401);
+    assertThat(inactive.statusCode()).isEqualTo(401);
+    assertThat(wrong.body()).contains("Invalid credentials").doesNotContain("missing@example.com");
+    assertThat(inactive.body()).contains("Invalid credentials").doesNotContain("inactive");
+    assertThat(unauthenticated.statusCode()).isEqualTo(401);
   }
 
   private HttpResponse<String> get(String path) throws Exception {
@@ -201,6 +238,16 @@ class IdentityServiceApplicationIT {
   private HttpResponse<String> post(String json) throws Exception {
     return httpClient.send(
         HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/auth/register"))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(json))
+            .build(),
+        HttpResponse.BodyHandlers.ofString());
+  }
+
+  private HttpResponse<String> login(String email, String password) throws Exception {
+    String json = String.format("{\"email\":\"%s\",\"password\":\"%s\"}", email, password);
+    return httpClient.send(
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/auth/login"))
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(json))
             .build(),
