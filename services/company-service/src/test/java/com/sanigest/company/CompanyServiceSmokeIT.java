@@ -30,10 +30,16 @@ class CompanyServiceSmokeIT {
     HttpResponse<String> health = get("/actuator/health");
     HttpResponse<String> readiness = get("/actuator/health/readiness");
     HttpResponse<String> info = get("/actuator/info");
+    HttpResponse<String> openApi = get("/v3/api-docs");
+    HttpResponse<String> swagger = get("/swagger-ui.html");
 
     assertThat(health.statusCode()).isEqualTo(200);
     assertThat(health.body()).contains("\"status\":\"UP\"").doesNotContain("components");
     assertThat(readiness.statusCode()).isEqualTo(200);
+    assertThat(get("/actuator/health/liveness").statusCode()).isEqualTo(200);
+    assertThat(openApi.statusCode()).isEqualTo(200);
+    assertThat(openApi.body()).contains("\"openapi\":\"3.0.3\"", "SaniGest Company Service");
+    assertThat(swagger.statusCode()).isEqualTo(302);
     assertThat(info.statusCode()).isEqualTo(200);
     assertThat(info.body())
         .contains("\"artifact\":\"company-service\"")

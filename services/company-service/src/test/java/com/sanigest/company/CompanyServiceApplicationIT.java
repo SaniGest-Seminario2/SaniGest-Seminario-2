@@ -52,7 +52,50 @@ class CompanyServiceApplicationIT {
 
     assertThat(appliedMigrations).isEqualTo(1);
     assertThat(companyTable).isEqualTo(1);
+    Integer membershipTable =
+        jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM information_schema.tables "
+                + "WHERE table_schema = 'PUBLIC' AND table_name = 'COMPANY_MEMBERSHIPS'",
+            Integer.class);
+    Integer permissionTable =
+        jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM information_schema.tables "
+                + "WHERE table_schema = 'PUBLIC' AND table_name = 'COMPANY_PERMISSIONS'",
+            Integer.class);
+    assertThat(membershipTable).isEqualTo(1);
+    assertThat(permissionTable).isEqualTo(1);
     assertThat(flyway.migrate().migrationsExecuted).isZero();
+  }
+
+  @Test
+  void rejectsDuplicateMembershipAndUnknownRoles() {
+    UUID companyId = UUID.randomUUID();
+    UUID userId = UUID.randomUUID();
+    jdbcTemplate.update(
+        "INSERT INTO companies (id, name) VALUES (?, ?)", companyId, "Company test");
+    jdbcTemplate.update(
+        "INSERT INTO company_memberships (id, company_id, user_id, role) VALUES (?, ?, ?, ?)",
+        UUID.randomUUID(),
+        companyId,
+        userId,
+        "OWNER");
+
+    assertThatThrownBy(() ->
+            jdbcTemplate.update(
+                "INSERT INTO company_memberships (id, company_id, user_id, role) VALUES (?, ?, ?, ?)",
+                UUID.randomUUID(),
+                companyId,
+                userId,
+                "VIEWER"))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    assertThatThrownBy(() ->
+            jdbcTemplate.update(
+                "INSERT INTO company_memberships (id, company_id, user_id, role) VALUES (?, ?, ?, ?)",
+                UUID.randomUUID(),
+                companyId,
+                UUID.randomUUID(),
+                "SUPERUSER"))
+        .isInstanceOf(DataIntegrityViolationException.class);
   }
 
   @Test
