@@ -187,16 +187,24 @@ la cache:
 
 ```bash
 cp .env.example .env
-docker compose up -d company-postgres valkey
+docker compose up -d postgres valkey
 docker compose ps
 ```
 
-Ambos contenedores deben aparecer como `healthy`. Valkey queda disponible sólo
-en la interfaz local, en `localhost:${SPRING_DATA_REDIS_PORT:-6379}`. Los
-servicios que se ejecuten dentro de la red `sanigest-local` deben usar
-`valkey:6379` en lugar de `localhost`. La conexión se configura externamente con
-`SPRING_DATA_REDIS_HOST`, `SPRING_DATA_REDIS_PORT` y
-`SPRING_DATA_REDIS_PASSWORD`; no se deben incluir credenciales en el artefacto.
+Ambos contenedores deben aparecer como `healthy`. PostgreSQL y Valkey quedan
+disponibles sólo en la interfaz local, en
+`localhost:${POSTGRES_PORT:-5432}` y
+`localhost:${SPRING_DATA_REDIS_PORT:-6379}` respectivamente. Los servicios que
+se ejecuten dentro de la red `sanigest-local` deben usar `postgres:5432` y
+`valkey:6379` en lugar de `localhost`. La conexión se configura externamente;
+no se deben incluir credenciales en el artefacto.
+
+El bootstrap crea las bases y roles `sanigest_identity`, `sanigest_company`,
+`sanigest_catalog`, `sanigest_sales`, `sanigest_expense` y `sanigest_finance`.
+Cada rol puede conectarse y escribir únicamente en su base. La cuenta
+`POSTGRES_ADMIN_USER` queda reservada para administración local y no debe
+configurarse en ningún microservicio. Los nombres son deliberadamente estables;
+las contraseñas se suministran mediante las variables `*_DB_PASSWORD` de `.env`.
 
 Exporta las mismas variables y arranca Company con el perfil `local`:
 
@@ -214,7 +222,7 @@ Para detener PostgreSQL sin perder los datos:
 docker compose down
 ```
 
-El volumen `sanigest_company-postgres-data` conserva los datos. Elimínalo sólo
+El volumen `sanigest_postgres-data` conserva los datos. Elimínalo sólo
 cuando se quiera reiniciar deliberadamente la base local:
 
 ```bash
