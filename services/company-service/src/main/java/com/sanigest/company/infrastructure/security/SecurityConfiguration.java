@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
@@ -22,6 +23,11 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableMethodSecurity
 @EnableConfigurationProperties(SecurityConfiguration.JwtProperties.class)
 class SecurityConfiguration {
+  @Bean
+  WebSecurityCustomizer actuatorEndpointsBypassSecurity() {
+    return web -> web.ignoring().requestMatchers("/actuator/**");
+  }
+
   @Bean
   SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
     return http.csrf(csrf -> csrf.disable())

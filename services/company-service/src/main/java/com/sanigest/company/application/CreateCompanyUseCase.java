@@ -115,7 +115,7 @@ public class CreateCompanyUseCase {
     return s == null || s.isBlank() ? null : s;
   }
 
-  private record Prior(String hash, UUID companyId) {}
+  record Prior(String hash, UUID companyId) {}
 
   public static class ConflictException extends RuntimeException {
     public ConflictException(String m) {
