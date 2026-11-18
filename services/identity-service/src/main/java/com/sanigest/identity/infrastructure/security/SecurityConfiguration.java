@@ -34,7 +34,11 @@ class SecurityConfiguration {
             sessions -> sessions.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(requests ->
             requests
-                .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/refresh", "/api/v1/auth/logout")
+                .requestMatchers(
+                    "/api/v1/auth/login",
+                    "/api/v1/auth/register",
+                    "/api/v1/auth/refresh",
+                    "/api/v1/auth/logout")
                 .permitAll()
                 .requestMatchers("/actuator/**")
                 .permitAll()

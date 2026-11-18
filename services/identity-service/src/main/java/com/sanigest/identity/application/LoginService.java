@@ -6,8 +6,8 @@ import com.sanigest.identity.domain.model.UserStatus;
 import com.sanigest.identity.domain.port.PasswordHasher;
 import com.sanigest.identity.domain.port.UserRepository;
 import java.util.Objects;
-import org.springframework.context.annotation.Profile;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +25,10 @@ public class LoginService {
   }
 
   @Autowired
-  public LoginService(UserRepository users, PasswordHasher passwords, TokenIssuer tokens,
+  public LoginService(
+      UserRepository users,
+      PasswordHasher passwords,
+      TokenIssuer tokens,
       RefreshTokenService refreshTokens) {
     this.users = Objects.requireNonNull(users);
     this.passwords = Objects.requireNonNull(passwords);
@@ -41,9 +44,15 @@ public class LoginService {
       throw new InvalidCredentialsException();
     }
     AccessToken accessToken = tokens.issue(user.id());
-    if (refreshTokens == null) return accessToken;
+    if (refreshTokens == null) {
+      return accessToken;
+    }
     RefreshTokenService.IssuedRefreshToken refresh = refreshTokens.issue(user.id());
-    return new AccessToken(accessToken.value(), accessToken.type(), accessToken.expiresIn(),
-        refresh.value(), refresh.expiresIn());
+    return new AccessToken(
+        accessToken.value(),
+        accessToken.type(),
+        accessToken.expiresIn(),
+        refresh.value(),
+        refresh.expiresIn());
   }
 }

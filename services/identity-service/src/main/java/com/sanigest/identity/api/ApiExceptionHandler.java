@@ -34,7 +34,8 @@ final class ApiExceptionHandler {
 
   @ExceptionHandler(InvalidRefreshTokenException.class)
   ProblemDetail handleInvalidRefreshToken() {
-    ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid refresh token");
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid refresh token");
     problem.setType(UNAUTHORIZED_TYPE);
     problem.setTitle("Unauthorized");
     return problem;

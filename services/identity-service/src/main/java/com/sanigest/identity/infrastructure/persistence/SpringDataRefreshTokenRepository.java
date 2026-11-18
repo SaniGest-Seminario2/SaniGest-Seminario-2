@@ -11,7 +11,9 @@ import org.springframework.data.jpa.repository.Query;
 interface SpringDataRefreshTokenRepository extends JpaRepository<RefreshTokenJpaEntity, UUID> {
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   Optional<RefreshTokenJpaEntity> findByTokenHash(String tokenHash);
+
   @Query("select t from RefreshTokenJpaEntity t where t.familyId = ?1")
   List<RefreshTokenJpaEntity> findByFamilyId(UUID familyId);
+
   long deleteByExpiresAtBefore(java.time.Instant instant);
 }
