@@ -20,6 +20,7 @@ sanigest:
     audience: ${JWT_AUDIENCE}
     secret: ${JWT_SECRET}
     access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT15M}
+    refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:P30D}
 
 management:
   endpoints:

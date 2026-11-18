@@ -70,6 +70,7 @@ class IdentityRegistrationSmokeIT {
 
   @BeforeEach
   void cleanUsers() {
+    jdbcTemplate.update("DELETE FROM refresh_tokens");
     jdbcTemplate.update("DELETE FROM users");
   }
 

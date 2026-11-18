@@ -27,7 +27,8 @@ class JwtTokenIssuerTest {
   private static final String SECRET =
       Base64.getEncoder().encodeToString("01234567890123456789012345678901".getBytes());
   private final JwtProperties properties =
-      new JwtProperties("sanigest", "sanigest-api", SECRET, Duration.ofMinutes(15));
+      new JwtProperties(
+          "sanigest", "sanigest-api", SECRET, Duration.ofMinutes(15), Duration.ofDays(30));
   private final SecurityConfiguration configuration = new SecurityConfiguration();
 
   @Test

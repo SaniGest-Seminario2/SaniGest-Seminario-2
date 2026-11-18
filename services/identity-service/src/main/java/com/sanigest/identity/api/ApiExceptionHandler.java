@@ -3,6 +3,7 @@ package com.sanigest.identity.api;
 import com.sanigest.identity.application.AuthenticatedUserNotFoundException;
 import com.sanigest.identity.application.DuplicateEmailException;
 import com.sanigest.identity.application.InvalidCredentialsException;
+import com.sanigest.identity.application.InvalidRefreshTokenException;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -26,6 +27,15 @@ final class ApiExceptionHandler {
   ProblemDetail handleInvalidCredentials() {
     ProblemDetail problem =
         ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+    problem.setType(UNAUTHORIZED_TYPE);
+    problem.setTitle("Unauthorized");
+    return problem;
+  }
+
+  @ExceptionHandler(InvalidRefreshTokenException.class)
+  ProblemDetail handleInvalidRefreshToken() {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid refresh token");
     problem.setType(UNAUTHORIZED_TYPE);
     problem.setTitle("Unauthorized");
     return problem;

@@ -25,6 +25,6 @@ public final class LoginController {
   @PostMapping("/login")
   ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
     AccessToken token = loginService.login(request.email(), request.password());
-    return ResponseEntity.ok(new LoginResponse(token.value(), token.type(), token.expiresIn()));
+    return ResponseEntity.ok(LoginResponse.from(token));
   }
 }
