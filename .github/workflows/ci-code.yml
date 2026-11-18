@@ -64,3 +64,33 @@ jobs:
           path: "**/target/surefire-reports/**"
           if-no-files-found: error
           retention-days: 7
+
+  coverage:
+    name: Coverage gate
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            **/pom.xml
+
+      - name: Run unit tests with coverage
+        run: mvn -B -Pcoverage -DskipITs verify
+
+      - name: Publish coverage reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-reports-${{ github.run_id }}
+          path: "**/target/site/jacoco/**"
+          if-no-files-found: warn
+          retention-days: 7
