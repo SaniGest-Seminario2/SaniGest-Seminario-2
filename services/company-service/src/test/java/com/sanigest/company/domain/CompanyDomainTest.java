@@ -12,7 +12,17 @@ import org.junit.jupiter.api.Test;
 class CompanyDomainTest {
   @Test
   void rejectsBlankCompanyNames() {
-    assertThatThrownBy(() -> new Company(UUID.randomUUID(), " ", null))
+    assertThatThrownBy(() ->
+            new Company(
+                UUID.randomUUID(),
+                " ",
+                "Business",
+                null,
+                "a@b.com",
+                "8095555555",
+                "Santo Domingo",
+                "DOP",
+                "ACTIVE"))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -21,7 +31,17 @@ class CompanyDomainTest {
     UUID companyId = UUID.randomUUID();
     UUID userId = UUID.randomUUID();
 
-    Company company = new Company(companyId, "Clínica Central", "123456789");
+    Company company =
+        new Company(
+            companyId,
+            "Clínica Central",
+            "Clínica Central SRL",
+            "123456789",
+            "a@b.com",
+            "8095555555",
+            "Santo Domingo",
+            "DOP",
+            "ACTIVE");
     Membership membership =
         new Membership(
             UUID.randomUUID(), companyId, userId, CompanyRole.OWNER, MembershipStatus.ACTIVE);

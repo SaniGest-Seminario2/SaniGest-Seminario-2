@@ -10,3 +10,9 @@ logging:
   level:
     org.springframework.web.servlet.DispatcherServlet: DEBUG
 
+sanigest:
+  jwt:
+    issuer: sanigest-test
+    audience: sanigest-api-test
+    secret: test-secret-test-secret-test-secret-32
+
