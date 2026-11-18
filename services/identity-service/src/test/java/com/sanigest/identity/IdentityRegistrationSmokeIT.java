@@ -162,8 +162,7 @@ class IdentityRegistrationSmokeIT {
 
     HttpResponse<String> profile =
         httpClient.send(
-            HttpRequest.newBuilder(
-                    URI.create("http://127.0.0.1:" + port + "/api/v1/auth/me"))
+            HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/auth/me"))
                 .header("Authorization", "Bearer " + token)
                 .GET()
                 .build(),

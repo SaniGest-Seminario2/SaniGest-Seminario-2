@@ -30,8 +30,7 @@ import org.springframework.test.context.ActiveProfiles;
 class AuthenticatedUserProfileIT {
 
   private static final UUID USER_ID = UUID.fromString("a1e6b198-89bd-420c-84dd-8694b6354469");
-  private static final UUID OTHER_USER_ID =
-      UUID.fromString("36ea33a7-dcee-4650-a70a-3af144501d29");
+  private static final UUID OTHER_USER_ID = UUID.fromString("36ea33a7-dcee-4650-a70a-3af144501d29");
   private static final String PASSWORD_HASH = "$2a$12$sensitiveHashThatMustNeverBeReturned";
 
   private final HttpClient http = HttpClient.newHttpClient();
@@ -93,9 +92,7 @@ class AuthenticatedUserProfileIT {
   @Tag("regression")
   void rejectsAJwtWithAnInvalidSignature() throws Exception {
     JwtEncoder otherEncoder =
-        NimbusJwtEncoder.withSecretKey(
-                new SecretKeySpec(new byte[32], "HmacSHA256"))
-            .build();
+        NimbusJwtEncoder.withSecretKey(new SecretKeySpec(new byte[32], "HmacSHA256")).build();
     String invalid = token(otherEncoder, USER_ID, validFrom(), validUntil());
 
     assertThat(getProfile(invalid).statusCode()).isEqualTo(401);
@@ -106,8 +103,7 @@ class AuthenticatedUserProfileIT {
   void ignoresAClientSuppliedUserIdAndReturnsOnlyTheJwtSubject() throws Exception {
     HttpResponse<String> response =
         getProfile(
-            token(jwtEncoder, USER_ID, validFrom(), validUntil()),
-            "?userId=" + OTHER_USER_ID);
+            token(jwtEncoder, USER_ID, validFrom(), validUntil()), "?userId=" + OTHER_USER_ID);
 
     assertThat(response.statusCode()).isEqualTo(200);
     assertThat(response.body())
@@ -135,8 +131,7 @@ class AuthenticatedUserProfileIT {
 
   private HttpResponse<String> getProfile(String token, String query) throws Exception {
     HttpRequest.Builder request =
-        HttpRequest.newBuilder(
-                URI.create("http://127.0.0.1:" + port + "/api/v1/auth/me" + query))
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/auth/me" + query))
             .GET();
     if (token != null) {
       request.header("Authorization", "Bearer " + token);
