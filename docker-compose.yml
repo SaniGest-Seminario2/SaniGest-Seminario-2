@@ -120,6 +120,32 @@ services:
     networks:
       - sanigest-local
 
+  identity-service:
+    build:
+      context: .
+      dockerfile: services/identity-service/Dockerfile
+    image: sanigest/identity-service:${SANIGEST_IMAGE_TAG:-local}
+    profiles: [apps]
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${IDENTITY_DB_NAME:-sanigest_identity}
+      SPRING_DATASOURCE_USERNAME: ${IDENTITY_DB_USER:-sanigest_identity}
+      SPRING_DATASOURCE_PASSWORD: ${IDENTITY_DB_PASSWORD:?Define IDENTITY_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${IDENTITY_SERVICE_PORT:-8081}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - sanigest-local
+
 volumes:
   postgres-data:
   kafka-data:

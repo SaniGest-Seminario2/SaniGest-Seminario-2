@@ -7,6 +7,7 @@ COPY pom.xml ./
 COPY config ./config
 COPY templates/spring-boot-service/pom.xml templates/spring-boot-service/pom.xml
 COPY services/company-service/pom.xml services/company-service/pom.xml
+COPY services/identity-service/pom.xml services/identity-service/pom.xml
 RUN --mount=type=cache,target=/root/.m2 \
     mvn -B -pl services/company-service -am dependency:go-offline
 
