@@ -1,6 +1,7 @@
 package com.sanigest.identity.api;
 
 import com.sanigest.identity.application.DuplicateEmailException;
+import com.sanigest.identity.application.InvalidCredentialsException;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -18,6 +19,16 @@ final class ApiExceptionHandler {
   private static final URI VALIDATION_TYPE = URI.create("urn:sanigest:problem:validation");
   private static final URI DUPLICATE_EMAIL_TYPE =
       URI.create("urn:sanigest:problem:duplicate-email");
+  private static final URI UNAUTHORIZED_TYPE = URI.create("urn:sanigest:problem:unauthorized");
+
+  @ExceptionHandler(InvalidCredentialsException.class)
+  ProblemDetail handleInvalidCredentials() {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+    problem.setType(UNAUTHORIZED_TYPE);
+    problem.setTitle("Unauthorized");
+    return problem;
+  }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   ProblemDetail handleValidation(MethodArgumentNotValidException exception) {

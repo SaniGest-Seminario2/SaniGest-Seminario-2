@@ -5,6 +5,7 @@ import com.sanigest.identity.domain.model.User;
 import com.sanigest.identity.domain.port.DuplicateUserEmailException;
 import com.sanigest.identity.domain.port.UserRepository;
 import java.util.Objects;
+import java.util.Optional;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -22,6 +23,11 @@ class JpaUserRepositoryAdapter implements UserRepository {
   @Override
   public boolean existsByEmail(EmailAddress email) {
     return repository.existsByEmail(email.value());
+  }
+
+  @Override
+  public Optional<User> findByEmail(EmailAddress email) {
+    return repository.findByEmail(email.value()).map(JpaUserRepositoryAdapter::toDomain);
   }
 
   @Override

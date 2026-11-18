@@ -19,10 +19,13 @@ import org.junit.jupiter.api.extension.TestWatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -32,11 +35,14 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @ActiveProfiles("local")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ExtendWith(IdentityRegistrationSmokeIT.SmokeScenarioReporter.class)
+@Import(IdentityRegistrationSmokeIT.ProtectedProbe.class)
 class IdentityRegistrationSmokeIT {
 
   private static final String DB_PASSWORD = TestCredentials.random();
   private static final String VALID_PASSWORD = TestCredentials.random();
   private static final String ANOTHER_PASSWORD = TestCredentials.random();
+  private static final String JWT_SECRET =
+      "dGVzdC1vbmx5LWtleS13aXRoLWF0LWxlYXN0LTMyLWJ5dGVzLTEyMzQ1Ng==";
 
   @Container
   static final PostgreSQLContainer POSTGRES =
@@ -57,6 +63,9 @@ class IdentityRegistrationSmokeIT {
     registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
     registry.add("spring.datasource.username", POSTGRES::getUsername);
     registry.add("spring.datasource.password", POSTGRES::getPassword);
+    registry.add("sanigest.jwt.issuer", () -> "sanigest-smoke");
+    registry.add("sanigest.jwt.audience", () -> "sanigest-api-smoke");
+    registry.add("sanigest.jwt.secret", () -> JWT_SECRET);
   }
 
   @BeforeEach
@@ -122,6 +131,37 @@ class IdentityRegistrationSmokeIT {
     assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM users", Integer.class)).isOne();
   }
 
+  @Test
+  @DisplayName("Real login -> JWT grants access to a protected route")
+  void logsInAndAccessesAProtectedRouteOverRealHttp() throws Exception {
+    assertThat(register(registerPayload("login@example.com", VALID_PASSWORD, "Login")).status())
+        .isEqualTo(201);
+    HttpResponse<String> login = sendLogin("login@example.com", VALID_PASSWORD);
+    String token = login.body().replaceAll(".*\"accessToken\":\"([^\"]+)\".*", "$1");
+
+    HttpResponse<String> protectedResponse =
+        httpClient.send(
+            HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/smoke/protected"))
+                .header("Authorization", "Bearer " + token)
+                .GET()
+                .build(),
+            HttpResponse.BodyHandlers.ofString());
+
+    assertThat(login.statusCode()).isEqualTo(200);
+    assertThat(protectedResponse.statusCode()).isEqualTo(200);
+    assertThat(protectedResponse.body()).isEqualTo("protected");
+  }
+
+  private HttpResponse<String> sendLogin(String email, String password) throws Exception {
+    String json = String.format("{\"email\":\"%s\",\"password\":\"%s\"}", email, password);
+    return httpClient.send(
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/auth/login"))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(json))
+            .build(),
+        HttpResponse.BodyHandlers.ofString());
+  }
+
   private Response register(String json) throws Exception {
     HttpResponse<String> response =
         httpClient.send(request(json), HttpResponse.BodyHandlers.ofString());
@@ -160,4 +200,13 @@ class IdentityRegistrationSmokeIT {
   }
 
   private record Response(int status, String body) {}
+
+  @RestController
+  static class ProtectedProbe {
+
+    @GetMapping("/smoke/protected")
+    String protectedRoute() {
+      return "protected";
+    }
+  }
 }
