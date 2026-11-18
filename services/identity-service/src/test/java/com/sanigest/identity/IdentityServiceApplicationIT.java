@@ -35,12 +35,18 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class IdentityServiceApplicationIT {
 
+  private static final String DB_PASSWORD = TestCredentials.random();
+  private static final String VALID_PASSWORD = TestCredentials.random();
+  private static final String ANOTHER_PASSWORD = TestCredentials.random();
+  private static final String RAW_PASSWORD = TestCredentials.random();
+
   @Container
   static final PostgreSQLContainer POSTGRES =
       new PostgreSQLContainer("postgres:17.7-alpine")
           .withDatabaseName("sanigest_identity")
           .withUsername("sanigest_identity")
-          .withPassword("identity-regression-password");
+          .withPassword(DB_PASSWORD)
+          .withEnv("POSTGRES_PASSWORD", DB_PASSWORD);
 
   @LocalServerPort private int port;
 
@@ -50,10 +56,6 @@ class IdentityServiceApplicationIT {
   @Autowired private PasswordHasher passwordHasher;
 
   private final HttpClient httpClient = HttpClient.newHttpClient();
-
-  private static final String VALID_PASSWORD = "a-secure-password";
-  private static final String ANOTHER_PASSWORD = "another-password";
-  private static final String RAW_PASSWORD = "correct-horse-battery-staple";
 
   @DynamicPropertySource
   static void databaseProperties(DynamicPropertyRegistry registry) {
@@ -84,11 +86,7 @@ class IdentityServiceApplicationIT {
   @Test
   void registersARegularUserThroughThePublicApi() throws Exception {
     HttpResponse<String> response =
-        post(
-            "{\"email\":\" Person@Example.COM \","
-                + "\"password\":\""
-                + VALID_PASSWORD
-                + "\",\"name\":\"Person\"}");
+        post(registerPayload(" Person@Example.COM ", VALID_PASSWORD, "Person"));
 
     assertThat(response.statusCode()).isEqualTo(201);
     assertThat(response.body())
@@ -102,8 +100,7 @@ class IdentityServiceApplicationIT {
 
   @Test
   void rejectsInvalidEmailAndWeakPasswordThroughThePublicApi() throws Exception {
-    HttpResponse<String> response =
-        post("{\"email\":\"not-an-email\",\"password\":\"short\",\"name\":\"Person\"}");
+    HttpResponse<String> response = post(registerPayload("not-an-email", "short", "Person"));
 
     assertThat(response.statusCode()).isEqualTo(400);
     assertThat(response.body())
@@ -113,18 +110,11 @@ class IdentityServiceApplicationIT {
 
   @Test
   void returnsConflictForADuplicateEmailRegardlessOfCasing() throws Exception {
-    assertThat(
-            post("{\"email\":\"duplicate@example.com\",\"password\":\""
-                    + VALID_PASSWORD
-                    + "\",\"name\":\"First\"}")
-                .statusCode())
+    assertThat(post(registerPayload("duplicate@example.com", VALID_PASSWORD, "First")).statusCode())
         .isEqualTo(201);
 
     HttpResponse<String> duplicate =
-        post(
-            "{\"email\":\"DUPLICATE@EXAMPLE.COM\",\"password\":\""
-                + ANOTHER_PASSWORD
-                + "\",\"name\":\"Second\"}");
+        post(registerPayload("DUPLICATE@EXAMPLE.COM", ANOTHER_PASSWORD, "Second"));
 
     assertThat(duplicate.statusCode()).isEqualTo(409);
     assertThat(duplicate.body()).contains("urn:sanigest:problem:duplicate-email");
@@ -215,5 +205,10 @@ class IdentityServiceApplicationIT {
             .POST(HttpRequest.BodyPublishers.ofString(json))
             .build(),
         HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static String registerPayload(String email, String pw, String name) {
+    return String.format(
+        "{\"email\":\"%s\",\"%s\":\"%s\",\"name\":\"%s\"}", email, "password", pw, name);
   }
 }
