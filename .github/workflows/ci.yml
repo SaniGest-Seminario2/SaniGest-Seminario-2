@@ -89,6 +89,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Verify PostgreSQL and Valkey runtime behavior
+      - name: Validate Docker Compose contract
+        run: sh scripts/qa/validate-compose.sh
+
+      - name: Verify PostgreSQL, Valkey and Kafka runtime behavior
         run: sh scripts/qa/smoke-infrastructure.sh
+
+      - name: Build application images
+        run: docker compose --env-file .env.example --profile apps build company-service
 
