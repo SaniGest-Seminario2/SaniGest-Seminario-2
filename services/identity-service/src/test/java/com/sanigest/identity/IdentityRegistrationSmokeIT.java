@@ -152,6 +152,31 @@ class IdentityRegistrationSmokeIT {
     assertThat(protectedResponse.body()).isEqualTo("protected");
   }
 
+  @Test
+  @DisplayName("Real JWT authentication -> GET /api/v1/auth/me returns the profile")
+  void authenticatesAndReturnsTheProfileOverRealHttp() throws Exception {
+    assertThat(register(registerPayload("me@example.com", VALID_PASSWORD, "My Profile")).status())
+        .isEqualTo(201);
+    HttpResponse<String> login = sendLogin("me@example.com", VALID_PASSWORD);
+    String token = login.body().replaceAll(".*\"accessToken\":\"([^\"]+)\".*", "$1");
+
+    HttpResponse<String> profile =
+        httpClient.send(
+            HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/auth/me"))
+                .header("Authorization", "Bearer " + token)
+                .GET()
+                .build(),
+            HttpResponse.BodyHandlers.ofString());
+
+    assertThat(profile.statusCode()).isEqualTo(200);
+    assertThat(profile.body())
+        .contains(
+            "\"name\":\"My Profile\"",
+            "\"email\":\"me@example.com\"",
+            "\"accountType\":\"REGULAR\"")
+        .doesNotContain("password", "hash");
+  }
+
   private HttpResponse<String> sendLogin(String email, String password) throws Exception {
     String json = String.format("{\"email\":\"%s\",\"password\":\"%s\"}", email, password);
     return httpClient.send(

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.sanigest.identity.domain.model.AccountType;
 import com.sanigest.identity.domain.model.EmailAddress;
 import com.sanigest.identity.domain.model.User;
 import com.sanigest.identity.domain.model.UserStatus;
@@ -72,6 +73,13 @@ class LoginServiceTest {
   private User user(UserStatus status) {
     Instant now = Instant.parse("2026-01-01T00:00:00Z");
     return new User(
-        userId, EmailAddress.of("user@example.com"), "stored-hash", "User", status, now, now);
+        userId,
+        EmailAddress.of("user@example.com"),
+        "stored-hash",
+        "User",
+        AccountType.REGULAR,
+        status,
+        now,
+        now);
   }
 }

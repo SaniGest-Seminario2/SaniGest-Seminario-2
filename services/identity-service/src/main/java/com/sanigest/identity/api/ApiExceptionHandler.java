@@ -1,5 +1,6 @@
 package com.sanigest.identity.api;
 
+import com.sanigest.identity.application.AuthenticatedUserNotFoundException;
 import com.sanigest.identity.application.DuplicateEmailException;
 import com.sanigest.identity.application.InvalidCredentialsException;
 import java.net.URI;
@@ -25,6 +26,16 @@ final class ApiExceptionHandler {
   ProblemDetail handleInvalidCredentials() {
     ProblemDetail problem =
         ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+    problem.setType(UNAUTHORIZED_TYPE);
+    problem.setTitle("Unauthorized");
+    return problem;
+  }
+
+  @ExceptionHandler(AuthenticatedUserNotFoundException.class)
+  ProblemDetail handleAuthenticatedUserNotFound() {
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.UNAUTHORIZED, "Authenticated user is unavailable");
     problem.setType(UNAUTHORIZED_TYPE);
     problem.setTitle("Unauthorized");
     return problem;

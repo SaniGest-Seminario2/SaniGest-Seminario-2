@@ -6,6 +6,7 @@ import com.sanigest.identity.domain.port.DuplicateUserEmailException;
 import com.sanigest.identity.domain.port.UserRepository;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -31,6 +32,11 @@ class JpaUserRepositoryAdapter implements UserRepository {
   }
 
   @Override
+  public Optional<User> findById(UUID id) {
+    return repository.findById(id).map(JpaUserRepositoryAdapter::toDomain);
+  }
+
+  @Override
   public User save(User user) {
     try {
       UserJpaEntity saved = repository.saveAndFlush(toEntity(user));
@@ -41,14 +47,7 @@ class JpaUserRepositoryAdapter implements UserRepository {
   }
 
   private static UserJpaEntity toEntity(User user) {
-    return new UserJpaEntity(
-        user.id(),
-        user.email().value(),
-        user.passwordHash(),
-        user.name(),
-        user.status(),
-        user.createdAt(),
-        user.updatedAt());
+    return new UserJpaEntity(user);
   }
 
   private static User toDomain(UserJpaEntity entity) {
@@ -57,6 +56,7 @@ class JpaUserRepositoryAdapter implements UserRepository {
         EmailAddress.of(entity.getEmail()),
         entity.getPasswordHash(),
         entity.getName(),
+        entity.getAccountType(),
         entity.getStatus(),
         entity.getCreatedAt(),
         entity.getUpdatedAt());
