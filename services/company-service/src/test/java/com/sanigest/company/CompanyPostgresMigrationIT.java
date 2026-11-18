@@ -13,8 +13,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Testcontainers
 class CompanyPostgresMigrationIT {
   @Container
-  static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>("postgres:17.7-alpine")
+  static final PostgreSQLContainer POSTGRES =
+      new PostgreSQLContainer("postgres:17.7-alpine")
           .withDatabaseName("sanigest_company")
           .withUsername("sanigest_company")
           .withPassword("test-only-password");
