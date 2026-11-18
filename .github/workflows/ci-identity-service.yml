@@ -22,6 +22,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  endpoint-test-guard:
+    name: Endpoint test guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check controllers have IT coverage
+        run: |
+          changed_controllers=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | grep -E 'services/identity-service/src/main/.*Controller\.java$' || true)
+
+          if [ -z "$changed_controllers" ]; then
+            echo "No controller changes detected, skipping guard."
+            exit 0
+          fi
+
+          echo "Changed controllers:"
+          echo "$changed_controllers"
+
+          missing=""
+          for controller in $changed_controllers; do
+            name=$(basename "$controller" .java)
+            it_files=$(find services/identity-service/src/test -name "*IT.java" 2>/dev/null || true)
+            if [ -z "$it_files" ]; then
+              missing="$missing\n  - $name (no *IT.java files found)"
+            fi
+          done
+
+          if [ -n "$missing" ]; then
+            echo "ERROR: The following controllers were modified but no *IT.java tests exist:"
+            printf "$missing\n"
+            echo ""
+            echo "Add at least one smoke or regression IT test before merging."
+            exit 1
+          fi
+
+          echo "All modified controllers have IT coverage."
+
   syntax:
     name: Syntax and compilation
     runs-on: ubuntu-latest
