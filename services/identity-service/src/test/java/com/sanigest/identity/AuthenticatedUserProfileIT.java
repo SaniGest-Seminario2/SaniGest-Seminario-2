@@ -2,8 +2,6 @@ package com.sanigest.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -24,6 +22,8 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -34,7 +34,7 @@ class AuthenticatedUserProfileIT {
   private static final String PASSWORD_HASH = "$2a$12$sensitiveHashThatMustNeverBeReturned";
 
   private final HttpClient http = HttpClient.newHttpClient();
-  private final ObjectMapper json = new ObjectMapper();
+  private final JsonMapper json = new JsonMapper();
 
   @LocalServerPort private int port;
   @Autowired private JdbcTemplate jdbc;
