@@ -47,15 +47,7 @@ class JpaUserRepositoryAdapter implements UserRepository {
   }
 
   private static UserJpaEntity toEntity(User user) {
-    return new UserJpaEntity(
-        user.id(),
-        user.email().value(),
-        user.passwordHash(),
-        user.name(),
-        user.accountType(),
-        user.status(),
-        user.createdAt(),
-        user.updatedAt());
+    return new UserJpaEntity(user);
   }
 
   private static User toDomain(UserJpaEntity entity) {

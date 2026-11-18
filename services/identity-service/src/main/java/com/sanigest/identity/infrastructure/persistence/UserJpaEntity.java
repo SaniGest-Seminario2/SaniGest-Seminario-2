@@ -1,6 +1,7 @@
 package com.sanigest.identity.infrastructure.persistence;
 
 import com.sanigest.identity.domain.model.AccountType;
+import com.sanigest.identity.domain.model.User;
 import com.sanigest.identity.domain.model.UserStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -42,23 +43,15 @@ class UserJpaEntity {
 
   protected UserJpaEntity() {}
 
-  UserJpaEntity(
-      UUID id,
-      String email,
-      String passwordHash,
-      String name,
-      AccountType accountType,
-      UserStatus status,
-      Instant createdAt,
-      Instant updatedAt) {
-    this.id = id;
-    this.email = email;
-    this.passwordHash = passwordHash;
-    this.name = name;
-    this.accountType = accountType;
-    this.status = status;
-    this.createdAt = createdAt;
-    this.updatedAt = updatedAt;
+  UserJpaEntity(User user) {
+    this.id = user.id();
+    this.email = user.email().value();
+    this.passwordHash = user.passwordHash();
+    this.name = user.name();
+    this.accountType = user.accountType();
+    this.status = user.status();
+    this.createdAt = user.createdAt();
+    this.updatedAt = user.updatedAt();
   }
 
   UUID getId() {
