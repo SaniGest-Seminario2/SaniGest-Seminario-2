@@ -17,6 +17,7 @@ import com.sanigest.identity.domain.model.User;
 import com.sanigest.identity.domain.port.PasswordHasher;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,6 +29,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+@Tag("regression")
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -38,6 +40,10 @@ class IdentityServiceApplicationIT {
   @Autowired private MockMvc mockMvc;
   @Autowired private RegisterUserService registerUserService;
   @Autowired private PasswordHasher passwordHasher;
+
+  private static final String VALID_PASSWORD = "a-secure-password";
+  private static final String ANOTHER_PASSWORD = "another-password";
+  private static final String RAW_PASSWORD = "correct-horse-battery-staple";
 
   @Test
   void appliesMigrationAndKeepsItIdempotent() {
@@ -61,13 +67,10 @@ class IdentityServiceApplicationIT {
             post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    """
-                    {
-                      "email": " Person@Example.COM ",
-                      "password": "a-secure-password",
-                      "name": "Person"
-                    }
-                    """))
+                    "{\"email\":\" Person@Example.COM \","
+                        + "\"password\":\""
+                        + VALID_PASSWORD
+                        + "\",\"name\":\"Person\"}"))
         .andExpect(status().isCreated())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(jsonPath("$.userId").isNotEmpty())
@@ -109,21 +112,13 @@ class IdentityServiceApplicationIT {
   @Transactional
   void returnsConflictForADuplicateEmailRegardlessOfCasing() throws Exception {
     String firstRequest =
-        """
-        {
-          "email": "duplicate@example.com",
-          "password": "a-secure-password",
-          "name": "First"
-        }
-        """;
+        "{\"email\":\"duplicate@example.com\",\"password\":\""
+            + VALID_PASSWORD
+            + "\",\"name\":\"First\"}";
     String duplicateRequest =
-        """
-        {
-          "email": "DUPLICATE@EXAMPLE.COM",
-          "password": "another-password",
-          "name": "Second"
-        }
-        """;
+        "{\"email\":\"DUPLICATE@EXAMPLE.COM\",\"password\":\""
+            + ANOTHER_PASSWORD
+            + "\",\"name\":\"Second\"}";
 
     mockMvc
         .perform(
@@ -150,11 +145,9 @@ class IdentityServiceApplicationIT {
   @Test
   @Transactional
   void persistsAUserWithoutPersistingThePlainTextPassword() {
-    String rawPassword = "correct-horse-battery-staple";
-
     User user =
         registerUserService.register(
-            new RegisterUserCommand(" Test.User@Example.COM ", rawPassword, "Test User"));
+            new RegisterUserCommand(" Test.User@Example.COM ", RAW_PASSWORD, "Test User"));
 
     String storedEmail =
         jdbcTemplate.queryForObject(
@@ -163,19 +156,19 @@ class IdentityServiceApplicationIT {
         jdbcTemplate.queryForObject(
             "SELECT password_hash FROM users WHERE id = ?", String.class, user.id());
     assertThat(storedEmail).isEqualTo("test.user@example.com");
-    assertThat(storedHash).isNotEqualTo(rawPassword).startsWith("$2");
-    assertThat(passwordHasher.matches(rawPassword, storedHash)).isTrue();
+    assertThat(storedHash).isNotEqualTo(RAW_PASSWORD).startsWith("$2");
+    assertThat(passwordHasher.matches(RAW_PASSWORD, storedHash)).isTrue();
   }
 
   @Test
   @Transactional
   void treatsDifferentlyCasedEmailsAsTheSameAccount() {
     registerUserService.register(
-        new RegisterUserCommand("unique@example.com", "a-secure-password", "First"));
+        new RegisterUserCommand("unique@example.com", VALID_PASSWORD, "First"));
 
     assertThatThrownBy(() ->
             registerUserService.register(
-                new RegisterUserCommand("UNIQUE@EXAMPLE.COM", "another-password", "Second")))
+                new RegisterUserCommand("UNIQUE@EXAMPLE.COM", ANOTHER_PASSWORD, "Second")))
         .isInstanceOf(DuplicateEmailException.class);
   }
 

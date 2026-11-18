@@ -59,33 +59,35 @@ class IdentityRegistrationSmokeIT {
     jdbcTemplate.update("DELETE FROM users");
   }
 
+  private static final String VALID_PASSWORD = "correct-horse-battery-staple";
+  private static final String ANOTHER_PASSWORD = "second-secure-password";
+
   @Test
   @DisplayName("POST /api/v1/auth/register -> 201 and persists a BCrypt hash in PostgreSQL")
   void registersThroughRealHttpAndPersistsOnlyBcryptInPostgresql() throws Exception {
     Response response =
         register(
-            """
-            {"email":" Smoke.User@Example.COM ",
-             "password":"correct-horse-battery-staple","name":" Smoke User "}
-            """);
+            "{\"email\":\" Smoke.User@Example.COM \","
+                + "\"password\":\""
+                + VALID_PASSWORD
+                + "\",\"name\":\" Smoke User \"}");
 
     assertThat(response.status()).isEqualTo(201);
     assertThat(response.body())
         .contains("\"userId\":", "\"email\":\"smoke.user@example.com\"")
-        .doesNotContain("password", "hash", "correct-horse-battery-staple");
+        .doesNotContain("password", "hash", VALID_PASSWORD);
 
     String storedHash =
         jdbcTemplate.queryForObject(
             "SELECT password_hash FROM users WHERE email = 'smoke.user@example.com'", String.class);
-    assertThat(storedHash).startsWith("$2").isNotEqualTo("correct-horse-battery-staple");
-    assertThat(passwordHasher.matches("correct-horse-battery-staple", storedHash)).isTrue();
+    assertThat(storedHash).startsWith("$2").isNotEqualTo(VALID_PASSWORD);
+    assertThat(passwordHasher.matches(VALID_PASSWORD, storedHash)).isTrue();
   }
 
   @Test
   @DisplayName("POST /api/v1/auth/register with invalid fields -> 400 validation problem")
   void returnsFieldLevelValidationProblemsOverRealHttp() throws Exception {
-    Response response =
-        register("{\"email\":\"invalid\",\"password\":\"short\",\"name\":\"Person\"}");
+    Response response = register("{\"email\":\"invalid\",\"password\":\"short\",\"name\":\"Person\"}");
 
     assertThat(response.status()).isEqualTo(400);
     assertThat(response.body())
@@ -98,13 +100,17 @@ class IdentityRegistrationSmokeIT {
   void returnsConflictForTheSameNormalizedEmailOverRealHttp() throws Exception {
     assertThat(
             register(
-                    "{\"email\":\"person@example.com\",\"password\":\"first-secure-password\",\"name\":\"First\"}")
+                    "{\"email\":\"person@example.com\",\"password\":\""
+                        + VALID_PASSWORD
+                        + "\",\"name\":\"First\"}")
                 .status())
         .isEqualTo(201);
 
     Response duplicate =
         register(
-            "{\"email\":\"PERSON@EXAMPLE.COM\",\"password\":\"second-secure-password\",\"name\":\"Second\"}");
+            "{\"email\":\"PERSON@EXAMPLE.COM\",\"password\":\""
+                + ANOTHER_PASSWORD
+                + "\",\"name\":\"Second\"}");
 
     assertThat(duplicate.status()).isEqualTo(409);
     assertThat(duplicate.body()).contains("urn:sanigest:problem:duplicate-email");
@@ -116,10 +122,14 @@ class IdentityRegistrationSmokeIT {
   void allowsOnlyOneWinnerForConcurrentRegistrations() {
     CompletableFuture<Response> first =
         registerAsync(
-            "{\"email\":\"race@example.com\",\"password\":\"first-secure-password\",\"name\":\"First\"}");
+            "{\"email\":\"race@example.com\",\"password\":\""
+                + VALID_PASSWORD
+                + "\",\"name\":\"First\"}");
     CompletableFuture<Response> second =
         registerAsync(
-            "{\"email\":\"RACE@EXAMPLE.COM\",\"password\":\"second-secure-password\",\"name\":\"Second\"}");
+            "{\"email\":\"RACE@EXAMPLE.COM\",\"password\":\""
+                + ANOTHER_PASSWORD
+                + "\",\"name\":\"Second\"}");
 
     List<Integer> statuses =
         List.of(first.join().status(), second.join().status()).stream().sorted().toList();
@@ -136,7 +146,7 @@ class IdentityRegistrationSmokeIT {
   private CompletableFuture<Response> registerAsync(String json) {
     return httpClient
         .sendAsync(request(json), HttpResponse.BodyHandlers.ofString())
-        .thenApply(response -> new Response(response.statusCode(), response.body()));
+        .thenApplyAsync(response -> new Response(response.statusCode(), response.body()));
   }
 
   private HttpRequest request(String json) {

@@ -1,0 +1,133 @@
+name: Identity Service CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/identity-service/**"
+      - "pom.xml"
+      - "config/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/identity-service/**"
+      - "pom.xml"
+      - "config/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: identity-service-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  syntax:
+    name: Syntax and compilation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            **/pom.xml
+
+      - name: Validate format, static analysis and compilation
+        run: mvn -B -pl services/identity-service -am -DskipTests compile
+
+  unit-tests:
+    name: Unit tests
+    needs: syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            **/pom.xml
+
+      - name: Run unit tests
+        run: mvn -B -pl services/identity-service -am -DskipITs test
+
+      - name: Publish unit test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: identity-unit-reports-${{ github.run_id }}
+          path: "services/identity-service/target/surefire-reports/**"
+          if-no-files-found: error
+          retention-days: 7
+
+  regression:
+    name: Regression tests
+    needs: syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            **/pom.xml
+
+      - name: Run regression tests
+        run: mvn -B -pl services/identity-service -am -Pregression verify
+
+      - name: Publish regression reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: identity-regression-reports-${{ github.run_id }}
+          path: "services/identity-service/target/failsafe-reports/**"
+          if-no-files-found: error
+          retention-days: 7
+
+  smoke:
+    name: Smoke tests
+    needs: syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            **/pom.xml
+
+      - name: Run smoke tests
+        run: mvn -B -pl services/identity-service -am -Psmoke verify
+
+      - name: Publish smoke reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: identity-smoke-reports-${{ github.run_id }}
+          path: "services/identity-service/target/failsafe-reports/**"
+          if-no-files-found: error
+          retention-days: 7
