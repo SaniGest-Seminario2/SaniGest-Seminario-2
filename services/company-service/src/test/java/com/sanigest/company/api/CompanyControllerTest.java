@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.sanigest.company.application.CreateCompanyUseCase;
+import com.sanigest.company.application.GetMyCompanyUseCase;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -32,14 +33,16 @@ class CompanyControllerTest {
             "ACTIVE");
     when(useCase.create(userId, "key", request)).thenReturn(response);
     var jwt = Jwt.withTokenValue("test").header("alg", "HS256").subject(userId.toString()).build();
-    var result = new CompanyController(useCase).create(jwt, "key", request);
+    var result =
+        new CompanyController(useCase, mock(GetMyCompanyUseCase.class)).create(jwt, "key", request);
     assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     assertThat(result.getBody()).isEqualTo(response);
   }
 
   @Test
   void rejectsInvalidAuthenticatedIdentity() {
-    var controller = new CompanyController(mock(CreateCompanyUseCase.class));
+    var controller =
+        new CompanyController(mock(CreateCompanyUseCase.class), mock(GetMyCompanyUseCase.class));
     var jwt = Jwt.withTokenValue("test").header("alg", "HS256").subject("invalid").build();
     assertThatThrownBy(() -> controller.create(jwt, "key", null))
         .isInstanceOf(IllegalArgumentException.class)

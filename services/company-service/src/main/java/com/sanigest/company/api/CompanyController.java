@@ -1,6 +1,8 @@
 package com.sanigest.company.api;
 
 import com.sanigest.company.application.CreateCompanyUseCase;
+import com.sanigest.company.application.GetMyCompanyUseCase;
+import com.sanigest.company.application.GetMyCompanyUseCase.CompanyProfile;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -11,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -22,8 +25,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class CompanyController {
   private final CreateCompanyUseCase useCase;
 
-  public CompanyController(CreateCompanyUseCase useCase) {
+  private final GetMyCompanyUseCase getMyCompany;
+
+  public CompanyController(CreateCompanyUseCase useCase, GetMyCompanyUseCase getMyCompany) {
     this.useCase = useCase;
+    this.getMyCompany = getMyCompany;
+  }
+
+  @GetMapping("/me")
+  CompanyProfile me(@AuthenticationPrincipal Jwt jwt) {
+    return getMyCompany.get(authenticatedUserId(jwt));
   }
 
   @PostMapping
@@ -31,13 +42,16 @@ public class CompanyController {
       @AuthenticationPrincipal Jwt jwt,
       @RequestHeader("Idempotency-Key") String key,
       @Valid @RequestBody CompanyRequest request) {
-    UUID userId;
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(useCase.create(authenticatedUserId(jwt), key, request));
+  }
+
+  private UUID authenticatedUserId(Jwt jwt) {
     try {
-      userId = UUID.fromString(jwt.getSubject());
+      return UUID.fromString(jwt.getSubject());
     } catch (RuntimeException e) {
       throw new IllegalArgumentException("Invalid authenticated identity");
     }
-    return ResponseEntity.status(HttpStatus.CREATED).body(useCase.create(userId, key, request));
   }
 
   public record CompanyRequest(
