@@ -304,7 +304,8 @@ docker compose exec valkey sh -c \
 ### Validaciones automatizadas de Compose
 
 La validación rápida comprueba perfiles, health checks, dependencias, red,
-puertos y política de persistencia sin arrancar contenedores. El smoke test
+puertos y política de persistencia con `jq` y sin arrancar contenedores.
+El smoke test
 levanta infraestructura desechable y además prueba aislamiento/persistencia de
 PostgreSQL, autenticación/volatilidad de Valkey y operaciones reales de topics
 en Kafka:
