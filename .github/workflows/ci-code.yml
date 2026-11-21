@@ -55,6 +55,8 @@ jobs:
 
       - name: Run unit tests
         run: mvn -B -DskipITs test
+      - name: Verify API Gateway against a local HTTP backend
+        run: mvn -B -pl services/api-gateway verify
 
       - name: Publish unit test reports
         if: always()
