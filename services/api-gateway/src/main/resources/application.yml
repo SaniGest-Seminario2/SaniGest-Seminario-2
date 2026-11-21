@@ -14,6 +14,15 @@ spring:
           httpclient:
             connect-timeout: 500
             response-timeout: 2s
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              '[/api/v1/{resource:auth|users|companies|clients|suppliers|catalog-items}/**]':
+                allowed-origins: ${GATEWAY_CORS_ALLOWED_ORIGINS:}
+                allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+                allowed-headers: [Accept, Authorization, Content-Type, Idempotency-Key]
+                exposed-headers: [X-Correlation-Id]
+                allow-credentials: false
 
 server:
   port: ${SERVER_PORT:8080}

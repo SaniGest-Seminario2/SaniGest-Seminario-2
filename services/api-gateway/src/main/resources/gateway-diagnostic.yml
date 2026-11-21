@@ -24,6 +24,7 @@ spring:
                 - SetPath=/ping
                 - RemoveRequestHeader=Authorization
                 - RemoveRequestHeader=Cookie
+                - RemoveRequestHeader=X-Trace-Id
                 - RemoveRequestHeader=traceparent
                 - RemoveRequestHeader=tracestate
                 - RemoveRequestHeader=baggage

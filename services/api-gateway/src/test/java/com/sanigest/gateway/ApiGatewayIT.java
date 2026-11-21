@@ -74,7 +74,8 @@ class ApiGatewayIT {
           .contains("\"status\":\"UP\"")
           .doesNotContain("\"details\"", "\"components\"");
     }
-    for (String path : List.of("/actuator/env", "/actuator/gateway/routes", "/unknown")) {
+    for (String path :
+        List.of("/actuator/env", "/actuator/gateway/routes", "/api/v1/catalog-items", "/unknown")) {
       var response = send(request(path).GET());
       assertThat(response.statusCode()).isEqualTo(404);
       assertThat(response.body())
