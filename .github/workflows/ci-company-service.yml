@@ -5,12 +5,14 @@ on:
     branches: [main]
     paths:
       - "services/company-service/**"
+      - "libraries/common-security/**"
       - "pom.xml"
       - "config/**"
   pull_request:
     branches: [main]
     paths:
       - "services/company-service/**"
+      - "libraries/common-security/**"
       - "pom.xml"
       - "config/**"
 
@@ -61,7 +63,7 @@ jobs:
             **/pom.xml
 
       - name: Run unit tests
-        run: mvn -B -pl services/company-service -am -DskipITs test
+        run: sh config/maven-build.sh -pl services/company-service -am -DskipITs test
 
       - name: Publish unit test reports
         if: always()

@@ -6,10 +6,12 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.KeyPairGenerator;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -91,8 +93,13 @@ class AuthenticatedUserProfileIT {
   @Test
   @Tag("regression")
   void rejectsAJwtWithAnInvalidSignature() throws Exception {
+    var generator = KeyPairGenerator.getInstance("RSA");
+    generator.initialize(2048);
+    var unrelated = generator.generateKeyPair();
     JwtEncoder otherEncoder =
-        NimbusJwtEncoder.withSecretKey(new SecretKeySpec(new byte[32], "HmacSHA256")).build();
+        NimbusJwtEncoder.withKeyPair(
+                (RSAPublicKey) unrelated.getPublic(), (RSAPrivateKey) unrelated.getPrivate())
+            .build();
     String invalid = token(otherEncoder, USER_ID, validFrom(), validUntil());
 
     assertThat(getProfile(invalid).statusCode()).isEqualTo(401);
@@ -125,14 +132,38 @@ class AuthenticatedUserProfileIT {
         .isEqualTo(401);
   }
 
+  @Test
+  @Tag("regression")
+  void internalAuthorizationUsesCurrentAccountAndOnlyTheJwtSubject() throws Exception {
+    String token = token(jwtEncoder, USER_ID, validFrom(), validUntil());
+    String path = "/internal/v1/account-authorization?userId=" + OTHER_USER_ID;
+    assertThat(get(path, null).statusCode()).isEqualTo(401);
+
+    var active = get(path, token);
+    assertThat(active.statusCode()).isEqualTo(204);
+    assertThat(active.headers().firstValue("X-Account-Type")).contains("REGULAR");
+    assertThat(active.body()).isEmpty();
+
+    jdbc.update("UPDATE users SET account_type = 'ADVISOR' WHERE id = ?", USER_ID);
+    assertThat(get(path, token).headers().firstValue("X-Account-Type")).contains("ADVISOR");
+
+    jdbc.update("UPDATE users SET status = 'DISABLED' WHERE id = ?", USER_ID);
+    var disabled = get(path, token);
+    assertThat(disabled.statusCode()).isEqualTo(403);
+    assertThat(disabled.headers().firstValue("X-Account-Type")).isEmpty();
+  }
+
   private HttpResponse<String> getProfile(String token) throws Exception {
     return getProfile(token, "");
   }
 
   private HttpResponse<String> getProfile(String token, String query) throws Exception {
+    return get("/api/v1/auth/me" + query, token);
+  }
+
+  private HttpResponse<String> get(String path, String token) throws Exception {
     HttpRequest.Builder request =
-        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/auth/me" + query))
-            .GET();
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path)).GET();
     if (token != null) {
       request.header("Authorization", "Bearer " + token);
     }

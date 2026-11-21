@@ -38,7 +38,7 @@ class JpaRefreshTokenServiceTest {
           users,
           issuer,
           new JwtProperties(
-              "issuer", "audience", "secret", Duration.ofMinutes(15), Duration.ofDays(7)));
+              "issuer", "audience", null, null, Duration.ofMinutes(15), Duration.ofDays(7)));
 
   @BeforeEach
   void setUp() {

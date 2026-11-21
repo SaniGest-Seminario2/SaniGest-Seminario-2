@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sanigest.company.api.CompanyController.CompanyRequest;
+import com.sanigest.company.application.GetMyCompanyUseCase.CompanyAccessDeniedException;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -42,5 +43,8 @@ class CompanyRegistrationTest {
     assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM companies", Integer.class)).isEqualTo(1);
     assertThatThrownBy(() -> useCase.create(userId, "another-key", request))
         .isInstanceOf(CreateCompanyUseCase.ConflictException.class);
+    jdbc.update("UPDATE company_memberships SET status = 'REVOKED' WHERE user_id = ?", userId);
+    assertThatThrownBy(() -> useCase.create(userId, "registration", request))
+        .isInstanceOf(CompanyAccessDeniedException.class);
   }
 }

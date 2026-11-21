@@ -39,8 +39,6 @@ class IdentityServiceApplicationIT {
   private static final String VALID_PASSWORD = TestCredentials.random();
   private static final String ANOTHER_PASSWORD = TestCredentials.random();
   private static final String RAW_PASSWORD = TestCredentials.random();
-  private static final String JWT_SECRET =
-      "dGVzdC1vbmx5LWtleS13aXRoLWF0LWxlYXN0LTMyLWJ5dGVzLTEyMzQ1Ng==";
 
   @Container
   static final PostgreSQLContainer POSTGRES =
@@ -66,7 +64,6 @@ class IdentityServiceApplicationIT {
     registry.add("spring.datasource.password", POSTGRES::getPassword);
     registry.add("sanigest.jwt.issuer", () -> "sanigest-it");
     registry.add("sanigest.jwt.audience", () -> "sanigest-api-it");
-    registry.add("sanigest.jwt.secret", () -> JWT_SECRET);
   }
 
   @BeforeEach

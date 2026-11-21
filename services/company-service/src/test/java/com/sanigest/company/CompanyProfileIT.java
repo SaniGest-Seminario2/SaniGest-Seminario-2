@@ -5,19 +5,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
+import java.security.KeyPairGenerator;
+import java.security.interfaces.RSAPrivateKey;
+import java.text.ParseException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
@@ -25,7 +32,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.converter.RsaKeyConverters;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -41,6 +50,11 @@ class CompanyProfileIT {
   private static final String COMPANIES = "/api/v1/companies";
   private static final String ME = COMPANIES + "/me";
 
+  private static final ConcurrentHashMap<String, Integer> ACCOUNT_STATUS =
+      new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, String> ACCOUNT_TYPE = new ConcurrentHashMap<>();
+  private static final HttpServer IDENTITY = identity();
+
   @Container
   static final PostgreSQLContainer POSTGRES =
       new PostgreSQLContainer("postgres:17.7-alpine")
@@ -50,9 +64,43 @@ class CompanyProfileIT {
 
   @DynamicPropertySource
   static void datasource(DynamicPropertyRegistry properties) {
+    properties.add(
+        "sanigest.identity-url", () -> "http://127.0.0.1:" + IDENTITY.getAddress().getPort());
     properties.add("spring.datasource.url", POSTGRES::getJdbcUrl);
     properties.add("spring.datasource.username", POSTGRES::getUsername);
     properties.add("spring.datasource.password", POSTGRES::getPassword);
+  }
+
+  @AfterAll
+  static void stopIdentity() {
+    IDENTITY.stop(0);
+  }
+
+  private static HttpServer identity() {
+    try {
+      var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+      server.createContext(
+          "/internal/v1/account-authorization",
+          exchange -> {
+            try (exchange) {
+              String token = exchange.getRequestHeaders().getFirst("Authorization").substring(7);
+              String subject = SignedJWT.parse(token).getJWTClaimsSet().getSubject();
+              int status = ACCOUNT_STATUS.getOrDefault(subject, 204);
+              if (status == 204) {
+                exchange
+                    .getResponseHeaders()
+                    .set("X-Account-Type", ACCOUNT_TYPE.getOrDefault(subject, "REGULAR"));
+              }
+              exchange.sendResponseHeaders(status, -1);
+            } catch (ParseException invalid) {
+              throw new IOException(invalid);
+            }
+          });
+      server.start();
+      return server;
+    } catch (IOException failure) {
+      throw new IllegalStateException(failure);
+    }
   }
 
   @LocalServerPort private int port;
@@ -64,8 +112,7 @@ class CompanyProfileIT {
   @Value("${sanigest.jwt.audience}")
   private String audience;
 
-  @Value("${sanigest.jwt.secret}")
-  private String secret;
+  private final RSAPrivateKey signingKey = signingKey();
 
   private final HttpClient http = HttpClient.newHttpClient();
 
@@ -158,10 +205,42 @@ class CompanyProfileIT {
 
     assertThat(get(ME, null).statusCode()).isEqualTo(401);
     assertThat(get(ME, "invalid-token").statusCode()).isEqualTo(401);
-    assertThat(get(ME, token(userId, expired, secret)).statusCode()).isEqualTo(401);
-    assertThat(get(ME, token(userId, future, secret + "-wrong")).statusCode()).isEqualTo(401);
-    assertThat(get(ME, token("invalid-subject", future, secret)).statusCode()).isEqualTo(401);
-    assertThat(get(ME, token(userId, null, secret)).statusCode()).isEqualTo(401);
+    assertThat(get(ME, token(userId, expired, signingKey)).statusCode()).isEqualTo(401);
+    assertThat(
+            get(
+                    ME,
+                    token(
+                        userId,
+                        future,
+                        (RSAPrivateKey)
+                            KeyPairGenerator.getInstance("RSA").generateKeyPair().getPrivate()))
+                .statusCode())
+        .isEqualTo(401);
+    assertThat(get(ME, token("invalid-subject", future, signingKey)).statusCode()).isEqualTo(401);
+    assertThat(get(ME, token(userId, null, signingKey)).statusCode()).isEqualTo(401);
+  }
+
+  @Test
+  void checksAccountStatusAndTypeForEveryOperationWithTheSameToken() throws Exception {
+    UUID user = UUID.randomUUID();
+    String token = token(user);
+    createCompany(user, token, "Clinica Identidad", "123456790");
+    assertThat(get(ME, token).statusCode()).isEqualTo(200);
+
+    ACCOUNT_STATUS.put(user.toString(), 403);
+    assertThat(get(ME, token).statusCode()).isEqualTo(403);
+    assertThat(patch(ME, token, "{\"location\":\"Santiago\"}").statusCode()).isEqualTo(403);
+
+    ACCOUNT_STATUS.put(user.toString(), 503);
+    assertThat(get(ME, token).statusCode()).isEqualTo(503);
+    assertThat(patch(ME, token, "{\"location\":\"Santiago\"}").statusCode()).isEqualTo(503);
+
+    ACCOUNT_STATUS.remove(user.toString());
+    ACCOUNT_TYPE.put(user.toString(), "ADVISOR");
+    assertThat(get(ME, token).statusCode()).isEqualTo(403);
+    assertThat(patch(ME, token, "{\"location\":\"Santiago\"}").statusCode()).isEqualTo(403);
+    ACCOUNT_TYPE.remove(user.toString());
+    assertThat(get(ME, token).body()).contains("Santo Domingo");
   }
 
   @Test
@@ -203,6 +282,9 @@ class CompanyProfileIT {
     }
     assertThat(updatedAt(company)).isEqualTo(before);
     assertThat(patch(ME, adminToken, payload).statusCode()).isEqualTo(200);
+    jdbc.update("UPDATE company_memberships SET role = 'VIEWER' WHERE user_id = ?", admin);
+    assertThat(get(ME, adminToken).statusCode()).isEqualTo(200);
+    assertThat(patch(ME, adminToken, payload).statusCode()).isEqualTo(403);
     assertThat(get(ME, ownerToken).body()).contains("Santiago", "123456784");
   }
 
@@ -287,17 +369,31 @@ class CompanyProfileIT {
   }
 
   private String token(UUID userId) throws JOSEException {
-    return token(userId.toString(), Instant.now().plusSeconds(300), secret);
+    return token(userId.toString(), Instant.now().plusSeconds(300), signingKey);
   }
 
-  private String token(String subject, Instant expires, String signingKey) throws JOSEException {
-    var claims = new JWTClaimsSet.Builder().subject(subject).issuer(issuer).audience(audience);
+  private String token(String subject, Instant expires, RSAPrivateKey signingKey)
+      throws JOSEException {
+    var claims =
+        new JWTClaimsSet.Builder()
+            .subject(subject)
+            .issuer(issuer)
+            .audience(audience)
+            .issueTime(Date.from(Instant.now().minusSeconds(30)));
     if (expires != null) {
       claims.expirationTime(Date.from(expires));
     }
-    var jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims.build());
-    jwt.sign(new MACSigner(signingKey.getBytes(StandardCharsets.UTF_8)));
+    var jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.RS256), claims.build());
+    jwt.sign(new RSASSASigner(signingKey));
     return jwt.serialize();
+  }
+
+  private static RSAPrivateKey signingKey() {
+    try (var input = new ClassPathResource("jwt-test-private.pem").getInputStream()) {
+      return RsaKeyConverters.pkcs8().convert(input);
+    } catch (IOException failure) {
+      throw new IllegalStateException(failure);
+    }
   }
 
   private HttpResponse<String> get(String path, String token) throws Exception {

@@ -1,7 +1,7 @@
 # Librerías compartidas
 
-Este directorio permanece sin módulos hasta que una necesidad esté demostrada
-por al menos dos consumidores.
+Los módulos requieren al menos dos consumidores. `common-security` contiene
+la validación JWT que usan Gateway, Identity y Company.
 
 Se permiten contratos técnicos versionados y utilidades pequeñas, por ejemplo
 `common-web`, `common-security` o `common-events`. Se prohíben entidades JPA,

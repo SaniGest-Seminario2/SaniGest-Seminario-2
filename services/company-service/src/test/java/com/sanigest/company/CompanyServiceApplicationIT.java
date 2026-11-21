@@ -161,8 +161,8 @@ class CompanyServiceApplicationIT {
     assertThat(info.body())
         .contains("\"name\":\"SaniGest Company Service\"", "\"artifact\":\"company-service\"")
         .doesNotContain("jdbc:", "password", "token");
-    assertThat(env.statusCode()).isEqualTo(404);
-    assertThat(configprops.statusCode()).isEqualTo(404);
+    assertThat(env.statusCode()).isEqualTo(401);
+    assertThat(configprops.statusCode()).isEqualTo(401);
   }
 
   private HttpResponse<String> get(String path) throws Exception {

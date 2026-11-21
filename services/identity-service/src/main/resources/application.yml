@@ -18,7 +18,8 @@ sanigest:
   jwt:
     issuer: ${JWT_ISSUER}
     audience: ${JWT_AUDIENCE}
-    secret: ${JWT_SECRET}
+    private-key: ${JWT_PRIVATE_KEY_LOCATION}
+    public-key: ${JWT_PUBLIC_KEY_LOCATION}
     access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT15M}
     refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:P30D}
 

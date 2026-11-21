@@ -57,7 +57,7 @@ jobs:
         run: sh config/maven-build.sh -DskipITs test
 
       - name: Verify API Gateway against a local HTTP backend
-        run: sh config/maven-build.sh -pl services/api-gateway verify
+        run: sh config/maven-build.sh -pl services/api-gateway -am verify
 
       - name: Publish unit and Gateway test reports
         if: always()

@@ -1,3 +1,8 @@
 logging:
   level:
     org.springframework.web.servlet.DispatcherServlet: DEBUG
+
+sanigest:
+  jwt:
+    private-key: classpath:jwt-test-private.pem
+    public-key: classpath:jwt-test-public.pem

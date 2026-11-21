@@ -38,6 +38,7 @@ class ServiceRoutingIT {
 
   @DynamicPropertySource
   static void destinations(DynamicPropertyRegistry registry) {
+    GatewayTestTokens.configure(registry);
     registry.add("IDENTITY_SERVICE_URL", () -> origin(IDENTITY));
     registry.add("COMPANY_SERVICE_URL", () -> origin(COMPANY));
     registry.add("CATALOG_SERVICE_URL", () -> origin(CATALOG));
@@ -53,6 +54,7 @@ class ServiceRoutingIT {
 
   @Test
   void routesEveryPrefixToItsConfiguredBackend() throws Exception {
+    String token = GatewayTestTokens.validToken();
     for (var entry :
         Map.of(
                 "/api/v1/auth/login", "identity",
@@ -62,11 +64,16 @@ class ServiceRoutingIT {
                 "/api/v1/suppliers/123", "catalog",
                 "/api/v1/catalog-items", "catalog")
             .entrySet()) {
-      var response = send(request(gateway(), entry.getKey()).GET());
+      var response =
+          send(request(gateway(), entry.getKey()).header("Authorization", "Bearer " + token).GET());
       assertThat(response.statusCode()).isEqualTo(200);
       assertThat(response.body()).isEqualTo(entry.getValue() + " GET " + entry.getKey() + " ");
     }
-    assertThat(send(request(gateway(), "/api/v1/companies-extra").GET()).statusCode())
+    assertThat(
+            send(request(gateway(), "/api/v1/companies-extra")
+                    .header("Authorization", "Bearer " + token)
+                    .GET())
+                .statusCode())
         .isEqualTo(404);
   }
 
@@ -74,11 +81,12 @@ class ServiceRoutingIT {
   void preservesMethodsRawQueryBodyHeadersAndBackendErrors() throws Exception {
     String path = "/api/v1/catalog-items/123?search=a%2Bb&tag=x&tag=y";
     String body = "{\"name\":\"Café\"}";
+    String authorization = "Bearer " + GatewayTestTokens.validToken();
     for (String method : new String[] {"POST", "PUT", "PATCH", "DELETE"}) {
       var response =
           send(
               request(gateway(), path)
-                  .header("Authorization", "Bearer synthetic")
+                  .header("Authorization", authorization)
                   .header("Content-Type", "application/json")
                   .header("X-Correlation-Id", "untrusted")
                   .header("traceparent", "untrusted")
@@ -87,8 +95,7 @@ class ServiceRoutingIT {
                   .method(method, HttpRequest.BodyPublishers.ofString(body)));
       assertThat(response.statusCode()).isEqualTo(422);
       assertThat(response.body()).isEqualTo("catalog " + method + " " + path + " " + body);
-      assertThat(response.headers().firstValue("X-Backend-Authorization"))
-          .contains("Bearer synthetic");
+      assertThat(response.headers().firstValue("X-Backend-Authorization")).contains(authorization);
       assertThat(response.headers().firstValue("X-Backend-Content-Type"))
           .contains("application/json");
       String correlation = response.headers().firstValue("X-Correlation-Id").orElseThrow();
@@ -104,22 +111,32 @@ class ServiceRoutingIT {
 
   @Test
   void preservesCompanyMeResponsesFromTheProtectedBackend() throws Exception {
-    for (String token : new String[] {"synthetic-valid", "synthetic-invalid"}) {
-      var direct =
-          send(
-              request(origin(COMPANY), COMPANY_ME)
-                  .header("Authorization", "Bearer " + token)
-                  .GET());
-      var proxied =
-          send(request(gateway(), COMPANY_ME).header("Authorization", "Bearer " + token).GET());
-      assertThat(proxied.statusCode())
-          .isEqualTo(token.equals("synthetic-valid") ? 200 : 401)
-          .isEqualTo(direct.statusCode());
-      assertThat(proxied.body()).isEqualTo(direct.body());
-      assertThat(proxied.headers().firstValue("WWW-Authenticate"))
-          .isEqualTo(direct.headers().firstValue("WWW-Authenticate"));
-    }
+    String authorization = "Bearer " + GatewayTestTokens.validToken();
+    var direct =
+        send(request(origin(COMPANY), COMPANY_ME).header("Authorization", authorization).GET());
+    var proxied = send(request(gateway(), COMPANY_ME).header("Authorization", authorization).GET());
+    assertThat(proxied.statusCode()).isEqualTo(200).isEqualTo(direct.statusCode());
+    assertThat(proxied.body()).isEqualTo(direct.body());
     assertThat(send(request(gateway(), COMPANY_ME).GET()).statusCode()).isEqualTo(401);
+    var forged =
+        send(
+            request(gateway(), COMPANY_ME)
+                .header("Authorization", "Bearer invalid")
+                .header("X-User-Id", "forged")
+                .GET());
+    assertThat(forged.statusCode()).isEqualTo(401);
+    assertThat(forged.headers().firstValue("X-Backend-Authorization")).isEmpty();
+  }
+
+  @Test
+  void routesExplicitPublicAuthCommandsWithoutAnAccessToken() throws Exception {
+    for (String operation : new String[] {"login", "register", "refresh", "logout"}) {
+      String path = "/api/v1/auth/" + operation;
+      var response = send(request(gateway(), path).POST(HttpRequest.BodyPublishers.noBody()));
+      assertThat(response.statusCode()).isEqualTo(422);
+      assertThat(response.body()).isEqualTo("identity POST " + path + " ");
+      assertThat(send(request(gateway(), path).GET()).statusCode()).isEqualTo(401);
+    }
   }
 
   @Test
@@ -149,7 +166,11 @@ class ServiceRoutingIT {
 
   @Test
   void returnsSafeProblemDetailsWhenTheUpstreamCloses() throws Exception {
-    var response = send(request(gateway(), "/api/v1/auth/disconnected").GET());
+    var response =
+        send(
+            request(gateway(), "/api/v1/auth/disconnected")
+                .header("Authorization", "Bearer " + GatewayTestTokens.validToken())
+                .GET());
     assertThat(response.statusCode()).isEqualTo(503);
     assertThat(response.headers().firstValue("Content-Type")).contains("application/problem+json");
     assertThat(response.body())
@@ -159,7 +180,11 @@ class ServiceRoutingIT {
 
   @Test
   void returnsSafeProblemDetailsWhenTheUpstreamTimesOut() throws Exception {
-    var response = send(request(gateway(), "/api/v1/catalog-items/slow").GET());
+    var response =
+        send(
+            request(gateway(), "/api/v1/catalog-items/slow")
+                .header("Authorization", "Bearer " + GatewayTestTokens.validToken())
+                .GET());
     assertThat(response.statusCode()).isEqualTo(504);
     assertThat(response.headers().firstValue("Content-Type")).contains("application/problem+json");
     assertThat(response.body()).contains("UPSTREAM_TIMEOUT", "traceId").doesNotContain("127.0.0.1");
@@ -218,16 +243,9 @@ class ServiceRoutingIT {
           return;
         }
       }
-      var headers = exchange.getRequestHeaders();
-      var responseHeaders = exchange.getResponseHeaders();
       echoHeaders(exchange);
       String method = exchange.getRequestMethod();
       int status = method.equals("GET") ? 200 : 422;
-      if (path.equals(COMPANY_ME)
-          && !"Bearer synthetic-valid".equals(headers.getFirst("Authorization"))) {
-        status = 401;
-        responseHeaders.set("WWW-Authenticate", "Bearer");
-      }
       String requestBody =
           new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
       byte[] body =

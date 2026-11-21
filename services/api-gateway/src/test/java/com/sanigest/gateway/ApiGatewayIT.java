@@ -38,6 +38,7 @@ class ApiGatewayIT {
 
   @DynamicPropertySource
   static void backendUrl(DynamicPropertyRegistry registry) {
+    GatewayTestTokens.configure(registry);
     registry.add(
         "GATEWAY_TEST_BACKEND_URL", () -> "http://127.0.0.1:" + BACKEND.getAddress().getPort());
   }
@@ -53,7 +54,7 @@ class ApiGatewayIT {
         send(
             request(PING)
                 .header(CORRELATION, "untrusted")
-                .header("Authorization", "Bearer secret")
+                .header("Authorization", "Bearer " + GatewayTestTokens.validToken())
                 .header("Cookie", "session=secret")
                 .GET());
     assertThat(response.statusCode()).isEqualTo(200);
@@ -74,9 +75,10 @@ class ApiGatewayIT {
           .contains("\"status\":\"UP\"")
           .doesNotContain("\"details\"", "\"components\"");
     }
+    String token = GatewayTestTokens.validToken();
     for (String path :
         List.of("/actuator/env", "/actuator/gateway/routes", "/api/v1/catalog-items", "/unknown")) {
-      var response = send(request(path).GET());
+      var response = send(request(path).header("Authorization", "Bearer " + token).GET());
       assertThat(response.statusCode()).isEqualTo(404);
       assertThat(response.body())
           .doesNotContain("exception", "stacktrace", "diagnostic-ping", "127.0.0.1");

@@ -93,6 +93,10 @@ services:
     profiles: [apps]
     environment:
       SPRING_PROFILES_ACTIVE: local
+      JWT_ISSUER: ${JWT_ISSUER:-sanigest}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      IDENTITY_SERVICE_URL: http://identity-service:8080
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${COMPANY_DB_NAME:-sanigest_company}
       SPRING_DATASOURCE_USERNAME: ${COMPANY_DB_USER:-sanigest_company}
       SPRING_DATASOURCE_PASSWORD: ${COMPANY_DB_PASSWORD:?Define COMPANY_DB_PASSWORD in .env}
@@ -101,6 +105,13 @@ services:
       SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:?Define SPRING_DATA_REDIS_PASSWORD in .env}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       CACHE_DEFAULT_TTL: ${CACHE_DEFAULT_TTL:-5m}
+    volumes:
+      - type: bind
+        source: ${JWT_PUBLIC_KEY_FILE:-./.secrets/jwt-public.pem}
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:${COMPANY_SERVICE_PORT:-8080}:8080"
     depends_on:
@@ -128,9 +139,26 @@ services:
     profiles: [apps]
     environment:
       SPRING_PROFILES_ACTIVE: local
+      JWT_ISSUER: ${JWT_ISSUER:-sanigest}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
+      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${IDENTITY_DB_NAME:-sanigest_identity}
       SPRING_DATASOURCE_USERNAME: ${IDENTITY_DB_USER:-sanigest_identity}
       SPRING_DATASOURCE_PASSWORD: ${IDENTITY_DB_PASSWORD:?Define IDENTITY_DB_PASSWORD in .env}
+    volumes:
+      - type: bind
+        source: ${JWT_PUBLIC_KEY_FILE:-./.secrets/jwt-public.pem}
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${JWT_PRIVATE_KEY_FILE:-./.secrets/jwt-private.pem}
+        target: /run/secrets/jwt-private.pem
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:${IDENTITY_SERVICE_PORT:-8081}:8080"
     depends_on:

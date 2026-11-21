@@ -6,6 +6,8 @@
 **/target
 docs
 infrastructure
-libraries
+libraries/*
+!libraries/common-security/
 scripts
 **/*.md
+.secrets/

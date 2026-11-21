@@ -22,8 +22,9 @@ logging:
     org.springframework.web.servlet.DispatcherServlet: DEBUG
 
 sanigest:
+  identity-url: http://127.0.0.1:1
   jwt:
+    public-key: classpath:jwt-test-public.pem
     issuer: sanigest-test
     audience: sanigest-api-test
-    secret: test-secret-test-secret-test-secret-32
 

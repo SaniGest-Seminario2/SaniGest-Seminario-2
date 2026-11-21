@@ -159,19 +159,9 @@ GitHub Actions ejecuta esta prueba en cada `push` y `pull_request`.
 
 ## Validar el arranque de Company Service
 
-El módulo inicial carga el contexto Spring Boot sin depender de otros servicios
-ni de una base local cuando se usa el perfil predeterminado:
-
-```bash
-mvn -pl services/company-service -am spring-boot:run
-```
-
-El servicio escucha en el puerto `8080` por defecto. Se puede cambiar sin
-modificar el artefacto mediante `SERVER_PORT`:
-
-```bash
-SERVER_PORT=8081 mvn -pl services/company-service -am spring-boot:run
-```
+Company requiere PostgreSQL, Identity y las claves públicas descritas en la
+[configuración de seguridad](docs/seguridad-s2-317.md). El puerto por defecto es
+`8080` y se puede sobrescribir mediante `SERVER_PORT`.
 
 Company Service expone únicamente los endpoints operativos necesarios:
 
@@ -211,7 +201,8 @@ docker compose --profile infra up -d --wait
 docker compose ps
 ```
 
-Para construir y ejecutar Company Service junto con sus dependencias saludables:
+Genera las claves RSA locales según la [configuración JWT](docs/seguridad-s2-317.md)
+antes de construir y ejecutar las aplicaciones:
 
 ```bash
 docker compose --profile apps up -d --build --wait
@@ -238,14 +229,16 @@ Cada rol puede conectarse y escribir únicamente en su base. La cuenta
 configurarse en ningún microservicio. Los nombres son deliberadamente estables;
 las contraseñas se suministran mediante las variables `*_DB_PASSWORD` de `.env`.
 
-Exporta las mismas variables y arranca Company con el perfil `local`:
+Con PostgreSQL e Identity en ejecución, exporta las variables de `.env` y
+arranca Company con el perfil `local`:
 
 ```bash
 set -a
 . ./.env
 set +a
-mvn -pl services/company-service -am spring-boot:run \
-  -Dspring-boot.run.profiles=local
+export JWT_PUBLIC_KEY_LOCATION="file:${JWT_PUBLIC_KEY_FILE}"
+mvn -pl services/company-service -am -DskipTests package
+SPRING_PROFILES_ACTIVE=local java -jar services/company-service/target/company-service-0.1.0-SNAPSHOT.jar
 ```
 
 ### Operación cotidiana

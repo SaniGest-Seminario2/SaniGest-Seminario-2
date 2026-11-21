@@ -2,6 +2,7 @@ package com.sanigest.company.application;
 
 import com.sanigest.company.api.CompanyController.CompanyRequest;
 import com.sanigest.company.api.CompanyController.CompanyResponse;
+import com.sanigest.company.application.GetMyCompanyUseCase.CompanyAccessDeniedException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;
@@ -32,6 +33,16 @@ public class CreateCompanyUseCase {
             userId,
             key);
     if (prior != null) {
+      boolean active =
+          Boolean.TRUE.equals(
+              jdbc.query(
+                  "SELECT status FROM company_memberships WHERE user_id=? AND company_id=? FOR UPDATE",
+                  rs -> rs.next() && "ACTIVE".equals(rs.getString(1)),
+                  userId,
+                  prior.companyId));
+      if (!active) {
+        throw new CompanyAccessDeniedException();
+      }
       if (!prior.hash.equals(hash)) {
         throw new ConflictException("Idempotency key was already used with another request");
       }

@@ -5,6 +5,7 @@ WORKDIR /workspace
 
 COPY pom.xml ./
 COPY config ./config
+COPY libraries/common-security libraries/common-security
 COPY templates/spring-boot-service/pom.xml templates/spring-boot-service/pom.xml
 COPY services/company-service/pom.xml services/company-service/pom.xml
 COPY services/api-gateway/pom.xml services/api-gateway/pom.xml

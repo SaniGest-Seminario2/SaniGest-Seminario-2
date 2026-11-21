@@ -3,10 +3,15 @@ package com.sanigest.company.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.sanigest.company.application.CreateCompanyUseCase;
+import com.sanigest.company.application.CurrentAccount;
+import com.sanigest.company.application.CurrentAccount.AccountType;
+import com.sanigest.company.application.CurrentAccount.AuthorizationUnavailableException;
 import com.sanigest.company.application.GetMyCompanyUseCase;
+import com.sanigest.company.application.GetMyCompanyUseCase.CompanyAccessDeniedException;
 import com.sanigest.company.application.UpdateMyCompanyUseCase;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -33,10 +38,13 @@ class CompanyControllerTest {
             "DOP",
             "ACTIVE");
     when(useCase.create(userId, "key", request)).thenReturn(response);
-    var jwt = Jwt.withTokenValue("test").header("alg", "HS256").subject(userId.toString()).build();
+    var jwt = Jwt.withTokenValue("test").header("alg", "RS256").subject(userId.toString()).build();
     var result =
         new CompanyController(
-                useCase, mock(GetMyCompanyUseCase.class), mock(UpdateMyCompanyUseCase.class))
+                useCase,
+                mock(GetMyCompanyUseCase.class),
+                mock(UpdateMyCompanyUseCase.class),
+                token -> AccountType.REGULAR)
             .create(jwt, "key", request);
     assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     assertThat(result.getBody()).isEqualTo(response);
@@ -48,11 +56,37 @@ class CompanyControllerTest {
         new CompanyController(
             mock(CreateCompanyUseCase.class),
             mock(GetMyCompanyUseCase.class),
-            mock(UpdateMyCompanyUseCase.class));
-    var jwt = Jwt.withTokenValue("test").header("alg", "HS256").subject("invalid").build();
+            mock(UpdateMyCompanyUseCase.class),
+            mock(CurrentAccount.class));
+    var jwt = Jwt.withTokenValue("test").header("alg", "RS256").subject("invalid").build();
     assertThatThrownBy(() -> controller.create(jwt, "key", null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid authenticated identity");
+  }
+
+  @Test
+  void requiresLiveAuthorizationBeforeInvokingAnyCompanyOperation() {
+    var create = mock(CreateCompanyUseCase.class);
+    var read = mock(GetMyCompanyUseCase.class);
+    var update = mock(UpdateMyCompanyUseCase.class);
+    var accounts = mock(CurrentAccount.class);
+    var controller = new CompanyController(create, read, update, accounts);
+    var jwt =
+        Jwt.withTokenValue("test")
+            .header("alg", "RS256")
+            .subject(UUID.randomUUID().toString())
+            .claim("accountType", "REGULAR")
+            .build();
+    when(accounts.resolve("test")).thenReturn(AccountType.ADVISOR);
+    assertThatThrownBy(() -> controller.me(jwt)).isInstanceOf(CompanyAccessDeniedException.class);
+    assertThatThrownBy(() -> controller.update(jwt, null))
+        .isInstanceOf(CompanyAccessDeniedException.class);
+    assertThatThrownBy(() -> controller.create(jwt, "key", null))
+        .isInstanceOf(CompanyAccessDeniedException.class);
+    when(accounts.resolve("test")).thenThrow(new AuthorizationUnavailableException());
+    assertThatThrownBy(() -> controller.me(jwt))
+        .isInstanceOf(AuthorizationUnavailableException.class);
+    verifyNoInteractions(create, read, update);
   }
 
   @Test
@@ -60,6 +94,8 @@ class CompanyControllerTest {
     var handler = new ApiExceptionHandler();
     assertThat(handler.validation().getStatus()).isEqualTo(400);
     assertThat(handler.badRequest().getStatus()).isEqualTo(400);
+    assertThat(handler.companyAccessDenied().getStatus()).isEqualTo(403);
+    assertThat(handler.authorizationUnavailable().getStatus()).isEqualTo(503);
     assertThat(handler.conflict().getStatus()).isEqualTo(409);
     assertThat(handler.conflict().getDetail()).doesNotContain("SQL", "password");
   }

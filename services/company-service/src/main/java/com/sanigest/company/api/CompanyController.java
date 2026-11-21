@@ -1,7 +1,10 @@
 package com.sanigest.company.api;
 
 import com.sanigest.company.application.CreateCompanyUseCase;
+import com.sanigest.company.application.CurrentAccount;
+import com.sanigest.company.application.CurrentAccount.AccountType;
 import com.sanigest.company.application.GetMyCompanyUseCase;
+import com.sanigest.company.application.GetMyCompanyUseCase.CompanyAccessDeniedException;
 import com.sanigest.company.application.GetMyCompanyUseCase.CompanyProfile;
 import com.sanigest.company.application.UpdateMyCompanyUseCase;
 import jakarta.validation.Valid;
@@ -32,13 +35,17 @@ public class CompanyController {
 
   private final UpdateMyCompanyUseCase updateMyCompany;
 
+  private final CurrentAccount accounts;
+
   public CompanyController(
       CreateCompanyUseCase useCase,
       GetMyCompanyUseCase getMyCompany,
-      UpdateMyCompanyUseCase updateMyCompany) {
+      UpdateMyCompanyUseCase updateMyCompany,
+      CurrentAccount accounts) {
     this.useCase = useCase;
     this.getMyCompany = getMyCompany;
     this.updateMyCompany = updateMyCompany;
+    this.accounts = accounts;
   }
 
   @GetMapping("/me")
@@ -74,11 +81,16 @@ public class CompanyController {
   }
 
   private UUID authenticatedUserId(Jwt jwt) {
+    UUID userId;
     try {
-      return UUID.fromString(jwt.getSubject());
+      userId = UUID.fromString(jwt.getSubject());
     } catch (RuntimeException e) {
       throw new IllegalArgumentException("Invalid authenticated identity");
     }
+    if (accounts.resolve(jwt.getTokenValue()) != AccountType.REGULAR) {
+      throw new CompanyAccessDeniedException();
+    }
+    return userId;
   }
 
   public record CompanyRequest(
