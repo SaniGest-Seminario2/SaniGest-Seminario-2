@@ -6,7 +6,24 @@ spring:
   flyway:
     clean-disabled: true
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,env,configprops
+  endpoint:
+    env:
+      enabled: false
+    configprops:
+      enabled: false
+
 logging:
   level:
     org.springframework.web.servlet.DispatcherServlet: DEBUG
+
+sanigest:
+  jwt:
+    issuer: sanigest-test
+    audience: sanigest-api-test
+    secret: test-secret-test-secret-test-secret-32
 

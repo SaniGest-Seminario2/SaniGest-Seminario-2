@@ -14,6 +14,12 @@ server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
 
+sanigest:
+  jwt:
+    issuer: ${JWT_ISSUER:sanigest}
+    audience: ${JWT_AUDIENCE:sanigest-api}
+    secret: ${JWT_SECRET:change-me-change-me-change-me-32}
+
 management:
   endpoints:
     web:

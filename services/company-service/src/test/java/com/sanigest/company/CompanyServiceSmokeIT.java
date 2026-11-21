@@ -44,7 +44,7 @@ class CompanyServiceSmokeIT {
     assertThat(info.body())
         .contains("\"artifact\":\"company-service\"")
         .doesNotContain("password", "jdbc:", "token");
-    assertThat(get("/actuator/env").statusCode()).isEqualTo(404);
+    assertThat(get("/actuator/env").statusCode()).isIn(401, 404);
   }
 
   private HttpResponse<String> get(String path) throws Exception {

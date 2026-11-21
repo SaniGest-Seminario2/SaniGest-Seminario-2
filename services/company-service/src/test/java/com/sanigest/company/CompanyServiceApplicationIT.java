@@ -72,7 +72,9 @@ class CompanyServiceApplicationIT {
     UUID companyId = UUID.randomUUID();
     UUID userId = UUID.randomUUID();
     jdbcTemplate.update(
-        "INSERT INTO companies (id, name) VALUES (?, ?)", companyId, "Company test");
+        "INSERT INTO companies (id, name, business_name, email) VALUES (?, ?, 'Company SRL', 'a@b.com')",
+        companyId,
+        "Company test");
     jdbcTemplate.update(
         "INSERT INTO company_memberships (id, company_id, user_id, role) VALUES (?, ?, ?, ?)",
         UUID.randomUUID(),
@@ -105,7 +107,7 @@ class CompanyServiceApplicationIT {
 
     int inserted =
         jdbcTemplate.update(
-            "INSERT INTO companies (id, name, rnc) VALUES (?, ?, ?)",
+            "INSERT INTO companies (id, name, rnc, business_name, email) VALUES (?, ?, ?, 'Empresa SRL', 'a@b.com')",
             UUID.randomUUID(),
             "Empresa de prueba",
             rnc);
@@ -113,18 +115,22 @@ class CompanyServiceApplicationIT {
     assertThat(inserted).isEqualTo(1);
     assertThatThrownBy(() ->
             jdbcTemplate.update(
-                "INSERT INTO companies (id, name) VALUES (?, ?)", UUID.randomUUID(), " "))
+                "INSERT INTO companies (id, name, business_name, email) VALUES (?, ?, 'Empresa SRL', 'a@b.com')",
+                UUID.randomUUID(),
+                " "))
         .isInstanceOf(DataIntegrityViolationException.class);
     assertThatThrownBy(() ->
             jdbcTemplate.update(
-                "INSERT INTO companies (id, name, rnc) VALUES (?, ?, ?)",
+                "INSERT INTO companies (id, name, rnc, business_name, email) "
+                    + "VALUES (?, ?, ?, 'Empresa SRL', 'a@b.com')",
                 UUID.randomUUID(),
                 "RNC inválido",
                 "12345678A"))
         .isInstanceOf(DataIntegrityViolationException.class);
     assertThatThrownBy(() ->
             jdbcTemplate.update(
-                "INSERT INTO companies (id, name, rnc) VALUES (?, ?, ?)",
+                "INSERT INTO companies (id, name, rnc, business_name, email) "
+                    + "VALUES (?, ?, ?, 'Empresa SRL', 'a@b.com')",
                 UUID.randomUUID(),
                 "RNC duplicado",
                 rnc))

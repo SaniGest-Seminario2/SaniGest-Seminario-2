@@ -8,12 +8,12 @@ COPY config ./config
 COPY templates/spring-boot-service/pom.xml templates/spring-boot-service/pom.xml
 COPY services/company-service/pom.xml services/company-service/pom.xml
 COPY services/identity-service/pom.xml services/identity-service/pom.xml
-RUN --mount=type=cache,target=/root/.m2 \
-    mvn -B -pl services/identity-service -am dependency:go-offline
+RUN --mount=type=cache,target=/root/.m2,sharing=locked \
+    sh config/maven-build.sh -pl services/identity-service -am dependency:go-offline
 
 COPY services/identity-service/src services/identity-service/src
-RUN --mount=type=cache,target=/root/.m2 \
-    mvn -B -pl services/identity-service -am -DskipTests package && \
+RUN --mount=type=cache,target=/root/.m2,sharing=locked \
+    sh config/maven-build.sh -pl services/identity-service -am -DskipTests package && \
     cp services/identity-service/target/identity-service-*.jar /workspace/application.jar
 
 FROM eclipse-temurin:21-jre-alpine
