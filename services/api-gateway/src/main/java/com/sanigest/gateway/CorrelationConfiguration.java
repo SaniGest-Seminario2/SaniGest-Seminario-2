@@ -14,8 +14,20 @@ class CorrelationConfiguration {
   WebFilter correlationId() {
     return (exchange, chain) -> {
       String id = UUID.randomUUID().toString();
+      String traceId = id.replace("-", "");
+      String spanId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
       var request =
-          exchange.getRequest().mutate().headers(headers -> headers.set(REQUEST_ID, id)).build();
+          exchange
+              .getRequest()
+              .mutate()
+              .headers(headers -> {
+                headers.set(REQUEST_ID, id);
+                headers.set("X-Trace-Id", traceId);
+                headers.set("traceparent", "00-" + traceId + "-" + spanId + "-00");
+                headers.remove("tracestate");
+                headers.remove("baggage");
+              })
+              .build();
       exchange
           .getResponse()
           .beforeCommit(() -> {
