@@ -1,5 +1,6 @@
 package com.sanigest.company.application;
 
+import com.sanigest.company.domain.model.Membership;
 import com.sanigest.company.domain.model.MembershipStatus;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,6 +27,8 @@ public class GetMyCompanyUseCase {
 
   public interface MembershipRepository {
     Optional<CompanyMembership> findCompanyByUserId(UUID userId);
+
+    Optional<Membership> findByUserIdForUpdate(UUID userId);
   }
 
   public record CompanyMembership(MembershipStatus status, CompanyProfile company) {}
