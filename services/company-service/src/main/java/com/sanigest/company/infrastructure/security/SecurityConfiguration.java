@@ -2,6 +2,8 @@ package com.sanigest.company.infrastructure.security;
 
 import jakarta.servlet.DispatcherType;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.UUID;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -11,6 +13,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -46,14 +49,30 @@ class SecurityConfiguration {
             .build();
     OAuth2TokenValidator<Jwt> audience =
         jwt ->
-            jwt.getAudience().contains(p.audience())
+            jwt.getAudience() != null && jwt.getAudience().contains(p.audience())
                 ? OAuth2TokenValidatorResult.success()
-                : OAuth2TokenValidatorResult.failure(
-                    new org.springframework.security.oauth2.core.OAuth2Error("invalid_token"));
+                : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token"));
     decoder.setJwtValidator(
         new DelegatingOAuth2TokenValidator<>(
-            JwtValidators.createDefaultWithIssuer(p.issuer()), audience));
+            JwtValidators.createDefaultWithIssuer(p.issuer()),
+            audience,
+            this::validateAccessTokenClaims));
     return decoder;
+  }
+
+  private OAuth2TokenValidatorResult validateAccessTokenClaims(Jwt jwt) {
+    String subject = jwt.getSubject();
+    var expiresAt = jwt.getExpiresAt();
+    if (subject != null && expiresAt != null && expiresAt.isAfter(Instant.now())) {
+      try {
+        if (UUID.fromString(subject).toString().equalsIgnoreCase(subject)) {
+          return OAuth2TokenValidatorResult.success();
+        }
+      } catch (IllegalArgumentException ignored) {
+        // An invalid subject cannot identify an authenticated user.
+      }
+    }
+    return OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token"));
   }
 
   @ConfigurationProperties("sanigest.jwt")
