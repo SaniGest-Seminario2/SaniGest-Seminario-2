@@ -51,6 +51,8 @@ class CreateCompanyUseCaseTest {
 
   @Test
   void rejectsDuplicateKeyWithDifferentBody() {
+    when(jdbc.query(anyString(), any(ResultSetExtractor.class), eq(USER_ID), eq(COMPANY_ID)))
+        .thenReturn(true);
     when(jdbc.query(anyString(), any(ResultSetExtractor.class), eq(USER_ID), eq("key")))
         .thenReturn(new CreateCompanyUseCase.Prior("different", COMPANY_ID));
     assertThatThrownBy(() -> useCase.create(USER_ID, "key", request))
@@ -75,6 +77,8 @@ class CreateCompanyUseCaseTest {
                                 "null",
                                 "null")
                             .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    when(jdbc.query(anyString(), any(ResultSetExtractor.class), eq(USER_ID), eq(COMPANY_ID)))
+        .thenReturn(true);
     when(jdbc.query(anyString(), any(ResultSetExtractor.class), eq(USER_ID), eq("key")))
         .thenReturn(new CreateCompanyUseCase.Prior(hash, COMPANY_ID));
     when(jdbc.queryForObject(anyString(), any(RowMapper.class), eq(COMPANY_ID)))

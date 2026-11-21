@@ -37,9 +37,8 @@ class CompanyServiceSmokeIT {
     assertThat(health.body()).contains("\"status\":\"UP\"").doesNotContain("components");
     assertThat(readiness.statusCode()).isEqualTo(200);
     assertThat(get("/actuator/health/liveness").statusCode()).isEqualTo(200);
-    assertThat(openApi.statusCode()).isEqualTo(200);
-    assertThat(openApi.body()).contains("\"openapi\":\"3.0.3\"", "SaniGest Company Service");
-    assertThat(swagger.statusCode()).isEqualTo(302);
+    assertThat(openApi.statusCode()).isEqualTo(401);
+    assertThat(swagger.statusCode()).isEqualTo(401);
     assertThat(info.statusCode()).isEqualTo(200);
     assertThat(info.body())
         .contains("\"artifact\":\"company-service\"")

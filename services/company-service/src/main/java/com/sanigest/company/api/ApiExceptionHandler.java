@@ -1,6 +1,7 @@
 package com.sanigest.company.api;
 
 import com.sanigest.company.application.CreateCompanyUseCase.ConflictException;
+import com.sanigest.company.application.CurrentAccount.AuthorizationUnavailableException;
 import com.sanigest.company.application.GetMyCompanyUseCase.CompanyAccessDeniedException;
 import com.sanigest.company.application.GetMyCompanyUseCase.CompanyNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -35,7 +36,14 @@ class ApiExceptionHandler {
 
   @ExceptionHandler(CompanyAccessDeniedException.class)
   ProblemDetail companyAccessDenied() {
-    return problem(HttpStatus.FORBIDDEN, "The company membership does not allow access");
+    return problem(
+        HttpStatus.FORBIDDEN,
+        "The authenticated account is not allowed to perform this company operation");
+  }
+
+  @ExceptionHandler(AuthorizationUnavailableException.class)
+  ProblemDetail authorizationUnavailable() {
+    return problem(HttpStatus.SERVICE_UNAVAILABLE, "Company authorization could not be verified");
   }
 
   private ProblemDetail problem(HttpStatus status, String detail) {

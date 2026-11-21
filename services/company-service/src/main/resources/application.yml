@@ -16,9 +16,10 @@ server:
 
 sanigest:
   jwt:
-    issuer: ${JWT_ISSUER:sanigest}
-    audience: ${JWT_AUDIENCE:sanigest-api}
-    secret: ${JWT_SECRET:change-me-change-me-change-me-32}
+    issuer: ${JWT_ISSUER}
+    audience: ${JWT_AUDIENCE}
+    public-key: ${JWT_PUBLIC_KEY_LOCATION}
+  identity-url: ${IDENTITY_SERVICE_URL}
 
 management:
   endpoints:

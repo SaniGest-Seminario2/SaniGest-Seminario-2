@@ -84,6 +84,22 @@ class CompanyProfileSmokeIT {
         .isEqualTo(
             profile.deepCopy().put("email", email).put("phone", phone).put("updatedAt", updatedAt));
     assertThat(send(companyUrl, ME, "GET", 200, null, token, null)).isEqualTo(profile);
+    send(companyUrl, ME, "GET", 401, null, null, null);
+    String outsiderEmail = "outsider-" + runId + "@example.com";
+    var outsider = credentials.deepCopy().put("email", outsiderEmail);
+    send(
+        identityUrl,
+        "/api/v1/auth/register",
+        "POST",
+        201,
+        outsider.deepCopy().put("name", "Outside company"),
+        null,
+        null);
+    String outsiderToken =
+        send(identityUrl, "/api/v1/auth/login", "POST", 200, outsider, null, null)
+            .path("accessToken")
+            .stringValue();
+    send(companyUrl, ME + "?companyId=" + companyId, "PATCH", 404, changes, outsiderToken, null);
   }
 
   private JsonNode send(
@@ -113,6 +129,6 @@ class CompanyProfileSmokeIT {
     var response =
         http.send(request.method(method, body).build(), HttpResponse.BodyHandlers.ofString());
     assertThat(response.statusCode()).as("%s %s", method, path).isEqualTo(status);
-    return json.readTree(response.body());
+    return response.body().isBlank() ? null : json.readTree(response.body());
   }
 }

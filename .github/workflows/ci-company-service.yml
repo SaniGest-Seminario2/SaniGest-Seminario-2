@@ -5,12 +5,14 @@ on:
     branches: [main]
     paths:
       - "services/company-service/**"
+      - "libraries/common-security/**"
       - "pom.xml"
       - "config/**"
   pull_request:
     branches: [main]
     paths:
       - "services/company-service/**"
+      - "libraries/common-security/**"
       - "pom.xml"
       - "config/**"
 

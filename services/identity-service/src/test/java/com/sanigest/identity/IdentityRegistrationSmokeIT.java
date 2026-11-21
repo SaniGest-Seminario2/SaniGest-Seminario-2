@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import tools.jackson.databind.json.JsonMapper;
 
 @Tag("smoke")
 @Testcontainers
@@ -41,8 +42,6 @@ class IdentityRegistrationSmokeIT {
   private static final String DB_PASSWORD = TestCredentials.random();
   private static final String VALID_PASSWORD = TestCredentials.random();
   private static final String ANOTHER_PASSWORD = TestCredentials.random();
-  private static final String JWT_SECRET =
-      "dGVzdC1vbmx5LWtleS13aXRoLWF0LWxlYXN0LTMyLWJ5dGVzLTEyMzQ1Ng==";
 
   @Container
   static final PostgreSQLContainer POSTGRES =
@@ -65,7 +64,6 @@ class IdentityRegistrationSmokeIT {
     registry.add("spring.datasource.password", POSTGRES::getPassword);
     registry.add("sanigest.jwt.issuer", () -> "sanigest-smoke");
     registry.add("sanigest.jwt.audience", () -> "sanigest-api-smoke");
-    registry.add("sanigest.jwt.secret", () -> JWT_SECRET);
   }
 
   @BeforeEach
@@ -176,6 +174,35 @@ class IdentityRegistrationSmokeIT {
             "\"email\":\"me@example.com\"",
             "\"accountType\":\"REGULAR\"")
         .doesNotContain("password", "hash");
+  }
+
+  @Test
+  void rotatesRefreshTokensAndRevokesTheSessionOnLogoutOverHttp() throws Exception {
+    String email = "session@example.com";
+    assertThat(register(registerPayload(email, VALID_PASSWORD, "Session")).status()).isEqualTo(201);
+    var json = JsonMapper.builder().build();
+    var login = sendLogin(email, VALID_PASSWORD);
+    assertThat(login.statusCode()).isEqualTo(200);
+    String refreshToken = json.readTree(login.body()).path("refreshToken").stringValue();
+    assertThat(refreshToken).isNotBlank();
+
+    var refreshed = sessionCommand("refresh", refreshToken);
+    assertThat(refreshed.statusCode()).isEqualTo(200);
+    String rotated = json.readTree(refreshed.body()).path("refreshToken").stringValue();
+    assertThat(rotated).isNotBlank().isNotEqualTo(refreshToken);
+    assertThat(sessionCommand("logout", rotated).statusCode()).isEqualTo(204);
+    assertThat(sessionCommand("refresh", rotated).statusCode()).isEqualTo(401);
+  }
+
+  private HttpResponse<String> sessionCommand(String operation, String refreshToken)
+      throws Exception {
+    return httpClient.send(
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/auth/" + operation))
+            .header("Content-Type", "application/json")
+            .POST(
+                HttpRequest.BodyPublishers.ofString("{\"refreshToken\":\"" + refreshToken + "\"}"))
+            .build(),
+        HttpResponse.BodyHandlers.ofString());
   }
 
   private HttpResponse<String> sendLogin(String email, String password) throws Exception {

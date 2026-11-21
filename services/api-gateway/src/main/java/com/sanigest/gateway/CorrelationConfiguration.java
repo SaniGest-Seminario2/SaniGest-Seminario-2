@@ -3,6 +3,8 @@ package com.sanigest.gateway;
 import java.util.UUID;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.server.WebFilter;
 import reactor.core.publisher.Mono;
 
@@ -11,6 +13,7 @@ class CorrelationConfiguration {
   private static final String REQUEST_ID = "X-Correlation-Id";
 
   @Bean
+  @Order(Ordered.HIGHEST_PRECEDENCE)
   WebFilter correlationId() {
     return (exchange, chain) -> {
       String id = UUID.randomUUID().toString();
