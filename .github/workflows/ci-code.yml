@@ -32,7 +32,7 @@ jobs:
             **/pom.xml
 
       - name: Validate format, static analysis and compilation
-        run: mvn -B -DskipTests compile
+        run: sh config/maven-build.sh -DskipTests compile
 
   unit-tests:
     # Keep this name stable: it is a required status check in branch protection.
@@ -54,15 +54,20 @@ jobs:
             **/pom.xml
 
       - name: Run unit tests
-        run: mvn -B -DskipITs test
+        run: sh config/maven-build.sh -DskipITs test
 
-      - name: Publish unit test reports
+      - name: Verify API Gateway against a local HTTP backend
+        run: sh config/maven-build.sh -pl services/api-gateway verify
+
+      - name: Publish unit and Gateway test reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: unit-test-reports-${{ github.run_id }}
-          path: "**/target/surefire-reports/**"
-          if-no-files-found: error
+          path: |
+            **/target/surefire-reports/**
+            services/api-gateway/target/failsafe-reports/**
+          if-no-files-found: warn
           retention-days: 7
 
   coverage:
@@ -84,7 +89,7 @@ jobs:
             **/pom.xml
 
       - name: Run unit tests with coverage
-        run: mvn -B -Pcoverage -DskipITs verify
+        run: sh config/maven-build.sh -Pcoverage -DskipITs verify
 
       - name: Publish coverage reports
         if: always()

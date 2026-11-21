@@ -7,6 +7,7 @@ COPY pom.xml ./
 COPY config ./config
 COPY templates/spring-boot-service/pom.xml templates/spring-boot-service/pom.xml
 COPY services/company-service/pom.xml services/company-service/pom.xml
+COPY services/api-gateway/pom.xml services/api-gateway/pom.xml
 COPY services/identity-service/pom.xml services/identity-service/pom.xml
 COPY services/company-service/src services/company-service/src
 RUN --mount=type=cache,target=/root/.m2,sharing=locked \

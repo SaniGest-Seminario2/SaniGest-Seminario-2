@@ -1,0 +1,6 @@
+spring:
+  config:
+    import: classpath:gateway-diagnostic.yml
+
+server:
+  port: ${SERVER_PORT:0}
