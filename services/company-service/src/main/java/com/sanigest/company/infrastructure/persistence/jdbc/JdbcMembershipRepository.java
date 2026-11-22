@@ -26,6 +26,28 @@ class JdbcMembershipRepository implements MembershipRepository {
   }
 
   @Override
+  public Optional<ActiveAccess> findActiveAccess(UUID userId, String permission) {
+    return DataAccessUtils.optionalResult(
+        jdbc.query(
+            """
+            SELECT m.company_id, m.role, EXISTS (
+              SELECT 1 FROM membership_permissions mp
+              JOIN company_permissions cp ON cp.id = mp.permission_id
+              WHERE mp.membership_id = m.id AND cp.company_id = m.company_id AND cp.permission = ?
+            ) AS explicit_grant
+            FROM company_memberships m JOIN companies c ON c.id = m.company_id
+            WHERE m.user_id = ? AND m.status = 'ACTIVE' AND c.status = 'ACTIVE'
+            """,
+            (row, index) ->
+                new ActiveAccess(
+                    row.getObject("company_id", UUID.class),
+                    CompanyRole.valueOf(row.getString("role")),
+                    row.getBoolean("explicit_grant")),
+            permission,
+            userId));
+  }
+
+  @Override
   public Optional<Membership> findByUserIdForUpdate(UUID userId) {
     return DataAccessUtils.optionalResult(
         jdbc.query(

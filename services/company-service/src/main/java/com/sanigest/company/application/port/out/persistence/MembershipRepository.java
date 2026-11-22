@@ -11,6 +11,10 @@ import java.util.UUID;
 public interface MembershipRepository {
   Optional<CompanyMembership> findCompanyByUserId(UUID userId);
 
+  Optional<ActiveAccess> findActiveAccess(UUID userId, String permission);
+
+  record ActiveAccess(UUID companyId, CompanyRole role, boolean explicitGrant) {}
+
   Optional<Membership> findByUserIdForUpdate(UUID userId);
 
   List<Membership> findAllByCompanyId(UUID companyId);

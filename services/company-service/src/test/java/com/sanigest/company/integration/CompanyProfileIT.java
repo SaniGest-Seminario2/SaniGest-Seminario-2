@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
@@ -20,6 +21,7 @@ import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.model.AdvisorPermission;
 import com.sanigest.company.domain.model.AdvisorPermission.Module;
 import com.sanigest.company.domain.model.AdvisorPermission.Scope;
+import com.sanigest.companyaccess.CompanyAccessProtocol;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -91,6 +93,9 @@ class CompanyProfileIT {
       new AdvisorPermission(Module.CATALOG, Scope.READ);
   private static final AdvisorPermission ADVISOR_WRITE =
       new AdvisorPermission(Module.CATALOG, Scope.WRITE);
+  private static final String CATALOG_ISSUER = "catalog-company-access-test";
+  private static final KeyPair CATALOG_KEYS = serviceKeys();
+  private static final Path CATALOG_PUBLIC_KEY = catalogPublicKey();
   private static final KeyPair SERVICE_KEYS = serviceKeys();
   private static final Path SERVICE_KEY_FILE = serviceKeyFile();
   private static final ConcurrentHashMap<UUID, String> ADVISOR_ACCOUNTS = new ConcurrentHashMap<>();
@@ -125,6 +130,10 @@ class CompanyProfileIT {
     properties.add(
         "sanigest.identity-url", () -> "http://127.0.0.1:" + IDENTITY.getAddress().getPort());
     properties.add("sanigest.advisor-eligibility.issuer", () -> SERVICE_ISSUER);
+    properties.add("sanigest.company-access.callers.catalog.issuer", () -> CATALOG_ISSUER);
+    properties.add(
+        "sanigest.company-access.callers.catalog.public-key",
+        () -> CATALOG_PUBLIC_KEY.toUri().toString());
     properties.add(
         "sanigest.advisor-eligibility.private-key-location",
         () -> SERVICE_KEY_FILE.toUri().toString());
@@ -138,6 +147,7 @@ class CompanyProfileIT {
     IDENTITY.stop(0);
     IDENTITY_THREADS.close();
     Files.deleteIfExists(SERVICE_KEY_FILE);
+    Files.deleteIfExists(CATALOG_PUBLIC_KEY);
   }
 
   private static HttpServer identity() {
@@ -188,6 +198,102 @@ class CompanyProfileIT {
   private final RSAPrivateKey signingKey = signingKey();
 
   private final HttpClient http = HttpClient.newHttpClient();
+
+  @Test
+  @Tag("smoke")
+  void internalMembershipBindsTheSessionAndIgnoresExternalTenantHeaders() throws Exception {
+    var owner = newOwner("Internal membership");
+    var other = newOwner("Unrelated tenant");
+    String assertion = companyAssertion(owner.actorId(), "CATALOG", "WRITE", null);
+    var response = internalAccess(assertion, owner.token(), other.companyId());
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(response.headers().firstValue("Cache-Control")).hasValue("no-store");
+    assertThat(response.body())
+        .contains(owner.companyId().toString(), "\"mode\":\"MEMBERSHIP\"")
+        .doesNotContain(other.companyId().toString(), assertion, owner.token());
+    assertThat(internalAccess(assertion, other.token(), owner.companyId()).statusCode())
+        .isEqualTo(403);
+    assertThat(internalAccess(owner.token(), owner.token(), owner.companyId()).statusCode())
+        .isEqualTo(401);
+    assertThat(internalAccess(null, owner.token(), owner.companyId()).statusCode()).isEqualTo(401);
+
+    jdbc.update("UPDATE companies SET status = 'INACTIVE' WHERE id = ?", owner.companyId());
+    assertThat(internalAccess(assertion, owner.token(), other.companyId()).statusCode())
+        .isEqualTo(403);
+  }
+
+  @Test
+  void internalDelegationEnforcesModuleScopeAndRevocation(CapturedOutput output) throws Exception {
+    var owner = newOwner("Internal delegation");
+    UUID advisor = eligibleAdvisor();
+    UUID target = owner.companyId();
+    String read = companyAssertion(advisor, "CATALOG", "READ", target);
+    assertThat(internalAccess(read, null, target).statusCode()).isEqualTo(403);
+    assertThat(
+            sendAdvisor(
+                    advisorPut(
+                        owner.token(),
+                        advisorBody(advisor, 0, "{\"module\":\"CATALOG\",\"scope\":\"READ\"}")))
+                .statusCode())
+        .isEqualTo(200);
+
+    assertThat(internalAccess(read, null, UUID.randomUUID()).statusCode()).isEqualTo(200);
+    assertThat(
+            internalAccess(companyAssertion(advisor, "CATALOG", "WRITE", target), null, target)
+                .statusCode())
+        .isEqualTo(403);
+    assertThat(
+            internalAccess(companyAssertion(advisor, "SALES", "READ", target), null, target)
+                .statusCode())
+        .isEqualTo(401);
+    assertThat(
+            internalAccess(companyAssertion(advisor, "CATALOG", "UNKNOWN", target), null, target)
+                .statusCode())
+        .isEqualTo(401);
+    assertThat(sendAdvisor(advisorDelete(owner.token(), advisor)).statusCode()).isEqualTo(204);
+    assertThat(internalAccess(read, null, target).statusCode()).isEqualTo(403);
+    assertThat(output.getAll()).doesNotContain(owner.token(), read);
+  }
+
+  private HttpResponse<String> internalAccess(String assertion, String session, UUID spoofedTenant)
+      throws Exception {
+    var request =
+        request(CompanyAccessProtocol.PATH + "?companyId=" + spoofedTenant)
+            .header("X-Company-Id", spoofedTenant.toString())
+            .header("X-User-Id", UUID.randomUUID().toString());
+    if (assertion != null) {
+      request.header("Authorization", "Bearer " + assertion);
+    }
+    if (session != null) {
+      request.header(CompanyAccessProtocol.USER_ASSERTION, session);
+    }
+    return http.send(request.GET().build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static String companyAssertion(UUID user, String module, String scope, UUID target)
+      throws JOSEException {
+    Instant now = Instant.now();
+    var claims =
+        new JWTClaimsSet.Builder()
+            .issuer(CATALOG_ISSUER)
+            .audience(CompanyAccessProtocol.AUDIENCE)
+            .subject(user.toString())
+            .issueTime(Date.from(now))
+            .expirationTime(Date.from(now.plusSeconds(60)))
+            .claim("module", module)
+            .claim("scope", scope);
+    if (target != null) {
+      claims.claim("company_id", target.toString());
+    }
+    var jwt =
+        new SignedJWT(
+            new JWSHeader.Builder(JWSAlgorithm.RS256)
+                .type(new JOSEObjectType(CompanyAccessProtocol.TOKEN_TYPE))
+                .build(),
+            claims.build());
+    jwt.sign(new RSASSASigner((RSAPrivateKey) CATALOG_KEYS.getPrivate()));
+    return jwt.serialize();
+  }
 
   @Test
   @Tag("smoke")
@@ -560,6 +666,18 @@ class CompanyProfileIT {
       generator.initialize(2048);
       return generator.generateKeyPair();
     } catch (java.security.GeneralSecurityException failure) {
+      throw new IllegalStateException(failure);
+    }
+  }
+
+  private static Path catalogPublicKey() {
+    try {
+      Path file = Files.createTempFile("catalog-company-access-test-", ".pem");
+      String key = Base64.getMimeEncoder().encodeToString(CATALOG_KEYS.getPublic().getEncoded());
+      Files.writeString(
+          file, "-----BEGIN PUBLIC KEY-----\n" + key + "\n-----END PUBLIC KEY-----\n");
+      return file;
+    } catch (IOException failure) {
       throw new IllegalStateException(failure);
     }
   }
