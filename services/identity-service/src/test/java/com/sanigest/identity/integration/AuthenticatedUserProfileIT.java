@@ -153,6 +153,16 @@ class AuthenticatedUserProfileIT {
     assertThat(disabled.headers().firstValue("X-Account-Type")).isEmpty();
   }
 
+  @Test
+  @Tag("regression")
+  void keepsAdvisorEligibilityClosedWithoutTechnicalConfiguration() throws Exception {
+    String path = "/internal/v1/accounts/" + OTHER_USER_ID + "/advisor-eligibility";
+    assertThat(get(path, null).statusCode()).isEqualTo(401);
+    assertThat(get(path, token(jwtEncoder, USER_ID, validFrom(), validUntil())).statusCode())
+        .isEqualTo(403);
+    assertThat(get(path, new CompanyServiceTestTokens().validToken()).statusCode()).isEqualTo(401);
+  }
+
   private HttpResponse<String> getProfile(String token) throws Exception {
     return getProfile(token, "");
   }

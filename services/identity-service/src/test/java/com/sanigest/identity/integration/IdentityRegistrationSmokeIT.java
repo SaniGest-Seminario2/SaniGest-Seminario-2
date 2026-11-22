@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,6 +40,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Import(IdentityRegistrationSmokeIT.ProtectedProbe.class)
 class IdentityRegistrationSmokeIT {
 
+  private static final CompanyServiceTestTokens COMPANY = new CompanyServiceTestTokens();
   private static final String DB_PASSWORD = TestCredentials.random();
   private static final String VALID_PASSWORD = TestCredentials.random();
   private static final String ANOTHER_PASSWORD = TestCredentials.random();
@@ -59,6 +61,7 @@ class IdentityRegistrationSmokeIT {
 
   @DynamicPropertySource
   static void databaseProperties(DynamicPropertyRegistry registry) {
+    COMPANY.configure(registry);
     registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
     registry.add("spring.datasource.username", POSTGRES::getUsername);
     registry.add("spring.datasource.password", POSTGRES::getPassword);
@@ -192,6 +195,56 @@ class IdentityRegistrationSmokeIT {
     assertThat(rotated).isNotBlank().isNotEqualTo(refreshToken);
     assertThat(sessionCommand("logout", rotated).statusCode()).isEqualTo(204);
     assertThat(sessionCommand("refresh", rotated).statusCode()).isEqualTo(401);
+  }
+
+  @Test
+  @Tag("regression")
+  @DisplayName("Company alone can check advisor status against PostgreSQL")
+  void checksAdvisorEligibilityOverHttpWithCompanyCredentials() throws Exception {
+    String advisorEmail = "advisor-eligibility@example.com";
+    String regularEmail = "regular-eligibility@example.com";
+    var json = JsonMapper.builder().build();
+    var advisor = register(registerPayload(advisorEmail, VALID_PASSWORD, "Advisor Fixture"));
+    var regular = register(registerPayload(regularEmail, VALID_PASSWORD, "Regular Fixture"));
+    assertThat(advisor.status()).isEqualTo(201);
+    assertThat(regular.status()).isEqualTo(201);
+    UUID advisorId = UUID.fromString(json.readTree(advisor.body()).path("userId").asText());
+    UUID regularId = UUID.fromString(json.readTree(regular.body()).path("userId").asText());
+    jdbcTemplate.update("UPDATE users SET account_type = 'ADVISOR' WHERE id = ?", advisorId);
+
+    assertEligibility(advisorId, true);
+    assertEligibility(regularId, false);
+    assertEligibility(UUID.randomUUID(), false);
+
+    var advisorLogin = sendLogin(advisorEmail, VALID_PASSWORD);
+    var regularLogin = sendLogin(regularEmail, VALID_PASSWORD);
+    assertThat(advisorLogin.statusCode()).isEqualTo(200);
+    assertThat(regularLogin.statusCode()).isEqualTo(200);
+    String advisorToken = json.readTree(advisorLogin.body()).path("accessToken").asText();
+    String regularToken = json.readTree(regularLogin.body()).path("accessToken").asText();
+    assertThat(getEligibility(regularId, advisorToken).statusCode()).isEqualTo(403);
+    assertThat(getEligibility(advisorId, regularToken).statusCode()).isEqualTo(403);
+
+    jdbcTemplate.update("UPDATE users SET status = 'DISABLED' WHERE id = ?", advisorId);
+    assertEligibility(advisorId, false);
+  }
+
+  private void assertEligibility(UUID userId, boolean eligible) throws Exception {
+    var response = getEligibility(userId, COMPANY.validToken());
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(response.body()).isEqualTo("{\"eligible\":" + eligible + "}");
+    assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
+  }
+
+  private HttpResponse<String> getEligibility(UUID userId, String token) throws Exception {
+    String url =
+        "http://127.0.0.1:" + port + "/internal/v1/accounts/" + userId + "/advisor-eligibility";
+    return httpClient.send(
+        HttpRequest.newBuilder(URI.create(url))
+            .header("Authorization", "Bearer " + token)
+            .GET()
+            .build(),
+        HttpResponse.BodyHandlers.ofString());
   }
 
   private HttpResponse<String> sessionCommand(String operation, String refreshToken)
