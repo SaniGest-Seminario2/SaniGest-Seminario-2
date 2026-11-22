@@ -1,5 +1,7 @@
 package com.sanigest.company.domain.model;
 
+import com.sanigest.company.domain.enums.CompanyRole;
+import com.sanigest.company.domain.enums.InvitationStatus;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.UUID;
@@ -9,7 +11,7 @@ public record Invitation(
     UUID companyId,
     String email,
     CompanyRole role,
-    Status status,
+    InvitationStatus status,
     Instant createdAt,
     Instant expiresAt) {
 
@@ -26,8 +28,10 @@ public record Invitation(
     }
   }
 
-  public Status statusAt(Instant now) {
-    return status == Status.PENDING && !now.isBefore(expiresAt) ? Status.EXPIRED : status;
+  public InvitationStatus statusAt(Instant now) {
+    return status == InvitationStatus.PENDING && !now.isBefore(expiresAt)
+        ? InvitationStatus.EXPIRED
+        : status;
   }
 
   public boolean isFor(String verifiedEmail) {
@@ -43,12 +47,5 @@ public record Invitation(
       throw new IllegalArgumentException("Invalid invitation email");
     }
     return normalized;
-  }
-
-  public enum Status {
-    PENDING,
-    ACCEPTED,
-    EXPIRED,
-    REVOKED
   }
 }

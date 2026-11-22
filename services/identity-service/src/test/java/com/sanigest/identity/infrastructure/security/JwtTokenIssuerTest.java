@@ -2,7 +2,7 @@ package com.sanigest.identity.infrastructure.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.sanigest.identity.application.AccessToken;
+import com.sanigest.identity.application.dto.AccessToken;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,8 +23,7 @@ class JwtTokenIssuerTest {
             "sanigest-api",
             new ClassPathResource("jwt-test-public.pem"),
             new ClassPathResource("jwt-test-private.pem"),
-            Duration.ofMinutes(15),
-            Duration.ofDays(30));
+            Duration.ofMinutes(15));
     var configuration = new SecurityConfiguration();
     var publicKey = configuration.jwtVerificationKey(properties);
     var encoder = configuration.jwtEncoder(properties, publicKey);

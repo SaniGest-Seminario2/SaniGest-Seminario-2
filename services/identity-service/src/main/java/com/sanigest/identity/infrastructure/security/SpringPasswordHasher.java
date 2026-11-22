@@ -1,6 +1,6 @@
 package com.sanigest.identity.infrastructure.security;
 
-import com.sanigest.identity.domain.port.PasswordHasher;
+import com.sanigest.identity.application.port.out.security.PasswordHasher;
 import java.util.Objects;
 import org.springframework.security.crypto.password.PasswordEncoder;
 

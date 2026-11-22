@@ -1,0 +1,13 @@
+name: Set up Maven and Java
+description: Install the Java toolchain and cache Maven dependencies
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v6
+      with:
+        distribution: temurin
+        java-version: "21"
+        cache: maven
+        cache-dependency-path: |
+          pom.xml
+          **/pom.xml

@@ -1,0 +1,103 @@
+name: Service verification
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        description: Maven module directory under services
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    name: Syntax and compilation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-maven
+
+      - name: Validate format, static analysis and compilation
+        env:
+          SERVICE: ${{ inputs.service }}
+        run: mvn -B -pl "services/$SERVICE" -am -DskipTests compile
+
+  unit-tests:
+    name: Unit tests
+    needs: syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-maven
+
+      - name: Run unit tests
+        env:
+          SERVICE: ${{ inputs.service }}
+        run: sh scripts/ci/maven-build.sh -pl "services/$SERVICE" -am -DskipITs test
+
+      - name: Publish unit test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.service }}-unit-reports-${{ github.run_id }}
+          path: "services/${{ inputs.service }}/target/surefire-reports/**"
+          if-no-files-found: warn
+          retention-days: 7
+
+  regression:
+    name: Regression tests
+    needs: smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-maven
+
+      - name: Run regression tests
+        env:
+          SERVICE: ${{ inputs.service }}
+        run: mvn -B -pl "services/$SERVICE" -am -Pregression verify
+
+      - name: Publish regression reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.service }}-regression-reports-${{ github.run_id }}
+          path: "services/${{ inputs.service }}/target/failsafe-reports/**"
+          if-no-files-found: error
+          retention-days: 7
+
+  smoke:
+    name: Smoke tests
+    needs: syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-maven
+
+      - name: Run smoke tests
+        env:
+          SERVICE: ${{ inputs.service }}
+        run: mvn -B -pl "services/$SERVICE" -am -Psmoke verify
+
+      - name: Publish smoke reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.service }}-smoke-reports-${{ github.run_id }}
+          path: "services/${{ inputs.service }}/target/failsafe-reports/**"
+          if-no-files-found: error
+          retention-days: 7

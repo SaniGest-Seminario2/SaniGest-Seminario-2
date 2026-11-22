@@ -1,6 +1,6 @@
 package com.sanigest.identity.infrastructure.security;
 
-import com.sanigest.identity.application.TokenIssuer;
+import com.sanigest.identity.application.port.out.security.TokenIssuer;
 import com.sanigest.security.AccessTokens;
 import java.io.IOException;
 import java.security.interfaces.RSAPublicKey;

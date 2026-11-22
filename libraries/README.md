@@ -1,7 +1,7 @@
 # Librerías compartidas
 
-Los módulos requieren al menos dos consumidores. `common-security` contiene
-la validación JWT que usan Gateway, Identity y Company.
+Los módulos requieren al menos dos consumidores. [`common-security`](common-security) contiene
+la validación JWT de emisor, audiencia, tipo de token y cuenta que usan Gateway, Identity y Company.
 
 Se permiten contratos técnicos versionados y utilidades pequeñas, por ejemplo
 `common-web`, `common-security` o `common-events`. Se prohíben entidades JPA,

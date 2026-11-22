@@ -5,9 +5,12 @@
 .env
 **/target
 docs
-infrastructure
+infrastructure/*
+!infrastructure/docker/
 libraries/*
 !libraries/common-security/
-scripts
+services/api-gateway/src
+**/.project
+**/.settings
 **/*.md
 .secrets/

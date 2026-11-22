@@ -4,8 +4,7 @@ Backend de SaniGest basado en microservicios con Java, Spring Boot y PostgreSQL.
 
 ## Documentación arquitectónica
 
-Los siguientes documentos se están incorporando mediante los PRs de `S2-293` y
-`S2-303`; sus rutas se consideran parte estable de la estructura del monorepo:
+El contrato funcional y el ADR describen los límites entre servicios.
 
 - [Contrato funcional y mapa de APIs v0.7](docs/SaniGest_T1001_Contrato_Funcional_v0.7.md)
 - [ADR-001: propietarios de datos y comunicación entre servicios](docs/adr/ADR-001-propiedad-datos-comunicacion-servicios.md)
@@ -32,24 +31,21 @@ docker --version
 
 ```text
 .
-├── services/               Microservicios desplegables e independientes
-│   ├── api-gateway/        Entrada pública (reservado para S2-316)
-│   ├── identity-service/   Identidad y sesiones (reservado para S2-304)
-│   ├── company-service/    Módulo inicial compilable de Company
-│   ├── catalog-service/    Maestros comerciales (reservado para S2-318)
-│   ├── sales-service/      Ciclo de ventas (reservado para S2-331)
-│   ├── expense-service/    Ciclo de gastos (reservado para S2-342)
-│   └── finance-service/    Caja y reportes (reservado para S2-349)
-├── templates/              Plantillas técnicas ejecutables para nuevos módulos
-├── libraries/              Contratos técnicos compartidos ya demostrados
-├── infrastructure/         Terraform, Docker y despliegue
-├── docs/                   ADRs y documentación técnica
-└── .github/workflows/      Automatización de CI/CD
+├── services/               Gateway y servicios desplegables de Identity y Company
+├── libraries/              Librerías técnicas compartidas
+├── infrastructure/         Imágenes de servicios, PostgreSQL local y verificaciones de Compose
+├── config/                 Reglas de calidad del build
+├── scripts/ci/             Comandos compartidos de automatización
+├── docs/                   Contratos, ADR, guías de desarrollo y módulos previstos
+└── .github/                Workflows y acciones reutilizables
 ```
 
-Cada microservicio mantiene su modelo de dominio, persistencia, migraciones y
-configuración. `libraries` no admite entidades JPA, repositorios ni reglas de
-negocio compartidas.
+El [catálogo de servicios](services/README.md) describe cada módulo y enlaza
+la [guía para añadir un servicio](docs/development/new-service.md). El
+[mapa de evolución](docs/roadmap/README.md) describe los módulos previstos.
+Cada servicio mantiene su modelo de dominio, migraciones y configuración.
+El [catálogo de librerías](libraries/README.md) documenta los componentes
+compartidos.
 
 ## Compilar y probar
 
@@ -65,19 +61,11 @@ Para reconstruir desde cero:
 mvn -B clean verify
 ```
 
-GitHub Actions ejecuta dos jobs por cada `push` y `pull_request`:
-
-```bash
-# Syntax, format and static analysis
-mvn -B -DskipTests compile
-
-# Unit tests
-mvn -B verify
-```
-
-El job de pruebas se ejecuta únicamente después de una compilación correcta. Si
-falla, los reportes Surefire y Failsafe disponibles se publican como artefactos
-durante siete días.
+Code CI compila el reactor, ejecuta las pruebas unitarias y las pruebas de
+integración del Gateway, y comprueba la cobertura. Company e Identity comparten
+el workflow de compilación y pruebas unitarias, smoke y regresión. Infrastructure
+CI valida Compose, ejecuta su smoke test y construye las imágenes de Company e
+Identity. Los reportes de pruebas y cobertura se conservan durante siete días.
 
 ## Formato y análisis estático Java
 
@@ -101,7 +89,9 @@ mvn -B verify
 
 Los checks se enlazan a la fase Maven `validate`, por lo que también se ejecutan
 antes de `compile`, `test`, `package` y `verify`. Las reglas viven en
-`config/checkstyle`; no deben copiarse dentro de los servicios.
+`config/checkstyle`. El control de imports evita que el dominio dependa de
+Spring, HTTP o persistencia y que los casos de uso importen adaptadores
+concretos.
 
 Una excepción requiere modificar `config/checkstyle/suppressions.xml` mediante
 pull request. Debe ser específica para el archivo y la regla, incluir el ticket
@@ -134,7 +124,7 @@ El smoke test de infraestructura levanta dependencias desechables y valida el
 comportamiento real de PostgreSQL y Valkey:
 
 ```bash
-sh scripts/qa/smoke-infrastructure.sh
+sh infrastructure/qa/smoke-infrastructure.sh
 ```
 
 Los smokes de aplicación están implementados como escenarios JUnit 5 etiquetados
@@ -304,8 +294,8 @@ PostgreSQL, autenticación/volatilidad de Valkey y operaciones reales de topics
 en Kafka:
 
 ```bash
-sh scripts/qa/validate-compose.sh
-sh scripts/qa/smoke-infrastructure.sh
+sh infrastructure/qa/validate-compose.sh
+sh infrastructure/qa/smoke-infrastructure.sh
 ```
 
 También se puede reiniciar Valkey con una cache vacía sin afectar PostgreSQL:

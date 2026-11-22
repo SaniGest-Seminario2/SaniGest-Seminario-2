@@ -1,3 +1,7 @@
 .env
 **/target/
 .secrets/
+
+# Eclipse workspace metadata
+.project
+.settings/

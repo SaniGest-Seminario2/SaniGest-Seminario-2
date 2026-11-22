@@ -1,5 +1,7 @@
 package com.sanigest.company.domain.model;
 
+import com.sanigest.company.domain.enums.CompanyRole;
+import com.sanigest.company.domain.enums.MembershipStatus;
 import java.util.UUID;
 
 /** Membership references Identity by UUID and never by a shared entity or repository. */

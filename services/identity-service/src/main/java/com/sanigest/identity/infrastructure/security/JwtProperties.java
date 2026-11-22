@@ -10,5 +10,4 @@ public record JwtProperties(
     String audience,
     Resource publicKey,
     Resource privateKey,
-    Duration accessTokenTtl,
-    Duration refreshTokenTtl) {}
+    Duration accessTokenTtl) {}

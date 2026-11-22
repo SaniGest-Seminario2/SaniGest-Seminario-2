@@ -1,5 +1,7 @@
 package com.sanigest.identity.domain.model;
 
+import com.sanigest.identity.domain.enums.AccountType;
+import com.sanigest.identity.domain.enums.UserStatus;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
