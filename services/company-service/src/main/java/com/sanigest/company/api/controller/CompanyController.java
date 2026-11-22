@@ -1,19 +1,18 @@
 package com.sanigest.company.api.controller;
 
+import static com.sanigest.company.api.controller.CompanyActor.authenticatedUserId;
+
 import com.sanigest.company.api.dto.CompanyPatchRequest;
 import com.sanigest.company.api.dto.CompanyProfileResponse;
 import com.sanigest.company.api.dto.CompanyRequest;
 import com.sanigest.company.api.dto.CompanyResponse;
 import com.sanigest.company.api.dto.UpdatedCompanyResponse;
-import com.sanigest.company.application.account.AccountType;
 import com.sanigest.company.application.dto.CreateCompanyCommand;
-import com.sanigest.company.application.exception.CompanyAccessDeniedException;
-import com.sanigest.company.application.port.out.integration.CurrentAccount;
+import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.profile.CreateCompanyUseCase;
 import com.sanigest.company.application.usecase.profile.GetMyCompanyUseCase;
 import com.sanigest.company.application.usecase.profile.UpdateMyCompanyUseCase;
 import jakarta.validation.Valid;
-import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -35,22 +34,22 @@ public class CompanyController {
 
   private final UpdateMyCompanyUseCase updateMyCompany;
 
-  private final CurrentAccount accounts;
+  private final RequireRegularAccount regularAccount;
 
   public CompanyController(
       CreateCompanyUseCase useCase,
       GetMyCompanyUseCase getMyCompany,
       UpdateMyCompanyUseCase updateMyCompany,
-      CurrentAccount accounts) {
+      RequireRegularAccount regularAccount) {
     this.useCase = useCase;
     this.getMyCompany = getMyCompany;
     this.updateMyCompany = updateMyCompany;
-    this.accounts = accounts;
+    this.regularAccount = regularAccount;
   }
 
   @GetMapping("/me")
   CompanyProfileResponse me(@AuthenticationPrincipal Jwt jwt) {
-    var profile = getMyCompany.get(authenticatedUserId(jwt, accounts));
+    var profile = getMyCompany.get(authenticatedUserId(jwt, regularAccount));
     return new CompanyProfileResponse(
         profile.companyId(),
         profile.companyName(),
@@ -64,7 +63,8 @@ public class CompanyController {
   @PatchMapping("/me")
   UpdatedCompanyResponse update(
       @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CompanyPatchRequest request) {
-    var updated = updateMyCompany.update(authenticatedUserId(jwt, accounts), request.toPatch());
+    var updated =
+        updateMyCompany.update(authenticatedUserId(jwt, regularAccount), request.toPatch());
     var company = updated.company();
     return new UpdatedCompanyResponse(
         company.id(),
@@ -84,7 +84,7 @@ public class CompanyController {
       @AuthenticationPrincipal Jwt jwt,
       @RequestHeader("Idempotency-Key") String key,
       @Valid @RequestBody CompanyRequest request) {
-    var userId = authenticatedUserId(jwt, accounts);
+    var userId = authenticatedUserId(jwt, regularAccount);
     var command =
         new CreateCompanyCommand(
             request.companyName(),
@@ -108,18 +108,5 @@ public class CompanyController {
                 company.location(),
                 company.currency(),
                 company.status()));
-  }
-
-  static UUID authenticatedUserId(Jwt jwt, CurrentAccount accounts) {
-    UUID userId;
-    try {
-      userId = UUID.fromString(jwt.getSubject());
-    } catch (RuntimeException e) {
-      throw new IllegalArgumentException("Invalid authenticated identity");
-    }
-    if (accounts.resolve(jwt.getTokenValue()) != AccountType.REGULAR) {
-      throw new CompanyAccessDeniedException();
-    }
-    return userId;
   }
 }

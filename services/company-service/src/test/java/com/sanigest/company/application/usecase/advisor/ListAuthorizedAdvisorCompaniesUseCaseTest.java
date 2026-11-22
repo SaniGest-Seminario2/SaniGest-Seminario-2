@@ -6,11 +6,11 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.sanigest.company.application.dto.AuthorizedAdvisorCompany;
 import com.sanigest.company.application.exception.AuthorizationUnavailableException;
 import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.port.out.integration.AdvisorEligibility;
 import com.sanigest.company.application.port.out.persistence.AdvisorAccessRepository;
-import com.sanigest.company.application.port.out.persistence.AuthorizedAdvisorCompany;
 import com.sanigest.company.domain.model.AdvisorPermission;
 import com.sanigest.company.domain.model.AdvisorPermission.Module;
 import com.sanigest.company.domain.model.AdvisorPermission.Scope;

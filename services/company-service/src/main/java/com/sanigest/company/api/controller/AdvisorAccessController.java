@@ -1,9 +1,9 @@
 package com.sanigest.company.api.controller;
 
-import static com.sanigest.company.api.controller.CompanyController.authenticatedUserId;
+import static com.sanigest.company.api.controller.CompanyActor.authenticatedUserId;
 
 import com.sanigest.company.api.dto.AdvisorAccessRequest;
-import com.sanigest.company.application.port.out.integration.CurrentAccount;
+import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.advisor.GetAdvisorAccessUseCase;
 import com.sanigest.company.application.usecase.advisor.PutAdvisorAccessUseCase;
 import com.sanigest.company.application.usecase.advisor.RevokeAdvisorAccessUseCase;
@@ -27,17 +27,17 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping(AdvisorAccessController.PATH)
 class AdvisorAccessController {
   static final String PATH = "/api/v1/companies/me/advisor-access";
-  private final CurrentAccount accounts;
+  private final RequireRegularAccount regularAccount;
   private final GetAdvisorAccessUseCase getAccess;
   private final PutAdvisorAccessUseCase putAccess;
   private final RevokeAdvisorAccessUseCase revokeAccess;
 
   AdvisorAccessController(
-      CurrentAccount accounts,
+      RequireRegularAccount regularAccount,
       GetAdvisorAccessUseCase getAccess,
       PutAdvisorAccessUseCase putAccess,
       RevokeAdvisorAccessUseCase revokeAccess) {
-    this.accounts = accounts;
+    this.regularAccount = regularAccount;
     this.getAccess = getAccess;
     this.putAccess = putAccess;
     this.revokeAccess = revokeAccess;
@@ -47,13 +47,13 @@ class AdvisorAccessController {
   ResponseEntity<List<AdvisorAccess>> list(@AuthenticationPrincipal Jwt jwt) {
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
-        .body(getAccess.get(authenticatedUserId(jwt, accounts)));
+        .body(getAccess.get(authenticatedUserId(jwt, regularAccount)));
   }
 
   @PutMapping
   ResponseEntity<AdvisorAccess> put(
       @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody AdvisorAccessRequest request) {
-    UUID actor = authenticatedUserId(jwt, accounts);
+    UUID actor = authenticatedUserId(jwt, regularAccount);
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .body(
@@ -68,7 +68,7 @@ class AdvisorAccessController {
 
   @DeleteMapping
   ResponseEntity<Void> revoke(@AuthenticationPrincipal Jwt jwt, @RequestParam UUID advisorId) {
-    revokeAccess.revoke(authenticatedUserId(jwt, accounts), advisorId);
+    revokeAccess.revoke(authenticatedUserId(jwt, regularAccount), advisorId);
     return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
   }
 }

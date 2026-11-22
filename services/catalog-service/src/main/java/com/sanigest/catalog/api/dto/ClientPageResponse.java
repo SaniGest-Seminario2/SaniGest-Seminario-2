@@ -1,6 +1,6 @@
 package com.sanigest.catalog.api.dto;
 
-import com.sanigest.catalog.application.ClientPage;
+import com.sanigest.catalog.application.dto.ClientPage;
 import java.util.List;
 
 public record ClientPageResponse(

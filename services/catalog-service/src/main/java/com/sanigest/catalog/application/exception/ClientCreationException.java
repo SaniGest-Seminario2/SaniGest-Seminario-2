@@ -1,4 +1,4 @@
-package com.sanigest.catalog.application;
+package com.sanigest.catalog.application.exception;
 
 public final class ClientCreationException extends RuntimeException {
   public enum Reason {

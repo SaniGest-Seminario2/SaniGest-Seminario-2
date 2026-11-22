@@ -1,7 +1,7 @@
 package com.sanigest.company.infrastructure.persistence.jdbc;
 
+import com.sanigest.company.application.dto.AuthorizedAdvisorCompany;
 import com.sanigest.company.application.port.out.persistence.AdvisorAccessRepository;
-import com.sanigest.company.application.port.out.persistence.AuthorizedAdvisorCompany;
 import com.sanigest.company.domain.model.AdvisorAccess;
 import com.sanigest.company.domain.model.AdvisorPermission;
 import java.time.Instant;

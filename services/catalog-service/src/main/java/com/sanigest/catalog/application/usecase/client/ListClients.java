@@ -1,12 +1,14 @@
-package com.sanigest.catalog.application;
+package com.sanigest.catalog.application.usecase.client;
 
-import static com.sanigest.catalog.application.CatalogAuthorization.Permission.CATALOG_READ;
-import static com.sanigest.catalog.application.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
+import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
 
+import com.sanigest.catalog.application.dto.ClientPage;
+import com.sanigest.catalog.application.exception.ClientListingForbiddenException;
+import com.sanigest.catalog.application.exception.InvalidClientQueryException;
+import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
+import com.sanigest.catalog.domain.enums.ClientStatus;
 import java.util.Locale;
-import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
@@ -14,18 +16,18 @@ import org.springframework.stereotype.Service;
 public class ListClients {
   public static final String DEFAULT_SIZE = "20";
 
-  private final Optional<CatalogAuthorization> authorization;
+  private final ClientCompany company;
   private final ClientRepository clients;
   private final int maxSize;
 
   public ListClients(
-      Optional<CatalogAuthorization> authorization,
+      ClientCompany company,
       ClientRepository clients,
       @Value("${sanigest.catalog.clients.max-page-size:100}") int maxSize) {
     if (maxSize < Integer.parseInt(DEFAULT_SIZE)) {
       throw new IllegalArgumentException("The maximum client page size must allow the default");
     }
-    this.authorization = authorization;
+    this.company = company;
     this.clients = clients;
     this.maxSize = maxSize;
   }
@@ -33,36 +35,26 @@ public class ListClients {
   @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
   public ClientPage execute(String search, String status, int page, int size) {
     if (page < 0 || size < 1 || size > maxSize) {
-      throw new InvalidQuery();
+      throw new InvalidClientQueryException();
     }
     var term = optionalFilter(search);
     if (term != null && term.indexOf(0) >= 0) {
-      throw new InvalidQuery();
+      throw new InvalidClientQueryException();
     }
     var state = optionalFilter(status);
     if (state != null) {
-      state = state.toUpperCase(Locale.ROOT);
-      if (!"ACTIVE".equals(state) && !"INACTIVE".equals(state)) {
-        throw new InvalidQuery();
+      try {
+        state = ClientStatus.valueOf(state.toUpperCase(Locale.ROOT)).name();
+      } catch (IllegalArgumentException invalid) {
+        throw new InvalidClientQueryException();
       }
     }
     var companyId =
-        authorization
-            .orElseThrow(() -> new ClientCreationException(AUTHORIZATION_UNAVAILABLE))
-            .membership(CATALOG_READ)
-            .orElseThrow(Forbidden::new);
+        company.membership(CATALOG_READ).orElseThrow(ClientListingForbiddenException::new);
     return clients.search(companyId, term, state, page, size);
   }
 
   private static String optionalFilter(String value) {
     return value == null || value.isBlank() ? null : value.strip();
   }
-
-  public static final class Forbidden extends AccessDeniedException {
-    public Forbidden() {
-      super("Client listing is not authorized");
-    }
-  }
-
-  public static final class InvalidQuery extends RuntimeException {}
 }

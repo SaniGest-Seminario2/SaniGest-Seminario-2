@@ -1,9 +1,9 @@
 package com.sanigest.catalog.api.dto;
 
-import com.sanigest.catalog.domain.Client;
-import com.sanigest.catalog.domain.ClientPatch;
-import com.sanigest.catalog.domain.ClientPatch.Field;
-import com.sanigest.catalog.domain.InvalidClientPatch;
+import com.sanigest.catalog.domain.enums.ClientStatus;
+import com.sanigest.catalog.domain.exception.InvalidClientPatch;
+import com.sanigest.catalog.domain.model.ClientPatch;
+import com.sanigest.catalog.domain.model.ClientPatch.Field;
 import java.util.EnumMap;
 import tools.jackson.databind.JsonNode;
 
@@ -27,12 +27,12 @@ public final class ClientPatchRequest {
     return new ClientPatch(values);
   }
 
-  public static Client.Status status(JsonNode body) {
+  public static ClientStatus status(JsonNode body) {
     if (!body.isObject() || body.size() != 1 || !body.has("status")) {
       throw new InvalidClientPatch();
     }
     try {
-      return Client.Status.valueOf(text(body.get("status")));
+      return ClientStatus.valueOf(text(body.get("status")));
     } catch (IllegalArgumentException invalid) {
       throw new InvalidClientPatch();
     }

@@ -2,7 +2,7 @@ package com.sanigest.catalog.infrastructure.company;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.sanigest.catalog.application.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
 import com.sanigest.companyaccess.CompanyAccess;
 import java.nio.file.Files;
 import java.nio.file.Path;

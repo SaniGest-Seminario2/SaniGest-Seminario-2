@@ -1,9 +1,9 @@
 package com.sanigest.catalog.infrastructure.security;
 
-import static com.sanigest.catalog.application.CatalogAuthorization.Permission.CATALOG_READ;
-import static com.sanigest.catalog.application.CatalogAuthorization.Permission.CATALOG_WRITE;
-import static com.sanigest.catalog.application.ClientAccessException.Reason.CLIENT_UPDATE_CONFLICT;
-import static com.sanigest.catalog.application.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
+import static com.sanigest.catalog.application.exception.ClientAccessException.Reason.CLIENT_UPDATE_CONFLICT;
+import static com.sanigest.catalog.application.exception.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
+import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -14,18 +14,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.sanigest.catalog.application.CatalogAuthorization;
-import com.sanigest.catalog.application.ChangeClientStatus;
-import com.sanigest.catalog.application.ClientAccessException;
-import com.sanigest.catalog.application.ClientCompany;
-import com.sanigest.catalog.application.ClientCreationException;
-import com.sanigest.catalog.application.ClientRepository;
-import com.sanigest.catalog.application.CreateClient;
-import com.sanigest.catalog.application.GetClient;
-import com.sanigest.catalog.application.ListClients;
-import com.sanigest.catalog.application.UpdateClient;
-import com.sanigest.catalog.domain.Client;
-import com.sanigest.catalog.domain.ClientDetails;
+import com.sanigest.catalog.application.exception.ClientAccessException;
+import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
+import com.sanigest.catalog.application.usecase.client.ChangeClientStatus;
+import com.sanigest.catalog.application.usecase.client.ClientCompany;
+import com.sanigest.catalog.application.usecase.client.CreateClient;
+import com.sanigest.catalog.application.usecase.client.GetClient;
+import com.sanigest.catalog.application.usecase.client.ListClients;
+import com.sanigest.catalog.application.usecase.client.UpdateClient;
+import com.sanigest.catalog.domain.model.Client;
+import com.sanigest.catalog.domain.model.ClientDetails;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;

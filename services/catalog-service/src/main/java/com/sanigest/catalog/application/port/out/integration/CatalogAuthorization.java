@@ -1,4 +1,4 @@
-package com.sanigest.catalog.application;
+package com.sanigest.catalog.application.port.out.integration;
 
 import java.util.Optional;
 import java.util.UUID;

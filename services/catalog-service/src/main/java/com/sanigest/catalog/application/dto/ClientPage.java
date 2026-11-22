@@ -1,4 +1,4 @@
-package com.sanigest.catalog.application;
+package com.sanigest.catalog.application.dto;
 
 import java.util.List;
 import java.util.UUID;

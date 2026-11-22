@@ -1,7 +1,7 @@
 package com.sanigest.company.api.controller;
 
 import com.sanigest.company.application.exception.CompanyAccessDeniedException;
-import com.sanigest.company.application.port.out.integration.CurrentAccount;
+import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.access.ResolveCompanyAccess;
 import com.sanigest.company.domain.model.AdvisorPermission;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
@@ -23,13 +23,13 @@ import org.springframework.web.bind.annotation.RestController;
 class CompanyAccessController {
   private final ResolveCompanyAccess access;
   private final JwtDecoder userDecoder;
-  private final CurrentAccount accounts;
+  private final RequireRegularAccount regularAccount;
 
   CompanyAccessController(
-      ResolveCompanyAccess access, JwtDecoder userDecoder, CurrentAccount accounts) {
+      ResolveCompanyAccess access, JwtDecoder userDecoder, RequireRegularAccount regularAccount) {
     this.access = access;
     this.userDecoder = userDecoder;
-    this.accounts = accounts;
+    this.regularAccount = regularAccount;
   }
 
   @GetMapping(CompanyAccessProtocol.PATH)
@@ -82,7 +82,7 @@ class CompanyAccessController {
     if (!assertedUser.equals(UUID.fromString(verified.getSubject()))) {
       throw new CompanyAccessDeniedException();
     }
-    return CompanyController.authenticatedUserId(verified, accounts);
+    return CompanyActor.authenticatedUserId(verified, regularAccount);
   }
 
   private static ResponseEntity<Response> response(Response response) {

@@ -1,6 +1,7 @@
-package com.sanigest.catalog.application;
+package com.sanigest.catalog.application.port.out.persistence;
 
-import com.sanigest.catalog.domain.Client;
+import com.sanigest.catalog.application.dto.ClientPage;
+import com.sanigest.catalog.domain.model.Client;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.UnaryOperator;

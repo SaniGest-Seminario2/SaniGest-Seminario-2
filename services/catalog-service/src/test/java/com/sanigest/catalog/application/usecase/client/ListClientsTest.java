@@ -1,13 +1,18 @@
-package com.sanigest.catalog.application;
+package com.sanigest.catalog.application.usecase.client;
 
-import static com.sanigest.catalog.application.CatalogAuthorization.Permission.CATALOG_READ;
-import static com.sanigest.catalog.application.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
+import static com.sanigest.catalog.application.exception.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
+import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.sanigest.catalog.application.dto.ClientPage;
+import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.exception.InvalidClientQueryException;
+import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,7 +24,8 @@ import org.springframework.security.access.AccessDeniedException;
 class ListClientsTest {
   private final CatalogAuthorization authorization = mock(CatalogAuthorization.class);
   private final ClientRepository repository = mock(ClientRepository.class);
-  private final ListClients useCase = new ListClients(Optional.of(authorization), repository, 100);
+  private final ListClients useCase =
+      new ListClients(new ClientCompany(Optional.of(authorization)), repository, 100);
 
   @ParameterizedTest
   @CsvSource({
@@ -61,7 +67,7 @@ class ListClientsTest {
   })
   void rejectsInvalidQueries(int page, int size, String status) {
     assertThatThrownBy(() -> useCase.execute(null, status, page, size))
-        .isInstanceOf(ListClients.InvalidQuery.class);
+        .isInstanceOf(InvalidClientQueryException.class);
     verifyNoInteractions(authorization, repository);
   }
 

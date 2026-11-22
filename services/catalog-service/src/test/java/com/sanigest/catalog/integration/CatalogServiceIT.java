@@ -19,15 +19,16 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sanigest.catalog.CatalogServiceApplication;
-import com.sanigest.catalog.application.ClientAccessException;
-import com.sanigest.catalog.application.ClientCreationException;
-import com.sanigest.catalog.application.ClientRepository;
-import com.sanigest.catalog.application.CreateClient;
-import com.sanigest.catalog.application.ListClients;
-import com.sanigest.catalog.domain.Client;
-import com.sanigest.catalog.domain.ClientDetails;
-import com.sanigest.catalog.domain.ClientPatch;
-import com.sanigest.catalog.domain.ClientPatch.Field;
+import com.sanigest.catalog.application.exception.ClientAccessException;
+import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
+import com.sanigest.catalog.application.usecase.client.CreateClient;
+import com.sanigest.catalog.application.usecase.client.ListClients;
+import com.sanigest.catalog.domain.enums.ClientStatus;
+import com.sanigest.catalog.domain.model.Client;
+import com.sanigest.catalog.domain.model.ClientDetails;
+import com.sanigest.catalog.domain.model.ClientPatch;
+import com.sanigest.catalog.domain.model.ClientPatch.Field;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
 import com.sanigest.companyaccess.CompanyAccess.Scope;
 import com.zaxxer.hikari.HikariConfig;
@@ -779,7 +780,7 @@ class CatalogServiceIT {
                   current -> {
                     snapshotRead.countDown();
                     await(committed);
-                    return current.changeStatus(Client.Status.INACTIVE);
+                    return current.changeStatus(ClientStatus.INACTIVE);
                   }));
       try {
         await(snapshotRead);
@@ -798,7 +799,7 @@ class CatalogServiceIT {
                   .isEqualTo(ClientAccessException.Reason.CLIENT_UPDATE_CONFLICT));
     }
     var stored = clients.find(original.companyId(), original.id()).orElseThrow();
-    assertThat(stored.status()).isEqualTo(Client.Status.ACTIVE);
+    assertThat(stored.status()).isEqualTo(ClientStatus.ACTIVE);
     assertThat(stored.details().email()).isEqualTo("saved@example.org");
   }
 
@@ -870,7 +871,7 @@ class CatalogServiceIT {
             current ->
                 current
                     .updateDetails(new ClientPatch(Map.of(Field.EMAIL, "persisted@example.org")))
-                    .changeStatus(Client.Status.INACTIVE));
+                    .changeStatus(ClientStatus.INACTIVE));
 
     try (var context =
         new SpringApplicationBuilder(CatalogServiceApplication.class)

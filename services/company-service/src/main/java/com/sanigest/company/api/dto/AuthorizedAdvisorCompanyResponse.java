@@ -1,6 +1,6 @@
 package com.sanigest.company.api.dto;
 
-import com.sanigest.company.application.port.out.persistence.AuthorizedAdvisorCompany;
+import com.sanigest.company.application.dto.AuthorizedAdvisorCompany;
 import java.util.List;
 import java.util.UUID;
 

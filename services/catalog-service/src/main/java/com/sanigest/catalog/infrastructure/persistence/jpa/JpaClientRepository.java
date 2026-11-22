@@ -1,14 +1,14 @@
-package com.sanigest.catalog.infrastructure.persistence;
+package com.sanigest.catalog.infrastructure.persistence.jpa;
 
-import static com.sanigest.catalog.application.ClientAccessException.Reason.CLIENT_NOT_FOUND;
-import static com.sanigest.catalog.application.ClientAccessException.Reason.CLIENT_UPDATE_CONFLICT;
-import static com.sanigest.catalog.application.ClientCreationException.Reason.DUPLICATE_TAX_ID;
+import static com.sanigest.catalog.application.exception.ClientAccessException.Reason.CLIENT_NOT_FOUND;
+import static com.sanigest.catalog.application.exception.ClientAccessException.Reason.CLIENT_UPDATE_CONFLICT;
+import static com.sanigest.catalog.application.exception.ClientCreationException.Reason.DUPLICATE_TAX_ID;
 
-import com.sanigest.catalog.application.ClientAccessException;
-import com.sanigest.catalog.application.ClientCreationException;
-import com.sanigest.catalog.application.ClientPage;
-import com.sanigest.catalog.application.ClientRepository;
-import com.sanigest.catalog.domain.Client;
+import com.sanigest.catalog.application.dto.ClientPage;
+import com.sanigest.catalog.application.exception.ClientAccessException;
+import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
+import com.sanigest.catalog.domain.model.Client;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

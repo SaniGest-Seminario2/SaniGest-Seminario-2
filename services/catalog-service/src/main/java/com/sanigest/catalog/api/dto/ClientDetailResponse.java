@@ -1,6 +1,7 @@
 package com.sanigest.catalog.api.dto;
 
-import com.sanigest.catalog.domain.Client;
+import com.sanigest.catalog.domain.enums.ClientStatus;
+import com.sanigest.catalog.domain.model.Client;
 import java.util.UUID;
 
 public record ClientDetailResponse(
@@ -10,7 +11,7 @@ public record ClientDetailResponse(
     String email,
     String phone,
     String address,
-    Client.Status status) {
+    ClientStatus status) {
   public static ClientDetailResponse from(Client client) {
     var details = client.details();
     return new ClientDetailResponse(

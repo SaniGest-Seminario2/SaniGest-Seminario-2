@@ -1,5 +1,6 @@
-package com.sanigest.catalog.domain;
+package com.sanigest.catalog.domain.model;
 
+import com.sanigest.catalog.domain.exception.InvalidClientPatch;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;

@@ -14,6 +14,7 @@ import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.port.out.integration.CurrentAccount;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository.ActiveAccess;
+import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.access.ResolveCompanyAccess;
 import com.sanigest.company.application.usecase.advisor.CheckAdvisorPermissionUseCase;
 import com.sanigest.company.domain.enums.CompanyRole;
@@ -35,7 +36,10 @@ class CompanyAccessControllerTest {
   private final JwtDecoder users = mock(JwtDecoder.class);
   private final CurrentAccount accounts = mock(CurrentAccount.class);
   private final CompanyAccessController controller =
-      new CompanyAccessController(new ResolveCompanyAccess(memberships, advisors), users, accounts);
+      new CompanyAccessController(
+          new ResolveCompanyAccess(memberships, advisors),
+          users,
+          new RequireRegularAccount(accounts));
 
   @Test
   void reportsOnlyTheCurrentMembershipAndExplicitGrant() {

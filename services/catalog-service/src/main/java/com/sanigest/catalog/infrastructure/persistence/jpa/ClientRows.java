@@ -1,7 +1,7 @@
-package com.sanigest.catalog.infrastructure.persistence;
+package com.sanigest.catalog.infrastructure.persistence.jpa;
 
-import com.sanigest.catalog.domain.Client;
-import com.sanigest.catalog.domain.ClientDetails;
+import com.sanigest.catalog.domain.enums.ClientStatus;
+import com.sanigest.catalog.domain.model.ClientDetails;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,7 +37,7 @@ interface ClientRows extends Repository<ClientRow, UUID> {
       @Param("id") UUID id,
       @Param("revision") long revision,
       @Param("details") ClientDetails details,
-      @Param("status") Client.Status status);
+      @Param("status") ClientStatus status);
 
   @Query(
       value =
