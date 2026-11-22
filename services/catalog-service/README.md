@@ -63,11 +63,34 @@ PostgreSQL provisionado por Testcontainers.
 
 Las sondas publican el estado y la raíz de health enumera los grupos públicos.
 El Resource Server valida la firma RS256, emisor, audiencia, vigencia y el UUID
-de identidad mediante `common-security`. Cualquier otra ruta requiere autenticación y se deniega
-hasta incorporar una política empresarial explícita. Los casos de uso futuros
-deberán obtener el UUID de identidad del JWT verificado y resolver membresía
-y permisos con Company antes de acceder a datos. El `companyId` de la
-solicitud identifica la empresa solicitada.
+de identidad mediante `common-security`. Las demás operaciones de negocio siguen denegadas.
+
+### Alta de clientes
+
+`POST /api/v1/clients` requiere un JWT de acceso en `Authorization: Bearer <token>`.
+El cuerpo acepta `name` obligatorio y `taxId`, `email`, `phone` y `address`
+opcionales. La respuesta exitosa es `201` con `id`, `name`, `taxId` y
+`status: ACTIVE`. Los identificadores y el estado se asignan en el servidor.
+El identificador fiscal conserva mayúsculas, minúsculas y separadores. Catalog
+elimina el espacio en blanco ASCII de los extremos y guarda un valor vacío como
+`null`. PostgreSQL garantiza unicidad por empresa para los valores presentes.
+
+El cuerpo y los encabezados del solicitante no seleccionan la empresa.
+Catalog obtiene el actor de `sub` y requiere una decisión vigente de Company
+para ese actor y la operación de alta. Catalog devuelve `400` por datos
+inválidos, `401` por JWT ausente o inválido, `403` ante una denegación de
+Company y `409` por duplicados en la empresa autorizada.
+
+**Bloqueo de S2-319.** El perfil propio de Company en
+`GET /api/v1/companies/me` carece del permiso de alta. La
+consulta interna de S2-317 en Identity solo verifica estado y tipo de cuenta.
+Falta un contrato de Company que resuelva membresía activa y permiso de alta
+para la empresa autorizada, incluidas las concesiones explícitas de ADVISOR
+cuando existan. Hasta disponer de ese contrato, una solicitud válida responde
+`503` y Catalog no escribe ningún cliente. El puerto
+`ClientCreationAuthorization` define la decisión que debe aportar el adaptador
+de Company. La futura llamada interna usará los límites del ADR-001
+(500 ms de conexión y 2 s de respuesta).
 
 ## Verificación
 

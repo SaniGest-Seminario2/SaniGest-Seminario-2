@@ -39,6 +39,8 @@ class SecurityConfiguration {
                     "/actuator/health/readiness",
                     "/v3/api-docs")
                 .permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/clients")
+                .authenticated()
                 .anyRequest()
                 .denyAll())
         .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
