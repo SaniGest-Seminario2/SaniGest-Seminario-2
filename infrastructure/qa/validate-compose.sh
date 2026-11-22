@@ -27,7 +27,8 @@ jq -er '
     "valkey": ["infra", "apps"],
     "kafka": ["infra", "apps"],
     "company-service": ["apps"],
-    "identity-service": ["apps"]
+    "identity-service": ["apps"],
+    "catalog-service": ["apps"]
   } as $profiles
   | reduce ($profiles | keys[]) as $name (.;
       .services[$name] as $service
@@ -40,7 +41,9 @@ jq -er '
       "Company requires healthy Kafka, PostgreSQL and Valkey dependencies")
   | require((.services["identity-service"].depends_on | healthy_dependencies(["postgres"]));
       "Identity requires a healthy PostgreSQL dependency")
-  | require((["company-service", "identity-service"] | all(. as $name |
+  | require((.services["catalog-service"].depends_on | healthy_dependencies(["postgres"]));
+      "Catalog requires a healthy PostgreSQL dependency")
+  | require((["company-service", "identity-service", "catalog-service"] | all(. as $name |
       $compose.services[$name].build.dockerfile == "infrastructure/docker/service.Dockerfile"
       and $compose.services[$name].build.args.SERVICE == $name));
       "Application builds must select their module through the shared Dockerfile")

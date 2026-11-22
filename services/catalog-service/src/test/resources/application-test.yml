@@ -1,0 +1,7 @@
+server:
+  port: 0
+
+sanigest:
+  jwt:
+    issuer: sanigest-test
+    audience: sanigest-api-test

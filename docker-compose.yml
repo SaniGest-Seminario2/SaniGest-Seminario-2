@@ -178,6 +178,45 @@ services:
     networks:
       - sanigest-local
 
+  catalog-service:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/service.Dockerfile
+      args:
+        SERVICE: catalog-service
+    image: sanigest/catalog-service:${SANIGEST_IMAGE_TAG:-local}
+    profiles: [apps]
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      JWT_ISSUER: ${JWT_ISSUER:-sanigest}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      SERVER_PORT: 8080
+      CATALOG_DB_HOST: postgres
+      CATALOG_DB_PORT: 5432
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Define CATALOG_DB_PASSWORD in .env}
+    volumes:
+      - type: bind
+        source: ${JWT_PUBLIC_KEY_FILE:-./.secrets/jwt-public.pem}
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:${CATALOG_SERVICE_PORT:-8083}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - sanigest-local
+
 volumes:
   postgres-data:
   kafka-data:
@@ -185,5 +224,5 @@ volumes:
 networks:
   sanigest-local:
     name: ${SANIGEST_NETWORK_NAME:-sanigest-local}
-    internal: true
+    internal: ${SANIGEST_NETWORK_INTERNAL:-true}
 
