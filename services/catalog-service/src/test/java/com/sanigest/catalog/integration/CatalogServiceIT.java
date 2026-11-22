@@ -1,9 +1,16 @@
 package com.sanigest.catalog.integration;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.sanigest.companyaccess.CompanyAccessProtocol.PATH;
+import static com.sanigest.companyaccess.CompanyAccessProtocol.USER_ASSERTION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.when;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -11,8 +18,10 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.sanigest.catalog.application.ClientCreationAuthorization;
 import com.sanigest.catalog.application.ClientCreationException;
+import com.sanigest.catalog.application.CreateClient;
+import com.sanigest.catalog.domain.ClientDetails;
+import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
@@ -32,15 +41,15 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,10 +57,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -74,7 +86,10 @@ class CatalogServiceIT {
           "EXPENSE_DB_PASSWORD", UUID.randomUUID().toString(),
           "FINANCE_DB_PASSWORD", UUID.randomUUID().toString());
   private static final KeyPair KEY = rsaKey();
-  private static final Path PUBLIC_KEY = writePublicKey();
+  private static final Path PUBLIC_KEY = writeKey("PUBLIC KEY", KEY.getPublic().getEncoded());
+  private static final Path COMPANY_ACCESS_KEY =
+      writeKey("PRIVATE KEY", rsaKey().getPrivate().getEncoded());
+  private static final WireMockServer COMPANY = new WireMockServer(0);
 
   @Container
   static final PostgreSQLContainer POSTGRES =
@@ -88,7 +103,8 @@ class CatalogServiceIT {
                   "../../infrastructure/postgres/init/10-create-service-databases.sh", 0755),
               "/docker-entrypoint-initdb.d/10-create-service-databases.sh");
 
-  @MockitoBean ClientCreationAuthorization authorization;
+  @Autowired CreateClient createClient;
+  @Autowired JwtDecoder jwtDecoder;
   @LocalServerPort int port;
   @Autowired DataSource dataSource;
   @Autowired EntityManagerFactory entityManagerFactory;
@@ -97,6 +113,15 @@ class CatalogServiceIT {
 
   @DynamicPropertySource
   static void configure(DynamicPropertyRegistry registry) {
+    if (!COMPANY.isRunning()) {
+      COMPANY.start();
+    }
+    registry.add("sanigest.company-access.enabled", () -> true);
+    registry.add("sanigest.company-access.origin", COMPANY::baseUrl);
+    registry.add("sanigest.company-access.issuer", () -> "catalog-test-internal");
+    registry.add("sanigest.company-access.private-key-location", COMPANY_ACCESS_KEY::toUri);
+    registry.add("JWT_ISSUER", () -> ISSUER);
+    registry.add("JWT_AUDIENCE", () -> AUDIENCE);
     registry.add("CATALOG_DB_HOST", POSTGRES::getHost);
     registry.add("CATALOG_DB_PORT", () -> POSTGRES.getMappedPort(5432));
     registry.add("CATALOG_DB_PASSWORD", () -> PASSWORDS.get("CATALOG_DB_PASSWORD"));
@@ -104,8 +129,15 @@ class CatalogServiceIT {
   }
 
   @AfterAll
-  static void removePublicKey() throws IOException {
+  static void stopCompany() throws IOException {
+    COMPANY.stop();
     Files.deleteIfExists(PUBLIC_KEY);
+    Files.deleteIfExists(COMPANY_ACCESS_KEY);
+  }
+
+  @AfterEach
+  void resetCompany() {
+    COMPANY.resetAll();
   }
 
   @Test
@@ -286,6 +318,9 @@ class CatalogServiceIT {
                   "address",
                   "Santo Domingo"));
 
+      COMPANY.verify(
+          1, getRequestedFor(urlEqualTo(PATH)).withHeader(USER_ASSERTION, equalTo(token)));
+
       var duplicate =
           http.send(
               clientRequest(token, withTaxId(taxId), otherCompanyId),
@@ -300,14 +335,7 @@ class CatalogServiceIT {
   @Tag("regression")
   void enforcesUniquenessWithinOneCompanyEvenAcrossOverlappingPosts() throws Exception {
     var companyId = UUID.randomUUID();
-    var userId = UUID.randomUUID();
-    var token = token(KEY, ISSUER, AUDIENCE, Instant.now().plusSeconds(120), userId, "REGULAR");
-    var overlappingRequests = new CyclicBarrier(2);
-    when(authorization.authorizedCompany(userId, token))
-        .thenAnswer(invocation -> {
-          overlappingRequests.await(5, TimeUnit.SECONDS);
-          return Optional.of(companyId);
-        });
+    var token = authorizedToken(companyId);
     var taxId = UUID.randomUUID().toString();
     var request = clientRequest(token, withTaxId(taxId), null);
     try (var http = HttpClient.newHttpClient()) {
@@ -345,20 +373,14 @@ class CatalogServiceIT {
   @Test
   @Tag("regression")
   void deniesPostsWithInvalidAuthenticationOrWithoutCurrentCompanyPermission() throws Exception {
-    var userId = UUID.randomUUID();
     var now = Instant.now();
-    var denied = token(KEY, ISSUER, AUDIENCE, now.plusSeconds(120), userId, "ADVISOR");
-    when(authorization.authorizedCompany(userId, denied)).thenReturn(Optional.empty());
-    var regularUser = UUID.randomUUID();
-    var withoutPermission =
-        token(KEY, ISSUER, AUDIENCE, now.plusSeconds(120), regularUser, "REGULAR");
-    when(authorization.authorizedCompany(regularUser, withoutPermission))
-        .thenReturn(Optional.empty());
-    var unavailable = token(KEY, ISSUER, AUDIENCE, now.plusSeconds(120), userId, "REGULAR");
-    when(authorization.authorizedCompany(userId, unavailable))
-        .thenThrow(
-            new ClientCreationException(ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE));
     var companyId = UUID.randomUUID();
+    var advisor = session("ADVISOR");
+    stubFailure(advisor, 403);
+    var viewer = membershipToken(companyId, MembershipRole.VIEWER, false);
+    var operator = membershipToken(companyId, MembershipRole.OPERATOR, false);
+    var unavailable = session("REGULAR");
+    stubFailure(unavailable, 503);
     var taxId = UUID.randomUUID().toString();
     var body =
         """
@@ -374,10 +396,11 @@ class CatalogServiceIT {
           .isEqualTo(401);
       assertThat(
               http.send(
-                      clientRequest(denied, body, companyId), HttpResponse.BodyHandlers.ofString())
+                      clientRequest(advisor, body, companyId), HttpResponse.BodyHandlers.ofString())
                   .statusCode())
           .isEqualTo(403);
-      assertThat(postStatus(http, withoutPermission, body)).isEqualTo(403);
+      assertThat(postStatus(http, viewer, body)).isEqualTo(403);
+      assertThat(postStatus(http, operator, body)).isEqualTo(403);
       assertThat(postStatus(http, unavailable, body)).isEqualTo(503);
     }
     assertThat(
@@ -387,11 +410,99 @@ class CatalogServiceIT {
         .isZero();
   }
 
-  private String authorizedToken(UUID companyId) throws JOSEException {
-    var userId = UUID.randomUUID();
-    var jwt = token(KEY, ISSUER, AUDIENCE, Instant.now().plusSeconds(120), userId, "REGULAR");
-    when(authorization.authorizedCompany(userId, jwt)).thenReturn(Optional.of(companyId));
+  @Test
+  @Tag("smoke")
+  void allowsAnExplicitOperatorGrantAndDeniesAViewerWithoutPersisting() throws Exception {
+    var companyId = UUID.randomUUID();
+    var granted = membershipToken(companyId, MembershipRole.OPERATOR, true);
+    var viewer = membershipToken(companyId, MembershipRole.VIEWER, false);
+    var allowedTaxId = UUID.randomUUID().toString();
+    var deniedTaxId = UUID.randomUUID().toString();
+    try (var http = HttpClient.newHttpClient()) {
+      assertThat(postStatus(http, granted, withTaxId(allowedTaxId))).isEqualTo(201);
+      assertThat(postStatus(http, viewer, withTaxId(deniedTaxId))).isEqualTo(403);
+      stubFailure(granted, 403);
+      assertThat(postStatus(http, granted, withTaxId(deniedTaxId))).isEqualTo(403);
+    }
+    assertThat(
+            new JdbcTemplate(dataSource)
+                .queryForList(
+                    "SELECT company_id FROM catalog.clients WHERE tax_id IN (?, ?)",
+                    UUID.class,
+                    allowedTaxId,
+                    deniedTaxId))
+        .containsExactly(companyId);
+  }
+
+  @Test
+  @Tag("regression")
+  void rejectsDirectApplicationCallsWithoutAuthentication() {
+    assertThatThrownBy(
+            () -> createClient.execute(new ClientDetails("Client", null, null, null, null)))
+        .isInstanceOf(AccessDeniedException.class);
+    COMPANY.verify(0, getRequestedFor(urlEqualTo(PATH)));
+  }
+
+  @Test
+  @Tag("regression")
+  void rejectsDirectApplicationCallsFromAViewerDespiteJwtClaims() throws Exception {
+    var token = membershipToken(UUID.randomUUID(), MembershipRole.VIEWER, true);
+    var taxId = UUID.randomUUID().toString();
+    var jwt = jwtDecoder.decode(token);
+    SecurityContextHolder.getContext()
+        .setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
+    try {
+      var details = new ClientDetails("Client", taxId, null, null, null);
+      assertThatThrownBy(() -> createClient.execute(details))
+          .isInstanceOfSatisfying(
+              ClientCreationException.class,
+              failure ->
+                  assertThat(failure.reason()).isEqualTo(ClientCreationException.Reason.FORBIDDEN));
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+    COMPANY.verify(1, getRequestedFor(urlEqualTo(PATH)).withHeader(USER_ASSERTION, equalTo(token)));
+    assertThat(
+            new JdbcTemplate(dataSource)
+                .queryForObject(
+                    "SELECT count(*) FROM catalog.clients WHERE tax_id = ?", Long.class, taxId))
+        .isZero();
+  }
+
+  private String authorizedToken(UUID companyId) throws Exception {
+    return membershipToken(companyId, MembershipRole.OWNER, false);
+  }
+
+  private String membershipToken(UUID companyId, MembershipRole role, boolean explicitGrant)
+      throws Exception {
+    var jwt = session("REGULAR");
+    var subject = SignedJWT.parse(jwt).getJWTClaimsSet().getSubject();
+    COMPANY.stubFor(
+        WireMock.get(urlEqualTo(PATH))
+            .withHeader(USER_ASSERTION, equalTo(jwt))
+            .willReturn(
+                aResponse()
+                    .withHeader("Content-Type", "application/json")
+                    .withBody(
+                        """
+                        {"userId":"%s","companyId":"%s","module":"CATALOG","scope":"WRITE",
+                         "mode":"MEMBERSHIP","role":"%s","explicitGrant":%s}
+                        """
+                            .formatted(subject, companyId, role, explicitGrant))));
     return jwt;
+  }
+
+  private static void stubFailure(String jwt, int status) {
+    COMPANY.stubFor(
+        WireMock.get(urlEqualTo(PATH))
+            .atPriority(1)
+            .withHeader(USER_ASSERTION, equalTo(jwt))
+            .willReturn(aResponse().withStatus(status)));
+  }
+
+  private static String session(String accountType) throws JOSEException {
+    return token(
+        KEY, ISSUER, AUDIENCE, Instant.now().plusSeconds(120), UUID.randomUUID(), accountType);
   }
 
   private static String withTaxId(String taxId) {
@@ -461,6 +572,8 @@ class CatalogServiceIT {
             .audience(audience)
             .subject(userId.toString())
             .claim("accountType", accountType)
+            .claim("role", "OWNER")
+            .claim("permissions", List.of("CATALOG_WRITE"))
             .issueTime(Date.from(Instant.now().minusSeconds(300)))
             .expirationTime(Date.from(expiration))
             .build();
@@ -481,12 +594,12 @@ class CatalogServiceIT {
     }
   }
 
-  private static Path writePublicKey() {
+  private static Path writeKey(String type, byte[] key) {
     try {
       var file = Files.createTempFile("catalog-jwt-", ".pem");
-      var encoded = Base64.getMimeEncoder().encodeToString(KEY.getPublic().getEncoded());
+      var encoded = Base64.getMimeEncoder().encodeToString(key);
       return Files.writeString(
-          file, "-----BEGIN PUBLIC KEY-----\n" + encoded + "\n-----END PUBLIC KEY-----\n");
+          file, "-----BEGIN " + type + "-----\n" + encoded + "\n-----END " + type + "-----\n");
     } catch (IOException exception) {
       throw new UncheckedIOException(exception);
     }
