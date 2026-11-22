@@ -47,7 +47,8 @@ class CompanyInvitationUseCasesTest {
       new InviteCompanyUserUseCase(
           members, companies, invitations, Duration.ofHours(4), clock, Optional.empty());
   private final AcceptCompanyInvitationUseCase accept =
-      new AcceptCompanyInvitationUseCase(invitations, members, companies, clock);
+      new AcceptCompanyInvitationUseCase(
+          invitations, members, companies, clock, mock(CompanyAuditRecorder.class));
   private final String token = InvitationToken.generate();
 
   @ParameterizedTest

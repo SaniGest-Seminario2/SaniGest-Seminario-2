@@ -3,6 +3,7 @@ package com.sanigest.company.application;
 import com.sanigest.company.application.CreateCompanyUseCase.ConflictException;
 import com.sanigest.company.application.GetMyCompanyUseCase.CompanyAccessDeniedException;
 import com.sanigest.company.application.GetMyCompanyUseCase.MembershipRepository;
+import com.sanigest.company.domain.model.CompanyAuditEvent.Operation;
 import com.sanigest.company.domain.model.Invitation;
 import com.sanigest.company.domain.model.Invitation.Status;
 import com.sanigest.company.domain.model.Membership;
@@ -21,16 +22,19 @@ public class AcceptCompanyInvitationUseCase {
   private final MembershipRepository memberships;
   private final CompanyRepository companies;
   private final Clock clock;
+  private final CompanyAuditRecorder audit;
 
   public AcceptCompanyInvitationUseCase(
       InvitationRepository invitations,
       MembershipRepository memberships,
       CompanyRepository companies,
-      Clock clock) {
+      Clock clock,
+      CompanyAuditRecorder audit) {
     this.invitations = invitations;
     this.memberships = memberships;
     this.companies = companies;
     this.clock = clock;
+    this.audit = audit;
   }
 
   @Transactional
@@ -67,6 +71,14 @@ public class AcceptCompanyInvitationUseCase {
     }
     requirePending(invitation);
     invitations.closePending(invitation.id(), Status.ACCEPTED);
+    audit.succeeded(
+        userId,
+        membership,
+        Operation.MEMBER_ACTIVATED,
+        null,
+        membership.role(),
+        null,
+        MembershipStatus.ACTIVE);
     return membership;
   }
 

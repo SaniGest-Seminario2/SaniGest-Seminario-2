@@ -66,6 +66,23 @@ class JdbcMembershipRepository implements MembershipRepository {
   }
 
   @Override
+  public boolean hasPermission(Membership membership, String permission) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS (
+              SELECT 1 FROM membership_permissions mp
+              JOIN company_permissions cp ON cp.id = mp.permission_id
+              WHERE mp.membership_id = ? AND cp.company_id = ? AND cp.permission = ?
+            )
+            """,
+            Boolean.class,
+            membership.id(),
+            membership.companyId(),
+            permission));
+  }
+
+  @Override
   public boolean hasOtherActiveOwner(UUID companyId, UUID userId) {
     return Boolean.TRUE.equals(
         jdbc.queryForObject(
