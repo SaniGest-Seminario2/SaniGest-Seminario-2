@@ -97,6 +97,62 @@ final class AdvisorAccessOpenApi {
                 false));
   }
 
+  static Map<String, Object> selectorOperations() {
+    var permission =
+        Map.of(
+            "type", "object",
+            "required", List.of("module", "scope"),
+            "properties",
+                Map.of(
+                    "module",
+                        Map.of(
+                            "type",
+                            "string",
+                            "enum",
+                            List.of("CATALOG", "SALES", "EXPENSE", "FINANCE")),
+                    "scope", Map.of("type", "string", "enum", List.of("READ", "WRITE"))));
+    var company =
+        Map.of(
+            "type", "object",
+            "required", List.of("companyId", "companyName", "permissions"),
+            "properties",
+                Map.of(
+                    "companyId", UUID,
+                    "companyName", Map.of("type", "string"),
+                    "permissions",
+                        Map.of(
+                            "type",
+                            "array",
+                            "items",
+                            permission,
+                            "minItems",
+                            1,
+                            "uniqueItems",
+                            true)));
+    return Map.of(
+        "get",
+        Map.of(
+            "summary",
+                "List active companies with current permissions for the authenticated advisor",
+            "security", List.of(Map.of("bearerAuth", List.of())),
+            "responses",
+                Map.of(
+                    "200",
+                        Map.of(
+                            "description",
+                                "Authorized companies ordered by name and id, or an empty array",
+                            "headers",
+                                Map.of(
+                                    "Cache-Control",
+                                    Map.of(
+                                        "schema",
+                                        Map.of("type", "string", "enum", List.of("no-store")))),
+                            "content", content(Map.of("type", "array", "items", company))),
+                    "401", Map.of("description", "Missing or invalid user JWT"),
+                    "403", Map.of("description", "Account is not eligible for advisor access"),
+                    "503", Map.of("description", "Identity authorization could not be verified"))));
+  }
+
   private static Map<String, Object> operation(
       String summary,
       String status,

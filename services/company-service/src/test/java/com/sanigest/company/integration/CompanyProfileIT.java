@@ -84,6 +84,7 @@ class CompanyProfileIT {
   private static final String COMPANIES = "/api/v1/companies";
   private static final String ME = COMPANIES + "/me";
   private static final String AUDIT = ME + "/audit-log";
+  private static final String ADVISOR_COMPANIES = "/api/v1/advisor/companies";
   private static final String ADVISOR_ACCESS = ME + "/advisor-access";
   private static final String SERVICE_ISSUER = "sanigest-company-eligibility-test";
   private static final AdvisorPermission ADVISOR_READ =
@@ -200,6 +201,16 @@ class CompanyProfileIT {
     assertThat(grant.statusCode()).isEqualTo(200);
     assertThat(grant.body()).contains("\"scope\":\"READ\"", "\"revision\":1");
     assertThat(get(ADVISOR_ACCESS, owner.token()).body()).contains(advisor.toString());
+    assertSelector(
+        get(ADVISOR_COMPANIES, token(advisor)),
+        "[%s]"
+            .formatted(
+                selectorCompany(
+                    owner,
+                    "Advisor Smoke",
+                    """
+                    {"module":"CATALOG","scope":"READ"}
+                    """)));
     assertThat(get(ADVISOR_ACCESS + "?companyId=" + owner.companyId(), other.token()).body())
         .isEqualTo("[]");
     advisorPermissions.require(advisor, owner.companyId(), ADVISOR_READ);
@@ -219,6 +230,18 @@ class CompanyProfileIT {
     assertThatThrownBy(() -> advisorPermissions.require(advisor, owner.companyId(), ADVISOR_READ))
         .isInstanceOf(CompanyAccessDeniedException.class);
     advisorPermissions.require(advisor, other.companyId(), ADVISOR_WRITE);
+    assertSelector(
+        get(ADVISOR_COMPANIES, token(advisor)),
+        "[%s]"
+            .formatted(
+                selectorCompany(
+                    other,
+                    "Advisor Other",
+                    """
+                    {"module":"CATALOG","scope":"WRITE"}
+                    """)));
+    assertThat(sendAdvisor(advisorDelete(other.token(), advisor)).statusCode()).isEqualTo(204);
+    assertSelector(get(ADVISOR_COMPANIES, token(advisor)), "[]");
     assertThat(membershipCount(advisor)).isZero();
     var audit = get(AUDIT, owner.token());
     assertThat(audit.body())
@@ -228,6 +251,132 @@ class CompanyProfileIT {
             advisor.toString(),
             owner.companyId().toString(),
             "\"scope\":\"READ\"");
+  }
+
+  @Test
+  void selectorFiltersPermissionsAndCompaniesAndIgnoresUntrustedContext() throws Exception {
+    var alpha = newOwner("Selector Alpha");
+    var beta = newOwner("Selector Beta");
+    var unrelated = newOwner("Selector Unrelated");
+    UUID advisor = eligibleAdvisor();
+    UUID otherAdvisor = eligibleAdvisor();
+    String jwt = token(advisor);
+    assertSelector(get(ADVISOR_COMPANIES, jwt), "[]");
+
+    String read =
+        """
+        {"module":"CATALOG","scope":"READ"}
+        """;
+    String write =
+        """
+        {"module":"CATALOG","scope":"WRITE"}
+        """;
+    String sales =
+        """
+        {"module":"SALES","scope":"READ"}
+        """;
+    assertThat(sendAdvisor(advisorPut(beta.token(), advisorBody(advisor, 0, sales))).statusCode())
+        .isEqualTo(200);
+    assertThat(
+            sendAdvisor(
+                    advisorPut(
+                        alpha.token(), advisorBody(advisor, 0, sales + "," + write + "," + read)))
+                .statusCode())
+        .isEqualTo(200);
+    assertThat(
+            sendAdvisor(advisorPut(unrelated.token(), advisorBody(otherAdvisor, 0, read)))
+                .statusCode())
+        .isEqualTo(200);
+
+    var spoofed =
+        request(
+                ADVISOR_COMPANIES
+                    + "?advisorId="
+                    + otherAdvisor
+                    + "&companyId="
+                    + unrelated.companyId())
+            .header("Authorization", "Bearer " + jwt)
+            .header("X-Company-Id", unrelated.companyId().toString())
+            .header("X-Advisor-Id", otherAdvisor.toString())
+            .GET()
+            .build();
+    assertSelector(
+        sendAdvisor(spoofed),
+        "[%s,%s]"
+            .formatted(
+                selectorCompany(alpha, "Selector Alpha", read + "," + write + "," + sales),
+                selectorCompany(beta, "Selector Beta", sales)));
+    assertSelector(
+        get(ADVISOR_COMPANIES, token(otherAdvisor)),
+        "[%s]".formatted(selectorCompany(unrelated, "Selector Unrelated", read)));
+    assertThatThrownBy(
+            () -> advisorPermissions.require(advisor, unrelated.companyId(), ADVISOR_READ))
+        .isInstanceOf(CompanyAccessDeniedException.class);
+
+    assertThat(sendAdvisor(advisorPut(alpha.token(), advisorBody(advisor, 1, write))).statusCode())
+        .isEqualTo(200);
+    jdbc.update("UPDATE companies SET status = 'INACTIVE' WHERE id = ?", beta.companyId());
+    assertSelector(
+        get(ADVISOR_COMPANIES, jwt),
+        "[%s]".formatted(selectorCompany(alpha, "Selector Alpha", write)));
+  }
+
+  @Test
+  void selectorRequiresAUserJwtAndCurrentIdentityEligibility() throws Exception {
+    assertThat(get(ADVISOR_COMPANIES, null).statusCode()).isEqualTo(401);
+    assertThat(get(ADVISOR_COMPANIES, "not-a-jwt").statusCode()).isEqualTo(401);
+    UUID advisor = eligibleAdvisor();
+    String expired = token(advisor.toString(), Instant.now().minusSeconds(5), signingKey);
+    assertThat(get(ADVISOR_COMPANIES, expired).statusCode()).isEqualTo(401);
+
+    var service =
+        new SignedJWT(
+            new JWSHeader.Builder(JWSAlgorithm.RS256)
+                .type(new com.nimbusds.jose.JOSEObjectType("sanigest-service+jwt"))
+                .build(),
+            new JWTClaimsSet.Builder()
+                .issuer(SERVICE_ISSUER)
+                .subject("company-service")
+                .audience("sanigest-identity-advisor-eligibility")
+                .claim("scope", "identity:advisor-eligibility:read")
+                .issueTime(new Date())
+                .expirationTime(Date.from(Instant.now().plusSeconds(60)))
+                .build());
+    service.sign(new RSASSASigner((RSAPrivateKey) SERVICE_KEYS.getPrivate()));
+    assertThat(get(ADVISOR_COMPANIES, service.serialize()).statusCode()).isEqualTo(401);
+
+    // Even a signed accountType claim cannot override Identity.
+    var user = SignedJWT.parse(token(advisor));
+    var claimedAdvisor =
+        new SignedJWT(
+            user.getHeader(),
+            new JWTClaimsSet.Builder(user.getJWTClaimsSet())
+                .claim("accountType", "ADVISOR")
+                .build());
+    claimedAdvisor.sign(new RSASSASigner(signingKey));
+    for (String account : List.of("REGULAR", "INACTIVE_ADVISOR", "MISSING", "UNAVAILABLE")) {
+      ADVISOR_ACCOUNTS.put(advisor, account);
+      var denied = get(ADVISOR_COMPANIES, claimedAdvisor.serialize());
+      assertThat(denied.statusCode())
+          .as(account)
+          .isEqualTo("UNAVAILABLE".equals(account) ? 503 : 403);
+      assertThat(denied.headers().firstValue("Cache-Control"))
+          .hasValueSatisfying(value -> assertThat(value).contains("no-store"));
+    }
+  }
+
+  private static String selectorCompany(AdvisorOwner owner, String name, String permissions) {
+    return """
+    {"companyId":"%s","companyName":"%s SRL","permissions":[%s]}
+    """
+        .formatted(owner.companyId(), name, permissions);
+  }
+
+  private static void assertSelector(HttpResponse<String> response, String expected)
+      throws Exception {
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
+    JSONAssert.assertEquals(expected, response.body(), true);
   }
 
   @Test

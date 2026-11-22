@@ -17,7 +17,7 @@ spring:
           globalcors:
             add-to-simple-url-handler-mapping: true
             cors-configurations:
-              '[/api/v1/{resource:auth|users|companies|invitations|clients|suppliers|catalog-items}/**]':
+              '[/api/v1/{resource:auth|users|companies|advisor|invitations|clients|suppliers|catalog-items}/**]':
                 allowed-origins: ${GATEWAY_CORS_ALLOWED_ORIGINS:}
                 allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
                 allowed-headers: [Accept, Authorization, Content-Type, Idempotency-Key]

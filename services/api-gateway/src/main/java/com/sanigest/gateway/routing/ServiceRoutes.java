@@ -39,7 +39,10 @@ class ServiceRoutes {
             "company",
             route ->
                 route
-                    .path("/api/v1/companies/**", "/api/v1/invitations/{token}/accept")
+                    .path(
+                        "/api/v1/companies/**",
+                        "/api/v1/invitations/{token}/accept",
+                        "/api/v1/advisor/companies")
                     .uri(destination(environment, "COMPANY_SERVICE_URL")))
         .build();
   }

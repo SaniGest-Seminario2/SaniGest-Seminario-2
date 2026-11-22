@@ -60,6 +60,7 @@ class ServiceRoutingIT {
                 "/api/v1/auth/login", "identity",
                 "/api/v1/users", "identity",
                 "/api/v1/companies", "company",
+                "/api/v1/advisor/companies", "company",
                 "/api/v1/clients", "catalog",
                 "/api/v1/suppliers/123", "catalog",
                 "/api/v1/catalog-items", "catalog")

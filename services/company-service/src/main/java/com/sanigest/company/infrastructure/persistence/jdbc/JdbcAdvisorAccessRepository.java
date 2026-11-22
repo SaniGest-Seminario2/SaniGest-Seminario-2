@@ -1,6 +1,7 @@
 package com.sanigest.company.infrastructure.persistence.jdbc;
 
 import com.sanigest.company.application.port.out.persistence.AdvisorAccessRepository;
+import com.sanigest.company.application.port.out.persistence.AuthorizedAdvisorCompany;
 import com.sanigest.company.domain.model.AdvisorAccess;
 import com.sanigest.company.domain.model.AdvisorPermission;
 import java.time.Instant;
@@ -32,6 +33,42 @@ class JdbcAdvisorAccessRepository implements AdvisorAccessRepository {
   @Override
   public List<AdvisorAccess> list(UUID companyId) {
     return load(SELECT_ACCESS + ORDER, companyId);
+  }
+
+  @Override
+  public List<AuthorizedAdvisorCompany> listAuthorizedCompanies(UUID advisorId) {
+    return jdbc.query(
+        """
+        SELECT c.id AS company_id, c.name AS company_name, p.module, p.scope
+        FROM company_advisor_access a
+        JOIN companies c ON c.id = a.company_id
+        JOIN company_advisor_permissions p
+          ON p.company_id = a.company_id AND p.advisor_id = a.advisor_id
+        WHERE a.advisor_id = ? AND c.status = 'ACTIVE' AND p.revoked_at IS NULL
+        ORDER BY c.name, c.id, p.module, p.scope
+        """,
+        rows -> {
+          var companies = new LinkedHashMap<UUID, CompanyPermissions>();
+          while (rows.next()) {
+            UUID companyId = rows.getObject("company_id", UUID.class);
+            String companyName = rows.getString("company_name");
+            var company =
+                companies.computeIfAbsent(
+                    companyId, id -> new CompanyPermissions(companyName, new ArrayList<>()));
+            company
+                .permissions()
+                .add(
+                    new AdvisorPermission(
+                        AdvisorPermission.Module.valueOf(rows.getString("module")),
+                        AdvisorPermission.Scope.valueOf(rows.getString("scope"))));
+          }
+          return companies.entrySet().stream()
+              .map(entry ->
+                  new AuthorizedAdvisorCompany(
+                      entry.getKey(), entry.getValue().name(), entry.getValue().permissions()))
+              .toList();
+        },
+        advisorId);
   }
 
   @Override
@@ -144,6 +181,8 @@ class JdbcAdvisorAccessRepository implements AdvisorAccessRepository {
         permission.module().name(),
         permission.scope().name());
   }
+
+  private record CompanyPermissions(String name, List<AdvisorPermission> permissions) {}
 
   private record StoredAccess(long revision, List<AdvisorPermission> permissions) {}
 }
