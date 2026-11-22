@@ -1,4 +1,4 @@
-package com.sanigest.company.application.port.out.persistence;
+package com.sanigest.company.application.dto;
 
 import com.sanigest.company.domain.model.AdvisorPermission;
 import java.util.List;

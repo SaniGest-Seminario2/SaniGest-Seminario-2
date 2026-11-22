@@ -1,14 +1,14 @@
 package com.sanigest.catalog.infrastructure.company;
 
-import static com.sanigest.catalog.application.CatalogAuthorization.Permission.CATALOG_READ;
-import static com.sanigest.catalog.application.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.catalog.application.ClientCreationException;
+import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.companyaccess.CompanyAccess;
 import com.sanigest.companyaccess.CompanyAccess.MembershipContext;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;

@@ -1,11 +1,12 @@
-package com.sanigest.catalog.application;
+package com.sanigest.catalog.application.usecase.client;
 
-import static com.sanigest.catalog.application.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
 
-import com.sanigest.catalog.domain.Client;
-import com.sanigest.catalog.domain.ClientDetails;
-import com.sanigest.catalog.domain.ClientPatch;
-import com.sanigest.catalog.domain.InvalidClientPatch;
+import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
+import com.sanigest.catalog.domain.exception.InvalidClientPatch;
+import com.sanigest.catalog.domain.model.Client;
+import com.sanigest.catalog.domain.model.ClientDetails;
+import com.sanigest.catalog.domain.model.ClientPatch;
 import jakarta.validation.Validator;
 import java.util.UUID;
 import org.springframework.security.access.prepost.PreAuthorize;

@@ -1,3 +1,3 @@
-package com.sanigest.catalog.domain;
+package com.sanigest.catalog.domain.exception;
 
 public final class InvalidClientPatch extends RuntimeException {}

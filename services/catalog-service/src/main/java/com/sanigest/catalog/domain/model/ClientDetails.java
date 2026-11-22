@@ -1,4 +1,4 @@
-package com.sanigest.catalog.domain;
+package com.sanigest.catalog.domain.model;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

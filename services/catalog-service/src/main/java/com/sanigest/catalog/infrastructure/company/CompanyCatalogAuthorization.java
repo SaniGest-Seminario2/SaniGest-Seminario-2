@@ -1,8 +1,8 @@
 package com.sanigest.catalog.infrastructure.company;
 
-import com.sanigest.catalog.application.CatalogAuthorization;
-import com.sanigest.catalog.application.ClientCreationException;
-import com.sanigest.catalog.application.ClientCreationException.Reason;
+import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.exception.ClientCreationException.Reason;
+import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
 import com.sanigest.companyaccess.AuthenticatedActor;
 import com.sanigest.companyaccess.CompanyAccess;
 import com.sanigest.companyaccess.CompanyAccess.MembershipContext;

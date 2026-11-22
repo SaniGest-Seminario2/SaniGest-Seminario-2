@@ -1,7 +1,8 @@
-package com.sanigest.catalog.infrastructure.persistence;
+package com.sanigest.catalog.infrastructure.persistence.jpa;
 
-import com.sanigest.catalog.domain.Client;
-import com.sanigest.catalog.domain.ClientDetails;
+import com.sanigest.catalog.domain.enums.ClientStatus;
+import com.sanigest.catalog.domain.model.Client;
+import com.sanigest.catalog.domain.model.ClientDetails;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -36,7 +37,7 @@ class ClientRow implements Persistable<UUID> {
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 16)
-  private Client.Status status;
+  private ClientStatus status;
 
   @Column(nullable = false)
   private long revision;

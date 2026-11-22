@@ -1,4 +1,4 @@
-package com.sanigest.catalog.application;
+package com.sanigest.catalog.application.usecase.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -7,8 +7,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.catalog.domain.Client;
-import com.sanigest.catalog.domain.ClientDetails;
+import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
+import com.sanigest.catalog.domain.enums.ClientStatus;
+import com.sanigest.catalog.domain.model.ClientDetails;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -33,7 +36,7 @@ class CreateClientTest {
 
     assertThat(client.id()).isNotNull();
     assertThat(client.companyId()).isEqualTo(companyId);
-    assertThat(client.status()).isEqualTo(Client.Status.ACTIVE);
+    assertThat(client.status()).isEqualTo(ClientStatus.ACTIVE);
     assertThat(client.details())
         .isEqualTo(
             new ClientDetails("Taller", "Ab-012", "a@b.com", "809-555-1234", "Santo Domingo"));
@@ -69,7 +72,7 @@ class CreateClientTest {
   @Test
   void failsClosedWhenTheAuthorityIsUnavailable() {
     var unavailable = ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
-    assertRejected(new CreateClient(Optional.empty(), clients), unavailable);
+    assertRejected(new CreateClient(new ClientCompany(Optional.empty()), clients), unavailable);
     assertRejected(
         useCase(permission -> {
           throw new ClientCreationException(unavailable);
@@ -81,7 +84,7 @@ class CreateClientTest {
     var authorization = mock(CatalogAuthorization.class);
     when(authorization.membership(CatalogAuthorization.Permission.CATALOG_WRITE))
         .thenAnswer(invocation -> resolve.apply(invocation.getArgument(0)));
-    return new CreateClient(Optional.of(authorization), clients);
+    return new CreateClient(new ClientCompany(Optional.of(authorization)), clients);
   }
 
   private void assertRejected(CreateClient useCase, ClientCreationException.Reason reason) {

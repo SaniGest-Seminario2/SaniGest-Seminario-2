@@ -1,5 +1,6 @@
 package com.sanigest.company.application.port.out.persistence;
 
+import com.sanigest.company.application.dto.AuthorizedAdvisorCompany;
 import com.sanigest.company.domain.model.AdvisorAccess;
 import com.sanigest.company.domain.model.AdvisorPermission;
 import java.time.Instant;

@@ -19,6 +19,7 @@ import com.sanigest.company.application.dto.CreatedInvitation;
 import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.port.out.integration.CurrentAccount;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
+import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.profile.GetMyCompanyUseCase;
 import com.sanigest.company.application.usecase.team.AcceptCompanyInvitationUseCase;
 import com.sanigest.company.application.usecase.team.InviteCompanyUserUseCase;
@@ -45,7 +46,7 @@ class CompanyTeamControllerTest {
   private final MembershipRepository memberships = mock(MembershipRepository.class);
   private final CompanyTeamController controller =
       new CompanyTeamController(
-          accounts,
+          new RequireRegularAccount(accounts),
           invite,
           accept,
           new ListMyCompanyUsersUseCase(new GetMyCompanyUseCase(memberships), memberships));

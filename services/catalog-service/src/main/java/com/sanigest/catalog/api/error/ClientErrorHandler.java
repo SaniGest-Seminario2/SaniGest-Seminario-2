@@ -1,10 +1,10 @@
 package com.sanigest.catalog.api.error;
 
-import com.sanigest.catalog.application.ClientAccessException;
-import com.sanigest.catalog.application.ClientCreationException;
-import com.sanigest.catalog.application.ListClients.Forbidden;
-import com.sanigest.catalog.application.ListClients.InvalidQuery;
-import com.sanigest.catalog.domain.InvalidClientPatch;
+import com.sanigest.catalog.application.exception.ClientAccessException;
+import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.exception.ClientListingForbiddenException;
+import com.sanigest.catalog.application.exception.InvalidClientQueryException;
+import com.sanigest.catalog.domain.exception.InvalidClientPatch;
 import java.time.Instant;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -20,15 +20,15 @@ class ClientErrorHandler {
     MethodArgumentNotValidException.class,
     HttpMessageNotReadableException.class,
     MethodArgumentTypeMismatchException.class,
-    InvalidQuery.class,
+    InvalidClientQueryException.class,
     InvalidClientPatch.class
   })
   ProblemDetail validation() {
     return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The request is invalid");
   }
 
-  @ExceptionHandler(Forbidden.class)
-  ProblemDetail listingForbidden(Forbidden failure) {
+  @ExceptionHandler(ClientListingForbiddenException.class)
+  ProblemDetail listingForbidden(ClientListingForbiddenException failure) {
     return problem(HttpStatus.FORBIDDEN, "FORBIDDEN", failure.getMessage());
   }
 

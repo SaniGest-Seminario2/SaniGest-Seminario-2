@@ -1,6 +1,6 @@
 package com.sanigest.catalog.api.dto;
 
-import com.sanigest.catalog.domain.ClientDetails;
+import com.sanigest.catalog.domain.model.ClientDetails;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;

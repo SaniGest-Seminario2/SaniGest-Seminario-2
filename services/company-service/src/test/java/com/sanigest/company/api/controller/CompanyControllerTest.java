@@ -17,6 +17,7 @@ import com.sanigest.company.application.dto.CreateCompanyCommand;
 import com.sanigest.company.application.exception.AuthorizationUnavailableException;
 import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.port.out.integration.CurrentAccount;
+import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.profile.CreateCompanyUseCase;
 import com.sanigest.company.application.usecase.profile.GetMyCompanyUseCase;
 import com.sanigest.company.application.usecase.profile.UpdateMyCompanyUseCase;
@@ -40,7 +41,7 @@ class CompanyControllerTest {
             mock(CreateCompanyUseCase.class),
             profiles,
             mock(UpdateMyCompanyUseCase.class),
-            token -> AccountType.REGULAR);
+            new RequireRegularAccount(token -> AccountType.REGULAR));
     var jwt = Jwt.withTokenValue("test").header("alg", "RS256").subject(userId.toString()).build();
 
     assertThat(controller.me(jwt))
@@ -84,7 +85,7 @@ class CompanyControllerTest {
                 useCase,
                 mock(GetMyCompanyUseCase.class),
                 mock(UpdateMyCompanyUseCase.class),
-                token -> AccountType.REGULAR)
+                new RequireRegularAccount(token -> AccountType.REGULAR))
             .create(jwt, "key", request);
     assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     assertThat(result.getBody()).isEqualTo(response);
@@ -97,7 +98,7 @@ class CompanyControllerTest {
             mock(CreateCompanyUseCase.class),
             mock(GetMyCompanyUseCase.class),
             mock(UpdateMyCompanyUseCase.class),
-            mock(CurrentAccount.class));
+            new RequireRegularAccount(mock(CurrentAccount.class)));
     var jwt = Jwt.withTokenValue("test").header("alg", "RS256").subject("invalid").build();
     assertThatThrownBy(() -> controller.create(jwt, "key", null))
         .isInstanceOf(IllegalArgumentException.class)
@@ -110,7 +111,8 @@ class CompanyControllerTest {
     var read = mock(GetMyCompanyUseCase.class);
     var update = mock(UpdateMyCompanyUseCase.class);
     var accounts = mock(CurrentAccount.class);
-    var controller = new CompanyController(create, read, update, accounts);
+    var controller =
+        new CompanyController(create, read, update, new RequireRegularAccount(accounts));
     var jwt =
         Jwt.withTokenValue("test")
             .header("alg", "RS256")

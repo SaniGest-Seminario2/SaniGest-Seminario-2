@@ -9,16 +9,21 @@
    dependencias, perfiles y el empaquetado de Spring Boot.
 3. Ubica la clase principal de Spring Boot en `com.sanigest.<dominio>`. Mantén
    los controladores HTTP, sus DTO y el mapeo de errores en `api/controller`,
-   `api/dto` y `api/error`. Usa `application/usecase` para los flujos de
-   aplicación y `application/port/out` para los contratos que implementan los
-   adaptadores en `infrastructure`. Conserva el modelo y sus reglas en
-   `domain/model` y los enums de dominio en `domain/enums`. Agrupa los puertos
-   según la dependencia que representan. Coloca las constantes compartidas
-   junto al contrato al que pertenecen. El caso de uso controla la transacción. El adaptador
-   traduce los errores del proveedor. Refleja los paquetes en las pruebas
-   unitarias y coloca las pruebas de integración en `integration`.
-   Consulta [Company](../../services/company-service/README.md) (JDBC) e
-   [Identity](../../services/identity-service/README.md) (Hibernate/JPA).
+   `api/dto` y `api/error`. Agrupa los flujos por capacidad en
+   `application/usecase`, sus datos de entrada y salida en `application/dto`
+   y sus errores en `application/exception`. Define los contratos salientes en
+   `application/port/out`, agrupados según la dependencia que representan.
+   Implementa esos contratos en `infrastructure`. Conserva el modelo y sus
+   reglas en `domain/model` y los enums en `domain/enums`. Coloca las
+   constantes compartidas junto al contrato al que pertenecen.
+   El caso de uso define el límite transaccional cuando coordina varias
+   operaciones de persistencia. El adaptador puede delimitar la transacción
+   de una operación atómica de su puerto y traduce los errores del proveedor.
+   Refleja los paquetes en las pruebas unitarias y coloca las pruebas de
+   integración en `integration`.
+   Consulta [Company](../../services/company-service/README.md) (JDBC),
+   [Identity](../../services/identity-service/README.md) y
+   [Catalog](../../services/catalog-service/README.md) (Hibernate/JPA).
 4. Usa `src/main/resources/application.yml` para la configuración base y
    `src/test/resources` para los recursos exclusivos de pruebas. Si el servicio
    persiste datos, agrega sus migraciones Flyway bajo `db/migration` y configura

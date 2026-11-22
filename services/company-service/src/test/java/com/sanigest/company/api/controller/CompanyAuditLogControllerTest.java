@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.sanigest.company.api.dto.CompanyAuditResponse;
 import com.sanigest.company.application.account.AccountType;
 import com.sanigest.company.application.dto.AuditPage;
+import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.audit.GetCompanyAuditLogUseCase;
 import com.sanigest.company.domain.enums.AuditOperation;
 import com.sanigest.company.domain.enums.AuditResult;
@@ -47,7 +48,8 @@ class CompanyAuditLogControllerTest {
     var jwt = Jwt.withTokenValue("test").header("alg", "RS256").subject(actor.toString()).build();
 
     var response =
-        new CompanyAuditLogController(token -> AccountType.REGULAR, auditLog)
+        new CompanyAuditLogController(
+                new RequireRegularAccount(token -> AccountType.REGULAR), auditLog)
             .get(jwt, null, null, 2, 20);
 
     assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");

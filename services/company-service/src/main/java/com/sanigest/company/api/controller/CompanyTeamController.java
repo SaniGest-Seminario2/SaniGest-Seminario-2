@@ -1,12 +1,12 @@
 package com.sanigest.company.api.controller;
 
-import static com.sanigest.company.api.controller.CompanyController.authenticatedUserId;
+import static com.sanigest.company.api.controller.CompanyActor.authenticatedUserId;
 
 import com.sanigest.company.api.dto.InvitationRequest;
 import com.sanigest.company.api.dto.InvitationResponse;
 import com.sanigest.company.api.dto.MemberResponse;
 import com.sanigest.company.api.routing.CompanyRoutes;
-import com.sanigest.company.application.port.out.integration.CurrentAccount;
+import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.team.AcceptCompanyInvitationUseCase;
 import com.sanigest.company.application.usecase.team.InviteCompanyUserUseCase;
 import com.sanigest.company.application.usecase.team.ListMyCompanyUsersUseCase;
@@ -27,17 +27,17 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 class CompanyTeamController {
 
-  private final CurrentAccount accounts;
+  private final RequireRegularAccount regularAccount;
   private final InviteCompanyUserUseCase inviteUser;
   private final AcceptCompanyInvitationUseCase acceptInvitation;
   private final ListMyCompanyUsersUseCase listUsers;
 
   CompanyTeamController(
-      CurrentAccount accounts,
+      RequireRegularAccount regularAccount,
       InviteCompanyUserUseCase inviteUser,
       AcceptCompanyInvitationUseCase acceptInvitation,
       ListMyCompanyUsersUseCase listUsers) {
-    this.accounts = accounts;
+    this.regularAccount = regularAccount;
     this.inviteUser = inviteUser;
     this.acceptInvitation = acceptInvitation;
     this.listUsers = listUsers;
@@ -48,7 +48,7 @@ class CompanyTeamController {
       @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody InvitationRequest request) {
     var created =
         inviteUser.invite(
-            authenticatedUserId(jwt, accounts),
+            authenticatedUserId(jwt, regularAccount),
             request.email(),
             CompanyRole.valueOf(request.role()),
             request.replace());
@@ -66,7 +66,8 @@ class CompanyTeamController {
   ResponseEntity<MemberResponse> accept(
       @AuthenticationPrincipal Jwt jwt, @PathVariable String token) {
     var member =
-        acceptInvitation.accept(authenticatedUserId(jwt, accounts), verifiedEmail(jwt), token);
+        acceptInvitation.accept(
+            authenticatedUserId(jwt, regularAccount), verifiedEmail(jwt), token);
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .body(MemberResponse.from(member));
@@ -74,7 +75,7 @@ class CompanyTeamController {
 
   @GetMapping("/api/v1/companies/me/users")
   ResponseEntity<List<MemberResponse>> users(@AuthenticationPrincipal Jwt jwt) {
-    var members = listUsers.list(authenticatedUserId(jwt, accounts));
+    var members = listUsers.list(authenticatedUserId(jwt, regularAccount));
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .body(members.stream().map(MemberResponse::from).toList());
