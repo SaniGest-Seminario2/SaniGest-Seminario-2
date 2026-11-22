@@ -1,0 +1,85 @@
+package com.sanigest.catalog.application;
+
+import static com.sanigest.catalog.application.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.security.access.AccessDeniedException;
+
+class ListClientsTest {
+  private final CatalogAuthorization authorization = mock(CatalogAuthorization.class);
+  private final ClientRepository repository = mock(ClientRepository.class);
+  private final ListClients useCase = new ListClients(Optional.of(authorization), repository, 100);
+
+  @ParameterizedTest
+  @CsvSource({
+    ", , , , true",
+    "'  ', ' \t ', , , true",
+    "' Clínica ', , Clínica, , true",
+    "10100, , 10100, , true",
+    "missing, , missing, , false",
+    ", ACTIVE, , ACTIVE, true",
+    ", INACTIVE, , INACTIVE, false",
+    "' 10100 ', ' active ', 10100, ACTIVE, true"
+  })
+  void queriesOnlyTheTenantAuthorizedForRead(
+      String search, String status, String term, String state, boolean match) {
+    var company = UUID.randomUUID();
+    var items =
+        match
+            ? List.of(
+                new ClientPage.Item(UUID.randomUUID(), "Clínica", "101001", "ACTIVE"),
+                new ClientPage.Item(UUID.randomUUID(), "Clínica", "101002", "ACTIVE"))
+            : List.<ClientPage.Item>of();
+    var result = new ClientPage(items, 0, 20, items.size());
+    when(authorization.membership(CATALOG_READ)).thenReturn(Optional.of(company));
+    when(repository.search(company, term, state, 0, 20)).thenReturn(result);
+
+    var page = useCase.execute(search, status, 0, 20);
+    assertThat(page).isSameAs(result);
+    assertThat(page.content()).containsExactlyElementsOf(items);
+    assertThat(page.totalPages()).isEqualTo(match ? 1 : 0);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "-1, 20, ACTIVE",
+    "0, 0, ACTIVE",
+    "0, -1, ACTIVE",
+    "0, 101, ACTIVE",
+    "0, 20, DELETED"
+  })
+  void rejectsInvalidQueries(int page, int size, String status) {
+    assertThatThrownBy(() -> useCase.execute(null, status, page, size))
+        .isInstanceOf(ListClients.InvalidQuery.class);
+    verifyNoInteractions(authorization, repository);
+  }
+
+  @Test
+  void deniesReadWhenCompanyDoesNotAuthorizeIt() {
+    when(authorization.membership(CATALOG_READ)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> useCase.execute(null, null, 0, 20))
+        .isInstanceOf(AccessDeniedException.class);
+    verifyNoInteractions(repository);
+  }
+
+  @Test
+  void failsClosedWhenCompanyIsUnavailable() {
+    var unavailable = new ClientCreationException(AUTHORIZATION_UNAVAILABLE);
+    when(authorization.membership(CATALOG_READ)).thenThrow(unavailable);
+
+    assertThatThrownBy(() -> useCase.execute(null, null, 0, 20)).isSameAs(unavailable);
+    verifyNoInteractions(repository);
+  }
+}

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.sanigest.catalog.application.ClientRepository;
 import com.sanigest.catalog.application.CreateClient;
+import com.sanigest.catalog.application.ListClients;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +24,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest
-@Import({SecurityConfiguration.class, CreateClient.class})
+@Import({SecurityConfiguration.class, CreateClient.class, ListClients.class})
 class CatalogWebPolicyTest {
   @Autowired MockMvc mvc;
   @MockitoBean JwtDecoder decoder;
@@ -46,14 +47,39 @@ class CatalogWebPolicyTest {
   }
 
   @Test
-  void doesNotAuthorizeBusinessAccessFromAValidIdentityAndClientCompanyId() throws Exception {
+  void listFailsClosedWithoutCompanyAuthorizationDespiteClientCompanyId() throws Exception {
     validToken();
 
     mvc.perform(
             get("/api/v1/clients")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
                 .param("companyId", "61fe639e-5460-4ca9-8e79-c3bd7ec6190d"))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.errorCode").value("AUTHORIZATION_UNAVAILABLE"));
+    verifyNoInteractions(clients);
+  }
+
+  @Test
+  void rejectsInvalidListParameters() throws Exception {
+    validToken();
+    for (var invalid :
+        new String[][] {
+          {"page", "-1"},
+          {"page", "abc"},
+          {"size", "0"},
+          {"size", "-1"},
+          {"size", "101"},
+          {"status", "DELETED"},
+          {"search", "\0"}
+        }) {
+      mvc.perform(
+              get("/api/v1/clients")
+                  .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                  .param(invalid[0], invalid[1]))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+    }
+    verifyNoInteractions(clients);
   }
 
   @Test

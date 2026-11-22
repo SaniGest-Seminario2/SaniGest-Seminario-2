@@ -63,7 +63,8 @@ PostgreSQL provisionado por Testcontainers.
 
 Las sondas publican el estado y la raíz de health enumera los grupos públicos.
 El Resource Server valida la firma RS256, emisor, audiencia, vigencia y el UUID
-de identidad mediante `common-security`. Las demás operaciones de negocio siguen denegadas.
+de identidad mediante `common-security`. Las operaciones de clientes requieren
+autorización empresarial para el permiso correspondiente.
 
 ### Alta de clientes
 
@@ -106,6 +107,26 @@ trata como invisible conforme al contrato de la operación.
 
 La configuración y el contrato interno están en
 [common-company-access](../../libraries/common-company-access/README.md).
+
+### Consulta de clientes
+
+`GET /api/v1/clients?search=clinica&status=ACTIVE&page=0&size=20` requiere
+`CATALOG_READ` en la membresía activa. La consulta usa la empresa devuelta por
+Company. Este endpoint no admite un contexto de empresa para ADVISOR.
+
+`search` busca un fragmento literal del nombre o del documento fiscal sin
+distinguir mayúsculas. `status` admite `ACTIVE` e `INACTIVE` sin distinguir
+mayúsculas. Ambos filtros se combinan y se omiten individualmente si quedan
+vacíos al recortar espacios exteriores. Con los datos actuales, el filtro
+`INACTIVE` devuelve una página vacía.
+
+La página empieza en 0 y el tamaño predeterminado es 20. Se aceptan tamaños
+desde 1 hasta 100 por defecto. El máximo se configura mediante
+`sanigest.catalog.clients.max-page-size` y debe permitir el tamaño predeterminado.
+La respuesta incluye `content`, `page`, `size`, `totalElements` y `totalPages`.
+El orden es por nombre y UUID ascendentes. Una página fuera de rango conserva
+los totales y devuelve `content` vacío. Los parámetros inválidos producen
+`400` y la indisponibilidad de Company produce `503`.
 
 ## Verificación
 
