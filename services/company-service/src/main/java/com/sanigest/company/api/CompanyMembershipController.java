@@ -45,8 +45,7 @@ class CompanyMembershipController {
       @AuthenticationPrincipal Jwt jwt,
       @PathVariable UUID userId,
       @Valid @RequestBody RoleRequest request) {
-    var membership =
-        changeRole.change(authenticatedUserId(jwt, accounts), userId, request.role);
+    var membership = changeRole.change(authenticatedUserId(jwt, accounts), userId, request.role);
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .body(MemberResponse.from(membership));

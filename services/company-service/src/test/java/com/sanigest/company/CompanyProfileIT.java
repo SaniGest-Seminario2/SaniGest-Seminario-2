@@ -630,16 +630,14 @@ class CompanyProfileIT {
     var revocationRequest = deleteMemberRequest(second, secondJwt);
     var operations =
         new TransactionTemplate(transactionManager)
-            .execute(
-                transaction -> {
-                  memberships.lockMembershipChanges(company);
-                  var demotion =
-                      http.sendAsync(demotionRequest, HttpResponse.BodyHandlers.ofString());
-                  var revocation =
-                      http.sendAsync(revocationRequest, HttpResponse.BodyHandlers.ofString());
-                  awaitContendingMembershipChanges();
-                  return List.of(demotion, revocation);
-                });
+            .execute(transaction -> {
+              memberships.lockMembershipChanges(company);
+              var demotion = http.sendAsync(demotionRequest, HttpResponse.BodyHandlers.ofString());
+              var revocation =
+                  http.sendAsync(revocationRequest, HttpResponse.BodyHandlers.ofString());
+              awaitContendingMembershipChanges();
+              return List.of(demotion, revocation);
+            });
     int demotionStatus = operations.get(0).get(10, TimeUnit.SECONDS).statusCode();
     int revocationStatus = operations.get(1).get(10, TimeUnit.SECONDS).statusCode();
     assertThat(List.of(demotionStatus, revocationStatus))
