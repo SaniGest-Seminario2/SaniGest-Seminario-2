@@ -2,6 +2,7 @@ package com.sanigest.catalog.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
@@ -10,6 +11,8 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.sanigest.catalog.application.ClientCreationAuthorization;
+import com.sanigest.catalog.application.ClientCreationException;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
@@ -31,7 +34,10 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
@@ -45,6 +51,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -81,6 +88,7 @@ class CatalogServiceIT {
                   "../../infrastructure/postgres/init/10-create-service-databases.sh", 0755),
               "/docker-entrypoint-initdb.d/10-create-service-databases.sh");
 
+  @MockitoBean ClientCreationAuthorization authorization;
   @LocalServerPort int port;
   @Autowired DataSource dataSource;
   @Autowired EntityManagerFactory entityManagerFactory;
@@ -185,11 +193,10 @@ class CatalogServiceIT {
             jdbc.queryForList(
                 "SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname IN ('public', 'catalog')",
                 String.class))
-        .containsExactly("public.flyway_schema_history");
+        .containsExactlyInAnyOrder("public.flyway_schema_history", "catalog.clients");
     assertThat(flyway.info().applied())
-        .singleElement()
-        .satisfies(migration ->
-            assertThat(migration.getScript()).isEqualTo("V1__create_catalog_schema.sql"));
+        .extracting(migration -> migration.getScript())
+        .containsExactly("V1__create_catalog_schema.sql", "V2__create_clients.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -226,6 +233,191 @@ class CatalogServiceIT {
         .hasMessageContaining("Catalog requires the sanigest_catalog database and role");
   }
 
+  @Test
+  @Tag("smoke")
+  void createsAndPersistsOnlyInTheAuthorizedCompanyThenRejectsADuplicate() throws Exception {
+    var companyId = UUID.randomUUID();
+    var otherCompanyId = UUID.randomUUID();
+    var taxId = UUID.randomUUID().toString();
+    var token = authorizedToken(companyId);
+    try (var http = HttpClient.newHttpClient()) {
+      var response =
+          http.send(
+              clientRequest(
+                  token,
+                  """
+                  {"name":" Client ","taxId":" %s ","email":"sample@example.org","phone":"809-555-1234",
+                   "address":"Santo Domingo","companyId":"%s","userId":"%s","status":"DISABLED","id":"%s"}
+                  """
+                      .formatted(taxId, otherCompanyId, UUID.randomUUID(), UUID.randomUUID()),
+                  otherCompanyId),
+              HttpResponse.BodyHandlers.ofString());
+      assertThat(response.statusCode()).isEqualTo(201);
+      var mapper = JsonMapper.shared();
+      var body = mapper.readTree(response.body());
+      var id = UUID.fromString(body.path("id").asString());
+      assertThat(body)
+          .isEqualTo(
+              mapper.readTree(
+                  """
+                  {"id":"%s","name":"Client","taxId":"%s","status":"ACTIVE"}
+                  """
+                      .formatted(id, taxId)));
+      var row =
+          new JdbcTemplate(dataSource)
+              .queryForMap(
+                  "SELECT company_id, name, tax_id, status, email, phone, address FROM catalog.clients WHERE id = ?",
+                  id);
+      assertThat(row)
+          .containsExactlyInAnyOrderEntriesOf(
+              Map.of(
+                  "company_id",
+                  companyId,
+                  "name",
+                  "Client",
+                  "tax_id",
+                  taxId,
+                  "status",
+                  "ACTIVE",
+                  "email",
+                  "sample@example.org",
+                  "phone",
+                  "809-555-1234",
+                  "address",
+                  "Santo Domingo"));
+
+      var duplicate =
+          http.send(
+              clientRequest(token, withTaxId(taxId), otherCompanyId),
+              HttpResponse.BodyHandlers.ofString());
+      assertThat(duplicate.statusCode()).isEqualTo(409);
+      assertThat(mapper.readTree(duplicate.body()).path("errorCode").asString())
+          .isEqualTo("DUPLICATE_TAX_ID");
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void enforcesUniquenessWithinOneCompanyEvenAcrossOverlappingPosts() throws Exception {
+    var companyId = UUID.randomUUID();
+    var userId = UUID.randomUUID();
+    var token = token(KEY, ISSUER, AUDIENCE, Instant.now().plusSeconds(120), userId, "REGULAR");
+    var overlappingRequests = new CyclicBarrier(2);
+    when(authorization.authorizedCompany(userId, token))
+        .thenAnswer(invocation -> {
+          overlappingRequests.await(5, TimeUnit.SECONDS);
+          return Optional.of(companyId);
+        });
+    var taxId = UUID.randomUUID().toString();
+    var request = clientRequest(token, withTaxId(taxId), null);
+    try (var http = HttpClient.newHttpClient()) {
+      var first = http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+      var second = http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+      assertThat(
+              new int[] {
+                first.get(10, TimeUnit.SECONDS).statusCode(),
+                second.get(10, TimeUnit.SECONDS).statusCode()
+              })
+          .containsExactlyInAnyOrder(201, 409);
+      assertThat(postStatus(http, authorizedToken(UUID.randomUUID()), withTaxId(taxId)))
+          .isEqualTo(201);
+      var nullTaxIdToken = authorizedToken(companyId);
+      assertThat(postStatus(http, nullTaxIdToken, "{\"name\":\"First\"}")).isEqualTo(201);
+      assertThat(postStatus(http, nullTaxIdToken, "{\"name\":\"Second\",\"taxId\":null}"))
+          .isEqualTo(201);
+      var jdbc = new JdbcTemplate(dataSource);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT count(*) FROM catalog.clients WHERE company_id = ? AND tax_id = ?",
+                  Long.class,
+                  companyId,
+                  taxId))
+          .isEqualTo(1L);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT count(*) FROM catalog.clients WHERE company_id = ? AND tax_id IS NULL",
+                  Long.class,
+                  companyId))
+          .isEqualTo(2L);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void deniesPostsWithInvalidAuthenticationOrWithoutCurrentCompanyPermission() throws Exception {
+    var userId = UUID.randomUUID();
+    var now = Instant.now();
+    var denied = token(KEY, ISSUER, AUDIENCE, now.plusSeconds(120), userId, "ADVISOR");
+    when(authorization.authorizedCompany(userId, denied)).thenReturn(Optional.empty());
+    var regularUser = UUID.randomUUID();
+    var withoutPermission =
+        token(KEY, ISSUER, AUDIENCE, now.plusSeconds(120), regularUser, "REGULAR");
+    when(authorization.authorizedCompany(regularUser, withoutPermission))
+        .thenReturn(Optional.empty());
+    var unavailable = token(KEY, ISSUER, AUDIENCE, now.plusSeconds(120), userId, "REGULAR");
+    when(authorization.authorizedCompany(userId, unavailable))
+        .thenThrow(
+            new ClientCreationException(ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE));
+    var companyId = UUID.randomUUID();
+    var taxId = UUID.randomUUID().toString();
+    var body =
+        """
+        {"name":"Denied","taxId":"%s","companyId":"%s","userId":"%s"}
+        """
+            .formatted(taxId, companyId, UUID.randomUUID());
+    try (var http = HttpClient.newHttpClient()) {
+      assertThat(postStatus(http, null, body)).isEqualTo(401);
+      assertThat(postStatus(http, "invalid", body)).isEqualTo(401);
+      assertThat(postStatus(http, token(KEY, ISSUER, AUDIENCE, now.minusSeconds(120)), body))
+          .isEqualTo(401);
+      assertThat(postStatus(http, token(rsaKey(), ISSUER, AUDIENCE, now.plusSeconds(120)), body))
+          .isEqualTo(401);
+      assertThat(
+              http.send(
+                      clientRequest(denied, body, companyId), HttpResponse.BodyHandlers.ofString())
+                  .statusCode())
+          .isEqualTo(403);
+      assertThat(postStatus(http, withoutPermission, body)).isEqualTo(403);
+      assertThat(postStatus(http, unavailable, body)).isEqualTo(503);
+    }
+    assertThat(
+            new JdbcTemplate(dataSource)
+                .queryForObject(
+                    "SELECT count(*) FROM catalog.clients WHERE tax_id = ?", Long.class, taxId))
+        .isZero();
+  }
+
+  private String authorizedToken(UUID companyId) throws JOSEException {
+    var userId = UUID.randomUUID();
+    var jwt = token(KEY, ISSUER, AUDIENCE, Instant.now().plusSeconds(120), userId, "REGULAR");
+    when(authorization.authorizedCompany(userId, jwt)).thenReturn(Optional.of(companyId));
+    return jwt;
+  }
+
+  private static String withTaxId(String taxId) {
+    return "{\"name\":\"Client\",\"taxId\":\"%s\"}".formatted(taxId);
+  }
+
+  private int postStatus(HttpClient http, String token, String body)
+      throws IOException, InterruptedException {
+    return http.send(clientRequest(token, body, null), HttpResponse.BodyHandlers.ofString())
+        .statusCode();
+  }
+
+  private HttpRequest clientRequest(String token, String body, UUID untrustedCompanyId) {
+    var request =
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/clients"))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body));
+    if (token != null) {
+      request.header("Authorization", "Bearer " + token);
+    }
+    if (untrustedCompanyId != null) {
+      request.header("X-Company-Id", untrustedCompanyId.toString());
+    }
+    return request.build();
+  }
+
   private static void assertConnectionRejected(
       String database, String user, String password, String state) {
     String url =
@@ -252,11 +444,23 @@ class CatalogServiceIT {
 
   private static String token(KeyPair key, String issuer, String audience, Instant expiration)
       throws JOSEException {
+    return token(key, issuer, audience, expiration, UUID.randomUUID(), "REGULAR");
+  }
+
+  private static String token(
+      KeyPair key,
+      String issuer,
+      String audience,
+      Instant expiration,
+      UUID userId,
+      String accountType)
+      throws JOSEException {
     var claims =
         new JWTClaimsSet.Builder()
             .issuer(issuer)
             .audience(audience)
-            .subject(UUID.randomUUID().toString())
+            .subject(userId.toString())
+            .claim("accountType", accountType)
             .issueTime(Date.from(Instant.now().minusSeconds(300)))
             .expirationTime(Date.from(expiration))
             .build();
