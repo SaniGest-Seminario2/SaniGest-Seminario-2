@@ -5,6 +5,7 @@ import com.sanigest.company.domain.enums.AuditOperation;
 import com.sanigest.company.domain.enums.AuditResult;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.MembershipStatus;
+import com.sanigest.company.domain.model.AdvisorPermission;
 import com.sanigest.company.domain.model.CompanyAuditEvent;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -31,8 +32,8 @@ class JdbcCompanyAuditRepository implements CompanyAuditRepository {
         """
         INSERT INTO company_audit_log (
           id, company_id, actor_id, target_user_id, operation, occurred_at, result,
-          previous_role, new_role, previous_status, new_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          previous_role, new_role, previous_status, new_status, advisor_module, advisor_scope
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         event.id(),
         event.companyId(),
@@ -44,7 +45,9 @@ class JdbcCompanyAuditRepository implements CompanyAuditRepository {
         enumName(event.previousRole()),
         enumName(event.newRole()),
         enumName(event.previousStatus()),
-        enumName(event.newStatus()));
+        enumName(event.newStatus()),
+        event.advisorPermission() == null ? null : event.advisorPermission().module().name(),
+        event.advisorPermission() == null ? null : event.advisorPermission().scope().name());
   }
 
   @Override
@@ -79,7 +82,16 @@ class JdbcCompanyAuditRepository implements CompanyAuditRepository {
         readEnum(row, "previous_role", CompanyRole.class),
         readEnum(row, "new_role", CompanyRole.class),
         readEnum(row, "previous_status", MembershipStatus.class),
-        readEnum(row, "new_status", MembershipStatus.class));
+        readEnum(row, "new_status", MembershipStatus.class),
+        advisorPermission(row));
+  }
+
+  private static AdvisorPermission advisorPermission(ResultSet row) throws SQLException {
+    var module = readEnum(row, "advisor_module", AdvisorPermission.Module.class);
+    return module == null
+        ? null
+        : new AdvisorPermission(
+            module, readEnum(row, "advisor_scope", AdvisorPermission.Scope.class));
   }
 
   private static String enumName(Enum<?> value) {

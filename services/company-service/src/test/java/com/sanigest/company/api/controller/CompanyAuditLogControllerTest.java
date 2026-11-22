@@ -39,7 +39,8 @@ class CompanyAuditLogControllerTest {
             null,
             CompanyRole.VIEWER,
             null,
-            MembershipStatus.ACTIVE);
+            MembershipStatus.ACTIVE,
+            null);
     var auditLog = mock(GetCompanyAuditLogUseCase.class);
     when(auditLog.get(actor, null, null, 2, 20))
         .thenReturn(new AuditPage(List.of(event), 2, 20, true));
@@ -65,7 +66,8 @@ class CompanyAuditLogControllerTest {
                         null,
                         "VIEWER",
                         null,
-                        "ACTIVE")),
+                        "ACTIVE",
+                        null)),
                 2,
                 20,
                 true));

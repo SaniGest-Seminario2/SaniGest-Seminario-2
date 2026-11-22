@@ -16,6 +16,9 @@ sanigest:
     audience: ${JWT_AUDIENCE}
     public-key: ${JWT_PUBLIC_KEY_LOCATION}
   identity-url: ${IDENTITY_SERVICE_URL}
+  advisor-eligibility:
+    issuer: ${ADVISOR_ELIGIBILITY_ISSUER:}
+    private-key-location: ${ADVISOR_ELIGIBILITY_PRIVATE_KEY_LOCATION:}
   invitations:
     ttl: ${COMPANY_INVITATION_TTL:PT72H}
 

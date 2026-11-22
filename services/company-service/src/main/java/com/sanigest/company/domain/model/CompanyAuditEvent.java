@@ -19,4 +19,5 @@ public record CompanyAuditEvent(
     CompanyRole previousRole,
     CompanyRole newRole,
     MembershipStatus previousStatus,
-    MembershipStatus newStatus) {}
+    MembershipStatus newStatus,
+    AdvisorPermission advisorPermission) {}
