@@ -81,16 +81,12 @@ para ese actor y la operación de alta. Catalog devuelve `400` por datos
 inválidos, `401` por JWT ausente o inválido, `403` ante una denegación de
 Company y `409` por duplicados en la empresa autorizada.
 
-**Bloqueo de S2-319.** El perfil propio de Company en
-`GET /api/v1/companies/me` carece del permiso de alta. La
-consulta interna de S2-317 en Identity solo verifica estado y tipo de cuenta.
-Falta un contrato de Company que resuelva membresía activa y permiso de alta
-para la empresa autorizada, incluidas las concesiones explícitas de ADVISOR
-cuando existan. Hasta disponer de ese contrato, una solicitud válida responde
-`503` y Catalog no escribe ningún cliente. El puerto
-`ClientCreationAuthorization` define la decisión que debe aportar el adaptador
-de Company. La futura llamada interna usará los límites del ADR-001
-(500 ms de conexión y 2 s de respuesta).
+Catalog usa `ClientCreationAuthorization` para resolver la membresía vigente
+y aplicar su política de alta. Una instalación sin el adaptador habilitado o
+con Company indisponible responde `503` y evita la escritura.
+
+La configuración y el contrato interno están en
+[common-company-access](../../libraries/common-company-access/README.md).
 
 ## Verificación
 

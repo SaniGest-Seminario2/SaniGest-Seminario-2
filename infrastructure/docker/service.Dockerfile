@@ -8,6 +8,7 @@ COPY pom.xml ./
 COPY config ./config
 COPY scripts/ci/maven-build.sh scripts/ci/maven-build.sh
 COPY libraries/common-security libraries/common-security
+COPY libraries/common-company-access libraries/common-company-access
 COPY services/company-service/pom.xml services/company-service/pom.xml
 COPY services/api-gateway/pom.xml services/api-gateway/pom.xml
 COPY services/identity-service/pom.xml services/identity-service/pom.xml

@@ -6,6 +6,7 @@ on:
     paths:
       - "services/company-service/**"
       - "libraries/common-security/**"
+      - "libraries/common-company-access/**"
       - "pom.xml"
       - "config/**"
       - "scripts/ci/**"
@@ -17,6 +18,7 @@ on:
     paths:
       - "services/company-service/**"
       - "libraries/common-security/**"
+      - "libraries/common-company-access/**"
       - "pom.xml"
       - "config/**"
       - "scripts/ci/**"

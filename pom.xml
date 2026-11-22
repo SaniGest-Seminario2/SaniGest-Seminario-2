@@ -21,6 +21,7 @@
 
     <modules>
         <module>libraries/common-security</module>
+        <module>libraries/common-company-access</module>
         <module>services/company-service</module>
         <module>services/api-gateway</module>
         <module>services/identity-service</module>
@@ -47,6 +48,11 @@
             <dependency>
                 <groupId>com.sanigest</groupId>
                 <artifactId>common-security</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.sanigest</groupId>
+                <artifactId>common-company-access</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

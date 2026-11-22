@@ -74,7 +74,7 @@ public final class AccessTokens {
     return OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token"));
   }
 
-  private static boolean validSubject(String subject) {
+  public static boolean validSubject(String subject) {
     try {
       return subject != null && UUID.fromString(subject).toString().equalsIgnoreCase(subject);
     } catch (IllegalArgumentException invalidSubject) {
