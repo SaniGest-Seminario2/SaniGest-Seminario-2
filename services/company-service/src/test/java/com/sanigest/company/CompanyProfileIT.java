@@ -8,6 +8,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.sanigest.company.application.GetMyCompanyUseCase.MembershipRepository;
 import com.sanigest.company.application.InvitationDelivery;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -21,6 +22,7 @@ import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.interfaces.RSAPrivateKey;
 import java.text.ParseException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Date;
@@ -45,6 +47,8 @@ import org.springframework.security.converter.RsaKeyConverters;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -121,6 +125,8 @@ class CompanyProfileIT {
 
   @LocalServerPort private int port;
   @Autowired private JdbcTemplate jdbc;
+  @Autowired private MembershipRepository memberships;
+  @Autowired private PlatformTransactionManager transactionManager;
 
   @Value("${sanigest.jwt.issuer}")
   private String issuer;
@@ -524,6 +530,181 @@ class CompanyProfileIT {
                 String.class,
                 sha256(invitationToken)))
         .isEqualTo("PENDING");
+  }
+
+  @Test
+  @Tag("smoke")
+  void ownerChangesRoleAndRevokesAccessUsingTheSameMemberToken() throws Exception {
+    UUID owner = UUID.randomUUID();
+    UUID member = UUID.randomUUID();
+    String ownerJwt = token(owner);
+    String memberJwt = token(member);
+    UUID company = createCompany(owner, ownerJwt, "Member smoke clinic", "123456801");
+    addMember(company, member, "VIEWER");
+    String rolePath = memberPath(member) + "/role";
+    var roleChange = patch(rolePath, ownerJwt, roleBody("ADMIN"));
+    assertThat(roleChange.statusCode()).isEqualTo(200);
+    assertThat(roleChange.body()).contains(member.toString(), "ADMIN", "ACTIVE");
+    assertThat(get(ME + "/users", ownerJwt).body()).contains(member.toString(), "ADMIN");
+    assertThat(patch(ME, memberJwt, "{\"location\":\"Santiago\"}").statusCode()).isEqualTo(200);
+
+    assertThat(deleteMember(member, ownerJwt).statusCode()).isEqualTo(204);
+    assertThat(get(ME + "/users", memberJwt).statusCode()).isEqualTo(403);
+    assertThat(patch(ME, memberJwt, "{\"location\":\"La Vega\"}").statusCode()).isEqualTo(403);
+    assertThat(patch(rolePath, memberJwt, roleBody("ADMIN")).statusCode()).isEqualTo(403);
+    assertThat(deleteMember(member, memberJwt).statusCode()).isEqualTo(403);
+    assertThat(get(ME + "/users", ownerJwt).body()).contains(member.toString(), "REVOKED");
+    assertThat(membershipCount(member)).isEqualTo(1);
+    assertThat(deleteMember(member, ownerJwt).statusCode()).isEqualTo(404);
+  }
+
+  @Test
+  void enforcesMemberAdministrationAuthorizationAndCompanyScope() throws Exception {
+    UUID owner = UUID.randomUUID();
+    UUID outsider = UUID.randomUUID();
+    UUID admin = UUID.randomUUID();
+    UUID operator = UUID.randomUUID();
+    UUID viewer = UUID.randomUUID();
+    String ownerJwt = token(owner);
+    UUID company = createCompany(owner, ownerJwt, "Member security clinic", "123456802");
+    UUID otherCompany =
+        createCompany(outsider, token(outsider), "Outside member clinic", "123456803");
+    addMember(company, admin, "ADMIN");
+    addMember(company, operator, "OPERATOR");
+    addMember(company, viewer, "VIEWER");
+    String rolePath = memberPath(operator) + "/role";
+    String promote = roleBody("ADMIN");
+
+    assertThat(patch(rolePath, null, promote).statusCode()).isEqualTo(401);
+    assertThat(patch(rolePath, "invalid-token", promote).statusCode()).isEqualTo(401);
+    assertThat(deleteMember(operator, null).statusCode()).isEqualTo(401);
+    assertThat(deleteMember(operator, "invalid-token").statusCode()).isEqualTo(401);
+    assertThat(patch(rolePath, token(operator), promote).statusCode()).isEqualTo(403);
+    assertThat(patch(rolePath, token(viewer), promote).statusCode()).isEqualTo(403);
+    assertThat(deleteMember(operator, token(viewer)).statusCode()).isEqualTo(403);
+    assertThat(deleteMember(viewer, token(operator)).statusCode()).isEqualTo(403);
+    assertThat(patch(rolePath, token(admin), roleBody("OWNER")).statusCode()).isEqualTo(403);
+    assertThat(patch(memberPath(owner) + "/role", token(admin), promote).statusCode())
+        .isEqualTo(403);
+    assertThat(deleteMember(owner, token(admin)).statusCode()).isEqualTo(403);
+    assertThat(deleteMember(owner, ownerJwt).statusCode()).isEqualTo(409);
+    assertThat(patch(memberPath(owner) + "/role", ownerJwt, promote).statusCode()).isEqualTo(409);
+
+    String outsiderPath = memberPath(outsider) + "?companyId=" + otherCompany;
+    var crossCompany =
+        request(outsiderPath)
+            .header("Authorization", "Bearer " + ownerJwt)
+            .header("X-Company-Id", otherCompany.toString())
+            .DELETE()
+            .build();
+    assertThat(http.send(crossCompany, HttpResponse.BodyHandlers.ofString()).statusCode())
+        .isEqualTo(404);
+    assertThat(patch(memberPath(outsider) + "/role", ownerJwt, promote).statusCode())
+        .isEqualTo(404);
+    assertThat(patch(ME + "/members/not-a-uuid/role", ownerJwt, promote).statusCode())
+        .isEqualTo(400);
+    for (String body :
+        List.of(
+            "{}",
+            "{\"role\":null}",
+            "{\"role\":0}",
+            roleBody("READ_ONLY"),
+            "{\"role\":\"VIEWER\",\"companyId\":\"" + otherCompany + "\"}")) {
+      assertThat(patch(rolePath, ownerJwt, body).statusCode()).as(body).isEqualTo(400);
+    }
+    assertThat(get(ME + "/users", token(outsider)).body()).contains(outsider.toString(), "OWNER");
+  }
+
+  @Test
+  void concurrentRevocationAndDemotionLeaveExactlyOneActiveOwner() throws Exception {
+    UUID first = UUID.randomUUID();
+    UUID second = UUID.randomUUID();
+    String firstJwt = token(first);
+    String secondJwt = token(second);
+    UUID company = createCompany(first, firstJwt, "Member concurrency clinic", "123456804");
+    addMember(company, second, "OPERATOR");
+    assertThat(patch(memberPath(second) + "/role", firstJwt, roleBody("OWNER")).statusCode())
+        .isEqualTo(200);
+
+    var demotionRequest = patchRequest(memberPath(first) + "/role", firstJwt, roleBody("ADMIN"));
+    var revocationRequest = deleteMemberRequest(second, secondJwt);
+    var operations =
+        new TransactionTemplate(transactionManager)
+            .execute(transaction -> {
+              memberships.lockMembershipChanges(company);
+              var demotion = http.sendAsync(demotionRequest, HttpResponse.BodyHandlers.ofString());
+              var revocation =
+                  http.sendAsync(revocationRequest, HttpResponse.BodyHandlers.ofString());
+              awaitContendingMembershipChanges();
+              return List.of(demotion, revocation);
+            });
+    int demotionStatus = operations.get(0).get(10, TimeUnit.SECONDS).statusCode();
+    int revocationStatus = operations.get(1).get(10, TimeUnit.SECONDS).statusCode();
+    assertThat(List.of(demotionStatus, revocationStatus))
+        .isIn(List.of(200, 409), List.of(409, 204));
+    assertThat(
+            jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM company_memberships
+                WHERE company_id = ? AND role = 'OWNER' AND status = 'ACTIVE'
+                """,
+                Integer.class,
+                company))
+        .isEqualTo(1);
+  }
+
+  private void awaitContendingMembershipChanges() {
+    long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+    while (System.nanoTime() < deadline) {
+      int waiting =
+          jdbc.queryForObject(
+              """
+              SELECT COUNT(*) FROM pg_locks
+              WHERE locktype = 'advisory' AND NOT granted
+                AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+              """,
+              Integer.class);
+      if (waiting == 2) {
+        return;
+      }
+      try {
+        Thread.sleep(20);
+      } catch (InterruptedException interrupted) {
+        Thread.currentThread().interrupt();
+        throw new AssertionError(
+            "Interrupted while waiting for both membership changes", interrupted);
+      }
+    }
+    throw new AssertionError("Both membership changes must contend for the company lock");
+  }
+
+  private void addMember(UUID company, UUID user, String role) {
+    jdbc.update(
+        "INSERT INTO company_memberships (id, company_id, user_id, role) VALUES (?, ?, ?, ?)",
+        UUID.randomUUID(),
+        company,
+        user,
+        role);
+  }
+
+  private static String memberPath(UUID user) {
+    return ME + "/members/" + user;
+  }
+
+  private static String roleBody(String role) {
+    return "{\"role\":\"%s\"}".formatted(role);
+  }
+
+  private HttpRequest deleteMemberRequest(UUID user, String token) {
+    var request = request(memberPath(user));
+    if (token != null) {
+      request.header("Authorization", "Bearer " + token);
+    }
+    return request.DELETE().build();
+  }
+
+  private HttpResponse<String> deleteMember(UUID user, String token) throws Exception {
+    return http.send(deleteMemberRequest(user, token), HttpResponse.BodyHandlers.ofString());
   }
 
   private HttpResponse<String> invite(String jwt, String email, String role, boolean replace)

@@ -1,6 +1,8 @@
 package com.sanigest.company.api;
 
 import com.sanigest.company.application.AcceptCompanyInvitationUseCase.InvitationNotFoundException;
+import com.sanigest.company.application.CompanyMembershipPolicy.LastOwnerException;
+import com.sanigest.company.application.CompanyMembershipPolicy.MemberNotFoundException;
 import com.sanigest.company.application.CreateCompanyUseCase.ConflictException;
 import com.sanigest.company.application.CurrentAccount.AuthorizationUnavailableException;
 import com.sanigest.company.application.GetMyCompanyUseCase.CompanyAccessDeniedException;
@@ -55,6 +57,16 @@ class ApiExceptionHandler {
   @ExceptionHandler(InvitationNotFoundException.class)
   ProblemDetail invitationNotFound(HttpServletRequest request) {
     return problem(request, HttpStatus.NOT_FOUND, "Invitation not found");
+  }
+
+  @ExceptionHandler(MemberNotFoundException.class)
+  ProblemDetail memberNotFound(HttpServletRequest request) {
+    return problem(request, HttpStatus.NOT_FOUND, "Company member not found");
+  }
+
+  @ExceptionHandler(LastOwnerException.class)
+  ProblemDetail lastOwner(HttpServletRequest request) {
+    return problem(request, HttpStatus.CONFLICT, "The company must retain an active owner");
   }
 
   private ProblemDetail problem(HttpServletRequest request, HttpStatus status, String detail) {

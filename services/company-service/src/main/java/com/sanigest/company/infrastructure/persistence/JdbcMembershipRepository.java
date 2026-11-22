@@ -44,6 +44,66 @@ class JdbcMembershipRepository implements MembershipRepository {
   }
 
   @Override
+  public void lockMembershipChanges(UUID companyId) {
+    // Serialize role and status changes without reversing the profile flow's row lock order.
+    jdbc.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+        row -> {},
+        "sanigest.company.membership:" + companyId);
+  }
+
+  @Override
+  public Optional<Membership> findByCompanyIdAndUserId(UUID companyId, UUID userId) {
+    return DataAccessUtils.optionalResult(
+        jdbc.query(
+            """
+            SELECT id, company_id, user_id, role, status
+            FROM company_memberships WHERE company_id = ? AND user_id = ?
+            """,
+            JdbcMembershipRepository::membership,
+            companyId,
+            userId));
+  }
+
+  @Override
+  public boolean hasOtherActiveOwner(UUID companyId, UUID userId) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS (
+              SELECT 1 FROM company_memberships
+              WHERE company_id = ? AND user_id <> ? AND role = 'OWNER' AND status = 'ACTIVE'
+            )
+            """,
+            Boolean.class,
+            companyId,
+            userId));
+  }
+
+  @Override
+  public void updateRole(Membership membership, CompanyRole role) {
+    jdbc.update(
+        """
+        UPDATE company_memberships SET role = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE company_id = ? AND id = ?
+        """,
+        role.name(),
+        membership.companyId(),
+        membership.id());
+  }
+
+  @Override
+  public void revoke(Membership membership) {
+    jdbc.update(
+        """
+        UPDATE company_memberships SET status = 'REVOKED', updated_at = CURRENT_TIMESTAMP
+        WHERE company_id = ? AND id = ?
+        """,
+        membership.companyId(),
+        membership.id());
+  }
+
+  @Override
   public boolean existsByUserId(UUID userId) {
     return Boolean.TRUE.equals(
         jdbc.queryForObject(

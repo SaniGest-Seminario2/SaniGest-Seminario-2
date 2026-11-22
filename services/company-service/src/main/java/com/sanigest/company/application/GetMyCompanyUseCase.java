@@ -1,5 +1,6 @@
 package com.sanigest.company.application;
 
+import com.sanigest.company.domain.model.CompanyRole;
 import com.sanigest.company.domain.model.Membership;
 import com.sanigest.company.domain.model.MembershipStatus;
 import java.util.List;
@@ -32,6 +33,16 @@ public class GetMyCompanyUseCase {
     Optional<Membership> findByUserIdForUpdate(UUID userId);
 
     List<Membership> findAllByCompanyId(UUID companyId);
+
+    void lockMembershipChanges(UUID companyId);
+
+    Optional<Membership> findByCompanyIdAndUserId(UUID companyId, UUID userId);
+
+    boolean hasOtherActiveOwner(UUID companyId, UUID userId);
+
+    void updateRole(Membership membership, CompanyRole role);
+
+    void revoke(Membership membership);
 
     boolean existsByUserId(UUID userId);
 
