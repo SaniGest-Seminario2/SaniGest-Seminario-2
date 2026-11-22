@@ -46,7 +46,7 @@ class SecurityConfiguration {
                 .requestMatchers(
                     HttpMethod.PATCH, "/api/v1/clients/{id}", "/api/v1/clients/{id}/status")
                 .authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/v1/clients")
+                .requestMatchers(HttpMethod.POST, "/api/v1/clients", "/api/v1/suppliers")
                 .authenticated()
                 .anyRequest()
                 .denyAll())

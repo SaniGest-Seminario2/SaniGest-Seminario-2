@@ -21,6 +21,12 @@
         </subpackage>
         <subpackage name="api">
             <disallow pkg="com\.sanigest\.(company|identity|catalog)\.infrastructure" regex="true"/>
+            <subpackage name="controller">
+                <disallow pkg="com.sanigest.catalog.application.port.out.persistence"/>
+            </subpackage>
+        </subpackage>
+        <subpackage name="infrastructure">
+            <disallow pkg="com.sanigest.catalog.api"/>
         </subpackage>
     </subpackage>
 </import-control>

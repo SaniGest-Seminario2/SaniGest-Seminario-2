@@ -8,7 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
 import com.sanigest.companyaccess.CompanyAccess;
 import com.sanigest.companyaccess.CompanyAccess.MembershipContext;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
@@ -106,16 +106,8 @@ class CompanyCatalogAuthorizationTest {
     when(access.delegated(companyId, Scope.READ)).thenThrow(new CompanyAccessUnavailable());
 
     assertThatThrownBy(() -> authorization.membership(CATALOG_WRITE))
-        .isInstanceOfSatisfying(
-            ClientCreationException.class,
-            failure ->
-                assertThat(failure.reason())
-                    .isEqualTo(ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE));
+        .isInstanceOf(CatalogAuthorizationUnavailable.class);
     assertThatThrownBy(() -> authorization.delegated(companyId, CATALOG_READ))
-        .isInstanceOfSatisfying(
-            ClientCreationException.class,
-            failure ->
-                assertThat(failure.reason())
-                    .isEqualTo(ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE));
+        .isInstanceOf(CatalogAuthorizationUnavailable.class);
   }
 }

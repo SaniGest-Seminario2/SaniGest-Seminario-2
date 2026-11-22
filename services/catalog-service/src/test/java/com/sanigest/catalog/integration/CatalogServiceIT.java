@@ -22,13 +22,17 @@ import com.sanigest.catalog.CatalogServiceApplication;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
+import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
 import com.sanigest.catalog.application.usecase.client.CreateClient;
 import com.sanigest.catalog.application.usecase.client.ListClients;
+import com.sanigest.catalog.application.usecase.supplier.CreateSupplier;
 import com.sanigest.catalog.domain.enums.ClientStatus;
 import com.sanigest.catalog.domain.model.Client;
 import com.sanigest.catalog.domain.model.ClientDetails;
 import com.sanigest.catalog.domain.model.ClientPatch;
 import com.sanigest.catalog.domain.model.ClientPatch.Field;
+import com.sanigest.catalog.domain.model.Supplier;
+import com.sanigest.catalog.domain.model.SupplierDetails;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
 import com.sanigest.companyaccess.CompanyAccess.Scope;
 import com.zaxxer.hikari.HikariConfig;
@@ -79,6 +83,8 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -119,6 +125,15 @@ class CatalogServiceIT {
                   "../../infrastructure/postgres/init/10-create-service-databases.sh", 0755),
               "/docker-entrypoint-initdb.d/10-create-service-databases.sh");
 
+  private static final String SUPPLIERS = "/api/v1/suppliers";
+  private static final String SUPPLIER_JSON =
+      """
+      {"name":"Office","contact":"Laura"}
+      """;
+
+  @Autowired CreateSupplier createSupplier;
+  @Autowired SupplierRepository suppliers;
+  @Autowired PlatformTransactionManager transactions;
   @Autowired CreateClient createClient;
   @Autowired ClientRepository clients;
   @Autowired ListClients listClients;
@@ -188,6 +203,8 @@ class CatalogServiceIT {
       assertThat(document.path("openapi").asString()).isEqualTo("3.0.3");
       assertThat(document.at("/paths/~1api~1v1~1clients/get/operationId").asString())
           .isEqualTo("listClients");
+      assertThat(document.at("/paths/~1api~1v1~1suppliers/post/operationId").asString())
+          .isEqualTo("createSupplier");
       assertThat(document.path("info").path("title").asString())
           .isEqualTo("SaniGest Catalog Service");
       assertThat(
@@ -246,14 +263,16 @@ class CatalogServiceIT {
             jdbc.queryForList(
                 "SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname IN ('public', 'catalog')",
                 String.class))
-        .containsExactlyInAnyOrder("public.flyway_schema_history", "catalog.clients");
+        .containsExactlyInAnyOrder(
+            "public.flyway_schema_history", "catalog.clients", "catalog.suppliers");
     assertThat(flyway.info().applied())
         .extracting(migration -> migration.getScript())
         .containsExactly(
             "V1__create_catalog_schema.sql",
             "V2__create_clients.sql",
             "V3__index_clients_by_company_and_name.sql",
-            "V4__allow_inactive_clients.sql");
+            "V4__allow_inactive_clients.sql",
+            "V5__create_suppliers.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -832,7 +851,7 @@ class CatalogServiceIT {
         companyId);
 
     assertThat(Flyway.configure().dataSource(source).load().migrate().migrationsExecuted)
-        .isEqualTo(1);
+        .isEqualTo(2);
     assertThat(
             jdbc.queryForMap(
                 """
@@ -1013,6 +1032,198 @@ class CatalogServiceIT {
       request.header("X-Company-Id", untrustedCompanyId.toString());
     }
     return request.build();
+  }
+
+  @Test
+  @Tag("smoke")
+  void registersSupplierForAuthorizedCompanyAndPersistsNothingForViewer() throws Exception {
+    var company = UUID.randomUUID();
+    var otherCompany = UUID.randomUUID();
+    var forgedId = UUID.randomUUID();
+    var owner = authorizedToken(company);
+    var viewer = membershipToken(company, MembershipRole.VIEWER, true);
+    var body =
+        """
+        {"name":" Office ","taxId":"  A-123  ","contact":" Laura ","phone":"+1 (809) 555-0118",
+         "email":"sales@example.do","companyId":"%s","id":"%s","status":"INACTIVE"}
+        """
+            .formatted(otherCompany, forgedId);
+
+    try (var http = HttpClient.newHttpClient()) {
+      var created = postSupplier(http, owner, body, otherCompany);
+      assertThat(created.statusCode()).isEqualTo(201);
+      var response = JsonMapper.shared().readTree(created.body());
+      var id = UUID.fromString(response.path("id").asString());
+      assertThat(id).isNotEqualTo(forgedId);
+      assertThat(response.path("companyId").asString()).isEqualTo(company.toString());
+      assertThat(response.path("status").asString()).isEqualTo("ACTIVE");
+      assertThat(
+              new JdbcTemplate(dataSource)
+                  .queryForMap(
+                      """
+                      SELECT company_id, name, tax_id, contact, phone, email, status
+                      FROM catalog.suppliers WHERE id = ?
+                      """,
+                      id))
+          .containsEntry("company_id", company)
+          .containsEntry("name", "Office")
+          .containsEntry("tax_id", "A-123")
+          .containsEntry("contact", "Laura")
+          .containsEntry("phone", "+1 (809) 555-0118")
+          .containsEntry("email", "sales@example.do")
+          .containsEntry("status", "ACTIVE");
+      assertThat(postSupplier(http, viewer, SUPPLIER_JSON, otherCompany).statusCode())
+          .isEqualTo(403);
+      assertThat(supplierCount(company)).isEqualTo(1);
+      assertThat(supplierCount(otherCompany)).isZero();
+    }
+  }
+
+  @Test
+  void enforcesSupplierUniquenessOnlyForNonNullTaxIdsInTheSameCompany() throws Exception {
+    var company = UUID.randomUUID();
+    var other = UUID.randomUUID();
+    var a = authorizedToken(company);
+    var b = authorizedToken(other);
+    var withTax =
+        """
+        {"name":"Office","contact":"Laura","taxId":"%s"}
+        """;
+
+    try (var http = HttpClient.newHttpClient()) {
+      assertThat(postSupplier(http, a, withTax.formatted(" TAX-1 "), null).statusCode())
+          .isEqualTo(201);
+      var duplicate = postSupplier(http, a, withTax.formatted("TAX-1"), null);
+      assertThat(duplicate.statusCode()).isEqualTo(409);
+      assertThat(JsonMapper.shared().readTree(duplicate.body()).path("errorCode").asString())
+          .isEqualTo("DUPLICATE_TAX_ID");
+      assertThat(duplicate.body()).doesNotContain("TAX-1", "uq_suppliers_company_tax_id");
+      assertThat(postSupplier(http, b, withTax.formatted("TAX-1"), null).statusCode())
+          .isEqualTo(201);
+      assertThat(postSupplier(http, a, SUPPLIER_JSON, null).statusCode()).isEqualTo(201);
+      assertThat(postSupplier(http, a, withTax.formatted("   "), null).statusCode()).isEqualTo(201);
+      assertThat(supplierCount(company)).isEqualTo(3);
+      assertThat(supplierCount(other)).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void validatesSupplierRequestBeforePersisting() throws Exception {
+    var company = UUID.randomUUID();
+    var owner = authorizedToken(company);
+    try (var http = HttpClient.newHttpClient()) {
+      for (var body :
+          List.of(
+              """
+              {"name":"   ","contact":"Laura"}
+              """,
+              """
+              {"name":"Office","contact":"Laura","email":"invalid"}
+              """,
+              """
+              {"name":"Office","contact":"Laura","phone":"()--..."}
+              """,
+              """
+              {"name":"Office"}
+              """)) {
+        var invalid = postSupplier(http, owner, body, null);
+        assertThat(invalid.statusCode()).isEqualTo(400);
+        assertThat(JsonMapper.shared().readTree(invalid.body()).path("errorCode").asString())
+            .isEqualTo("INVALID_REQUEST");
+      }
+      assertThat(supplierCount(company)).isZero();
+    }
+  }
+
+  @Test
+  void supplierWriteRequiresCurrentMembershipAndFailsClosed() throws Exception {
+    var company = UUID.randomUUID();
+    var admin = membershipToken(company, MembershipRole.ADMIN, false);
+    var ungranted = membershipToken(company, MembershipRole.OPERATOR, false);
+    var operator = membershipToken(company, MembershipRole.OPERATOR, true);
+    var advisor = session("ADVISOR");
+    var unavailable = session("REGULAR");
+    var timeout = session("REGULAR");
+
+    stubFailure(advisor, 403);
+    stubFailure(unavailable, 503);
+    COMPANY.stubFor(
+        WireMock.get(urlEqualTo(PATH))
+            .withHeader(USER_ASSERTION, equalTo(timeout))
+            .willReturn(aResponse().withFixedDelay(3000)));
+
+    try (var http = HttpClient.newHttpClient()) {
+      assertThat(postSupplier(http, null, SUPPLIER_JSON, null).statusCode()).isEqualTo(401);
+      assertThat(postSupplier(http, "invalid", SUPPLIER_JSON, null).statusCode()).isEqualTo(401);
+      assertThat(postSupplier(http, ungranted, SUPPLIER_JSON, null).statusCode()).isEqualTo(403);
+      assertThat(postSupplier(http, advisor, SUPPLIER_JSON, company).statusCode()).isEqualTo(403);
+      COMPANY.verify(
+          0, getRequestedFor(urlEqualTo(PATH)).withHeader(USER_ASSERTION, WireMock.absent()));
+      assertThat(postSupplier(http, admin, SUPPLIER_JSON, null).statusCode()).isEqualTo(201);
+      assertThat(postSupplier(http, operator, SUPPLIER_JSON, null).statusCode()).isEqualTo(201);
+      stubFailure(operator, 403);
+      assertThat(postSupplier(http, operator, SUPPLIER_JSON, null).statusCode()).isEqualTo(403);
+      for (var bearer : List.of(unavailable, timeout)) {
+        var failed = postSupplier(http, bearer, SUPPLIER_JSON, null);
+        assertThat(failed.statusCode()).isEqualTo(503);
+        assertThat(JsonMapper.shared().readTree(failed.body()).path("errorCode").asString())
+            .isEqualTo("AUTHORIZATION_UNAVAILABLE");
+      }
+      assertThat(supplierCount(company)).isEqualTo(2);
+    }
+  }
+
+  @Test
+  void supplierUseCaseEnforcesMethodSecurityWithoutTheWebFilter() {
+    var details = new SupplierDetails("Office", null, "Laura", null, null);
+    assertThatThrownBy(() -> createSupplier.execute(details))
+        .isInstanceOf(AccessDeniedException.class);
+  }
+
+  @Test
+  void supplierInsertRollsBackOnUnrelatedPostgresConstraintViolation() {
+    var company = UUID.randomUUID();
+    var jdbc = new JdbcTemplate(dataSource);
+    var details = new SupplierDetails("Office", null, "Laura", null, null);
+    var supplier = Supplier.register(company, details);
+    var transaction = new TransactionTemplate(transactions);
+
+    assertThatThrownBy(() ->
+            transaction.executeWithoutResult(status -> {
+              suppliers.insert(supplier);
+              assertThat(supplierCount(company)).isEqualTo(1);
+              jdbc.update(
+                  "UPDATE catalog.suppliers SET status = 'UNKNOWN' WHERE id = ?", supplier.id());
+            }))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    assertThat(supplierCount(company)).isZero();
+
+    suppliers.insert(supplier);
+    assertThatThrownBy(() -> suppliers.insert(supplier))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    assertThat(supplierCount(company)).isEqualTo(1);
+  }
+
+  private int supplierCount(UUID company) {
+    return new JdbcTemplate(dataSource)
+        .queryForObject(
+            "SELECT count(*) FROM catalog.suppliers WHERE company_id = ?", Integer.class, company);
+  }
+
+  private HttpResponse<String> postSupplier(
+      HttpClient http, String bearer, String body, UUID forgedCompany) throws Exception {
+    var suffix = forgedCompany == null ? "" : "?companyId=" + forgedCompany;
+    var request =
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + SUPPLIERS + suffix))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body));
+    if (bearer != null) {
+      request.header("Authorization", "Bearer " + bearer);
+    }
+    if (forgedCompany != null) {
+      request.header("X-Company-Id", forgedCompany.toString());
+    }
+    return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
   }
 
   private static void assertConnectionRejected(

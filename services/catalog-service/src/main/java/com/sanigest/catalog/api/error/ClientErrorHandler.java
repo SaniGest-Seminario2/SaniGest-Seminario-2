@@ -1,28 +1,20 @@
 package com.sanigest.catalog.api.error;
 
+import static com.sanigest.catalog.api.error.CatalogProblems.problem;
+
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.ClientListingForbiddenException;
 import com.sanigest.catalog.application.exception.InvalidClientQueryException;
 import com.sanigest.catalog.domain.exception.InvalidClientPatch;
-import java.time.Instant;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 class ClientErrorHandler {
-  @ExceptionHandler({
-    MethodArgumentNotValidException.class,
-    HttpMessageNotReadableException.class,
-    MethodArgumentTypeMismatchException.class,
-    InvalidClientQueryException.class,
-    InvalidClientPatch.class
-  })
+  @ExceptionHandler({InvalidClientQueryException.class, InvalidClientPatch.class})
   ProblemDetail validation() {
     return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The request is invalid");
   }
@@ -60,12 +52,5 @@ class ClientErrorHandler {
               errorCode,
               "A client with that tax ID already exists in the company");
     };
-  }
-
-  private static ProblemDetail problem(HttpStatus status, String code, String detail) {
-    var problem = ProblemDetail.forStatusAndDetail(status, detail);
-    problem.setProperty("errorCode", code);
-    problem.setProperty("timestamp", Instant.now());
-    return problem;
   }
 }
