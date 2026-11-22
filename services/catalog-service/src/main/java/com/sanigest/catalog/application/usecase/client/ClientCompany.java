@@ -3,6 +3,7 @@ package com.sanigest.catalog.application.usecase.client;
 import static com.sanigest.catalog.application.exception.ClientAccessException.Reason.FORBIDDEN;
 import static com.sanigest.catalog.application.exception.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
 
+import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
@@ -24,8 +25,10 @@ public class ClientCompany {
   }
 
   Optional<UUID> membership(Permission permission) {
-    return authorization
-        .orElseThrow(() -> new ClientCreationException(AUTHORIZATION_UNAVAILABLE))
-        .membership(permission);
+    try {
+      return authorization.orElseThrow(CatalogAuthorizationUnavailable::new).membership(permission);
+    } catch (CatalogAuthorizationUnavailable failure) {
+      throw new ClientCreationException(AUTHORIZATION_UNAVAILABLE);
+    }
   }
 }

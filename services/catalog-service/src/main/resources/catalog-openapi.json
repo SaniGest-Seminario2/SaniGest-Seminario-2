@@ -137,6 +137,100 @@
         }
       }
     },
+    "/api/v1/suppliers": {
+      "post": {
+        "operationId": "createSupplier",
+        "summary": "Registrar un proveedor",
+        "description": "Requiere CATALOG_WRITE en la membresía activa resuelta por Company. El alta se registra en la empresa autorizada. Los campos externos al contrato se ignoran.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSupplierRequest"
+              },
+              "example": {
+                "name": "OfiCentro Dominicana",
+                "taxId": "131-12345-1",
+                "contact": "Laura Méndez",
+                "phone": "(809) 555-0118",
+                "email": "ventas@example.do"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Proveedor creado en la empresa autorizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierCreated"
+                },
+                "example": {
+                  "id": "195a2821-5d76-44f8-990e-77e3d5d9cde6",
+                  "companyId": "c75407c1-aeb5-4b67-a545-74c508a3d1a1",
+                  "name": "OfiCentro Dominicana",
+                  "taxId": "131-12345-1",
+                  "contact": "Laura Méndez",
+                  "phone": "(809) 555-0118",
+                  "email": "ventas@example.do",
+                  "status": "ACTIVE"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Alta sin autorización empresarial, incluido acceso ADVISOR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Documento fiscal duplicado en la empresa autorizada",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo verificar la autorización empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/clients": {
       "post": {
         "operationId": "createClient",
@@ -635,6 +729,110 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "CreateSupplierRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "contact"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "\\S",
+            "description": "Obligatorio. Se eliminan los espacios en los extremos."
+          },
+          "taxId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "description": "Se eliminan los espacios en los extremos y un valor vacío se guarda como null. El documento es único por empresa cuando se informa."
+          },
+          "contact": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "\\S",
+            "description": "Obligatorio. Se eliminan los espacios en los extremos."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "pattern": "^\\+?(?=(?:[^0-9]*[0-9]){7})[0-9() .-]{7,32}$"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "format": "email",
+            "maxLength": 320,
+            "pattern": "^[^\\s@]+@[^\\s@.]+(?:\\.[^\\s@.]+)+$"
+          }
+        }
+      },
+      "SupplierCreated": {
+        "type": "object",
+        "required": [
+          "id",
+          "companyId",
+          "name",
+          "taxId",
+          "contact",
+          "phone",
+          "email",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "\\S",
+            "description": "Obligatorio. Se eliminan los espacios en los extremos."
+          },
+          "taxId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "description": "Se eliminan los espacios en los extremos y un valor vacío se guarda como null. El documento es único por empresa cuando se informa."
+          },
+          "contact": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "\\S",
+            "description": "Obligatorio. Se eliminan los espacios en los extremos."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "pattern": "^\\+?(?=(?:[^0-9]*[0-9]){7})[0-9() .-]{7,32}$"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "format": "email",
+            "maxLength": 320,
+            "pattern": "^[^\\s@]+@[^\\s@.]+(?:\\.[^\\s@.]+)+$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE"
+            ]
           }
         }
       },

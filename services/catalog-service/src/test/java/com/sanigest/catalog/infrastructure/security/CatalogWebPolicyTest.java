@@ -7,6 +7,7 @@ import static com.sanigest.catalog.application.port.out.integration.CatalogAutho
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -14,16 +15,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.exception.SupplierCreationException;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
+import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
 import com.sanigest.catalog.application.usecase.client.ChangeClientStatus;
 import com.sanigest.catalog.application.usecase.client.ClientCompany;
 import com.sanigest.catalog.application.usecase.client.CreateClient;
 import com.sanigest.catalog.application.usecase.client.GetClient;
 import com.sanigest.catalog.application.usecase.client.ListClients;
 import com.sanigest.catalog.application.usecase.client.UpdateClient;
+import com.sanigest.catalog.application.usecase.supplier.CreateSupplier;
 import com.sanigest.catalog.domain.model.Client;
 import com.sanigest.catalog.domain.model.ClientDetails;
 import java.time.Instant;
@@ -51,12 +56,14 @@ import org.springframework.test.web.servlet.ResultActions;
   ClientCompany.class,
   GetClient.class,
   UpdateClient.class,
-  ChangeClientStatus.class
+  ChangeClientStatus.class,
+  CreateSupplier.class
 })
 class CatalogWebPolicyTest {
   @Autowired MockMvc mvc;
   @MockitoBean JwtDecoder decoder;
   @MockitoBean ClientRepository clients;
+  @MockitoBean SupplierRepository suppliers;
   @MockitoBean CatalogAuthorization authorization;
 
   @Test
@@ -236,6 +243,62 @@ class CatalogWebPolicyTest {
     writeRequest(path, email)
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.errorCode").value("CLIENT_UPDATE_CONFLICT"));
+  }
+
+  @Test
+  void mapsSupplierCreationAndDuplicateThroughTheHttpContract() throws Exception {
+    validToken();
+    var companyId = UUID.randomUUID();
+    given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.of(companyId));
+    var body =
+        """
+        {"name":"Office","contact":"Laura","taxId":"  123 "}
+        """;
+
+    registerSupplier(body)
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").isString())
+        .andExpect(jsonPath("$.companyId").value(companyId.toString()))
+        .andExpect(jsonPath("$.taxId").value("123"))
+        .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+    doThrow(new SupplierCreationException(SupplierCreationException.Reason.DUPLICATE_TAX_ID))
+        .when(suppliers)
+        .insert(any());
+    registerSupplier(body)
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.errorCode").value("DUPLICATE_TAX_ID"));
+  }
+
+  @Test
+  void rejectsSupplierWritesWhenCompanyDeniesOrCannotAuthorize() throws Exception {
+    validToken();
+    var body =
+        """
+        {"name":"Office","contact":"Laura"}
+        """;
+    given(authorization.membership(CATALOG_WRITE))
+        .willReturn(Optional.empty())
+        .willThrow(new CatalogAuthorizationUnavailable());
+
+    registerSupplier("{\"name\":\"Office\\u0000\",\"contact\":\"Laura\"}")
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+    registerSupplier(body)
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    registerSupplier(body)
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.errorCode").value("AUTHORIZATION_UNAVAILABLE"));
+    verifyNoInteractions(suppliers);
+  }
+
+  private ResultActions registerSupplier(String body) throws Exception {
+    return mvc.perform(
+        post("/api/v1/suppliers")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(body));
   }
 
   private ResultActions writeRequest(String path, String body) throws Exception {

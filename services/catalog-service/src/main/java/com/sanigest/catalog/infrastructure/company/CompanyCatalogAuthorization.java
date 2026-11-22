@@ -1,7 +1,6 @@
 package com.sanigest.catalog.infrastructure.company;
 
-import com.sanigest.catalog.application.exception.ClientCreationException;
-import com.sanigest.catalog.application.exception.ClientCreationException.Reason;
+import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
 import com.sanigest.companyaccess.AuthenticatedActor;
 import com.sanigest.companyaccess.CompanyAccess;
@@ -29,7 +28,7 @@ final class CompanyCatalogAuthorization implements CatalogAuthorization {
           .filter(membership -> permits(membership, permission))
           .map(MembershipContext::companyId);
     } catch (CompanyAccessUnavailable unavailable) {
-      throw new ClientCreationException(Reason.AUTHORIZATION_UNAVAILABLE);
+      throw new CatalogAuthorizationUnavailable();
     }
   }
 
@@ -43,7 +42,7 @@ final class CompanyCatalogAuthorization implements CatalogAuthorization {
           ? Optional.of(requestedCompany)
           : Optional.empty();
     } catch (CompanyAccessUnavailable unavailable) {
-      throw new ClientCreationException(Reason.AUTHORIZATION_UNAVAILABLE);
+      throw new CatalogAuthorizationUnavailable();
     }
   }
 
