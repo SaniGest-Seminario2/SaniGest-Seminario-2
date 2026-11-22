@@ -9,6 +9,8 @@ import java.util.UUID;
 public interface AdvisorAccessRepository {
   List<AdvisorAccess> list(UUID companyId);
 
+  List<AuthorizedAdvisorCompany> listAuthorizedCompanies(UUID advisorId);
+
   AdvisorAccess find(UUID companyId, UUID advisorId);
 
   boolean allows(UUID companyId, UUID advisorId, AdvisorPermission permission);

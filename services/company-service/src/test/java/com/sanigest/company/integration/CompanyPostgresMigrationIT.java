@@ -31,7 +31,7 @@ class CompanyPostgresMigrationIT {
             .locations("classpath:db/migration", "classpath:db/postgresql")
             .load();
 
-    assertThat(flyway.migrate().migrationsExecuted).isEqualTo(8);
+    assertThat(flyway.migrate().migrationsExecuted).isEqualTo(9);
     assertThat(flyway.migrate().migrationsExecuted).isZero();
     try (var connection =
             DriverManager.getConnection(
