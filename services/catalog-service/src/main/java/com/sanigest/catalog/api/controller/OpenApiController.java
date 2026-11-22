@@ -1,4 +1,4 @@
-package com.sanigest.catalog.api;
+package com.sanigest.catalog.api.controller;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;

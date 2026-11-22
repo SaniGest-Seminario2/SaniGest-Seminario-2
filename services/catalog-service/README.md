@@ -48,7 +48,7 @@ SPRING_PROFILES_ACTIVE=local JWT_PUBLIC_KEY_LOCATION="file:${JWT_PUBLIC_KEY_FILE
 | `JWT_PUBLIC_KEY_FILE` | Ruta de la clave pública en el host para el montaje de Compose. |
 
 El bootstrap de PostgreSQL provisiona la base y el rol `sanigest_catalog`.
-Flyway aplica `db/catalog` y crea el esquema `catalog`. Hibernate arranca en
+Flyway aplica `db/migration` y crea el esquema `catalog`. Hibernate arranca en
 modo `validate`. El perfil de pruebas `test` usa un puerto HTTP efímero y
 PostgreSQL provisionado por Testcontainers.
 
