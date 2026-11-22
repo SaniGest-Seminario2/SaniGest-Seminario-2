@@ -18,10 +18,16 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.sanigest.catalog.CatalogServiceApplication;
+import com.sanigest.catalog.application.ClientAccessException;
 import com.sanigest.catalog.application.ClientCreationException;
+import com.sanigest.catalog.application.ClientRepository;
 import com.sanigest.catalog.application.CreateClient;
 import com.sanigest.catalog.application.ListClients;
+import com.sanigest.catalog.domain.Client;
 import com.sanigest.catalog.domain.ClientDetails;
+import com.sanigest.catalog.domain.ClientPatch;
+import com.sanigest.catalog.domain.ClientPatch.Field;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
 import com.sanigest.companyaccess.CompanyAccess.Scope;
 import com.zaxxer.hikari.HikariConfig;
@@ -47,6 +53,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
@@ -56,10 +64,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -108,6 +119,7 @@ class CatalogServiceIT {
               "/docker-entrypoint-initdb.d/10-create-service-databases.sh");
 
   @Autowired CreateClient createClient;
+  @Autowired ClientRepository clients;
   @Autowired ListClients listClients;
   @Autowired JwtDecoder jwtDecoder;
   @LocalServerPort int port;
@@ -239,7 +251,8 @@ class CatalogServiceIT {
         .containsExactly(
             "V1__create_catalog_schema.sql",
             "V2__create_clients.sql",
-            "V3__index_clients_by_company_and_name.sql");
+            "V3__index_clients_by_company_and_name.sql",
+            "V4__allow_inactive_clients.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -610,6 +623,299 @@ class CatalogServiceIT {
     assertThatThrownBy(() -> listClients.execute(null, null, 0, 20))
         .isInstanceOf(AccessDeniedException.class);
     COMPANY.verify(0, getRequestedFor(urlEqualTo(PATH)));
+  }
+
+  @Test
+  @Tag("smoke")
+  void editsDeactivatesAndReactivatesAClientWithoutChangingItsIdentity() throws Exception {
+    var companyId = UUID.randomUUID();
+    var writer = authorizedToken(companyId);
+    var reader = membershipToken(companyId, MembershipRole.VIEWER, false, Scope.READ);
+    try (var http = HttpClient.newHttpClient()) {
+      var id = createForListing(http, writer, "Smoke client", UUID.randomUUID().toString());
+      var path = "/api/v1/clients/" + id;
+      var original = successfulBody(get(http, path, reader));
+      var edited =
+          successfulBody(
+              patch(
+                  http,
+                  path,
+                  writer,
+                  """
+                  {"email":"updated@example.org"}
+                  """,
+                  null));
+      assertThat(edited.path("email").asString()).isEqualTo("updated@example.org");
+      assertThat(edited.path("name")).isEqualTo(original.path("name"));
+      assertThat(edited.path("taxId")).isEqualTo(original.path("taxId"));
+
+      var inactive =
+          successfulBody(patch(http, path + "/status", writer, "{\"status\":\"INACTIVE\"}", null));
+      assertThat(inactive.path("id").asString()).isEqualTo(id);
+      assertThat(inactive.path("status").asString()).isEqualTo("INACTIVE");
+      assertThat(successfulBody(get(http, path, reader))).isEqualTo(inactive);
+      assertThat(listPage(http, reader, "?status=INACTIVE", null).path("content"))
+          .extracting(item -> item.path("id").asString())
+          .containsExactly(id);
+
+      var jdbc = new JdbcTemplate(dataSource);
+      var revision =
+          jdbc.queryForObject(
+              "SELECT revision FROM catalog.clients WHERE id = ?", Long.class, UUID.fromString(id));
+      assertThat(
+              successfulBody(
+                  patch(http, path + "/status", writer, "{\"status\":\"INACTIVE\"}", null)))
+          .isEqualTo(inactive);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT revision FROM catalog.clients WHERE id = ?",
+                  Long.class,
+                  UUID.fromString(id)))
+          .isEqualTo(revision);
+
+      var reactivated =
+          successfulBody(patch(http, path + "/status", writer, "{\"status\":\"ACTIVE\"}", null));
+      assertThat(reactivated).isEqualTo(edited);
+      assertThat(successfulBody(get(http, path, reader))).isEqualTo(reactivated);
+      assertPage(listPage(http, reader, "?status=ACTIVE", null), 0, 20, 1, 1, id);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void isolatesDetailAndBothPatchesAndHonorsCurrentWriteAuthorization() throws Exception {
+    var companyId = UUID.randomUUID();
+    var owner = authorizedToken(companyId);
+    var admin = membershipToken(companyId, MembershipRole.ADMIN, false);
+    var viewer = membershipToken(companyId, MembershipRole.VIEWER, false);
+    var operator = membershipToken(companyId, MembershipRole.OPERATOR, false);
+    var grantedOperator = membershipToken(companyId, MembershipRole.OPERATOR, true);
+    var advisor = session("ADVISOR");
+    stubFailure(advisor, 403);
+    var otherCompany = UUID.randomUUID();
+    var otherWriter = authorizedToken(otherCompany);
+    var otherReader = membershipToken(otherCompany, MembershipRole.OWNER, false, Scope.READ);
+    var reader = membershipToken(companyId, MembershipRole.OWNER, false, Scope.READ);
+    try (var http = HttpClient.newHttpClient()) {
+      var id = createForListing(http, owner, "Protected", UUID.randomUUID().toString());
+      var path = "/api/v1/clients/" + id;
+      var baseline = successfulBody(patch(http, path, admin, "{\"address\":\"SD\"}", otherCompany));
+      var payload = "{\"email\":\"denied@example.org\"}";
+      var statusPayload = "{\"status\":\"INACTIVE\"}";
+      assertThat(patch(http, path, null, payload, null).statusCode()).isEqualTo(401);
+      assertThat(patch(http, path, "invalid", payload, null).statusCode()).isEqualTo(401);
+      for (var token : List.of(viewer, operator, advisor)) {
+        assertThat(patch(http, path, token, payload, companyId).statusCode()).isEqualTo(403);
+        assertThat(patch(http, path + "/status", token, statusPayload, companyId).statusCode())
+            .isEqualTo(403);
+      }
+      var foreign = get(http, path, otherReader, companyId);
+      var absent = get(http, "/api/v1/clients/" + UUID.randomUUID(), otherReader);
+      assertThat(foreign.statusCode()).isEqualTo(404);
+      assertThat(absent.statusCode()).isEqualTo(404);
+      var mapper = JsonMapper.shared();
+      assertThat(mapper.readTree(foreign.body()).path("detail"))
+          .isEqualTo(mapper.readTree(absent.body()).path("detail"));
+      assertThat(patch(http, path, otherWriter, payload, companyId).statusCode()).isEqualTo(404);
+      assertThat(patch(http, path + "/status", otherWriter, statusPayload, companyId).statusCode())
+          .isEqualTo(404);
+      assertThat(successfulBody(get(http, path, reader))).isEqualTo(baseline);
+
+      var allowed = successfulBody(patch(http, path, grantedOperator, "{\"address\":null}", null));
+      assertThat(allowed.path("address").isNull()).isTrue();
+      stubFailure(grantedOperator, 403);
+      assertThat(patch(http, path, grantedOperator, payload, null).statusCode()).isEqualTo(403);
+      stubFailure(owner, 503);
+      assertThat(patch(http, path + "/status", owner, statusPayload, null).statusCode())
+          .isEqualTo(503);
+      assertThat(successfulBody(get(http, path, reader))).isEqualTo(allowed);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void rejectsDuplicateTaxIdAndKeepsInactiveTaxIdsReserved() throws Exception {
+    var companyId = UUID.randomUUID();
+    var writer = authorizedToken(companyId);
+    var taxId = UUID.randomUUID().toString();
+    try (var http = HttpClient.newHttpClient()) {
+      var first = "/api/v1/clients/" + createForListing(http, writer, "First", taxId);
+      var second = "/api/v1/clients/" + createForListing(http, writer, "Second", null);
+      successfulBody(patch(http, first + "/status", writer, "{\"status\":\"INACTIVE\"}", null));
+      var response = patch(http, second, writer, "{\"taxId\":\" %s \"}".formatted(taxId), null);
+      assertThat(response.statusCode()).isEqualTo(409);
+      assertThat(JsonMapper.shared().readTree(response.body()).path("errorCode").asString())
+          .isEqualTo("DUPLICATE_TAX_ID");
+      assertThat(
+              successfulBody(
+                      patch(
+                          http,
+                          second,
+                          writer,
+                          "{\"taxId\":\" %s \"}".formatted(taxId + "-2"),
+                          null))
+                  .path("taxId")
+                  .asString())
+          .isEqualTo(taxId + "-2");
+      successfulBody(patch(http, first + "/status", writer, "{\"status\":\"ACTIVE\"}", null));
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void rejectsAStaleConcurrentUpdateWithoutLosingTheCommittedChange() throws Exception {
+    var original =
+        Client.register(
+            UUID.randomUUID(), new ClientDetails("Concurrent client", null, null, null, null));
+    clients.insert(original);
+    var snapshotRead = new CountDownLatch(1);
+    var committed = new CountDownLatch(1);
+    try (var executor = Executors.newSingleThreadExecutor()) {
+      var stale =
+          executor.submit(() ->
+              clients.update(
+                  original.companyId(),
+                  original.id(),
+                  current -> {
+                    snapshotRead.countDown();
+                    await(committed);
+                    return current.changeStatus(Client.Status.INACTIVE);
+                  }));
+      try {
+        await(snapshotRead);
+        clients.update(
+            original.companyId(),
+            original.id(),
+            current ->
+                current.updateDetails(new ClientPatch(Map.of(Field.EMAIL, "saved@example.org"))));
+      } finally {
+        committed.countDown();
+      }
+      assertThatThrownBy(() -> stale.get(10, TimeUnit.SECONDS))
+          .hasCauseInstanceOf(ClientAccessException.class)
+          .satisfies(failure ->
+              assertThat(((ClientAccessException) failure.getCause()).reason())
+                  .isEqualTo(ClientAccessException.Reason.CLIENT_UPDATE_CONFLICT));
+    }
+    var stored = clients.find(original.companyId(), original.id()).orElseThrow();
+    assertThat(stored.status()).isEqualTo(Client.Status.ACTIVE);
+    assertThat(stored.details().email()).isEqualTo("saved@example.org");
+  }
+
+  @Test
+  @Tag("regression")
+  void migratesAnExistingActiveClientFromV3() throws Exception {
+    try (var connection =
+            DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+        var statement = connection.createStatement()) {
+      statement.execute("CREATE DATABASE catalog_upgrade OWNER sanigest_catalog");
+    }
+
+    var source =
+        new DriverManagerDataSource(
+            POSTGRES.getJdbcUrl().replace("/postgres", "/catalog_upgrade"),
+            CATALOG,
+            PASSWORDS.get("CATALOG_DB_PASSWORD"));
+    var migration = Flyway.configure().dataSource(source).target("3").load();
+    assertThat(migration.migrate().migrationsExecuted).isEqualTo(3);
+    var jdbc = new JdbcTemplate(source);
+    var id = UUID.randomUUID();
+    var companyId = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO catalog.clients (id, company_id, name, tax_id, status)
+        VALUES (?, ?, 'Existing', '123', 'ACTIVE')
+        """,
+        id,
+        companyId);
+
+    assertThat(Flyway.configure().dataSource(source).load().migrate().migrationsExecuted)
+        .isEqualTo(1);
+    assertThat(
+            jdbc.queryForMap(
+                """
+                SELECT company_id, name, tax_id, status, revision FROM catalog.clients WHERE id = ?
+                """,
+                id))
+        .containsExactlyInAnyOrderEntriesOf(
+            Map.of(
+                "company_id",
+                companyId,
+                "name",
+                "Existing",
+                "tax_id",
+                "123",
+                "status",
+                "ACTIVE",
+                "revision",
+                0L));
+    jdbc.update("UPDATE catalog.clients SET status = 'INACTIVE' WHERE id = ?", id);
+    assertThatThrownBy(
+            () -> jdbc.update("UPDATE catalog.clients SET status = 'DELETED' WHERE id = ?", id))
+        .isInstanceOf(DataIntegrityViolationException.class);
+  }
+
+  @Test
+  @Tag("regression")
+  void readsThePersistedEditAndStatusFromAFreshApplicationContext() {
+    var original =
+        Client.register(
+            UUID.randomUUID(), new ClientDetails("Persistent client", "321", null, null, null));
+    clients.insert(original);
+    var stored =
+        clients.update(
+            original.companyId(),
+            original.id(),
+            current ->
+                current
+                    .updateDetails(new ClientPatch(Map.of(Field.EMAIL, "persisted@example.org")))
+                    .changeStatus(Client.Status.INACTIVE));
+
+    try (var context =
+        new SpringApplicationBuilder(CatalogServiceApplication.class)
+            .profiles("local", "test")
+            .run(
+                "--server.port=0",
+                "--CATALOG_DB_HOST=" + POSTGRES.getHost(),
+                "--CATALOG_DB_PORT=" + POSTGRES.getMappedPort(5432),
+                "--CATALOG_DB_PASSWORD=" + PASSWORDS.get("CATALOG_DB_PASSWORD"),
+                "--JWT_ISSUER=" + ISSUER,
+                "--JWT_AUDIENCE=" + AUDIENCE,
+                "--JWT_PUBLIC_KEY_LOCATION=" + PUBLIC_KEY.toUri())) {
+      assertThat(context.getBean(ClientRepository.class).find(original.companyId(), original.id()))
+          .contains(stored);
+    }
+  }
+
+  private static void await(CountDownLatch latch) {
+    try {
+      assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      throw new AssertionError(interrupted);
+    }
+  }
+
+  private HttpResponse<String> patch(
+      HttpClient http, String path, String token, String json, UUID companyHeader)
+      throws IOException, InterruptedException {
+    var request =
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
+            .header("Content-Type", "application/json")
+            .method("PATCH", HttpRequest.BodyPublishers.ofString(json));
+    if (token != null) {
+      request.header("Authorization", "Bearer " + token);
+    }
+    if (companyHeader != null) {
+      request.header("X-Company-Id", companyHeader.toString());
+    }
+    return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static JsonNode successfulBody(HttpResponse<String> response) {
+    assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+    return JsonMapper.shared().readTree(response.body());
   }
 
   private String createForListing(HttpClient http, String token, String name, String taxId)

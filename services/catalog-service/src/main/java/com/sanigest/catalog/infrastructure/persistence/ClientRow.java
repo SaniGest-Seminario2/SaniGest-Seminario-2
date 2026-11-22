@@ -1,6 +1,7 @@
 package com.sanigest.catalog.infrastructure.persistence;
 
 import com.sanigest.catalog.domain.Client;
+import com.sanigest.catalog.domain.ClientDetails;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -37,7 +38,18 @@ class ClientRow implements Persistable<UUID> {
   @Column(nullable = false, length = 16)
   private Client.Status status;
 
+  @Column(nullable = false)
+  private long revision;
+
   protected ClientRow() {}
+
+  Client toDomain() {
+    return new Client(id, companyId, new ClientDetails(name, taxId, email, phone, address), status);
+  }
+
+  long revision() {
+    return revision;
+  }
 
   ClientRow(Client client) {
     id = client.id();
