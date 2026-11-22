@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: catalog-service
+  datasource:
+    url: jdbc:postgresql://${CATALOG_DB_HOST}:${CATALOG_DB_PORT:5432}/sanigest_catalog
+    username: sanigest_catalog
+    password: ${CATALOG_DB_PASSWORD}
+    hikari:
+      connection-timeout: 5000
+      connection-init-sql: >-
+        DO $catalog$
+        BEGIN
+          IF current_database() <> 'sanigest_catalog' OR session_user <> 'sanigest_catalog'
+             OR current_user <> 'sanigest_catalog' THEN
+            RAISE EXCEPTION 'Catalog requires the sanigest_catalog database and role';
+          END IF;
+        END;
+        $catalog$;
+  flyway:
+    locations: classpath:db/migration
+    validate-migration-naming: true
+    clean-disabled: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.default_schema: catalog
+
+server:
+  port: ${SERVER_PORT:${CATALOG_SERVICE_PORT:8083}}
+  shutdown: graceful
+
+sanigest:
+  jwt:
+    issuer: ${JWT_ISSUER}
+    audience: ${JWT_AUDIENCE}
+    public-key: ${JWT_PUBLIC_KEY_LOCATION}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-components: never
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db

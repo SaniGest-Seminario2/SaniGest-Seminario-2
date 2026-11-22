@@ -200,15 +200,19 @@ docker compose --profile apps ps
 ```
 
 Las dependencias pertenecen a ambos perfiles para que el comando `apps` sea
-portable entre versiones de Compose. `depends_on` espera sus health checks antes
-de crear Company Service. El perfil sólo incorpora aplicaciones que ya tienen
-un artefacto ejecutable; los directorios reservados se añadirán conforme se
-implementen.
+portable entre versiones de Compose. `depends_on` espera los health checks
+de cada dependencia antes de crear los servicios que la necesitan.
 
-Todos los puertos publicados están ligados a `127.0.0.1`. PostgreSQL, Valkey,
-Kafka y Company Service quedan disponibles en `localhost:${POSTGRES_PORT:-5432}`,
-`localhost:${SPRING_DATA_REDIS_PORT:-6379}`, `localhost:${KAFKA_PORT:-9092}` y
-`localhost:${COMPANY_SERVICE_PORT:-8080}`. Dentro de la red interna de Compose
+La red usa aislamiento interno por defecto. Si Docker omite la publicación en
+redes internas, configura `SANIGEST_NETWORK_INTERNAL=false` en `.env` antes
+de crear la red de desarrollo. Las publicaciones están ligadas a `127.0.0.1`.
+PostgreSQL, Valkey,
+Kafka quedan disponibles en `localhost:${POSTGRES_PORT:-5432}`,
+`localhost:${SPRING_DATA_REDIS_PORT:-6379}` y `localhost:${KAFKA_PORT:-9092}`.
+Company, Identity y Catalog usan `COMPANY_SERVICE_PORT` (8080),
+`IDENTITY_SERVICE_PORT` (8081) y `CATALOG_SERVICE_PORT` (8083), respectivamente.
+Consulta el [README de Catalog](services/catalog-service/README.md) para sus
+variables, endpoints y pruebas. Dentro de la red interna de Compose
 se usan `postgres:5432`, `valkey:6379` y `kafka:29092`; `localhost` nunca debe
 usarse entre contenedores.
 
