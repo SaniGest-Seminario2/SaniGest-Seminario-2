@@ -20,8 +20,10 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sanigest.catalog.application.ClientCreationException;
 import com.sanigest.catalog.application.CreateClient;
+import com.sanigest.catalog.application.ListClients;
 import com.sanigest.catalog.domain.ClientDetails;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
+import com.sanigest.companyaccess.CompanyAccess.Scope;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
@@ -48,6 +50,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
@@ -68,6 +71,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.MountableFile;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -104,6 +108,7 @@ class CatalogServiceIT {
               "/docker-entrypoint-initdb.d/10-create-service-databases.sh");
 
   @Autowired CreateClient createClient;
+  @Autowired ListClients listClients;
   @Autowired JwtDecoder jwtDecoder;
   @LocalServerPort int port;
   @Autowired DataSource dataSource;
@@ -116,6 +121,7 @@ class CatalogServiceIT {
     if (!COMPANY.isRunning()) {
       COMPANY.start();
     }
+    registry.add("spring.jpa.properties.hibernate.generate_statistics", () -> true);
     registry.add("sanigest.company-access.enabled", () -> true);
     registry.add("sanigest.company-access.origin", COMPANY::baseUrl);
     registry.add("sanigest.company-access.issuer", () -> "catalog-test-internal");
@@ -167,6 +173,8 @@ class CatalogServiceIT {
           .hasValueSatisfying(value -> assertThat(value).startsWith("application/json"));
       var document = mapper.readTree(response.body());
       assertThat(document.path("openapi").asString()).isEqualTo("3.0.3");
+      assertThat(document.at("/paths/~1api~1v1~1clients/get/operationId").asString())
+          .isEqualTo("listClients");
       assertThat(document.path("info").path("title").asString())
           .isEqualTo("SaniGest Catalog Service");
       assertThat(
@@ -228,7 +236,10 @@ class CatalogServiceIT {
         .containsExactlyInAnyOrder("public.flyway_schema_history", "catalog.clients");
     assertThat(flyway.info().applied())
         .extracting(migration -> migration.getScript())
-        .containsExactly("V1__create_catalog_schema.sql", "V2__create_clients.sql");
+        .containsExactly(
+            "V1__create_catalog_schema.sql",
+            "V2__create_clients.sql",
+            "V3__index_clients_by_company_and_name.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -469,12 +480,180 @@ class CatalogServiceIT {
         .isZero();
   }
 
+  @Test
+  @Tag("smoke")
+  void createsAndListsOnlyAuthorizedClientsWithFiltersAndPagination() throws Exception {
+    var companyA = UUID.randomUUID();
+    var companyB = UUID.randomUUID();
+    try (var http = HttpClient.newHttpClient()) {
+      var writerA = authorizedToken(companyA);
+      var writerB = authorizedToken(companyB);
+      var one = createForListing(http, writerA, "Alpha Clinic", "A-100");
+      var two = createForListing(http, writerA, "Alpha Clinic", "a-200");
+      var last = createForListing(http, writerA, "Zulu Clinic", null);
+      var other = createForListing(http, writerB, "Alpha Clinic", "A-100");
+      var readerA = membershipToken(companyA, MembershipRole.VIEWER, false, Scope.READ);
+      var readerB = membershipToken(companyB, MembershipRole.OWNER, false, Scope.READ);
+      var ids = List.of(one, two).stream().sorted().toList();
+
+      var statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+      long before = statistics.getPrepareStatementCount();
+      var first = listPage(http, readerA, "?size=2", companyB);
+      assertThat(statistics.getPrepareStatementCount() - before).isEqualTo(2);
+      assertPage(first, 0, 2, 3, 2, ids.toArray(String[]::new));
+      assertThat(first.path("content").get(0).propertyNames())
+          .containsExactlyInAnyOrder("id", "name", "taxId", "status");
+      assertPage(listPage(http, readerA, "?size=2&page=1", null), 1, 2, 3, 2, last);
+      assertPage(
+          listPage(http, readerA, "?size=2&page=2147483647", null), Integer.MAX_VALUE, 2, 3, 2);
+      assertPage(
+          listPage(http, readerA, "?search=%20aLpHa%20&status=%20active%20", null),
+          0,
+          20,
+          2,
+          1,
+          ids.toArray(String[]::new));
+      assertPage(listPage(http, readerA, "?search=A-2", null), 0, 20, 1, 1, two);
+      assertPage(listPage(http, readerA, "?status=INACTIVE&search=alpha", null), 0, 20, 0, 0);
+      assertPage(listPage(http, readerA, "?status=INACTIVE", null), 0, 20, 0, 0);
+      assertPage(listPage(http, readerA, "?search=missing", null), 0, 20, 0, 0);
+      assertPage(listPage(http, readerA, "?search=%25_", null), 0, 20, 0, 0);
+      assertPage(
+          listPage(http, readerA, "?search=%20&status=&page=&size=", null),
+          0,
+          20,
+          3,
+          1,
+          ids.get(0),
+          ids.get(1),
+          last);
+      assertPage(
+          listPage(http, readerB, "?search=a-100&companyId=" + companyA, companyA),
+          0,
+          20,
+          1,
+          1,
+          other);
+      assertThat(listPage(http, readerA, "?search=zulu", null).at("/content/0/taxId").isNull())
+          .isTrue();
+      assertThat(listPage(http, readerA, "?search=a-100", null).at("/content/0/taxId").asString())
+          .isEqualTo("A-100");
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void requiresCurrentReadPermissionAndFailsClosed() throws Exception {
+    var companyA = UUID.randomUUID();
+    var companyB = UUID.randomUUID();
+    var path = "/api/v1/clients";
+    try (var http = HttpClient.newHttpClient()) {
+      assertThat(get(http, path, null).statusCode()).isEqualTo(401);
+      assertThat(get(http, path, "invalid").statusCode()).isEqualTo(401);
+      var expired = token(KEY, ISSUER, AUDIENCE, Instant.now().minusSeconds(120));
+      assertThat(get(http, path, expired).statusCode()).isEqualTo(401);
+
+      for (var role : MembershipRole.values()) {
+        var reader = membershipToken(companyA, role, false, Scope.READ);
+        assertPage(listPage(http, reader, "", null), 0, 20, 0, 0);
+        stubFailure(reader, 403);
+        assertThat(get(http, path, reader).statusCode()).isEqualTo(403);
+      }
+
+      var writeOnly = session("REGULAR");
+      stubFailure(writeOnly, 403);
+      var denied = get(http, path + "?search=%27%20OR%201%3D1", writeOnly);
+      assertThat(denied.statusCode()).isEqualTo(403);
+      assertThat(JsonMapper.shared().readTree(denied.body()).path("errorCode").asString())
+          .isEqualTo("FORBIDDEN");
+
+      var advisor = session("ADVISOR");
+      stubFailure(advisor, 403);
+      assertThat(get(http, path, advisor).statusCode()).isEqualTo(403);
+      // A grant to A is only reachable through a delegated request, without a membership assertion.
+      var advisorSubject = SignedJWT.parse(advisor).getJWTClaimsSet().getSubject();
+      COMPANY.stubFor(
+          WireMock.get(urlEqualTo(PATH))
+              .withHeader(USER_ASSERTION, WireMock.absent())
+              .willReturn(
+                  aResponse()
+                      .withHeader("Content-Type", "application/json")
+                      .withBody(
+                          """
+                          {"userId":"%s","companyId":"%s","module":"CATALOG","scope":"READ","mode":"DELEGATED"}
+                          """
+                              .formatted(advisorSubject, companyA))));
+      assertThat(get(http, path + "?companyId=" + companyB, advisor, companyB).statusCode())
+          .isEqualTo(403);
+      COMPANY.verify(
+          0, getRequestedFor(urlEqualTo(PATH)).withHeader(USER_ASSERTION, WireMock.absent()));
+
+      var unavailable = session("REGULAR");
+      stubFailure(unavailable, 503);
+      var response = get(http, path, unavailable);
+      assertThat(response.statusCode()).isEqualTo(503);
+      assertThat(JsonMapper.shared().readTree(response.body()).path("errorCode").asString())
+          .isEqualTo("AUTHORIZATION_UNAVAILABLE");
+
+      var slow = session("REGULAR");
+      COMPANY.stubFor(
+          WireMock.get(urlEqualTo(PATH))
+              .withHeader(USER_ASSERTION, equalTo(slow))
+              .willReturn(aResponse().withStatus(403).withFixedDelay(3000)));
+      assertThat(get(http, path, slow).statusCode()).isEqualTo(503);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void rejectsDirectListingWithoutAuthenticatedContext() {
+    assertThatThrownBy(() -> listClients.execute(null, null, 0, 20))
+        .isInstanceOf(AccessDeniedException.class);
+    COMPANY.verify(0, getRequestedFor(urlEqualTo(PATH)));
+  }
+
+  private String createForListing(HttpClient http, String token, String name, String taxId)
+      throws Exception {
+    var body = JsonMapper.shared().createObjectNode().put("name", name).put("taxId", taxId);
+    var response =
+        http.send(
+            clientRequest(token, body.toString(), null), HttpResponse.BodyHandlers.ofString());
+    assertThat(response.statusCode()).isEqualTo(201);
+    return JsonMapper.shared().readTree(response.body()).path("id").asString();
+  }
+
+  private JsonNode listPage(HttpClient http, String token, String query, UUID untrustedCompanyId)
+      throws Exception {
+    var response = get(http, "/api/v1/clients" + query, token, untrustedCompanyId);
+    assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+    return JsonMapper.shared().readTree(response.body());
+  }
+
+  private static void assertPage(
+      JsonNode body, int page, int size, long total, int pages, String... ids) {
+    assertThat(body.path("page").asInt()).isEqualTo(page);
+    assertThat(body.path("size").asInt()).isEqualTo(size);
+    assertThat(body.path("totalElements").asLong()).isEqualTo(total);
+    assertThat(body.path("totalPages").asInt()).isEqualTo(pages);
+    assertThat(body.path("content").isArray()).isTrue();
+    assertThat(body.path("content"))
+        .extracting(item -> item.path("id").asString())
+        .containsExactly(ids);
+    assertThat(body.path("content"))
+        .allSatisfy(item -> assertThat(item.path("status").asString()).isEqualTo("ACTIVE"));
+  }
+
   private String authorizedToken(UUID companyId) throws Exception {
     return membershipToken(companyId, MembershipRole.OWNER, false);
   }
 
   private String membershipToken(UUID companyId, MembershipRole role, boolean explicitGrant)
       throws Exception {
+    return membershipToken(companyId, role, explicitGrant, Scope.WRITE);
+  }
+
+  private String membershipToken(
+      UUID companyId, MembershipRole role, boolean explicitGrant, Scope scope) throws Exception {
     var jwt = session("REGULAR");
     var subject = SignedJWT.parse(jwt).getJWTClaimsSet().getSubject();
     COMPANY.stubFor(
@@ -485,10 +664,10 @@ class CatalogServiceIT {
                     .withHeader("Content-Type", "application/json")
                     .withBody(
                         """
-                        {"userId":"%s","companyId":"%s","module":"CATALOG","scope":"WRITE",
+                        {"userId":"%s","companyId":"%s","module":"CATALOG","scope":"%s",
                          "mode":"MEMBERSHIP","role":"%s","explicitGrant":%s}
                         """
-                            .formatted(subject, companyId, role, explicitGrant))));
+                            .formatted(subject, companyId, scope, role, explicitGrant))));
     return jwt;
   }
 
@@ -546,7 +725,16 @@ class CatalogServiceIT {
 
   private HttpResponse<String> get(HttpClient http, String path, String token)
       throws IOException, InterruptedException {
+    return get(http, path, token, null);
+  }
+
+  private HttpResponse<String> get(
+      HttpClient http, String path, String token, UUID untrustedCompanyId)
+      throws IOException, InterruptedException {
     var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path));
+    if (untrustedCompanyId != null) {
+      request.header("X-Company-Id", untrustedCompanyId.toString());
+    }
     if (token != null) {
       request.header("Authorization", "Bearer " + token);
     }

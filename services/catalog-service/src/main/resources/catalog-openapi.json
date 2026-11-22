@@ -212,6 +212,115 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "listClients",
+        "summary": "Listar y buscar clientes",
+        "description": "Requiere CATALOG_READ en la membresía activa resuelta por Company. El orden es name ASC, id ASC. Una página fuera de rango devuelve content vacío y conserva los totales de la búsqueda.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Fragmento literal del nombre o documento fiscal, sin distinguir mayúsculas. Se recortan espacios exteriores y se omite el filtro si queda vacío.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "ACTIVE o INACTIVE, sin distinguir mayúsculas. Se recortan espacios exteriores y se omite el filtro si queda vacío. INACTIVE devuelve una página vacía mientras no haya clientes inactivos.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Índice de página desde cero.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Registros por página. El máximo por defecto es 100 y se configura con sanigest.catalog.clients.max-page-size.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de clientes de la empresa autorizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPage"
+                },
+                "example": {
+                  "content": [
+                    {
+                      "id": "a37149a5-d44b-4467-8805-09a8df3718ca",
+                      "name": "Clínica Ejemplo",
+                      "taxId": "101001001",
+                      "status": "ACTIVE"
+                    }
+                  ],
+                  "page": 0,
+                  "size": 20,
+                  "totalElements": 1,
+                  "totalPages": 1
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtros o paginación inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Consulta sin autorización de lectura empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo verificar la autorización empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -321,6 +430,73 @@
           "timestamp": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "ListedClient": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "taxId",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "taxId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        }
+      },
+      "ClientPage": {
+        "type": "object",
+        "required": [
+          "content",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListedClient"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       }

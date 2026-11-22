@@ -1,6 +1,8 @@
 package com.sanigest.catalog.api.error;
 
 import com.sanigest.catalog.application.ClientCreationException;
+import com.sanigest.catalog.application.ListClients.Forbidden;
+import com.sanigest.catalog.application.ListClients.InvalidQuery;
 import java.time.Instant;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -8,12 +10,23 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 class ClientErrorHandler {
-  @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
+  @ExceptionHandler({
+    MethodArgumentNotValidException.class,
+    HttpMessageNotReadableException.class,
+    MethodArgumentTypeMismatchException.class,
+    InvalidQuery.class
+  })
   ProblemDetail validation() {
     return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The request is invalid");
+  }
+
+  @ExceptionHandler(Forbidden.class)
+  ProblemDetail listingForbidden(Forbidden failure) {
+    return problem(HttpStatus.FORBIDDEN, "FORBIDDEN", failure.getMessage());
   }
 
   @ExceptionHandler(ClientCreationException.class)
