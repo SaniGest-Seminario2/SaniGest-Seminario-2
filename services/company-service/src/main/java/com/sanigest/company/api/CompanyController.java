@@ -50,13 +50,13 @@ public class CompanyController {
 
   @GetMapping("/me")
   CompanyProfile me(@AuthenticationPrincipal Jwt jwt) {
-    return getMyCompany.get(authenticatedUserId(jwt));
+    return getMyCompany.get(authenticatedUserId(jwt, accounts));
   }
 
   @PatchMapping("/me")
   UpdatedCompanyResponse update(
       @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CompanyPatchRequest request) {
-    var updated = updateMyCompany.update(authenticatedUserId(jwt), request.toPatch());
+    var updated = updateMyCompany.update(authenticatedUserId(jwt, accounts), request.toPatch());
     var company = updated.company();
     return new UpdatedCompanyResponse(
         company.id(),
@@ -77,10 +77,10 @@ public class CompanyController {
       @RequestHeader("Idempotency-Key") String key,
       @Valid @RequestBody CompanyRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(useCase.create(authenticatedUserId(jwt), key, request));
+        .body(useCase.create(authenticatedUserId(jwt, accounts), key, request));
   }
 
-  private UUID authenticatedUserId(Jwt jwt) {
+  static UUID authenticatedUserId(Jwt jwt, CurrentAccount accounts) {
     UUID userId;
     try {
       userId = UUID.fromString(jwt.getSubject());

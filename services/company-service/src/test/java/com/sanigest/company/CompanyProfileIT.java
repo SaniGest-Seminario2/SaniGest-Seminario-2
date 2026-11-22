@@ -8,6 +8,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.sanigest.company.application.InvitationDelivery;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -15,15 +16,19 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
 import java.security.interfaces.RSAPrivateKey;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Date;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -31,7 +36,9 @@ import org.skyscreamer.jsonassert.JSONAssert;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.converter.RsaKeyConverters;
@@ -54,6 +61,15 @@ class CompanyProfileIT {
       new ConcurrentHashMap<>();
   private static final ConcurrentHashMap<String, String> ACCOUNT_TYPE = new ConcurrentHashMap<>();
   private static final HttpServer IDENTITY = identity();
+  private static final ConcurrentHashMap<String, String> DELIVERIES = new ConcurrentHashMap<>();
+
+  @TestConfiguration
+  static class DeliveryConfiguration {
+    @Bean
+    InvitationDelivery testDelivery() {
+      return (recipient, token, expiresAt) -> DELIVERIES.put(recipient, token);
+    }
+  }
 
   @Container
   static final PostgreSQLContainer POSTGRES =
@@ -311,6 +327,252 @@ class CompanyProfileIT {
         .contains("Santo Domingo", firstStatus == 409 ? "123456786" : "123456787");
   }
 
+  @Test
+  @Tag("smoke")
+  void invitationSmokeCreatesMembershipAndNeverListsAcrossCompanies() throws Exception {
+    UUID owner = UUID.randomUUID();
+    UUID outsider = UUID.randomUUID();
+    UUID guest = UUID.randomUUID();
+    String ownerJwt = token(owner);
+    String outsiderJwt = token(outsider);
+    String email = guest + "@example.com";
+    String guestJwt = verifiedToken(guest, email, true);
+    UUID company = createCompany(owner, ownerJwt, "Inviting clinic", "123456791");
+    UUID otherCompany = createCompany(outsider, outsiderJwt, "Other clinic", "123456792");
+
+    var created = invite(ownerJwt, email, "VIEWER", false);
+    assertThat(created.statusCode()).isEqualTo(201);
+    String invitationToken = DELIVERIES.remove(email);
+    assertThat(invitationToken).matches("[A-Za-z0-9_-]{43}");
+    assertThat(created.body()).contains("VIEWER", "PENDING").doesNotContain(invitationToken);
+    assertThat(
+            jdbc.queryForMap(
+                "SELECT company_id, token_hash, status FROM company_invitations WHERE email = ?",
+                email))
+        .containsEntry("company_id", company)
+        .containsEntry("token_hash", sha256(invitationToken))
+        .containsEntry("status", "PENDING");
+    assertThat(membershipCount(guest)).isZero();
+    assertThat(get(ME + "/users", guestJwt).statusCode()).isEqualTo(404);
+
+    var accepted = accept(invitationToken, guestJwt);
+    assertThat(accepted.statusCode()).isEqualTo(200);
+    assertThat(accepted.body()).contains(guest.toString(), "VIEWER", "ACTIVE");
+    var ownTeam = get(ME + "/users?companyId=" + otherCompany, guestJwt);
+    assertThat(ownTeam.statusCode()).isEqualTo(200);
+    assertThat(ownTeam.body())
+        .contains(owner.toString(), guest.toString())
+        .doesNotContain(outsider.toString(), email);
+    assertThat(get(ME + "/users", outsiderJwt).body())
+        .contains(outsider.toString())
+        .doesNotContain(owner.toString(), guest.toString());
+
+    var replay = accept(invitationToken, guestJwt);
+    assertThat(replay.statusCode()).isEqualTo(409);
+    assertThat(replay.body()).doesNotContain(invitationToken);
+    assertThat(membershipCount(guest)).isEqualTo(1);
+  }
+
+  @Test
+  void enforcesCurrentAccountMembershipAndVerifiedRecipient() throws Exception {
+    UUID owner = UUID.randomUUID();
+    UUID operator = UUID.randomUUID();
+    UUID admin = UUID.randomUUID();
+    UUID guest = UUID.randomUUID();
+    String email = guest + "@example.com";
+    String ownerJwt = token(owner);
+    String adminJwt = token(admin);
+    UUID company = createCompany(owner, ownerJwt, "Secure clinic", "123456793");
+    jdbc.update(
+        "INSERT INTO company_memberships (id, company_id, user_id, role) VALUES (?, ?, ?, 'OPERATOR')",
+        UUID.randomUUID(),
+        company,
+        operator);
+    jdbc.update(
+        """
+        INSERT INTO company_memberships (id, company_id, user_id, role, status)
+        VALUES (?, ?, ?, 'ADMIN', 'SUSPENDED')
+        """,
+        UUID.randomUUID(),
+        company,
+        admin);
+
+    assertThat(invite(null, email, "VIEWER", false).statusCode()).isEqualTo(401);
+    assertThat(invite("invalid-jwt", email, "VIEWER", false).statusCode()).isEqualTo(401);
+    assertThat(get(ME + "/users", null).statusCode()).isEqualTo(401);
+    assertThat(get(ME + "/users", "invalid-jwt").statusCode()).isEqualTo(401);
+    assertThat(invite(token(operator), email, "VIEWER", false).statusCode()).isEqualTo(403);
+    assertThat(invite(adminJwt, email, "VIEWER", false).statusCode()).isEqualTo(403);
+    assertThat(get(ME + "/users", adminJwt).statusCode()).isEqualTo(403);
+    jdbc.update("UPDATE company_memberships SET status = 'ACTIVE' WHERE user_id = ?", admin);
+    ACCOUNT_STATUS.put(admin.toString(), 403);
+    assertThat(invite(adminJwt, email, "VIEWER", false).statusCode()).isEqualTo(403);
+    ACCOUNT_STATUS.remove(admin.toString());
+    assertThat(invite(adminJwt, email, "ADMIN", false).statusCode()).isEqualTo(400);
+    assertThat(invite(adminJwt, email, "OPERATOR", false).statusCode()).isEqualTo(201);
+    String invitationToken = DELIVERIES.remove(email);
+
+    assertThat(accept(invitationToken, null).statusCode()).isEqualTo(401);
+    assertThat(accept(invitationToken, "invalid-jwt").statusCode()).isEqualTo(401);
+    assertThat(accept(invitationToken, token(guest)).statusCode()).isEqualTo(403);
+    assertThat(accept(invitationToken, verifiedToken(guest, email, false)).statusCode())
+        .isEqualTo(403);
+    assertThat(
+            accept(invitationToken, verifiedToken(guest, "wrong@example.com", true)).statusCode())
+        .isEqualTo(403);
+    assertThat(accept("invalid", verifiedToken(guest, email, true)).statusCode()).isEqualTo(400);
+    assertThat(accept("a".repeat(43), verifiedToken(guest, email, true)).statusCode())
+        .isEqualTo(404);
+    assertThat(membershipCount(guest)).isZero();
+    assertThat(accept(invitationToken, verifiedToken(owner, email, true)).statusCode())
+        .isEqualTo(409);
+    assertThat(
+            accept(
+                    invitationToken,
+                    verifiedToken(guest, email.toUpperCase(java.util.Locale.ROOT), true))
+                .statusCode())
+        .isEqualTo(200);
+  }
+
+  @Test
+  void duplicateReplacementAndExpirationInvalidateOldTokens() throws Exception {
+    UUID owner = UUID.randomUUID();
+    UUID guest = UUID.randomUUID();
+    String ownerJwt = token(owner);
+    String email = guest + "@example.com";
+    String guestJwt = verifiedToken(guest, email, true);
+    createCompany(owner, ownerJwt, "Invitations clinic", "123456794");
+
+    assertThat(invite(ownerJwt, email, "VIEWER", false).statusCode()).isEqualTo(201);
+    String original = DELIVERIES.remove(email);
+    assertThat(invite(ownerJwt, email, "VIEWER", false).statusCode()).isEqualTo(409);
+    assertThat(DELIVERIES).doesNotContainKey(email);
+    assertThat(invite(ownerJwt, email, "VIEWER", true).statusCode()).isEqualTo(201);
+    String replacement = DELIVERIES.remove(email);
+    assertThat(replacement).isNotEqualTo(original);
+    assertThat(accept(original, guestJwt).statusCode()).isEqualTo(409);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT status FROM company_invitations WHERE token_hash = ?",
+                String.class,
+                sha256(original)))
+        .isEqualTo("REVOKED");
+    jdbc.update(
+        """
+        UPDATE company_invitations SET created_at = CURRENT_TIMESTAMP - INTERVAL '2 hours',
+          expires_at = CURRENT_TIMESTAMP - INTERVAL '1 hour' WHERE token_hash = ?
+        """,
+        sha256(replacement));
+    assertThat(accept(replacement, guestJwt).statusCode()).isEqualTo(409);
+    assertThat(membershipCount(guest)).isZero();
+    assertThat(invite(ownerJwt, email, "OPERATOR", false).statusCode()).isEqualTo(201);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT status FROM company_invitations WHERE token_hash = ?",
+                String.class,
+                sha256(replacement)))
+        .isEqualTo("EXPIRED");
+    assertThat(accept(DELIVERIES.remove(email), guestJwt).statusCode()).isEqualTo(200);
+  }
+
+  @Test
+  void concurrentAcceptanceConsumesOneTokenAndCreatesOnlyOneMembership() throws Exception {
+    UUID owner = UUID.randomUUID();
+    UUID guest = UUID.randomUUID();
+    String ownerJwt = token(owner);
+    String email = guest + "@example.com";
+    String guestJwt = verifiedToken(guest, email, true);
+    createCompany(owner, ownerJwt, "Concurrent clinic", "123456795");
+    assertThat(invite(ownerJwt, email, "OPERATOR", false).statusCode()).isEqualTo(201);
+    String invitationToken = DELIVERIES.remove(email);
+    var request = acceptRequest(invitationToken, guestJwt);
+    var first = http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+    var second = http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+    assertThat(
+            List.of(
+                first.get(10, TimeUnit.SECONDS).statusCode(),
+                second.get(10, TimeUnit.SECONDS).statusCode()))
+        .containsExactlyInAnyOrder(200, 409);
+    assertThat(membershipCount(guest)).isEqualTo(1);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT status FROM company_invitations WHERE token_hash = ?",
+                String.class,
+                sha256(invitationToken)))
+        .isEqualTo("ACCEPTED");
+  }
+
+  @Test
+  void existingOwnerCannotAcceptAnInvitationFromAnotherCompany() throws Exception {
+    UUID inviter = UUID.randomUUID();
+    UUID guest = UUID.randomUUID();
+    String email = guest + "@example.com";
+    String inviterJwt = token(inviter);
+    String guestJwt = verifiedToken(guest, email, true);
+    createCompany(inviter, inviterJwt, "Inviter clinic", "123456796");
+    UUID guestCompany = createCompany(guest, guestJwt, "Guest clinic", "123456797");
+    assertThat(invite(inviterJwt, email, "OPERATOR", false).statusCode()).isEqualTo(201);
+    String invitationToken = DELIVERIES.remove(email);
+    assertThat(accept(invitationToken, guestJwt).statusCode()).isEqualTo(409);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT company_id FROM company_memberships WHERE user_id = ?", UUID.class, guest))
+        .isEqualTo(guestCompany);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT status FROM company_invitations WHERE token_hash = ?",
+                String.class,
+                sha256(invitationToken)))
+        .isEqualTo("PENDING");
+  }
+
+  private HttpResponse<String> invite(String jwt, String email, String role, boolean replace)
+      throws Exception {
+    var request = request(ME + "/invitations").header("Content-Type", "application/json");
+    if (jwt != null) {
+      request.header("Authorization", "Bearer " + jwt);
+    }
+    return http.send(
+        request
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    """
+                    {"email":"%s","role":"%s","replace":%s}
+                    """
+                        .formatted(email, role, replace)))
+            .build(),
+        HttpResponse.BodyHandlers.ofString());
+  }
+
+  private HttpResponse<String> accept(String invitationToken, String jwt) throws Exception {
+    return http.send(acceptRequest(invitationToken, jwt), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private HttpRequest acceptRequest(String invitationToken, String jwt) {
+    var request = request("/api/v1/invitations/" + invitationToken + "/accept");
+    if (jwt != null) {
+      request.header("Authorization", "Bearer " + jwt);
+    }
+    return request.POST(HttpRequest.BodyPublishers.noBody()).build();
+  }
+
+  private int membershipCount(UUID userId) {
+    return jdbc.queryForObject(
+        "SELECT COUNT(*) FROM company_memberships WHERE user_id = ?", Integer.class, userId);
+  }
+
+  private String verifiedToken(UUID userId, String email, boolean emailVerified)
+      throws JOSEException {
+    return token(
+        userId.toString(), Instant.now().plusSeconds(300), signingKey, email, emailVerified);
+  }
+
+  private static String sha256(String token) throws Exception {
+    return HexFormat.of()
+        .formatHex(
+            MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.US_ASCII)));
+  }
+
   private Instant updatedAt(UUID company) {
     return jdbc.queryForObject(
         "SELECT updated_at FROM companies WHERE id = ?",
@@ -374,6 +636,16 @@ class CompanyProfileIT {
 
   private String token(String subject, Instant expires, RSAPrivateKey signingKey)
       throws JOSEException {
+    return token(subject, expires, signingKey, null, false);
+  }
+
+  private String token(
+      String subject,
+      Instant expires,
+      RSAPrivateKey signingKey,
+      String email,
+      boolean emailVerified)
+      throws JOSEException {
     var claims =
         new JWTClaimsSet.Builder()
             .subject(subject)
@@ -382,6 +654,9 @@ class CompanyProfileIT {
             .issueTime(Date.from(Instant.now().minusSeconds(30)));
     if (expires != null) {
       claims.expirationTime(Date.from(expires));
+    }
+    if (email != null) {
+      claims.claim("email", email).claim("email_verified", emailVerified);
     }
     var jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.RS256), claims.build());
     jwt.sign(new RSASSASigner(signingKey));

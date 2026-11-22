@@ -19,7 +19,7 @@ management:
 
 logging:
   level:
-    org.springframework.web.servlet.DispatcherServlet: DEBUG
+    org.springframework.web.servlet.DispatcherServlet: WARN
 
 sanigest:
   identity-url: http://127.0.0.1:1

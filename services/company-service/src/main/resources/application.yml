@@ -20,6 +20,8 @@ sanigest:
     audience: ${JWT_AUDIENCE}
     public-key: ${JWT_PUBLIC_KEY_LOCATION}
   identity-url: ${IDENTITY_SERVICE_URL}
+  invitations:
+    ttl: ${COMPANY_INVITATION_TTL:PT72H}
 
 management:
   endpoints:
