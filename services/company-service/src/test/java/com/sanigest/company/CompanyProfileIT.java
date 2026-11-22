@@ -8,8 +8,10 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.sanigest.company.application.ChangeCompanyMemberRoleUseCase;
 import com.sanigest.company.application.GetMyCompanyUseCase.MembershipRepository;
 import com.sanigest.company.application.InvitationDelivery;
+import com.sanigest.company.domain.model.CompanyRole;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -34,11 +36,14 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.ClassPathResource;
@@ -56,10 +61,12 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Tag("regression")
 @ActiveProfiles("test")
 @Testcontainers
+@ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class CompanyProfileIT {
   private static final String COMPANIES = "/api/v1/companies";
   private static final String ME = COMPANIES + "/me";
+  private static final String AUDIT = ME + "/audit-log";
 
   private static final ConcurrentHashMap<String, Integer> ACCOUNT_STATUS =
       new ConcurrentHashMap<>();
@@ -125,6 +132,7 @@ class CompanyProfileIT {
 
   @LocalServerPort private int port;
   @Autowired private JdbcTemplate jdbc;
+  @Autowired private ChangeCompanyMemberRoleUseCase changeMemberRole;
   @Autowired private MembershipRepository memberships;
   @Autowired private PlatformTransactionManager transactionManager;
 
@@ -335,7 +343,8 @@ class CompanyProfileIT {
 
   @Test
   @Tag("smoke")
-  void invitationSmokeCreatesMembershipAndNeverListsAcrossCompanies() throws Exception {
+  void invitationSmokeCreatesMembershipAndNeverListsAcrossCompanies(CapturedOutput output)
+      throws Exception {
     UUID owner = UUID.randomUUID();
     UUID outsider = UUID.randomUUID();
     UUID guest = UUID.randomUUID();
@@ -372,6 +381,11 @@ class CompanyProfileIT {
     assertThat(get(ME + "/users", outsiderJwt).body())
         .contains(outsider.toString())
         .doesNotContain(owner.toString(), guest.toString());
+
+    assertThat(get(AUDIT, ownerJwt).body())
+        .contains("MEMBER_ACTIVATED", guest.toString())
+        .doesNotContain(invitationToken, sha256(invitationToken), guestJwt, ownerJwt, email);
+    assertThat(output.getAll()).doesNotContain(invitationToken, guestJwt, ownerJwt);
 
     var replay = accept(invitationToken, guestJwt);
     assertThat(replay.statusCode()).isEqualTo(409);
@@ -548,7 +562,21 @@ class CompanyProfileIT {
     assertThat(get(ME + "/users", ownerJwt).body()).contains(member.toString(), "ADMIN");
     assertThat(patch(ME, memberJwt, "{\"location\":\"Santiago\"}").statusCode()).isEqualTo(200);
 
+    var roleAudit = get(AUDIT, ownerJwt);
+    assertThat(roleAudit.statusCode()).isEqualTo(200);
+    assertThat(roleAudit.body())
+        .contains(
+            "ROLE_CHANGED", "SUCCESS", owner.toString(), member.toString(), company.toString())
+        .contains("\"previousRole\":\"VIEWER\"", "\"newRole\":\"ADMIN\"")
+        .doesNotContain(ownerJwt, memberJwt);
+
     assertThat(deleteMember(member, ownerJwt).statusCode()).isEqualTo(204);
+    assertThat(get(AUDIT + "?size=1", ownerJwt).body())
+        .contains("MEMBER_REVOKED", "SUCCESS", "\"hasNext\":true")
+        .doesNotContain("ROLE_CHANGED");
+    assertThat(get(AUDIT + "?page=1&size=1", ownerJwt).body())
+        .contains("ROLE_CHANGED", "\"hasNext\":false")
+        .doesNotContain("MEMBER_REVOKED");
     assertThat(get(ME + "/users", memberJwt).statusCode()).isEqualTo(403);
     assertThat(patch(ME, memberJwt, "{\"location\":\"La Vega\"}").statusCode()).isEqualTo(403);
     assertThat(patch(rolePath, memberJwt, roleBody("ADMIN")).statusCode()).isEqualTo(403);
@@ -556,6 +584,113 @@ class CompanyProfileIT {
     assertThat(get(ME + "/users", ownerJwt).body()).contains(member.toString(), "REVOKED");
     assertThat(membershipCount(member)).isEqualTo(1);
     assertThat(deleteMember(member, ownerJwt).statusCode()).isEqualTo(404);
+  }
+
+  @Test
+  void auditUsesCurrentMembershipAndRejectsManipulatedFiltersAndMutations() throws Exception {
+    UUID owner = UUID.randomUUID();
+    UUID auditor = UUID.randomUUID();
+    UUID outsider = UUID.randomUUID();
+    String ownerJwt = token(owner);
+    String auditorJwt = token(auditor);
+    String outsiderJwt = token(outsider);
+    UUID company = createCompany(owner, ownerJwt, "Audit clinic", "123456810");
+    UUID otherCompany = createCompany(outsider, outsiderJwt, "Audit outsider", "123456811");
+    addMember(company, auditor, "VIEWER");
+    assertThat(patch(memberPath(auditor) + "/role", ownerJwt, roleBody("ADMIN")).statusCode())
+        .isEqualTo(200);
+
+    assertThat(get(AUDIT, null).statusCode()).isEqualTo(401);
+    assertThat(get(AUDIT, "invalid-token").statusCode()).isEqualTo(401);
+    assertThat(get(AUDIT, auditorJwt).statusCode()).isEqualTo(403);
+    var crossCompany =
+        request(AUDIT + "?companyId=" + company + "&actorId=" + owner)
+            .header("Authorization", "Bearer " + outsiderJwt)
+            .header("X-Company-Id", company.toString())
+            .GET()
+            .build();
+    var otherAudit = http.send(crossCompany, HttpResponse.BodyHandlers.ofString());
+    assertThat(otherAudit.statusCode()).isEqualTo(200);
+    assertThat(otherAudit.body()).contains("\"content\":[]").doesNotContain(company.toString());
+
+    UUID permission = UUID.randomUUID();
+    jdbc.update(
+        "INSERT INTO company_permissions (id, company_id, permission) VALUES (?, ?, ?)",
+        permission,
+        otherCompany,
+        "AUDIT_LOG_READ");
+    jdbc.update(
+        """
+        INSERT INTO membership_permissions (membership_id, permission_id)
+        SELECT id, ? FROM company_memberships WHERE company_id = ? AND user_id = ?
+        """,
+        permission,
+        company,
+        auditor);
+    assertThat(get(AUDIT, auditorJwt).statusCode()).isEqualTo(403);
+    jdbc.update("DELETE FROM membership_permissions WHERE permission_id = ?", permission);
+    jdbc.update("UPDATE company_permissions SET company_id = ? WHERE id = ?", company, permission);
+    jdbc.update(
+        """
+        INSERT INTO membership_permissions (membership_id, permission_id)
+        SELECT id, ? FROM company_memberships WHERE company_id = ? AND user_id = ?
+        """,
+        permission,
+        company,
+        auditor);
+    assertThat(get(AUDIT, auditorJwt).statusCode()).isEqualTo(200);
+    ACCOUNT_TYPE.put(auditor.toString(), "ADVISOR");
+    assertThat(get(AUDIT, auditorJwt).statusCode()).isEqualTo(403);
+    ACCOUNT_TYPE.remove(auditor.toString());
+    jdbc.update("DELETE FROM membership_permissions WHERE permission_id = ?", permission);
+    assertThat(get(AUDIT, auditorJwt).statusCode()).isEqualTo(403);
+
+    for (String filter :
+        List.of(
+            "from=bad-date",
+            "page=-1",
+            "size=101",
+            "page=2147483648",
+            "from=2026-02-01T00:00:00Z&to=2026-01-01T00:00:00Z")) {
+      assertThat(get(AUDIT + "?" + filter, ownerJwt).statusCode()).as(filter).isEqualTo(400);
+    }
+    assertThat(get(AUDIT + "?to=2000-01-01T00:00:00Z", ownerJwt).body()).contains("\"content\":[]");
+    var deleted = request(AUDIT).header("Authorization", "Bearer " + ownerJwt).DELETE().build();
+    assertThat(http.send(deleted, HttpResponse.BodyHandlers.ofString()).statusCode())
+        .isEqualTo(405);
+    assertThat(patch(AUDIT, ownerJwt, "{}").statusCode()).isEqualTo(405);
+    assertThat(get(AUDIT, ownerJwt).body()).contains("ROLE_CHANGED");
+  }
+
+  @Test
+  void rollbackDiscardsSuccessfulAuditAndRejectedAttemptSurvivesBusinessRollback()
+      throws Exception {
+    UUID owner = UUID.randomUUID();
+    UUID member = UUID.randomUUID();
+    String ownerJwt = token(owner);
+    UUID company = createCompany(owner, ownerJwt, "Audit rollback clinic", "123456812");
+    addMember(company, member, "VIEWER");
+
+    new TransactionTemplate(transactionManager)
+        .executeWithoutResult(transaction -> {
+          changeMemberRole.change(owner, member, CompanyRole.ADMIN);
+          assertThat(
+                  jdbc.queryForObject(
+                      "SELECT count(*) FROM company_audit_log WHERE company_id = ?",
+                      Integer.class,
+                      company))
+              .isEqualTo(1);
+          transaction.setRollbackOnly();
+        });
+    assertThat(get(AUDIT, ownerJwt).body()).contains("\"content\":[]");
+    assertThat(memberships.findByCompanyIdAndUserId(company, member).orElseThrow().role())
+        .isEqualTo(CompanyRole.VIEWER);
+
+    assertThat(deleteMember(owner, ownerJwt).statusCode()).isEqualTo(409);
+    assertThat(get(AUDIT, ownerJwt).body())
+        .contains("MEMBER_REVOKED", "REJECTED")
+        .doesNotContain("SUCCESS");
+    assertThat(get(ME, ownerJwt).statusCode()).isEqualTo(200);
   }
 
   @Test

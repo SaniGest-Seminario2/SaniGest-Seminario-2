@@ -15,11 +15,16 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.HandlerMapping;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
-  @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
+  @ExceptionHandler({
+    MethodArgumentNotValidException.class,
+    HttpMessageNotReadableException.class,
+    MethodArgumentTypeMismatchException.class
+  })
   ProblemDetail validation(HttpServletRequest request) {
     return problem(request, HttpStatus.BAD_REQUEST, "The request is invalid");
   }

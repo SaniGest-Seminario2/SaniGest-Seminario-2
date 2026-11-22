@@ -38,6 +38,8 @@ public class GetMyCompanyUseCase {
 
     Optional<Membership> findByCompanyIdAndUserId(UUID companyId, UUID userId);
 
+    boolean hasPermission(Membership membership, String permission);
+
     boolean hasOtherActiveOwner(UUID companyId, UUID userId);
 
     void updateRole(Membership membership, CompanyRole role);

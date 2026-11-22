@@ -3,6 +3,7 @@ package com.sanigest.company.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -15,6 +16,7 @@ import com.sanigest.company.application.GetMyCompanyUseCase.CompanyAccessDeniedE
 import com.sanigest.company.application.GetMyCompanyUseCase.CompanyMembership;
 import com.sanigest.company.application.GetMyCompanyUseCase.CompanyProfile;
 import com.sanigest.company.application.GetMyCompanyUseCase.MembershipRepository;
+import com.sanigest.company.domain.model.CompanyAuditEvent.Operation;
 import com.sanigest.company.domain.model.CompanyRole;
 import com.sanigest.company.domain.model.Membership;
 import com.sanigest.company.domain.model.MembershipStatus;
@@ -29,11 +31,12 @@ class CompanyMembershipUseCasesTest {
   private final UUID actor = UUID.randomUUID();
   private final UUID target = UUID.randomUUID();
   private final MembershipRepository memberships = mock(MembershipRepository.class);
-  private final CompanyMembershipPolicy policy = new CompanyMembershipPolicy(memberships);
+  private final CompanyAuditRecorder audit = mock(CompanyAuditRecorder.class);
+  private final CompanyMembershipPolicy policy = new CompanyMembershipPolicy(memberships, audit);
   private final ChangeCompanyMemberRoleUseCase change =
-      new ChangeCompanyMemberRoleUseCase(policy, memberships);
+      new ChangeCompanyMemberRoleUseCase(policy, memberships, audit);
   private final RevokeCompanyMembershipUseCase revoke =
-      new RevokeCompanyMembershipUseCase(policy, memberships);
+      new RevokeCompanyMembershipUseCase(policy, memberships, audit);
 
   @ParameterizedTest
   @CsvSource({"OWNER, OWNER", "OWNER, ADMIN", "ADMIN, ADMIN", "ADMIN, OPERATOR"})
@@ -47,6 +50,8 @@ class CompanyMembershipUseCasesTest {
     order.verify(memberships).findByCompanyIdAndUserId(company, actor);
     order.verify(memberships).findByCompanyIdAndUserId(company, target);
     order.verify(memberships).updateRole(member, newRole);
+    verify(audit)
+        .succeeded(actor, member, Operation.ROLE_CHANGED, CompanyRole.VIEWER, newRole, null, null);
   }
 
   @ParameterizedTest
@@ -114,6 +119,17 @@ class CompanyMembershipUseCasesTest {
     actor(CompanyRole.OWNER, MembershipStatus.ACTIVE);
     assertThat(change.change(actor, actor, CompanyRole.OWNER).role()).isEqualTo(CompanyRole.OWNER);
     verify(memberships, never()).updateRole(any(), any());
+  }
+
+  @Test
+  void rejectedAuditFailurePreservesBusinessRejection() {
+    actor(CompanyRole.OWNER, MembershipStatus.ACTIVE);
+    doThrow(new IllegalStateException("storage failure"))
+        .when(audit)
+        .rejected(company, actor, actor, Operation.MEMBER_REVOKED);
+
+    assertThatThrownBy(() -> revoke.revoke(actor, actor)).isInstanceOf(LastOwnerException.class);
+    verify(memberships, never()).revoke(any());
   }
 
   private void actor(CompanyRole role, MembershipStatus status) {
