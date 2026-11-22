@@ -1,7 +1,11 @@
 package com.sanigest.catalog.infrastructure.persistence;
 
+import com.sanigest.catalog.domain.Client;
+import com.sanigest.catalog.domain.ClientDetails;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
@@ -18,6 +22,22 @@ interface ClientRows extends Repository<ClientRow, UUID> {
       """;
 
   <S extends ClientRow> S saveAndFlush(S row);
+
+  Optional<ClientRow> findByCompanyIdAndId(UUID companyId, UUID id);
+
+  @Modifying(clearAutomatically = true)
+  @Query(
+      """
+      UPDATE ClientRow SET name = :#{#details.name()}, taxId = :#{#details.taxId()}, email = :#{#details.email()},
+        phone = :#{#details.phone()}, address = :#{#details.address()}, status = :status, revision = revision + 1
+      WHERE companyId = :companyId AND id = :id AND revision = :revision
+      """)
+  int update(
+      @Param("companyId") UUID companyId,
+      @Param("id") UUID id,
+      @Param("revision") long revision,
+      @Param("details") ClientDetails details,
+      @Param("status") Client.Status status);
 
   @Query(
       value =

@@ -1,13 +1,18 @@
 package com.sanigest.catalog.infrastructure.persistence;
 
+import static com.sanigest.catalog.application.ClientAccessException.Reason.CLIENT_NOT_FOUND;
+import static com.sanigest.catalog.application.ClientAccessException.Reason.CLIENT_UPDATE_CONFLICT;
 import static com.sanigest.catalog.application.ClientCreationException.Reason.DUPLICATE_TAX_ID;
 
+import com.sanigest.catalog.application.ClientAccessException;
 import com.sanigest.catalog.application.ClientCreationException;
 import com.sanigest.catalog.application.ClientPage;
 import com.sanigest.catalog.application.ClientRepository;
 import com.sanigest.catalog.domain.Client;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.function.UnaryOperator;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -28,15 +33,48 @@ class JpaClientRepository implements ClientRepository {
     try {
       rows.saveAndFlush(new ClientRow(client));
     } catch (DataIntegrityViolationException failure) {
-      for (Throwable cause = failure.getCause(); cause != null; cause = cause.getCause()) {
-        if (cause instanceof ConstraintViolationException violation
-            && "23505".equals(violation.getSQLState())
-            && "uq_clients_company_tax_id".equals(violation.getConstraintName())) {
-          throw new ClientCreationException(DUPLICATE_TAX_ID);
-        }
-      }
-      throw failure;
+      throw translateIntegrityViolation(failure);
     }
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<Client> find(UUID companyId, UUID id) {
+    return rows.findByCompanyIdAndId(companyId, id).map(ClientRow::toDomain);
+  }
+
+  @Override
+  @Transactional
+  public Client update(UUID companyId, UUID id, UnaryOperator<Client> change) {
+    var row =
+        rows.findByCompanyIdAndId(companyId, id)
+            .orElseThrow(() -> new ClientAccessException(CLIENT_NOT_FOUND));
+    var current = row.toDomain();
+    var updated = change.apply(current);
+    if (updated.equals(current)) {
+      return current;
+    }
+
+    try {
+      if (rows.update(companyId, id, row.revision(), updated.details(), updated.status()) != 1) {
+        throw new ClientAccessException(CLIENT_UPDATE_CONFLICT);
+      }
+      return updated;
+    } catch (DataIntegrityViolationException failure) {
+      throw translateIntegrityViolation(failure);
+    }
+  }
+
+  private static RuntimeException translateIntegrityViolation(
+      DataIntegrityViolationException failure) {
+    for (Throwable cause = failure.getCause(); cause != null; cause = cause.getCause()) {
+      if (cause instanceof ConstraintViolationException violation
+          && "23505".equals(violation.getSQLState())
+          && "uq_clients_company_tax_id".equals(violation.getConstraintName())) {
+        return new ClientCreationException(DUPLICATE_TAX_ID);
+      }
+    }
+    return failure;
   }
 
   @Override

@@ -1,8 +1,10 @@
 package com.sanigest.catalog.api.error;
 
+import com.sanigest.catalog.application.ClientAccessException;
 import com.sanigest.catalog.application.ClientCreationException;
 import com.sanigest.catalog.application.ListClients.Forbidden;
 import com.sanigest.catalog.application.ListClients.InvalidQuery;
+import com.sanigest.catalog.domain.InvalidClientPatch;
 import java.time.Instant;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -18,7 +20,8 @@ class ClientErrorHandler {
     MethodArgumentNotValidException.class,
     HttpMessageNotReadableException.class,
     MethodArgumentTypeMismatchException.class,
-    InvalidQuery.class
+    InvalidQuery.class,
+    InvalidClientPatch.class
   })
   ProblemDetail validation() {
     return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The request is invalid");
@@ -27,6 +30,17 @@ class ClientErrorHandler {
   @ExceptionHandler(Forbidden.class)
   ProblemDetail listingForbidden(Forbidden failure) {
     return problem(HttpStatus.FORBIDDEN, "FORBIDDEN", failure.getMessage());
+  }
+
+  @ExceptionHandler(ClientAccessException.class)
+  ProblemDetail clientAccess(ClientAccessException failure) {
+    String code = failure.reason().name();
+    return switch (failure.reason()) {
+      case FORBIDDEN -> problem(HttpStatus.FORBIDDEN, code, "Client access is not authorized");
+      case CLIENT_NOT_FOUND -> problem(HttpStatus.NOT_FOUND, code, "Client not found");
+      case CLIENT_UPDATE_CONFLICT ->
+          problem(HttpStatus.CONFLICT, code, "The client was changed by another request");
+    };
   }
 
   @ExceptionHandler(ClientCreationException.class)

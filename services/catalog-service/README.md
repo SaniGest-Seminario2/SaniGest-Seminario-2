@@ -117,8 +117,7 @@ Company. Este endpoint no admite un contexto de empresa para ADVISOR.
 `search` busca un fragmento literal del nombre o del documento fiscal sin
 distinguir mayúsculas. `status` admite `ACTIVE` e `INACTIVE` sin distinguir
 mayúsculas. Ambos filtros se combinan y se omiten individualmente si quedan
-vacíos al recortar espacios exteriores. Con los datos actuales, el filtro
-`INACTIVE` devuelve una página vacía.
+vacíos al recortar espacios exteriores.
 
 La página empieza en 0 y el tamaño predeterminado es 20. Se aceptan tamaños
 desde 1 hasta 100 por defecto. El máximo se configura mediante
@@ -127,6 +126,25 @@ La respuesta incluye `content`, `page`, `size`, `totalElements` y `totalPages`.
 El orden es por nombre y UUID ascendentes. Una página fuera de rango conserva
 los totales y devuelve `content` vacío. Los parámetros inválidos producen
 `400` y la indisponibilidad de Company produce `503`.
+
+### Detalle, edición y estado de clientes
+
+- `GET /api/v1/clients/{id}` devuelve el detalle con `CATALOG_READ`.
+- `PATCH /api/v1/clients/{id}` admite `name`, `taxId`, `email`, `phone` y `address`
+  con `CATALOG_WRITE`. Omite los campos que quieras conservar. Envía `null` para
+  limpiar un campo opcional. El nombre debe contener texto.
+- `PATCH /api/v1/clients/{id}/status` acepta `{"status":"INACTIVE"}` o
+  `{"status":"ACTIVE"}` con `CATALOG_WRITE`. Repetir el estado vigente devuelve
+  el cliente sin incrementar su revisión.
+
+Las tres rutas resuelven la membresía con Company y devuelven `404` para UUID
+inexistentes o ajenos a esa empresa. Los PATCH devuelven `200` con el detalle
+actualizado o `409` ante una escritura concurrente. El documento fiscal de un
+cliente inactivo sigue reservado dentro de su empresa.
+
+Los clientes inactivos conservan su UUID y aparecen en el detalle y en el
+listado según el filtro de estado. Sales debe impedir seleccionar clientes
+`INACTIVE` para nuevas ventas y conservar las referencias históricas.
 
 ## Verificación
 

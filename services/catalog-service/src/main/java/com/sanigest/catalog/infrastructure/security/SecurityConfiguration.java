@@ -41,6 +41,11 @@ class SecurityConfiguration {
                 .permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/clients")
                 .authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/v1/clients/{id}")
+                .authenticated()
+                .requestMatchers(
+                    HttpMethod.PATCH, "/api/v1/clients/{id}", "/api/v1/clients/{id}/status")
+                .authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/v1/clients")
                 .authenticated()
                 .anyRequest()

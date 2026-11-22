@@ -1,16 +1,35 @@
 package com.sanigest.catalog.infrastructure.security;
 
+import static com.sanigest.catalog.application.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.application.ClientAccessException.Reason.CLIENT_UPDATE_CONFLICT;
+import static com.sanigest.catalog.application.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.sanigest.catalog.application.CatalogAuthorization;
+import com.sanigest.catalog.application.ChangeClientStatus;
+import com.sanigest.catalog.application.ClientAccessException;
+import com.sanigest.catalog.application.ClientCompany;
+import com.sanigest.catalog.application.ClientCreationException;
 import com.sanigest.catalog.application.ClientRepository;
 import com.sanigest.catalog.application.CreateClient;
+import com.sanigest.catalog.application.GetClient;
 import com.sanigest.catalog.application.ListClients;
+import com.sanigest.catalog.application.UpdateClient;
+import com.sanigest.catalog.domain.Client;
+import com.sanigest.catalog.domain.ClientDetails;
 import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -22,13 +41,23 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 @WebMvcTest
-@Import({SecurityConfiguration.class, CreateClient.class, ListClients.class})
+@Import({
+  SecurityConfiguration.class,
+  CreateClient.class,
+  ListClients.class,
+  ClientCompany.class,
+  GetClient.class,
+  UpdateClient.class,
+  ChangeClientStatus.class
+})
 class CatalogWebPolicyTest {
   @Autowired MockMvc mvc;
   @MockitoBean JwtDecoder decoder;
   @MockitoBean ClientRepository clients;
+  @MockitoBean CatalogAuthorization authorization;
 
   @Test
   void publishesTheOpenApiContractAsJson() throws Exception {
@@ -48,6 +77,8 @@ class CatalogWebPolicyTest {
 
   @Test
   void listFailsClosedWithoutCompanyAuthorizationDespiteClientCompanyId() throws Exception {
+    given(authorization.membership(CATALOG_READ))
+        .willThrow(new ClientCreationException(AUTHORIZATION_UNAVAILABLE));
     validToken();
 
     mvc.perform(
@@ -84,6 +115,8 @@ class CatalogWebPolicyTest {
 
   @Test
   void postRequiresAValidJwtAndFailsClosedWithoutCompanyAuthorization() throws Exception {
+    given(authorization.membership(CATALOG_WRITE))
+        .willThrow(new ClientCreationException(AUTHORIZATION_UNAVAILABLE));
     mvc.perform(post("/api/v1/clients")).andExpect(status().isUnauthorized());
     given(decoder.decode("invalid")).willThrow(new BadJwtException("Invalid token"));
     mvc.perform(post("/api/v1/clients").header(HttpHeaders.AUTHORIZATION, "Bearer invalid"))
@@ -121,6 +154,96 @@ class CatalogWebPolicyTest {
           .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
     }
     verifyNoInteractions(clients);
+  }
+
+  @Test
+  void clientDetailAndPatchesRequireAuthenticationAndRejectMalformedInputs() throws Exception {
+    var path = "/api/v1/clients/61fe639e-5460-4ca9-8e79-c3bd7ec6190d";
+    mvc.perform(get(path)).andExpect(status().isUnauthorized());
+    mvc.perform(patch(path)).andExpect(status().isUnauthorized());
+    mvc.perform(patch(path + "/status")).andExpect(status().isUnauthorized());
+    given(decoder.decode("invalid")).willThrow(new BadJwtException("Invalid token"));
+    mvc.perform(patch(path).header(HttpHeaders.AUTHORIZATION, "Bearer invalid"))
+        .andExpect(status().isUnauthorized());
+    validToken();
+    for (String badId : new String[] {"garbage", "1-1-1-1-1"}) {
+      mvc.perform(get("/api/v1/clients/" + badId).header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+          .andExpect(status().isBadRequest());
+    }
+    for (String body :
+        new String[] {
+          "{}",
+          "[]",
+          "{\"id\":null}",
+          "{\"companyId\":null}",
+          "{\"status\":\"ACTIVE\"}",
+          "{\"email\":7}"
+        }) {
+      mvc.perform(
+              patch(path)
+                  .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(body))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+    }
+    for (String body :
+        new String[] {
+          "{}",
+          "{\"status\":\"DELETED\"}",
+          "{\"status\":null}",
+          "{\"status\":0}",
+          "{\"status\":\"ACTIVE\",\"companyId\":null}"
+        }) {
+      mvc.perform(
+              patch(path + "/status")
+                  .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(body))
+          .andExpect(status().isBadRequest());
+    }
+    verifyNoInteractions(clients);
+  }
+
+  @Test
+  void mapsScopedClientMutationsAndConflictsToHttp() throws Exception {
+    validToken();
+    var companyId = UUID.randomUUID();
+    var client = Client.register(companyId, new ClientDetails("Client", "123", null, null, null));
+    var path = "/api/v1/clients/" + client.id();
+    given(authorization.membership(CATALOG_READ)).willReturn(Optional.of(companyId));
+    given(clients.find(companyId, client.id())).willReturn(Optional.of(client), Optional.empty());
+    mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.taxId").value("123"));
+    mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value("CLIENT_NOT_FOUND"));
+
+    var email = "{\"email\":\"new@example.org\"}";
+    writeRequest(path, email).andExpect(status().isForbidden());
+    given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.of(companyId));
+    given(clients.update(eq(companyId), eq(client.id()), any()))
+        .willAnswer(call -> call.<UnaryOperator<Client>>getArgument(2).apply(client))
+        .willAnswer(call -> call.<UnaryOperator<Client>>getArgument(2).apply(client))
+        .willThrow(new ClientAccessException(CLIENT_UPDATE_CONFLICT));
+    writeRequest(path, email)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.email").value("new@example.org"));
+    writeRequest(path + "/status", "{\"status\":\"INACTIVE\"}")
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("INACTIVE"));
+    writeRequest(path, email)
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.errorCode").value("CLIENT_UPDATE_CONFLICT"));
+  }
+
+  private ResultActions writeRequest(String path, String body) throws Exception {
+    return mvc.perform(
+        patch(path)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(body));
   }
 
   private void validToken() {

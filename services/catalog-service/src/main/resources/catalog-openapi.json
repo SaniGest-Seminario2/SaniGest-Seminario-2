@@ -234,7 +234,7 @@
           {
             "name": "status",
             "in": "query",
-            "description": "ACTIVE o INACTIVE, sin distinguir mayúsculas. Se recortan espacios exteriores y se omite el filtro si queda vacío. INACTIVE devuelve una página vacía mientras no haya clientes inactivos.",
+            "description": "ACTIVE o INACTIVE, sin distinguir mayúsculas. Se recortan espacios exteriores y se omite el filtro si queda vacío.",
             "schema": {
               "type": "string"
             }
@@ -302,6 +302,301 @@
           },
           "403": {
             "description": "Consulta sin autorización de lectura empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo verificar la autorización empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clients/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getClient",
+        "summary": "Consultar un cliente",
+        "description": "Requiere CATALOG_READ en la membresía activa resuelta por Company. Incluye clientes ACTIVE e INACTIVE.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Datos vigentes del cliente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientDetail"
+                },
+                "example": {
+                  "id": "a37149a5-d44b-4467-8805-09a8df3718ca",
+                  "name": "Clínica Ejemplo",
+                  "taxId": "101001001",
+                  "email": "contacto@example.org",
+                  "phone": "809-555-1234",
+                  "address": null,
+                  "status": "ACTIVE"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "UUID o payload inválido",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Cliente inexistente o no visible para la empresa",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo verificar la autorización empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateClient",
+        "summary": "Editar datos del cliente",
+        "description": "Requiere CATALOG_WRITE en la membresía activa resuelta por Company. Los campos omitidos conservan su valor. null limpia taxId, email, phone y address. name debe ser un texto no vacío. Se rechazan objetos vacíos y campos fuera del esquema.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateClientRequest"
+              },
+              "example": {
+                "email": "contacto@example.org",
+                "address": null
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Datos vigentes del cliente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientDetail"
+                },
+                "example": {
+                  "id": "a37149a5-d44b-4467-8805-09a8df3718ca",
+                  "name": "Clínica Ejemplo",
+                  "taxId": "101001001",
+                  "email": "contacto@example.org",
+                  "phone": "809-555-1234",
+                  "address": null,
+                  "status": "ACTIVE"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "UUID o payload inválido",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Cliente inexistente o no visible para la empresa",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Identificación fiscal duplicada en la empresa o conflicto concurrente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo verificar la autorización empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clients/{id}/status": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "operationId": "changeClientStatus",
+        "summary": "Desactivar o reactivar un cliente",
+        "description": "Requiere CATALOG_WRITE en la membresía activa resuelta por Company. Enviar el estado actual devuelve 200 con el recurso sin efectuar una escritura. El cliente conserva su UUID y demás datos.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeClientStatusRequest"
+              },
+              "example": {
+                "status": "INACTIVE"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Datos vigentes del cliente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientDetail"
+                },
+                "example": {
+                  "id": "a37149a5-d44b-4467-8805-09a8df3718ca",
+                  "name": "Clínica Ejemplo",
+                  "taxId": "101001001",
+                  "email": "contacto@example.org",
+                  "phone": "809-555-1234",
+                  "address": null,
+                  "status": "INACTIVE"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "UUID o payload inválido",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Cliente inexistente o no visible para la empresa",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto concurrente",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -497,6 +792,108 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "UpdateClientRequest": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "taxId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "description": "Se elimina el espacio en blanco ASCII en los extremos. Un resultado vacío se guarda como null. Se conservan letras y separadores."
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "format": "email",
+            "maxLength": 320
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9+() .-]{7,32}$"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          }
+        }
+      },
+      "ChangeClientStatusRequest": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        }
+      },
+      "ClientDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "taxId",
+          "email",
+          "phone",
+          "address",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "taxId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "description": "Se elimina el espacio en blanco ASCII en los extremos. Un resultado vacío se guarda como null. Se conservan letras y separadores."
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "format": "email",
+            "maxLength": 320
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9+() .-]{7,32}$"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
           }
         }
       }
