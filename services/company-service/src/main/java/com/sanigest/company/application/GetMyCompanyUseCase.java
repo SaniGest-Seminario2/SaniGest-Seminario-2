@@ -2,6 +2,7 @@ package com.sanigest.company.application;
 
 import com.sanigest.company.domain.model.Membership;
 import com.sanigest.company.domain.model.MembershipStatus;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,12 @@ public class GetMyCompanyUseCase {
     Optional<CompanyMembership> findCompanyByUserId(UUID userId);
 
     Optional<Membership> findByUserIdForUpdate(UUID userId);
+
+    List<Membership> findAllByCompanyId(UUID companyId);
+
+    boolean existsByUserId(UUID userId);
+
+    void insert(Membership membership);
   }
 
   public record CompanyMembership(MembershipStatus status, CompanyProfile company) {}

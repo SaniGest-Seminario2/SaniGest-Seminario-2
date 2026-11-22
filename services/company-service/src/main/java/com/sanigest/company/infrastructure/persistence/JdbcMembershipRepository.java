@@ -6,6 +6,9 @@ import com.sanigest.company.application.GetMyCompanyUseCase.MembershipRepository
 import com.sanigest.company.domain.model.CompanyRole;
 import com.sanigest.company.domain.model.Membership;
 import com.sanigest.company.domain.model.MembershipStatus;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.support.DataAccessUtils;
@@ -24,15 +27,52 @@ class JdbcMembershipRepository implements MembershipRepository {
   public Optional<Membership> findByUserIdForUpdate(UUID userId) {
     return DataAccessUtils.optionalResult(
         jdbc.query(
-            "SELECT id, company_id, role, status FROM company_memberships WHERE user_id = ? FOR UPDATE",
-            (rs, rowNum) ->
-                new Membership(
-                    rs.getObject("id", UUID.class),
-                    rs.getObject("company_id", UUID.class),
-                    userId,
-                    CompanyRole.valueOf(rs.getString("role")),
-                    MembershipStatus.valueOf(rs.getString("status"))),
+            "SELECT id, company_id, user_id, role, status FROM company_memberships WHERE user_id = ? FOR UPDATE",
+            JdbcMembershipRepository::membership,
             userId));
+  }
+
+  @Override
+  public List<Membership> findAllByCompanyId(UUID companyId) {
+    return jdbc.query(
+        """
+        SELECT id, company_id, user_id, role, status FROM company_memberships
+        WHERE company_id = ? ORDER BY created_at, id
+        """,
+        JdbcMembershipRepository::membership,
+        companyId);
+  }
+
+  @Override
+  public boolean existsByUserId(UUID userId) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM company_memberships WHERE user_id = ?)",
+            Boolean.class,
+            userId));
+  }
+
+  @Override
+  public void insert(Membership member) {
+    jdbc.update(
+        """
+        INSERT INTO company_memberships (id, company_id, user_id, role, status)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        member.id(),
+        member.companyId(),
+        member.userId(),
+        member.role().name(),
+        member.status().name());
+  }
+
+  private static Membership membership(ResultSet rs, int row) throws SQLException {
+    return new Membership(
+        rs.getObject("id", UUID.class),
+        rs.getObject("company_id", UUID.class),
+        rs.getObject("user_id", UUID.class),
+        CompanyRole.valueOf(rs.getString("role")),
+        MembershipStatus.valueOf(rs.getString("status")));
   }
 
   @Override

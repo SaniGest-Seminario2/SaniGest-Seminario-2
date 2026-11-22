@@ -16,6 +16,7 @@ import com.sanigest.company.application.UpdateMyCompanyUseCase;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 class CompanyControllerTest {
@@ -92,11 +93,12 @@ class CompanyControllerTest {
   @Test
   void returnsSafeProblemDetails() {
     var handler = new ApiExceptionHandler();
-    assertThat(handler.validation().getStatus()).isEqualTo(400);
-    assertThat(handler.badRequest().getStatus()).isEqualTo(400);
-    assertThat(handler.companyAccessDenied().getStatus()).isEqualTo(403);
-    assertThat(handler.authorizationUnavailable().getStatus()).isEqualTo(503);
-    assertThat(handler.conflict().getStatus()).isEqualTo(409);
-    assertThat(handler.conflict().getDetail()).doesNotContain("SQL", "password");
+    var request = new MockHttpServletRequest();
+    assertThat(handler.validation(request).getStatus()).isEqualTo(400);
+    assertThat(handler.badRequest(request).getStatus()).isEqualTo(400);
+    assertThat(handler.companyAccessDenied(request).getStatus()).isEqualTo(403);
+    assertThat(handler.authorizationUnavailable(request).getStatus()).isEqualTo(503);
+    assertThat(handler.conflict(request).getStatus()).isEqualTo(409);
+    assertThat(handler.conflict(request).getDetail()).doesNotContain("SQL", "password");
   }
 }

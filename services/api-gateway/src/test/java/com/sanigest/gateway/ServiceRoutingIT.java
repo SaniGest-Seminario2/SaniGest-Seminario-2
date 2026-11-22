@@ -78,6 +78,22 @@ class ServiceRoutingIT {
   }
 
   @Test
+  void routesInvitationAcceptanceToCompanyOnlyForAuthenticatedRequests() throws Exception {
+    String path = "/api/v1/invitations/sample-invitation/accept";
+    assertThat(
+            send(request(gateway(), path).POST(HttpRequest.BodyPublishers.noBody())).statusCode())
+        .isEqualTo(401);
+
+    var response =
+        send(
+            request(gateway(), path)
+                .header("Authorization", "Bearer " + GatewayTestTokens.validToken())
+                .POST(HttpRequest.BodyPublishers.noBody()));
+    assertThat(response.statusCode()).isEqualTo(422);
+    assertThat(response.body()).isEqualTo("company POST " + path + " ");
+  }
+
+  @Test
   void preservesMethodsRawQueryBodyHeadersAndBackendErrors() throws Exception {
     String path = "/api/v1/catalog-items/123?search=a%2Bb&tag=x&tag=y";
     String body = "{\"name\":\"Café\"}";

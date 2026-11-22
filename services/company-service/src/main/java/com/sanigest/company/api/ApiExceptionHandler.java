@@ -1,52 +1,68 @@
 package com.sanigest.company.api;
 
+import com.sanigest.company.application.AcceptCompanyInvitationUseCase.InvitationNotFoundException;
 import com.sanigest.company.application.CreateCompanyUseCase.ConflictException;
 import com.sanigest.company.application.CurrentAccount.AuthorizationUnavailableException;
 import com.sanigest.company.application.GetMyCompanyUseCase.CompanyAccessDeniedException;
 import com.sanigest.company.application.GetMyCompanyUseCase.CompanyNotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
+import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.HandlerMapping;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
   @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
-  ProblemDetail validation() {
-    return problem(HttpStatus.BAD_REQUEST, "The request is invalid");
+  ProblemDetail validation(HttpServletRequest request) {
+    return problem(request, HttpStatus.BAD_REQUEST, "The request is invalid");
   }
 
   @ExceptionHandler(IllegalArgumentException.class)
-  ProblemDetail badRequest() {
-    return problem(HttpStatus.BAD_REQUEST, "The request is invalid");
+  ProblemDetail badRequest(HttpServletRequest request) {
+    return problem(request, HttpStatus.BAD_REQUEST, "The request is invalid");
   }
 
   @ExceptionHandler(ConflictException.class)
-  ProblemDetail conflict() {
+  ProblemDetail conflict(HttpServletRequest request) {
     return problem(
-        HttpStatus.CONFLICT, "The company operation conflicts with an existing resource");
+        request, HttpStatus.CONFLICT, "The company operation conflicts with an existing resource");
   }
 
   @ExceptionHandler(CompanyNotFoundException.class)
-  ProblemDetail companyNotFound() {
-    return problem(HttpStatus.NOT_FOUND, "The authenticated user has no company");
+  ProblemDetail companyNotFound(HttpServletRequest request) {
+    return problem(request, HttpStatus.NOT_FOUND, "The authenticated user has no company");
   }
 
   @ExceptionHandler(CompanyAccessDeniedException.class)
-  ProblemDetail companyAccessDenied() {
+  ProblemDetail companyAccessDenied(HttpServletRequest request) {
     return problem(
+        request,
         HttpStatus.FORBIDDEN,
         "The authenticated account is not allowed to perform this company operation");
   }
 
   @ExceptionHandler(AuthorizationUnavailableException.class)
-  ProblemDetail authorizationUnavailable() {
-    return problem(HttpStatus.SERVICE_UNAVAILABLE, "Company authorization could not be verified");
+  ProblemDetail authorizationUnavailable(HttpServletRequest request) {
+    return problem(
+        request, HttpStatus.SERVICE_UNAVAILABLE, "Company authorization could not be verified");
   }
 
-  private ProblemDetail problem(HttpStatus status, String detail) {
-    return ProblemDetail.forStatusAndDetail(status, detail);
+  @ExceptionHandler(InvitationNotFoundException.class)
+  ProblemDetail invitationNotFound(HttpServletRequest request) {
+    return problem(request, HttpStatus.NOT_FOUND, "Invitation not found");
+  }
+
+  private ProblemDetail problem(HttpServletRequest request, HttpStatus status, String detail) {
+    var problem = ProblemDetail.forStatusAndDetail(status, detail);
+    if (CompanyTeamController.ACCEPT_PATH.equals(
+        request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE))) {
+      problem.setInstance(URI.create("/api/v1/invitations"));
+    }
+    return problem;
   }
 }
