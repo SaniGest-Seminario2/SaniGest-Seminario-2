@@ -1,6 +1,8 @@
 package com.sanigest.company.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.sanigest.company.application.dto.AuditPage;
+import com.sanigest.company.domain.model.AdvisorPermission;
 import com.sanigest.company.domain.model.CompanyAuditEvent;
 import java.time.Instant;
 import java.util.List;
@@ -26,7 +28,9 @@ public record CompanyAuditResponse(List<Entry> content, int page, int size, bool
       String previousRole,
       String newRole,
       String previousStatus,
-      String newStatus) {
+      String newStatus,
+      @JsonInclude(JsonInclude.Include.NON_NULL) AdvisorPermission advisorPermission) {
+
     private static Entry from(CompanyAuditEvent event) {
       return new Entry(
           event.id(),
@@ -39,7 +43,8 @@ public record CompanyAuditResponse(List<Entry> content, int page, int size, bool
           name(event.previousRole()),
           name(event.newRole()),
           name(event.previousStatus()),
-          name(event.newStatus()));
+          name(event.newStatus()),
+          event.advisorPermission());
     }
 
     private static String name(Enum<?> value) {

@@ -5,6 +5,7 @@ import com.sanigest.company.domain.enums.AuditOperation;
 import com.sanigest.company.domain.enums.AuditResult;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.MembershipStatus;
+import com.sanigest.company.domain.model.AdvisorPermission;
 import com.sanigest.company.domain.model.CompanyAuditEvent;
 import com.sanigest.company.domain.model.Membership;
 import java.time.Clock;
@@ -44,7 +45,31 @@ public class CompanyAuditRecorder {
             previousRole,
             newRole,
             previousStatus,
-            newStatus));
+            newStatus,
+            null));
+  }
+
+  @Transactional(propagation = Propagation.MANDATORY)
+  public void advisorChanged(
+      UUID companyId,
+      UUID actorId,
+      UUID advisorId,
+      AuditOperation operation,
+      AdvisorPermission permission) {
+    repository.append(
+        new CompanyAuditEvent(
+            UUID.randomUUID(),
+            companyId,
+            actorId,
+            advisorId,
+            operation,
+            clock.instant(),
+            AuditResult.SUCCESS,
+            null,
+            null,
+            null,
+            null,
+            permission));
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -58,6 +83,7 @@ public class CompanyAuditRecorder {
             operation,
             clock.instant(),
             AuditResult.REJECTED,
+            null,
             null,
             null,
             null,

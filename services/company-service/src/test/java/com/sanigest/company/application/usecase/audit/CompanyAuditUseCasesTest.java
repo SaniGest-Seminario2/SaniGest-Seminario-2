@@ -72,6 +72,7 @@ class CompanyAuditUseCasesTest {
                 CompanyRole.VIEWER,
                 CompanyRole.ADMIN,
                 null,
+                null,
                 null));
     assertThat(rejection)
         .isEqualTo(
@@ -83,6 +84,7 @@ class CompanyAuditUseCasesTest {
                 AuditOperation.MEMBER_REVOKED,
                 NOW,
                 AuditResult.REJECTED,
+                null,
                 null,
                 null,
                 null,
@@ -108,7 +110,8 @@ class CompanyAuditUseCasesTest {
             null,
             null,
             MembershipStatus.ACTIVE,
-            MembershipStatus.REVOKED);
+            MembershipStatus.REVOKED,
+            null);
     when(repository.findPage(company, NOW, NOW, 2, 2)).thenReturn(List.of(event, event));
 
     var page = useCase.get(actor, NOW, NOW, 2, 1);

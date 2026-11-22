@@ -1,17 +1,26 @@
 package com.sanigest.company.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.port.out.integration.InvitationDelivery;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
+import com.sanigest.company.application.usecase.advisor.CheckAdvisorPermissionUseCase;
+import com.sanigest.company.application.usecase.advisor.RevokeAdvisorAccessUseCase;
 import com.sanigest.company.application.usecase.team.ChangeCompanyMemberRoleUseCase;
 import com.sanigest.company.domain.enums.CompanyRole;
+import com.sanigest.company.domain.model.AdvisorPermission;
+import com.sanigest.company.domain.model.AdvisorPermission.Module;
+import com.sanigest.company.domain.model.AdvisorPermission.Scope;
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -20,18 +29,25 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
 import java.text.ParseException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
@@ -47,6 +63,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.converter.RsaKeyConverters;
 import org.springframework.test.context.ActiveProfiles;
@@ -67,10 +84,23 @@ class CompanyProfileIT {
   private static final String COMPANIES = "/api/v1/companies";
   private static final String ME = COMPANIES + "/me";
   private static final String AUDIT = ME + "/audit-log";
+  private static final String ADVISOR_ACCESS = ME + "/advisor-access";
+  private static final String SERVICE_ISSUER = "sanigest-company-eligibility-test";
+  private static final AdvisorPermission ADVISOR_READ =
+      new AdvisorPermission(Module.CATALOG, Scope.READ);
+  private static final AdvisorPermission ADVISOR_WRITE =
+      new AdvisorPermission(Module.CATALOG, Scope.WRITE);
+  private static final KeyPair SERVICE_KEYS = serviceKeys();
+  private static final Path SERVICE_KEY_FILE = serviceKeyFile();
+  private static final ConcurrentHashMap<UUID, String> ADVISOR_ACCOUNTS = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<UUID, BlockEligibility> BLOCKED_ELIGIBILITY =
+      new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<String, Integer> ACCOUNT_STATUS =
       new ConcurrentHashMap<>();
   private static final ConcurrentHashMap<String, String> ACCOUNT_TYPE = new ConcurrentHashMap<>();
+  private static final java.util.concurrent.ExecutorService IDENTITY_THREADS =
+      Executors.newVirtualThreadPerTaskExecutor();
   private static final HttpServer IDENTITY = identity();
   private static final ConcurrentHashMap<String, String> DELIVERIES = new ConcurrentHashMap<>();
 
@@ -93,14 +123,20 @@ class CompanyProfileIT {
   static void datasource(DynamicPropertyRegistry properties) {
     properties.add(
         "sanigest.identity-url", () -> "http://127.0.0.1:" + IDENTITY.getAddress().getPort());
+    properties.add("sanigest.advisor-eligibility.issuer", () -> SERVICE_ISSUER);
+    properties.add(
+        "sanigest.advisor-eligibility.private-key-location",
+        () -> SERVICE_KEY_FILE.toUri().toString());
     properties.add("spring.datasource.url", POSTGRES::getJdbcUrl);
     properties.add("spring.datasource.username", POSTGRES::getUsername);
     properties.add("spring.datasource.password", POSTGRES::getPassword);
   }
 
   @AfterAll
-  static void stopIdentity() {
+  static void stopIdentity() throws IOException {
     IDENTITY.stop(0);
+    IDENTITY_THREADS.close();
+    Files.deleteIfExists(SERVICE_KEY_FILE);
   }
 
   private static HttpServer identity() {
@@ -123,6 +159,8 @@ class CompanyProfileIT {
               throw new IOException(invalid);
             }
           });
+      server.createContext("/internal/v1/accounts/", CompanyProfileIT::eligibility);
+      server.setExecutor(IDENTITY_THREADS);
       server.start();
       return server;
     } catch (IOException failure) {
@@ -132,6 +170,10 @@ class CompanyProfileIT {
 
   @LocalServerPort private int port;
   @Autowired private JdbcTemplate jdbc;
+  @Autowired private CheckAdvisorPermissionUseCase advisorPermissions;
+
+  @Autowired private RevokeAdvisorAccessUseCase revokeAdvisorAccess;
+
   @Autowired private ChangeCompanyMemberRoleUseCase changeMemberRole;
   @Autowired private MembershipRepository memberships;
   @Autowired private PlatformTransactionManager transactionManager;
@@ -145,6 +187,318 @@ class CompanyProfileIT {
   private final RSAPrivateKey signingKey = signingKey();
 
   private final HttpClient http = HttpClient.newHttpClient();
+
+  @Test
+  @Tag("smoke")
+  void grantsListsAndRevokesOnlyWithinTheOwnersCompany() throws Exception {
+    var owner = newOwner("Advisor Smoke");
+    var other = newOwner("Advisor Other");
+    UUID advisor = eligibleAdvisor();
+    String body = advisorBody(advisor, 0, "{\"module\":\"CATALOG\"}");
+    String spoofedBody = body.replaceFirst("\\{", "{\"companyId\":\"" + other.companyId() + "\",");
+    var grant = sendAdvisor(advisorPut(owner.token(), spoofedBody));
+    assertThat(grant.statusCode()).isEqualTo(200);
+    assertThat(grant.body()).contains("\"scope\":\"READ\"", "\"revision\":1");
+    assertThat(get(ADVISOR_ACCESS, owner.token()).body()).contains(advisor.toString());
+    assertThat(get(ADVISOR_ACCESS + "?companyId=" + owner.companyId(), other.token()).body())
+        .isEqualTo("[]");
+    advisorPermissions.require(advisor, owner.companyId(), ADVISOR_READ);
+    assertThatThrownBy(() -> advisorPermissions.require(advisor, owner.companyId(), ADVISOR_WRITE))
+        .isInstanceOf(CompanyAccessDeniedException.class);
+    assertThatThrownBy(() -> advisorPermissions.require(advisor, other.companyId(), ADVISOR_READ))
+        .isInstanceOf(CompanyAccessDeniedException.class);
+    assertThat(
+            sendAdvisor(
+                    advisorPut(
+                        other.token(),
+                        advisorBody(advisor, 0, "{\"module\":\"CATALOG\",\"scope\":\"WRITE\"}")))
+                .statusCode())
+        .isEqualTo(200);
+    advisorPermissions.require(advisor, other.companyId(), ADVISOR_WRITE);
+    assertThat(sendAdvisor(advisorDelete(owner.token(), advisor)).statusCode()).isEqualTo(204);
+    assertThatThrownBy(() -> advisorPermissions.require(advisor, owner.companyId(), ADVISOR_READ))
+        .isInstanceOf(CompanyAccessDeniedException.class);
+    advisorPermissions.require(advisor, other.companyId(), ADVISOR_WRITE);
+    assertThat(membershipCount(advisor)).isZero();
+    var audit = get(AUDIT, owner.token());
+    assertThat(audit.body())
+        .contains(
+            "ADVISOR_GRANTED",
+            "ADVISOR_REVOKED",
+            advisor.toString(),
+            owner.companyId().toString(),
+            "\"scope\":\"READ\"");
+  }
+
+  @Test
+  void rejectsUnauthorizedActorsInvalidPermissionsAndUnverifiableRecipients() throws Exception {
+    var owner = newOwner("Advisor Security");
+    UUID advisor = eligibleAdvisor();
+    String read = advisorBody(advisor, 0, "{\"module\":\"CATALOG\"}");
+    assertThat(get(ADVISOR_ACCESS, null).statusCode()).isEqualTo(401);
+    assertThat(get(ADVISOR_ACCESS, "invalid").statusCode()).isEqualTo(401);
+    for (String role : List.of("ADMIN", "OPERATOR", "VIEWER")) {
+      UUID member = UUID.randomUUID();
+      addMember(owner.companyId(), member, role);
+      assertThat(sendAdvisor(advisorPut(token(member), read)).statusCode()).isEqualTo(403);
+    }
+    ACCOUNT_TYPE.put(advisor.toString(), "ADVISOR");
+    assertThat(sendAdvisor(advisorPut(token(advisor), read)).statusCode()).isEqualTo(403);
+    for (String permission :
+        List.of("{\"module\":\"OWNER\"}", "{\"module\":\"CATALOG\",\"scope\":\"ADMIN\"}")) {
+      assertThat(
+              sendAdvisor(advisorPut(owner.token(), advisorBody(advisor, 0, permission)))
+                  .statusCode())
+          .isEqualTo(400);
+    }
+    for (String account : List.of("REGULAR", "DISABLED", "MISSING", "UNAVAILABLE", "DENIED")) {
+      ADVISOR_ACCOUNTS.put(advisor, account);
+      assertThat(sendAdvisor(advisorPut(owner.token(), read)).statusCode())
+          .isEqualTo(List.of("UNAVAILABLE", "DENIED").contains(account) ? 503 : 403);
+    }
+    assertThat(get(ADVISOR_ACCESS, owner.token()).body()).isEqualTo("[]");
+    assertThat(
+            jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM company_audit_log
+                WHERE company_id = ? AND operation = 'ADVISOR_GRANTED' AND result = 'REJECTED'
+                  AND target_user_id IS NULL
+                """,
+                Integer.class,
+                owner.companyId()))
+        .isEqualTo(3);
+  }
+
+  @Test
+  void timesOutWhenIdentityStallsAndDoesNotPersistAccess() throws Exception {
+    var owner = newOwner("Advisor Timeout");
+    UUID advisor = eligibleAdvisor();
+    var delay = new BlockEligibility(new CountDownLatch(1), new CountDownLatch(1));
+    BLOCKED_ELIGIBILITY.put(advisor, delay);
+    try {
+      var response =
+          sendAdvisor(
+              advisorPut(owner.token(), advisorBody(advisor, 0, "{\"module\":\"CATALOG\"}")));
+      assertThat(response.statusCode()).isEqualTo(503);
+      assertThat(delay.entered().getCount()).isZero();
+      assertThat(get(ADVISOR_ACCESS, owner.token()).body()).isEqualTo("[]");
+    } finally {
+      BLOCKED_ELIGIBILITY.remove(advisor);
+      delay.release().countDown();
+    }
+  }
+
+  @Test
+  void duplicateGrantsAndRevocationsAreIdempotentAndAuditRollsBack() throws Exception {
+    var owner = newOwner("Advisor Transactions");
+    UUID advisor = eligibleAdvisor();
+    var put = advisorPut(owner.token(), advisorBody(advisor, 0, "{\"module\":\"CATALOG\"}"));
+    assertConcurrentStatus(put, 200);
+    assertThat(
+            jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM company_advisor_permissions WHERE company_id = ? AND advisor_id = ?
+                """,
+                Integer.class,
+                owner.companyId(),
+                advisor))
+        .isEqualTo(1);
+    assertThatThrownBy(() ->
+            jdbc.update(
+                """
+                INSERT INTO company_advisor_permissions (company_id, advisor_id, module, scope, granted_at)
+                VALUES (?, ?, 'CATALOG', 'READ', CURRENT_TIMESTAMP)
+                """,
+                owner.companyId(),
+                advisor))
+        .isInstanceOf(DuplicateKeyException.class);
+    var transaction = new TransactionTemplate(transactionManager);
+    transaction.executeWithoutResult(status -> {
+      revokeAdvisorAccess.revoke(owner.actorId(), advisor);
+      status.setRollbackOnly();
+    });
+    advisorPermissions.require(advisor, owner.companyId(), ADVISOR_READ);
+    assertThat(get(AUDIT, owner.token()).body()).doesNotContain("ADVISOR_REVOKED");
+    assertConcurrentStatus(advisorDelete(owner.token(), advisor), 204);
+    assertThat(
+            jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM company_audit_log WHERE company_id = ? AND target_user_id = ?
+                """,
+                Integer.class,
+                owner.companyId(),
+                advisor))
+        .isEqualTo(2);
+  }
+
+  @Test
+  void revocationFencesAnUpdateAlreadyWaitingForIdentity() throws Exception {
+    var owner = newOwner("Advisor Race");
+    UUID advisor = eligibleAdvisor();
+    assertThat(
+            sendAdvisor(
+                    advisorPut(owner.token(), advisorBody(advisor, 0, "{\"module\":\"CATALOG\"}")))
+                .statusCode())
+        .isEqualTo(200);
+    var delay = new BlockEligibility(new CountDownLatch(1), new CountDownLatch(1));
+    BLOCKED_ELIGIBILITY.put(advisor, delay);
+    var stale =
+        http.sendAsync(
+            advisorPut(
+                owner.token(),
+                advisorBody(advisor, 1, "{\"module\":\"CATALOG\",\"scope\":\"WRITE\"}")),
+            HttpResponse.BodyHandlers.ofString());
+    try {
+      assertThat(delay.entered().await(2, TimeUnit.SECONDS)).isTrue();
+      assertThat(sendAdvisor(advisorDelete(owner.token(), advisor)).statusCode()).isEqualTo(204);
+    } finally {
+      BLOCKED_ELIGIBILITY.remove(advisor);
+      delay.release().countDown();
+    }
+    assertThat(stale.get(5, TimeUnit.SECONDS).statusCode()).isEqualTo(409);
+    assertThatThrownBy(() -> advisorPermissions.require(advisor, owner.companyId(), ADVISOR_WRITE))
+        .isInstanceOf(CompanyAccessDeniedException.class);
+  }
+
+  private void assertConcurrentStatus(HttpRequest request, int status) throws Exception {
+    var first = http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+    var second = http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+    assertThat(first.get(5, TimeUnit.SECONDS).statusCode()).isEqualTo(status);
+    assertThat(second.get(5, TimeUnit.SECONDS).statusCode()).isEqualTo(status);
+  }
+
+  private AdvisorOwner newOwner(String name) throws Exception {
+    UUID id = UUID.randomUUID();
+    String jwt = token(id);
+    return new AdvisorOwner(id, createCompany(id, jwt, name, null), jwt);
+  }
+
+  private static UUID eligibleAdvisor() {
+    UUID id = UUID.randomUUID();
+    ADVISOR_ACCOUNTS.put(id, "ACTIVE_ADVISOR");
+    return id;
+  }
+
+  private static String advisorBody(UUID advisor, long revision, String permissions) {
+    return """
+    {"advisorId":"%s","revision":%d,"permissions":[%s]}
+    """
+        .formatted(advisor, revision, permissions);
+  }
+
+  private HttpRequest advisorPut(String jwt, String body) {
+    return request(ADVISOR_ACCESS)
+        .header("Authorization", "Bearer " + jwt)
+        .header("Content-Type", "application/json")
+        .PUT(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+  }
+
+  private HttpRequest advisorDelete(String jwt, UUID advisor) {
+    return request(ADVISOR_ACCESS + "?advisorId=" + advisor)
+        .header("Authorization", "Bearer " + jwt)
+        .DELETE()
+        .build();
+  }
+
+  private HttpResponse<String> sendAdvisor(HttpRequest request) throws Exception {
+    return http.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static KeyPair serviceKeys() {
+    try {
+      var generator = KeyPairGenerator.getInstance("RSA");
+      generator.initialize(2048);
+      return generator.generateKeyPair();
+    } catch (java.security.GeneralSecurityException failure) {
+      throw new IllegalStateException(failure);
+    }
+  }
+
+  private static Path serviceKeyFile() {
+    try {
+      Path file = Files.createTempFile("company-eligibility-test-", ".pem");
+      String key = Base64.getMimeEncoder().encodeToString(SERVICE_KEYS.getPrivate().getEncoded());
+      Files.writeString(
+          file, "-----BEGIN PRIVATE KEY-----\n" + key + "\n-----END PRIVATE KEY-----\n");
+      return file;
+    } catch (IOException failure) {
+      throw new IllegalStateException(failure);
+    }
+  }
+
+  private static void eligibility(HttpExchange exchange) throws IOException {
+    try (exchange) {
+      if (!validServiceToken(exchange.getRequestHeaders().getFirst("Authorization"))) {
+        exchange.sendResponseHeaders(403, -1);
+        return;
+      }
+      var segments = exchange.getRequestURI().getPath().split("/");
+      if (segments.length != 6
+          || !"advisor-eligibility".equals(segments[5])
+          || !"GET".equals(exchange.getRequestMethod())) {
+        exchange.sendResponseHeaders(404, -1);
+        return;
+      }
+      UUID advisor = UUID.fromString(segments[4]);
+      var delay = BLOCKED_ELIGIBILITY.get(advisor);
+      if (delay != null) {
+        delay.entered().countDown();
+        if (!delay.release().await(4, TimeUnit.SECONDS)) {
+          exchange.sendResponseHeaders(503, -1);
+          return;
+        }
+      }
+      String account = ADVISOR_ACCOUNTS.getOrDefault(advisor, "MISSING");
+      switch (account) {
+        case "UNAVAILABLE" -> exchange.sendResponseHeaders(503, -1);
+        case "DENIED" -> exchange.sendResponseHeaders(403, -1);
+        default -> {
+          byte[] body =
+              ("{\"eligible\":" + "ACTIVE_ADVISOR".equals(account) + "}")
+                  .getBytes(StandardCharsets.UTF_8);
+          exchange.getResponseHeaders().set("Content-Type", "application/json");
+          exchange.sendResponseHeaders(200, body.length);
+          exchange.getResponseBody().write(body);
+        }
+      }
+    } catch (ParseException | JOSEException failure) {
+      throw new IOException(failure);
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      throw new IOException(interrupted);
+    }
+  }
+
+  private static boolean validServiceToken(String authorization)
+      throws ParseException, JOSEException {
+    if (authorization == null || !authorization.startsWith("Bearer ")) {
+      return false;
+    }
+    var jwt = SignedJWT.parse(authorization.substring(7));
+    var claims = jwt.getJWTClaimsSet();
+    return JWSAlgorithm.RS256.equals(jwt.getHeader().getAlgorithm())
+        && "sanigest-service+jwt".equals(String.valueOf(jwt.getHeader().getType()))
+        && jwt.verify(new RSASSAVerifier((RSAPublicKey) SERVICE_KEYS.getPublic()))
+        && SERVICE_ISSUER.equals(claims.getIssuer())
+        && "company-service".equals(claims.getSubject())
+        && List.of("sanigest-identity-advisor-eligibility").equals(claims.getAudience())
+        && "identity:advisor-eligibility:read".equals(claims.getStringClaim("scope"))
+        && validLifetime(claims);
+  }
+
+  private static boolean validLifetime(JWTClaimsSet claims) {
+    Instant issued = claims.getIssueTime().toInstant();
+    Instant expires = claims.getExpirationTime().toInstant();
+    Instant now = Instant.now();
+    return !issued.isAfter(now)
+        && expires.isAfter(now)
+        && Duration.between(issued, expires).compareTo(Duration.ofMinutes(2)) <= 0;
+  }
+
+  private record AdvisorOwner(UUID actorId, UUID companyId, String token) {}
+
+  private record BlockEligibility(CountDownLatch entered, CountDownLatch release) {}
 
   @Test
   @Tag("smoke")
@@ -917,10 +1271,10 @@ class CompanyProfileIT {
             .POST(
                 HttpRequest.BodyPublishers.ofString(
                     """
-                    {"companyName":"%s SRL","businessName":"%s","rnc":"%s",
+                    {"companyName":"%s SRL","businessName":"%s","rnc":%s,
                      "email":"company@example.com","phone":"8095555555","location":"Santo Domingo"}
                     """
-                        .formatted(name, name, rnc)))
+                        .formatted(name, name, rnc == null ? "null" : "\"%s\"".formatted(rnc))))
             .build();
     var response = http.send(request, HttpResponse.BodyHandlers.ofString());
     assertThat(response.statusCode()).isEqualTo(201);

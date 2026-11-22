@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.view.RedirectView;
 
-/** Minimal, dependency-free OpenAPI contract until business endpoints are delivered. */
+/** Dependency-free OpenAPI contract. */
 @RestController
 public class OpenApiController {
   @GetMapping(value = "/v3/api-docs", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -14,7 +14,13 @@ public class OpenApiController {
     return Map.of(
         "openapi", "3.0.3",
         "info", Map.of("title", "SaniGest Company Service", "version", "0.1.0"),
-        "paths", Map.of());
+        "paths", Map.of(AdvisorAccessController.PATH, AdvisorAccessOpenApi.operations()),
+        "components",
+            Map.of(
+                "securitySchemes",
+                Map.of(
+                    "bearerAuth",
+                    Map.of("type", "http", "scheme", "bearer", "bearerFormat", "JWT"))));
   }
 
   @GetMapping("/swagger-ui.html")
