@@ -6,25 +6,25 @@ import static com.sanigest.catalog.application.ClientCreationException.Reason.FO
 import com.sanigest.catalog.domain.Client;
 import com.sanigest.catalog.domain.ClientDetails;
 import java.util.Optional;
-import java.util.UUID;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 @Service
 public class CreateClient {
-  private final Optional<ClientCreationAuthorization> authorization;
+  private final Optional<CatalogAuthorization> authorization;
   private final ClientRepository clients;
 
-  public CreateClient(
-      Optional<ClientCreationAuthorization> authorization, ClientRepository clients) {
+  public CreateClient(Optional<CatalogAuthorization> authorization, ClientRepository clients) {
     this.authorization = authorization;
     this.clients = clients;
   }
 
-  public Client execute(UUID userId, String accessToken, ClientDetails details) {
+  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  public Client execute(ClientDetails details) {
     var companyId =
         authorization
             .orElseThrow(() -> new ClientCreationException(AUTHORIZATION_UNAVAILABLE))
-            .authorizedCompany(userId, accessToken)
+            .membership(CatalogAuthorization.Permission.CATALOG_WRITE)
             .orElseThrow(() -> new ClientCreationException(FORBIDDEN));
     var client = Client.register(companyId, details);
     clients.insert(client);

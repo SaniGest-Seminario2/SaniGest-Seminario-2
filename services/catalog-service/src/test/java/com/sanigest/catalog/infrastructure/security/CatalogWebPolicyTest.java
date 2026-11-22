@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.sanigest.catalog.application.ClientRepository;
 import com.sanigest.catalog.application.CreateClient;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -102,6 +103,7 @@ class CatalogWebPolicyTest {
             Jwt.withTokenValue("valid")
                 .header("alg", "RS256")
                 .subject("2526a433-d969-4663-9f3a-18693e0757aa")
+                .expiresAt(Instant.now().plusSeconds(120))
                 .build());
   }
 

@@ -2,7 +2,7 @@ package com.sanigest.catalog.infrastructure.company;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.sanigest.catalog.application.ClientCreationAuthorization;
+import com.sanigest.catalog.application.CatalogAuthorization;
 import com.sanigest.companyaccess.CompanyAccess;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,13 +34,13 @@ class CompanyAccessWiringTest {
             "sanigest.jwt.public-key=" + userKey.toUri())
         .run(context -> {
           assertThat(context).hasSingleBean(CompanyAccess.class);
-          assertThat(context).hasSingleBean(ClientCreationAuthorization.class);
+          assertThat(context).hasSingleBean(CatalogAuthorization.class);
         });
   }
 
   @Test
   void disabledByDefaultAndFailsStartupForMissingCredentialsWhenEnabled() {
-    runner().run(context -> assertThat(context).doesNotHaveBean(ClientCreationAuthorization.class));
+    runner().run(context -> assertThat(context).doesNotHaveBean(CatalogAuthorization.class));
     runner()
         .withPropertyValues("sanigest.company-access.enabled=true")
         .run(context -> assertThat(context).hasFailed());

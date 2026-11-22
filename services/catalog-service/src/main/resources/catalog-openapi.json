@@ -141,7 +141,7 @@
       "post": {
         "operationId": "createClient",
         "summary": "Registrar un cliente",
-        "description": "Company debe verificar la membresía y el permiso vigente de alta. Mientras falte ese contrato, una solicitud válida devuelve 503.",
+        "description": "Requiere CATALOG_WRITE en la membresía activa resuelta por Company. El cliente se registra en la empresa autorizada.",
         "security": [
           {
             "bearerAuth": []

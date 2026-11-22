@@ -81,9 +81,28 @@ para ese actor y la operación de alta. Catalog devuelve `400` por datos
 inválidos, `401` por JWT ausente o inválido, `403` ante una denegación de
 Company y `409` por duplicados en la empresa autorizada.
 
-Catalog usa `ClientCreationAuthorization` para resolver la membresía vigente
-y aplicar su política de alta. Una instalación sin el adaptador habilitado o
-con Company indisponible responde `503` y evita la escritura.
+Spring Method Security exige un JWT autenticado al invocar el caso de uso
+`CreateClient`. El caso de uso aplica `CATALOG_WRITE` y usa la empresa que
+devuelve esa misma decisión para persistir el cliente. Cada ejecución consulta
+Company una vez, sin cachear autorizaciones. Una instalación sin el adaptador
+habilitado o con Company indisponible responde `503` y evita la escritura.
+
+| Membresía activa | `CATALOG_READ` | `CATALOG_WRITE` |
+| --- | --- | --- |
+| OWNER, ADMIN | Permitido | Permitido |
+| OPERATOR | Permitido | Requiere concesión explícita |
+| VIEWER | Permitido | Denegado |
+
+La política `CatalogAuthorization` distingue el acceso por membresía del
+acceso delegado. Las operaciones que admitan ADVISOR deben proporcionar la
+empresa solicitada y exigir en Company una concesión vigente para `CATALOG`
+y el alcance exacto. Una concesión READ autoriza únicamente lectura. El alta
+de S2-319 se limita a membresías activas y conserva su contrato HTTP.
+
+Para futuras operaciones sobre registros existentes, cada consulta debe usar
+la empresa resuelta por la autorización como parte del filtro de persistencia,
+incluida la búsqueda por identificador. Un registro fuera de esa empresa se
+trata como invisible conforme al contrato de la operación.
 
 La configuración y el contrato interno están en
 [common-company-access](../../libraries/common-company-access/README.md).

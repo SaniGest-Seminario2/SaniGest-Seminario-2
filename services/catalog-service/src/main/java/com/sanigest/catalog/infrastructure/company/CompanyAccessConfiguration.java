@@ -78,8 +78,8 @@ class CompanyAccessConfiguration {
   }
 
   @Bean
-  CompanyClientCreationAuthorization clientCreationAuthorization(CompanyAccess access) {
-    return new CompanyClientCreationAuthorization(access);
+  CompanyCatalogAuthorization catalogAuthorization(CompanyAccess access) {
+    return new CompanyCatalogAuthorization(access);
   }
 
   private static String traceId() {
