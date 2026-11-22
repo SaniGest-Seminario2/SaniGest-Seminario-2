@@ -15,6 +15,9 @@ server:
   shutdown: graceful
 
 sanigest:
+  advisor-eligibility:
+    issuer: ${IDENTITY_ADVISOR_ELIGIBILITY_ISSUER:}
+    public-key-location: ${IDENTITY_ADVISOR_ELIGIBILITY_PUBLIC_KEY_LOCATION:}
   jwt:
     issuer: ${JWT_ISSUER}
     audience: ${JWT_AUDIENCE}
