@@ -1,7 +1,7 @@
 package com.sanigest.identity.infrastructure.security;
 
-import com.sanigest.identity.application.AccessToken;
-import com.sanigest.identity.application.TokenIssuer;
+import com.sanigest.identity.application.dto.AccessToken;
+import com.sanigest.identity.application.port.out.security.TokenIssuer;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;

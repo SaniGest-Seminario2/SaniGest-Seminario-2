@@ -23,10 +23,10 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Validate Docker Compose contract
-        run: sh scripts/qa/validate-compose.sh
+        run: sh infrastructure/qa/validate-compose.sh
 
       - name: Verify PostgreSQL, Valkey and Kafka runtime behavior
-        run: sh scripts/qa/smoke-infrastructure.sh
+        run: sh infrastructure/qa/smoke-infrastructure.sh
 
   application-images:
     name: Build application images

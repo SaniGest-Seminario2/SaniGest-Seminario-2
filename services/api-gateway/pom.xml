@@ -18,7 +18,6 @@
         <dependency>
             <groupId>com.sanigest</groupId>
             <artifactId>common-security</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

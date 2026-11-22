@@ -1,4 +1,33 @@
-# Identity refresh tokens (S2-386)
+# Identity Service
+
+Gestiona el registro, la identidad de cuenta y las sesiones en
+`sanigest_identity`.
+
+- `api/controller`, `api/dto` y `api/error` definen el contrato HTTP.
+- `application/usecase` agrupa registro, cuenta y sesión. Los casos de uso
+  usan DTO, excepciones y puertos de aplicación.
+- `domain/model` define el usuario y la sesión de renovación. Los enums de dominio viven en `domain/enums`.
+- `infrastructure/persistence` separa entidades, repositorios Spring Data y
+  adaptadores JPA. Hibernate es el proveedor JPA. Flyway aplica las migraciones
+  en `src/main/resources/db/migration`.
+- `infrastructure/security` implementa la emisión y validación de JWT y el
+  hash de contraseñas.
+
+Los puertos de salida se agrupan por persistencia, seguridad o integraciones según el servicio.
+
+Las pruebas unitarias reflejan los paquetes del código. Las pruebas HTTP
+y con PostgreSQL viven en el paquete `integration`.
+
+Desde la raíz:
+
+```bash
+mvn -B -pl services/identity-service -am verify
+```
+
+Consulta el [arranque local](../../README.md) y el
+[contrato funcional](../../docs/SaniGest_T1001_Contrato_Funcional_v0.7.md).
+
+## Refresh tokens (S2-386)
 
 El login conserva `accessToken`, `tokenType` y `expiresIn`, y añade de forma
 aditiva `refreshToken` y `refreshExpiresIn`. El cliente existente transporta el

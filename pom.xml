@@ -21,7 +21,6 @@
 
     <modules>
         <module>libraries/common-security</module>
-        <module>templates/spring-boot-service</module>
         <module>services/company-service</module>
         <module>services/api-gateway</module>
         <module>services/identity-service</module>
@@ -44,6 +43,11 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>com.sanigest</groupId>
+                <artifactId>common-security</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
@@ -134,7 +138,10 @@
                 </dependencies>
                 <configuration>
                     <configLocation>${maven.multiModuleProjectDirectory}/config/checkstyle/checkstyle.xml</configLocation>
-                    <propertyExpansion>checkstyle.suppressions.file=${maven.multiModuleProjectDirectory}/config/checkstyle/suppressions.xml</propertyExpansion>
+                    <propertyExpansion>
+                        checkstyle.suppressions.file=${maven.multiModuleProjectDirectory}/config/checkstyle/suppressions.xml
+                        checkstyle.import.control.file=${maven.multiModuleProjectDirectory}/config/checkstyle/import-control.xml
+                    </propertyExpansion>
                     <includeTestSourceDirectory>true</includeTestSourceDirectory>
                     <consoleOutput>true</consoleOutput>
                     <failOnViolation>true</failOnViolation>
@@ -193,6 +200,7 @@
                                         <exclude>**/*IT.class</exclude>
                                         <exclude>**/infrastructure/persistence/**</exclude>
                                         <exclude>**/infrastructure/security/**</exclude>
+                                        <exclude>**/infrastructure/identity/**</exclude>
                                         <exclude>**/infrastructure/messaging/**</exclude>
                                         <exclude>**/infrastructure/cache/**</exclude>
                                     </excludes>

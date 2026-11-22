@@ -1,2 +1,2 @@
-/** Company domain model, invariants and repository ports. */
+/** Company domain model and business invariants. */
 package com.sanigest.company.domain;

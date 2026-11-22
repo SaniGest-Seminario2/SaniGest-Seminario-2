@@ -1,14 +1,28 @@
 # Infraestructura
 
-Este directorio contendrá la infraestructura reproducible de SaniGest:
+El [Compose raíz](../docker-compose.yml) define los perfiles locales
+`infra` (PostgreSQL, Valkey y Kafka) y `apps` (infraestructura, Company e
+Identity). Conserva el punto de entrada `docker compose` desde la raíz y la
+configuración de ejemplo en [`.env.example`](../.env.example).
 
-- Docker y Docker Compose para desarrollo local;
-- Terraform para AWS;
-- manifiestos Kubernetes con `kind` como ampliación local.
+| Ruta | Responsabilidad |
+| --- | --- |
+| [`docker/service.Dockerfile`](docker/service.Dockerfile) | Imagen Maven/Java para Company e Identity, seleccionada con el argumento `SERVICE` |
+| [`postgres/init`](postgres/init) | Creación de roles y bases de datos locales |
+| [`qa`](qa) | Validación estática y smoke test de Compose |
 
-El MVP se despliega en AWS con ECR, ECS/Fargate y RDS PostgreSQL. EKS y MSK no se
-crean por defecto. Los módulos Terraform se implementan en los tickets
-`S2-390` a `S2-394`.
+Ejecuta desde la raíz:
+
+```bash
+sh infrastructure/qa/validate-compose.sh
+sh infrastructure/qa/smoke-infrastructure.sh
+```
+
+La validación requiere `jq`. El smoke test levanta un stack Docker temporal
+y elimina sus volúmenes al finalizar.
+
+El despliegue del MVP en AWS con ECR, ECS/Fargate y RDS PostgreSQL está previsto
+en los tickets `S2-390` a `S2-394`.
 
 ## PostgreSQL local
 

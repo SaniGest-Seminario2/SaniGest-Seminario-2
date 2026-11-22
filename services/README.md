@@ -1,29 +1,15 @@
 # Servicios
 
-Cada subdirectorio representa un microservicio desplegable y dueño exclusivo de
-su modelo, persistencia y migraciones.
-
-La guía [SPRING_BOOT_SERVICE_TEMPLATE.md](SPRING_BOOT_SERVICE_TEMPLATE.md)
-describe la plantilla ejecutable, las capas permitidas y el procedimiento para
-incorporar un servicio sin copiar reglas de otro dominio.
-
-Topología prevista según el contrato funcional y ADR-001:
-
-| Directorio | Responsabilidad | Ticket de implementación |
+| Módulo | Responsabilidad | Datos propios |
 | --- | --- | --- |
-| `api-gateway` | Entrada pública y enrutamiento | `S2-316` |
-| `identity-service` | Identidad, autenticación y sesiones | `S2-304` |
-| `company-service` | Empresas, membresías y permisos | `S2-295` |
-| `catalog-service` | Clientes, proveedores y catálogo | `S2-318` |
-| `sales-service` | Ventas, facturación y cuentas por cobrar | `S2-331` |
-| `expense-service` | Compras, gastos y cuentas por pagar | `S2-342` |
-| `finance-service` | Caja, dashboard y reportes | `S2-349` |
+| [API Gateway](api-gateway/README.md) | Entrada pública, validación de acceso y enrutamiento HTTP | — |
+| [Identity](identity-service/README.md) | Registro, identidad, autenticación y sesiones | `sanigest_identity` |
+| [Company](company-service/README.md) | Empresas, membresías, invitaciones y auditoría | `sanigest_company` |
 
-`S2-294` reserva la estructura completa. `company-service` e `identity-service`
-son módulos Maven compilables; cada directorio restante se incorpora al reactor
-raíz cuando su ticket entregue al menos un esqueleto ejecutable y sus pruebas
-básicas.
+Cada aplicación tiene su propio POM, configuración de Spring, migraciones y
+pruebas. Gateway se ejecuta localmente con Maven. Company e Identity también
+tienen imágenes en el perfil `apps` de Docker Compose.
 
-Notificaciones no constituyen un microservicio separado en el MVP. La auditoría
-se conserva junto al servicio propietario de cada operación; cualquier cambio a
-estos límites requiere actualizar el ADR.
+La [guía para añadir un servicio](../docs/development/new-service.md) describe
+cómo incorporarlo al reactor y a CI. Los módulos previstos están en el
+[mapa de evolución](../docs/roadmap/README.md).

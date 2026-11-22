@@ -1,5 +1,9 @@
 package com.sanigest.company.domain.model;
 
+import com.sanigest.company.domain.enums.AuditOperation;
+import com.sanigest.company.domain.enums.AuditResult;
+import com.sanigest.company.domain.enums.CompanyRole;
+import com.sanigest.company.domain.enums.MembershipStatus;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -9,22 +13,10 @@ public record CompanyAuditEvent(
     UUID companyId,
     UUID actorId,
     UUID targetUserId,
-    Operation operation,
+    AuditOperation operation,
     Instant occurredAt,
-    Result result,
+    AuditResult result,
     CompanyRole previousRole,
     CompanyRole newRole,
     MembershipStatus previousStatus,
-    MembershipStatus newStatus) {
-
-  public enum Operation {
-    ROLE_CHANGED,
-    MEMBER_ACTIVATED,
-    MEMBER_REVOKED
-  }
-
-  public enum Result {
-    SUCCESS,
-    REJECTED
-  }
-}
+    MembershipStatus newStatus) {}

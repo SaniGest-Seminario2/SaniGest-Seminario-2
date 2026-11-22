@@ -22,17 +22,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-          cache-dependency-path: |
-            pom.xml
-            **/pom.xml
+      - uses: ./.github/actions/setup-maven
 
       - name: Validate format, static analysis and compilation
-        run: sh config/maven-build.sh -DskipTests compile
+        run: sh scripts/ci/maven-build.sh -DskipTests compile
 
   unit-tests:
     # Keep this name stable: it is a required status check in branch protection.
@@ -44,20 +37,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-          cache-dependency-path: |
-            pom.xml
-            **/pom.xml
+      - uses: ./.github/actions/setup-maven
 
       - name: Run unit tests
-        run: sh config/maven-build.sh -DskipITs test
+        run: sh scripts/ci/maven-build.sh -DskipITs test
 
       - name: Verify API Gateway against a local HTTP backend
-        run: sh config/maven-build.sh -pl services/api-gateway -am verify
+        run: sh scripts/ci/maven-build.sh -pl services/api-gateway -am verify
 
       - name: Publish unit and Gateway test reports
         if: always()
@@ -79,17 +65,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-          cache-dependency-path: |
-            pom.xml
-            **/pom.xml
+      - uses: ./.github/actions/setup-maven
 
       - name: Run unit tests with coverage
-        run: sh config/maven-build.sh -Pcoverage -DskipITs verify
+        run: sh scripts/ci/maven-build.sh -Pcoverage -DskipITs verify
 
       - name: Publish coverage reports
         if: always()

@@ -88,7 +88,9 @@ services:
   company-service:
     build:
       context: .
-      dockerfile: services/company-service/Dockerfile
+      dockerfile: infrastructure/docker/service.Dockerfile
+      args:
+        SERVICE: company-service
     image: sanigest/company-service:${SANIGEST_IMAGE_TAG:-local}
     profiles: [apps]
     environment:
@@ -134,7 +136,9 @@ services:
   identity-service:
     build:
       context: .
-      dockerfile: services/identity-service/Dockerfile
+      dockerfile: infrastructure/docker/service.Dockerfile
+      args:
+        SERVICE: identity-service
     image: sanigest/identity-service:${SANIGEST_IMAGE_TAG:-local}
     profiles: [apps]
     environment:
