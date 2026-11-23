@@ -13,6 +13,12 @@ permissions:
 
 env:
   SERVICE: ${{ inputs.service }}
+  MAVEN_CACHE_PATHS: |
+    pom.xml
+    libraries/common-security/pom.xml
+    libraries/common-company-access/pom.xml
+    services/${{ inputs.service }}/pom.xml
+    .github/workflows/reusable-service-ci.yml
 
 jobs:
   syntax:
@@ -25,11 +31,14 @@ jobs:
 
       - name: Set up Java 21 and Maven cache
         uses: ./.github/actions/setup-maven
+        with:
+          cache-dependency-path: ${{ env.MAVEN_CACHE_PATHS }}
 
-      - name: Validate Maven configuration, format, static analysis and compilation
+      # Resolve Failsafe in the same reactor, before the integration jobs restore the cache.
+      - name: Validate sources and resolve Failsafe dependencies
         run: >-
-          sh scripts/ci/run-stage.sh "$SERVICE" 'Configuration, static analysis and compilation'
-          sh scripts/ci/maven-build.sh -pl "services/$SERVICE" -am compile
+          sh scripts/ci/run-stage.sh "$SERVICE" 'Static analysis, compilation and Failsafe dependency resolution'
+          sh scripts/ci/maven-build.sh -e -pl "services/$SERVICE" -am -DskipTests -DskipITs test-compile failsafe:integration-test
 
   unit-tests:
     # This service-specific status check is kept independently of Code CI.
@@ -45,6 +54,8 @@ jobs:
 
       - name: Set up Java 21 and Maven cache
         uses: ./.github/actions/setup-maven
+        with:
+          cache-dependency-path: ${{ env.MAVEN_CACHE_PATHS }}
 
       - name: Run service unit tests
         id: tests
@@ -80,12 +91,14 @@ jobs:
 
       - name: Set up Java 21 and Maven cache
         uses: ./.github/actions/setup-maven
+        with:
+          cache-dependency-path: ${{ env.MAVEN_CACHE_PATHS }}
 
       - name: Run smoke integration tests
         id: tests
         run: >-
           sh scripts/ci/run-stage.sh "$SERVICE" 'Smoke tests'
-          sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true -pl "services/$SERVICE" -am -Psmoke verify
+          sh scripts/ci/maven-build.sh -e -Dspotless.skip=true -Dcheckstyle.skip=true -pl "services/$SERVICE" -am -Psmoke verify
 
       - name: Validate and summarize smoke reports
         if: ${{ !cancelled() && steps.tests.outcome != '' }}
@@ -115,12 +128,14 @@ jobs:
 
       - name: Set up Java 21 and Maven cache
         uses: ./.github/actions/setup-maven
+        with:
+          cache-dependency-path: ${{ env.MAVEN_CACHE_PATHS }}
 
       - name: Run regression integration tests
         id: tests
         run: >-
           sh scripts/ci/run-stage.sh "$SERVICE" 'Regression tests'
-          sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true -pl "services/$SERVICE" -am -Pregression verify
+          sh scripts/ci/maven-build.sh -e -Dspotless.skip=true -Dcheckstyle.skip=true -pl "services/$SERVICE" -am -Pregression verify
 
       - name: Validate and summarize regression reports
         if: ${{ !cancelled() && steps.tests.outcome != '' }}
