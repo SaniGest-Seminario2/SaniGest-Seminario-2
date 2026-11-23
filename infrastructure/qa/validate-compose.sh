@@ -8,7 +8,9 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 CONFIG_FILE=$(mktemp "${TMPDIR:-/tmp}/sanigest-compose.XXXXXX")
-trap 'rm -f "$CONFIG_FILE"' EXIT INT TERM
+trap 'rm -f "$CONFIG_FILE"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 cd "$PROJECT_ROOT"
 docker compose --env-file .env.example --profile infra --profile apps \

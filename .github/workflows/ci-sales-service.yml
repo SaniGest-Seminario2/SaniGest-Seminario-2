@@ -29,6 +29,7 @@ concurrency:
 
 jobs:
   verify:
+    # Service checks keep their own context. Code CI owns shared-library tests and coverage.
     uses: ./.github/workflows/reusable-service-ci.yml
     with:
       service: sales-service

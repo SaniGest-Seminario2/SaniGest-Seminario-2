@@ -1,10 +1,9 @@
 #!/bin/sh
-# Retry transient repository failures; preserve the final Maven exit status.
-attempt=1
-while :; do
-    mvn -B -U "$@" && exit 0
-    result=$?
-    [ "$attempt" -ge 3 ] && exit "$result"
-    sleep "$((attempt * 10))"
-    attempt=$((attempt + 1))
-done
+# Resolver can retry an HTTP transfer without restarting the Maven lifecycle.
+# Only connection interruptions supported by HTTP Client and HTTP 429/503 are retried.
+printf '%s\n' 'Maven retries only repository transfers. HTTP 429/503 retries log “Wait for” and the delay in milliseconds.'
+exec mvn -B -ntp \
+    -Daether.connector.http.retryHandler.count=2 \
+    -Daether.connector.http.retryHandler.serviceUnavailable=429,503 \
+    -Dorg.slf4j.simpleLogger.log.org.apache.http.impl.execchain.ServiceUnavailableRetryExec=trace \
+    "$@"

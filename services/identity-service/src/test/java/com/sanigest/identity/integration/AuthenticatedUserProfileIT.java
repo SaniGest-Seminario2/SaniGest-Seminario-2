@@ -27,6 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+@Tag("regression")
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AuthenticatedUserProfileIT {
@@ -76,13 +77,11 @@ class AuthenticatedUserProfileIT {
   }
 
   @Test
-  @Tag("regression")
   void rejectsAMissingJwt() throws Exception {
     assertThat(getProfile(null).statusCode()).isEqualTo(401);
   }
 
   @Test
-  @Tag("regression")
   void rejectsAnExpiredJwt() throws Exception {
     String expired =
         token(jwtEncoder, USER_ID, Instant.now().minusSeconds(120), Instant.now().minusSeconds(60));
@@ -91,7 +90,6 @@ class AuthenticatedUserProfileIT {
   }
 
   @Test
-  @Tag("regression")
   void rejectsAJwtWithAnInvalidSignature() throws Exception {
     var generator = KeyPairGenerator.getInstance("RSA");
     generator.initialize(2048);
@@ -106,7 +104,6 @@ class AuthenticatedUserProfileIT {
   }
 
   @Test
-  @Tag("regression")
   void ignoresAClientSuppliedUserIdAndReturnsOnlyTheJwtSubject() throws Exception {
     HttpResponse<String> response =
         getProfile(
@@ -133,7 +130,6 @@ class AuthenticatedUserProfileIT {
   }
 
   @Test
-  @Tag("regression")
   void internalAuthorizationUsesCurrentAccountAndOnlyTheJwtSubject() throws Exception {
     String token = token(jwtEncoder, USER_ID, validFrom(), validUntil());
     String path = "/internal/v1/account-authorization?userId=" + OTHER_USER_ID;
@@ -154,7 +150,6 @@ class AuthenticatedUserProfileIT {
   }
 
   @Test
-  @Tag("regression")
   void keepsAdvisorEligibilityClosedWithoutTechnicalConfiguration() throws Exception {
     String path = "/internal/v1/accounts/" + OTHER_USER_ID + "/advisor-eligibility";
     assertThat(get(path, null).statusCode()).isEqualTo(401);

@@ -32,7 +32,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-@Tag("smoke")
 @Testcontainers
 @ActiveProfiles("local")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -76,6 +75,7 @@ class IdentityRegistrationSmokeIT {
   }
 
   @Test
+  @Tag("smoke")
   @DisplayName("POST /api/v1/auth/register -> 201 and persists a BCrypt hash in PostgreSQL")
   void registersThroughRealHttpAndPersistsOnlyBcryptInPostgresql() throws Exception {
     Response response =
@@ -94,6 +94,7 @@ class IdentityRegistrationSmokeIT {
   }
 
   @Test
+  @Tag("smoke")
   @DisplayName("POST /api/v1/auth/register with invalid fields -> 400 validation problem")
   void returnsFieldLevelValidationProblemsOverRealHttp() throws Exception {
     Response response = register(registerPayload("invalid", "short", "Person"));
@@ -105,6 +106,7 @@ class IdentityRegistrationSmokeIT {
   }
 
   @Test
+  @Tag("smoke")
   @DisplayName("POST duplicate normalized email -> 409 and keeps one user")
   void returnsConflictForTheSameNormalizedEmailOverRealHttp() throws Exception {
     assertThat(register(registerPayload("person@example.com", VALID_PASSWORD, "First")).status())
@@ -119,6 +121,7 @@ class IdentityRegistrationSmokeIT {
   }
 
   @Test
+  @Tag("smoke")
   @DisplayName("Concurrent POST registrations -> exactly one 201 and one 409")
   void allowsOnlyOneWinnerForConcurrentRegistrations() {
     CompletableFuture<Response> first =
@@ -134,6 +137,7 @@ class IdentityRegistrationSmokeIT {
   }
 
   @Test
+  @Tag("smoke")
   @DisplayName("Real login -> JWT grants access to a protected route")
   void logsInAndAccessesAProtectedRouteOverRealHttp() throws Exception {
     assertThat(register(registerPayload("login@example.com", VALID_PASSWORD, "Login")).status())
@@ -155,6 +159,7 @@ class IdentityRegistrationSmokeIT {
   }
 
   @Test
+  @Tag("smoke")
   @DisplayName("Real JWT authentication -> GET /api/v1/auth/me returns the profile")
   void authenticatesAndReturnsTheProfileOverRealHttp() throws Exception {
     assertThat(register(registerPayload("me@example.com", VALID_PASSWORD, "My Profile")).status())
@@ -180,6 +185,7 @@ class IdentityRegistrationSmokeIT {
   }
 
   @Test
+  @Tag("smoke")
   void rotatesRefreshTokensAndRevokesTheSessionOnLogoutOverHttp() throws Exception {
     String email = "session@example.com";
     assertThat(register(registerPayload(email, VALID_PASSWORD, "Session")).status()).isEqualTo(201);

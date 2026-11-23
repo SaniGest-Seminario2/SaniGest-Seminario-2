@@ -10,6 +10,10 @@
         <relativePath>../../pom.xml</relativePath>
     </parent>
     <artifactId>common-security</artifactId>
+    <properties>
+        <ci.skipLibraryUnitTests>true</ci.skipLibraryUnitTests>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.security</groupId>

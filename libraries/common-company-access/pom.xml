@@ -10,6 +10,10 @@
         <relativePath>../../pom.xml</relativePath>
     </parent>
     <artifactId>common-company-access</artifactId>
+    <properties>
+        <ci.skipLibraryUnitTests>true</ci.skipLibraryUnitTests>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.sanigest</groupId>
