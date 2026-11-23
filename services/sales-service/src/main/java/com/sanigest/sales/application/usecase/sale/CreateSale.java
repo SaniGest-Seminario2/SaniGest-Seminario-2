@@ -36,7 +36,12 @@ public class CreateSale {
 
   public Sale execute(CreateSaleCommand command) {
     UUID companyId = authorization.requireMembership(SALES_WRITE);
-    LocalDate date = validate(command);
+    validate(command);
+    return sales.register(prepare(command, companyId));
+  }
+
+  Sale prepare(CreateSaleCommand command, UUID companyId) {
+    LocalDate date = effectiveDate(command);
     var client = customer(command.clientId(), companyId);
 
     UUID saleId = UUID.randomUUID();
@@ -56,7 +61,7 @@ public class CreateSale {
     } catch (IllegalArgumentException invalid) {
       throw new SaleAmountNotRepresentable(invalid);
     }
-    return sales.register(sale);
+    return sale;
   }
 
   private CatalogCustomerSnapshot customer(UUID clientId, UUID companyId) {
@@ -94,7 +99,7 @@ public class CreateSale {
     }
   }
 
-  private LocalDate validate(CreateSaleCommand command) {
+  static void validate(CreateSaleCommand command) {
     if (command == null
         || command.clientId() == null
         || command.mode() == null
@@ -110,6 +115,16 @@ public class CreateSale {
         }
         SaleLine.validateQuantity(line.quantity());
       }
+      if (command.saleDate() != null) {
+        Sale.validateDate(command.saleDate());
+      }
+    } catch (IllegalArgumentException invalid) {
+      throw new InvalidSaleRequest();
+    }
+  }
+
+  private LocalDate effectiveDate(CreateSaleCommand command) {
+    try {
       return Sale.validateDate(
           command.saleDate() == null ? LocalDate.now(clock) : command.saleDate());
     } catch (IllegalArgumentException invalid) {
