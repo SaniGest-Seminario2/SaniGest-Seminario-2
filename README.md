@@ -89,9 +89,14 @@ mvn -B verify
 
 Los checks se enlazan a la fase Maven `validate`, por lo que también se ejecutan
 antes de `compile`, `test`, `package` y `verify`. Las reglas viven en
-`config/checkstyle`. El control de imports evita que el dominio dependa de
-Spring, HTTP o persistencia y que los casos de uso importen adaptadores
-concretos.
+`config/checkstyle`. En el código de producción, el control de imports evita
+que el dominio dependa de Spring, HTTP o persistencia, que la capa de
+aplicación importe adaptadores concretos y que los controladores accedan a
+repositorios. Catalog ejecuta también reglas ArchUnit en Surefire para
+verificar estas dependencias en el bytecode y mantener independientes sus
+casos de uso por funcionalidad. Maven Enforcer impide que servicios o
+librerías declaren dependencias directas o transitivas hacia artefactos
+ejecutables del reactor, conforme al ADR-001.
 
 Una excepción requiere modificar `config/checkstyle/suppressions.xml` mediante
 pull request. Debe ser específica para el archivo y la regla, incluir el ticket

@@ -3,11 +3,11 @@ package com.sanigest.company.api.controller;
 import static com.sanigest.company.api.controller.CompanyActor.authenticatedUserId;
 
 import com.sanigest.company.api.dto.AdvisorAccessRequest;
+import com.sanigest.company.api.dto.AdvisorAccessResponse;
 import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.advisor.GetAdvisorAccessUseCase;
 import com.sanigest.company.application.usecase.advisor.PutAdvisorAccessUseCase;
 import com.sanigest.company.application.usecase.advisor.RevokeAdvisorAccessUseCase;
-import com.sanigest.company.domain.model.AdvisorAccess;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -44,26 +44,30 @@ class AdvisorAccessController {
   }
 
   @GetMapping
-  ResponseEntity<List<AdvisorAccess>> list(@AuthenticationPrincipal Jwt jwt) {
+  ResponseEntity<List<AdvisorAccessResponse>> list(@AuthenticationPrincipal Jwt jwt) {
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
-        .body(getAccess.get(authenticatedUserId(jwt, regularAccount)));
+        .body(
+            getAccess.get(authenticatedUserId(jwt, regularAccount)).stream()
+                .map(AdvisorAccessResponse::from)
+                .toList());
   }
 
   @PutMapping
-  ResponseEntity<AdvisorAccess> put(
+  ResponseEntity<AdvisorAccessResponse> put(
       @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody AdvisorAccessRequest request) {
     UUID actor = authenticatedUserId(jwt, regularAccount);
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .body(
-            putAccess.put(
-                actor,
-                request.advisorId(),
-                request.revision(),
-                request.permissions().stream()
-                    .map(AdvisorAccessRequest.Permission::toDomain)
-                    .toList()));
+            AdvisorAccessResponse.from(
+                putAccess.put(
+                    actor,
+                    request.advisorId(),
+                    request.revision(),
+                    request.permissions().stream()
+                        .map(AdvisorAccessRequest.Permission::toDomain)
+                        .toList())));
   }
 
   @DeleteMapping

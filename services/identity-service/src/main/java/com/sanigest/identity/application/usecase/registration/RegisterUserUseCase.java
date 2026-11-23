@@ -1,6 +1,7 @@
 package com.sanigest.identity.application.usecase.registration;
 
 import com.sanigest.identity.application.dto.RegisterUserCommand;
+import com.sanigest.identity.application.dto.RegisteredUser;
 import com.sanigest.identity.application.exception.DuplicateEmailException;
 import com.sanigest.identity.application.exception.DuplicateUserEmailException;
 import com.sanigest.identity.application.port.out.persistence.UserRepository;
@@ -44,7 +45,7 @@ public class RegisterUserUseCase {
   }
 
   @Transactional
-  public User register(RegisterUserCommand command) {
+  public RegisteredUser register(RegisterUserCommand command) {
     Objects.requireNonNull(command, "command must not be null");
     EmailAddress email = EmailAddress.of(command.email());
     validatePassword(command.password());
@@ -57,7 +58,8 @@ public class RegisterUserUseCase {
         User.register(
             idSupplier.get(), email, passwordHasher.hash(command.password()), command.name(), now);
     try {
-      return userRepository.save(user);
+      User saved = userRepository.save(user);
+      return new RegisteredUser(saved.id(), saved.email().value());
     } catch (DuplicateUserEmailException exception) {
       throw new DuplicateEmailException();
     }
