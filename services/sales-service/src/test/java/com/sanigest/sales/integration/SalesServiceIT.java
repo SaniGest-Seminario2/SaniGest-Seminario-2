@@ -42,6 +42,7 @@ import java.security.KeyPairGenerator;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
@@ -189,7 +190,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -238,6 +239,9 @@ class SalesServiceIT {
             "sales.mode:character varying:NO",
             "sales.status:character varying:NO",
             "sales.total:numeric:NO",
+            "sales.cancelled_by:uuid:YES",
+            "sales.cancelled_at:timestamp with time zone:YES",
+            "sales.cancel_reason:character varying:YES",
             "sale_lines.id:uuid:NO",
             "sale_lines.position:integer:NO",
             "sale_number_sequences.company_id:uuid:NO",
@@ -288,8 +292,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(3);
-    assertThat(history.getLast()).containsEntry("version", "3").containsEntry("success", true);
+    assertThat(history).hasSize(4);
+    assertThat(history.getLast()).containsEntry("version", "4").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -339,8 +343,28 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("2").load().migrate().migrationsExecuted)
         .isEqualTo(1);
+    assertThat(
+            Flyway.configure().dataSource(upgrade).target("3").load().migrate().migrationsExecuted)
+        .isEqualTo(1);
+    UUID legacyCancellation = UUID.randomUUID();
+    legacy.update(
+        """
+        INSERT INTO sales.sales (id, company_id, client_id, client_name, sale_date, mode, status, total)
+        SELECT ?, company_id, client_id, client_name, sale_date, mode, 'CANCELLED', total
+          FROM sales.sales WHERE id = ?
+        """,
+        legacyCancellation,
+        saleId);
     assertThat(current.migrate().migrationsExecuted).isEqualTo(1);
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("3");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("4");
+    assertThat(
+            legacy.queryForMap(
+                "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
+                legacyCancellation))
+        .containsEntry("status", "CANCELLED")
+        .containsEntry("cancelled_by", null)
+        .containsEntry("cancelled_at", null)
+        .containsEntry("cancel_reason", null);
     current.validate();
     assertThat(
             legacy.queryForMap(
@@ -395,6 +419,7 @@ class SalesServiceIT {
             SaleStatus.REGISTERED,
             new BigDecimal("15.01"),
             List.of(first, second),
+            null,
             null);
 
     sales.insert(original);
@@ -420,6 +445,7 @@ class SalesServiceIT {
             SaleStatus.REGISTERED,
             new BigDecimal("20"),
             List.of(updatedSnapshot),
+            null,
             null));
 
     Sale saved = sales.findByCompanyIdAndId(companyId, saleId).orElseThrow();
@@ -490,6 +516,10 @@ class SalesServiceIT {
             () -> jdbc.update("UPDATE sales.sales SET status = 'PAID' WHERE id = ?", saleId))
         .isInstanceOf(DataIntegrityViolationException.class)
         .hasMessageContaining("sales_status_allowed");
+    assertThatThrownBy(
+            () -> jdbc.update("UPDATE sales.sales SET status = 'CANCELLED' WHERE id = ?", saleId))
+        .isInstanceOf(DataIntegrityViolationException.class)
+        .hasMessageContaining("sales_cancellation_metadata");
     assertThatThrownBy(
             () -> jdbc.update("UPDATE sales.sales SET mode = 'OTHER' WHERE id = ?", saleId))
         .isInstanceOf(DataIntegrityViolationException.class)
@@ -1073,12 +1103,228 @@ class SalesServiceIT {
     }
   }
 
+  @Test
+  @Tag("smoke")
+  void readsHistoricalDetailCancelsAndReplaysThroughHttp() throws Exception {
+    var fixture = fixture();
+    fixture.membership("OWNER", false);
+    try (var http = HttpClient.newHttpClient()) {
+      String registrationKey = UUID.randomUUID().toString();
+      var creation = post(http, fixture, fixture.bearer(), fixture.body(), registrationKey);
+      assertThat(creation.statusCode()).withFailMessage(creation.body()).isEqualTo(201);
+      var registered = new ObjectMapper().readTree(creation.body());
+      String id = registered.path("id").asString();
+      fixture.item(fixture.productPath(), fixture.product(), "PRODUCT", "9999.00", false);
+      fixture.customer("INACTIVE");
+      fixture.membership("VIEWER", false, "READ");
+
+      assertThat(page(getSales(http, fixture.bearer(), "/" + id))).isEqualTo(registered);
+      assertThat(registered.has("payments")).isFalse();
+      assertThat(registered.path("lines").size()).isEqualTo(2);
+      assertThat(registered.path("total").asString()).isEqualTo("12601.50");
+
+      fixture.membership("OPERATOR", true);
+      assertThat(cancel(http, fixture.bearer(), id, "{\"reason\":\"Duplicada\"}").statusCode())
+          .isEqualTo(403);
+
+      fixture.membership("OWNER", false);
+      var cancelled = page(cancel(http, fixture.bearer(), id, "{\"reason\":\"  Duplicada  \"}"));
+      assertThat(cancelled.path("status").asString()).isEqualTo("CANCELLED");
+      assertThat(cancelled.path("cancellation").path("cancelledBy").asString())
+          .isEqualTo(fixture.user().toString());
+      assertThat(cancelled.path("cancellation").path("cancelReason").asString())
+          .isEqualTo("Duplicada");
+      Instant cancelledAt =
+          Instant.parse(cancelled.path("cancellation").path("cancelledAt").asString());
+      for (String field :
+          List.of("id", "code", "client", "lines", "total", "currency", "mode", "saleDate")) {
+        assertThat(cancelled.path(field)).isEqualTo(registered.path(field));
+      }
+
+      var admin = fixture(UUID.randomUUID(), fixture.company(), "REGULAR");
+      admin.membership("ADMIN", false);
+      assertThat(page(cancel(http, admin.bearer(), id, "{\"reason\":\"Otro motivo\"}")))
+          .isEqualTo(cancelled);
+
+      fixture.membership("VIEWER", false, "READ");
+      assertThat(page(getSales(http, fixture.bearer(), "/" + id))).isEqualTo(cancelled);
+      assertThat(listIds(page(getSales(http, fixture.bearer(), "?status=CANCELLED"))))
+          .containsExactly(id);
+      assertThat(
+              sales
+                  .findByCompanyIdAndId(fixture.company(), UUID.fromString(id))
+                  .orElseThrow()
+                  .cancellation()
+                  .cancelledAt())
+          .isEqualTo(cancelledAt);
+      fixture.membership("OWNER", false);
+      var replay = post(http, fixture, fixture.bearer(), fixture.body(), registrationKey);
+      assertThat(replay.statusCode()).isEqualTo(201);
+      assertThat(replay.body()).isEqualTo(creation.body());
+      assertThat(countSales(fixture.company())).isEqualTo(1);
+      CATALOG.verify(1, WireMock.getRequestedFor(WireMock.urlPathEqualTo(fixture.productPath())));
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void serializesTwoConcurrentCancellationsAndKeepsTheWinner() throws Exception {
+    var owner = fixture();
+    var admin = fixture(UUID.randomUUID(), owner.company(), "REGULAR");
+    owner.membership("OWNER", false);
+    admin.membership("ADMIN", false);
+    try (var http = HttpClient.newHttpClient();
+        var executor = Executors.newFixedThreadPool(2)) {
+      String id = registerForLifecycle(http, owner).path("id").asString();
+      var start = new CyclicBarrier(2);
+      var first =
+          executor.submit(() -> {
+            start.await(5, TimeUnit.SECONDS);
+            return cancel(http, owner.bearer(), id, "{\"reason\":\"Primera\"}");
+          });
+      var second =
+          executor.submit(() -> {
+            start.await(5, TimeUnit.SECONDS);
+            return cancel(http, admin.bearer(), id, "{\"reason\":\"Segunda\"}");
+          });
+      var result = page(first.get(10, TimeUnit.SECONDS));
+      assertThat(page(second.get(10, TimeUnit.SECONDS))).isEqualTo(result);
+      var details =
+          sales
+              .findByCompanyIdAndId(owner.company(), UUID.fromString(id))
+              .orElseThrow()
+              .cancellation();
+      assertThat(details.cancelReason())
+          .isEqualTo(details.cancelledBy().equals(owner.user()) ? "Primera" : "Segunda");
+      assertThat(details.cancelledBy()).isIn(owner.user(), admin.user());
+      assertThat(countSales(owner.company())).isEqualTo(1);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void lifecycleRejectsInvalidInputAndHidesForeignSales() throws Exception {
+    var owner = fixture();
+    var other = fixture();
+    var advisor = fixture("ADVISOR");
+    owner.membership("OWNER", false);
+    other.membership("ADMIN", false);
+    advisor.companyReply(403);
+    try (var http = HttpClient.newHttpClient()) {
+      String id = registerForLifecycle(http, owner).path("id").asString();
+      String otherId = registerForLifecycle(http, other).path("id").asString();
+      String reason = "{\"reason\":\"Duplicada\"}";
+      assertThat(cancel(http, null, id, reason).statusCode()).isEqualTo(401);
+      assertThat(cancel(http, "invalid", id, reason).statusCode()).isEqualTo(401);
+      assertThat(getSales(http, null, "/" + id).statusCode()).isEqualTo(401);
+      assertThat(getSales(http, "invalid", "/" + id).statusCode()).isEqualTo(401);
+      assertThat(cancel(http, advisor.bearer(), id, reason).statusCode()).isEqualTo(403);
+
+      var foreign = cancel(http, other.bearer(), id, reason);
+      assertThat(foreign.statusCode()).isEqualTo(404);
+      assertThat(foreign.body()).contains("SALE_NOT_FOUND");
+      assertThat(cancel(http, other.bearer(), UUID.randomUUID().toString(), reason).statusCode())
+          .isEqualTo(404);
+      assertThat(cancel(http, owner.bearer(), "1-1-1-1-1", reason).statusCode()).isEqualTo(400);
+      for (String invalid :
+          List.of(
+              "{}",
+              "{\"reason\":null}",
+              "{\"reason\":17}",
+              "{\"reason\":\"  \"}",
+              "{\"reason\":\"x\",\"actorId\":\"forged\"}",
+              "{\"reason\":\"x\",\"companyId\":\"forged\"}",
+              "{\"reason\":\"x\",\"status\":\"REGISTERED\"}",
+              "{\"reason\":\"x\",\"cancelledAt\":\"2026-11-23T12:00:00Z\"}",
+              "{\"reason\":\"" + "x".repeat(501) + "\"}")) {
+        var response = cancel(http, owner.bearer(), id, invalid);
+        assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(400);
+        assertThat(response.body()).contains("INVALID_REQUEST");
+      }
+      owner.companyReply(503);
+      assertThat(cancel(http, owner.bearer(), id, reason).statusCode()).isEqualTo(503);
+
+      other.membership("VIEWER", false, "READ");
+      assertThat(
+              getSales(http, other.bearer(), "/" + id + "?companyId=" + owner.company())
+                  .statusCode())
+          .isEqualTo(404);
+      assertThat(getSales(http, other.bearer(), "/" + UUID.randomUUID()).statusCode())
+          .isEqualTo(404);
+      assertThat(getSales(http, other.bearer(), "/invalid").statusCode()).isEqualTo(400);
+      assertThat(page(getSales(http, other.bearer(), "/" + otherId)).path("status").asString())
+          .isEqualTo("REGISTERED");
+      assertThat(getSales(http, owner.bearer(), "/" + id).statusCode()).isEqualTo(503);
+      assertThat(
+              sales
+                  .findByCompanyIdAndId(owner.company(), UUID.fromString(id))
+                  .orElseThrow()
+                  .status())
+          .isEqualTo(SaleStatus.REGISTERED);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void rejectsAnUpdateThatAffectsNoRowsAndLeavesTheSaleRegistered() throws Exception {
+    var owner = fixture();
+    owner.membership("OWNER", false);
+    try (var http = HttpClient.newHttpClient()) {
+      String id = registerForLifecycle(http, owner).path("id").asString();
+      jdbc.execute(
+          """
+          CREATE FUNCTION sales.test_skip_sale_update() RETURNS trigger LANGUAGE plpgsql AS
+          $$ BEGIN RETURN NULL; END; $$
+          """);
+      try {
+        jdbc.execute(
+            """
+            CREATE TRIGGER test_skip_sale_update BEFORE UPDATE ON sales.sales
+            FOR EACH ROW WHEN (OLD.id = '%s') EXECUTE FUNCTION sales.test_skip_sale_update()
+            """
+                .formatted(id));
+        var response = cancel(http, owner.bearer(), id, "{\"reason\":\"Duplicada\"}");
+        assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(409);
+        assertThat(response.body()).contains("SALE_CANCELLATION_CONFLICT");
+
+        var unchanged =
+            sales.findByCompanyIdAndId(owner.company(), UUID.fromString(id)).orElseThrow();
+        assertThat(unchanged.status()).isEqualTo(SaleStatus.REGISTERED);
+        assertThat(unchanged.cancellation()).isNull();
+      } finally {
+        jdbc.execute("DROP TRIGGER IF EXISTS test_skip_sale_update ON sales.sales");
+        jdbc.execute("DROP FUNCTION sales.test_skip_sale_update()");
+      }
+    }
+  }
+
+  private JsonNode registerForLifecycle(HttpClient http, Fixture fixture) throws Exception {
+    var response = post(http, fixture, fixture.bearer(), fixture.body());
+    assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(201);
+    return new ObjectMapper().readTree(response.body());
+  }
+
+  private HttpResponse<String> cancel(HttpClient http, String bearer, String id, String body)
+      throws Exception {
+    var request =
+        HttpRequest.newBuilder(
+                URI.create("http://localhost:" + port + "/api/v1/sales/" + id + "/cancel"))
+            .timeout(Duration.ofSeconds(5))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body));
+    if (bearer != null) {
+      request.header("Authorization", "Bearer " + bearer);
+    }
+    return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
   private void insertListedSale(
       Fixture fixture, UUID id, String name, String date, String status, String code) {
     jdbc.update(
         """
-        INSERT INTO sales.sales (id, company_id, client_id, client_name, sale_date, mode, status, total, code)
-        VALUES (?, ?, ?, ?, ?, 'CREDIT', ?, 123.40, ?)
+        INSERT INTO sales.sales (id, company_id, client_id, client_name, sale_date, mode,
+          status, total, code, cancelled_by, cancelled_at, cancel_reason)
+        VALUES (?, ?, ?, ?, ?, 'CREDIT', ?, 123.40, ?, ?, ?, ?)
         """,
         id,
         fixture.company(),
@@ -1086,7 +1332,10 @@ class SalesServiceIT {
         name,
         LocalDate.parse(date),
         status,
-        code);
+        code,
+        "CANCELLED".equals(status) ? fixture.user() : null,
+        "CANCELLED".equals(status) ? OffsetDateTime.parse("2026-11-23T12:00:00Z") : null,
+        "CANCELLED".equals(status) ? "Duplicada" : null);
   }
 
   private HttpResponse<String> getSales(HttpClient http, String bearer, String query)
@@ -1334,6 +1583,7 @@ class SalesServiceIT {
         SaleStatus.REGISTERED,
         BigDecimal.ONE,
         List.of(line),
+        null,
         null);
   }
 }

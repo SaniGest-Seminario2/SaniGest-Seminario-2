@@ -2,7 +2,8 @@
 
 Sales es dueño de las ventas y sus líneas en PostgreSQL. S2-331 entrega el
 modelo, la persistencia y los endpoints de salud. S2-332 incorpora el registro
-HTTP de ventas. S2-333 incorpora el listado paginado.
+HTTP de ventas. S2-333 incorpora el listado paginado. S2-334 incorpora el detalle
+y la cancelación.
 Consulta el [contrato funcional v0.7](../../docs/SaniGest_T1001_Contrato_Funcional_v0.7.md)
 y el [ADR-001](../../docs/adr/ADR-001-propiedad-datos-comunicacion-servicios.md).
 
@@ -24,7 +25,7 @@ como snapshots de la operación.
 La fecha comercial es `LocalDate` y se guarda como `DATE`. La modalidad es
 `CASH` o `CREDIT`. El ciclo de vida inicial usa `REGISTERED` y `CANCELLED`.
 Los estados de cobro del contrato se derivarán de cobros verificados. La
-validación de elegibilidad y la auditoría de cancelación corresponden a S2-334.
+cancelación registra actor, fecha y motivo en la venta.
 
 Los precios, subtotales y totales son `BigDecimal` en DOP con dos decimales,
 hasta `99999999999999999.99`. La cantidad positiva admite hasta tres decimales
@@ -66,7 +67,7 @@ java -jar services/sales-service/target/sales-service-0.1.0-SNAPSHOT.jar --sprin
 
 La salud y sus sondas `liveness` y `readiness` son públicas. La respuesta muestra
 el estado y, en la ruta raíz, los nombres de las sondas. Readiness comprueba
-PostgreSQL. El registro y el listado de ventas exigen JWT. Las demás rutas
+PostgreSQL. Las rutas de ventas exigen JWT. Las demás rutas
 funcionales se deniegan por defecto. La seguridad reutiliza `common-security` para verificar firma, issuer,
 audience y expiración.
 
@@ -80,7 +81,7 @@ mvn -B -pl services/sales-service -am -Pregression verify
 ```
 
 El perfil de pruebas usa PostgreSQL 17 en Testcontainers y un puerto HTTP
-dinámico. V1 y V2 se validan desde una base limpia y se ejecuta Flyway por segunda
+dinámico. V1 a V4 se validan desde una base limpia y se ejecuta Flyway por segunda
 vez para comprobar el historial, checksum y ausencia de migraciones pendientes.
 
 Finance recibirá eventos financieros al incorporar cobros, mediante outbox y
@@ -107,8 +108,7 @@ en la resolución de la membresía.
   usa `WRITE` y cubre registro.
 - `SALES_CANCEL` consulta la membresía con `WRITE` y exige el rol vigente
   OWNER o ADMIN. El alcance genérico WRITE y las concesiones de OPERATOR
-  carecen de efecto para cancelar. La elegibilidad de la venta, el motivo y
-  la auditoría corresponden a S2-334.
+  carecen de efecto para cancelar.
 - ADVISOR usa exclusivamente el método delegado con un UUID explícito. Company
   verifica en Identity la elegibilidad actual y comprueba empresa activa,
   alcance exacto y revocación de la concesión. El modelo vigente de Company
@@ -141,16 +141,16 @@ la configuración local y difiere el tráfico remoto hasta la primera decisión.
 | `SALES_COMPANY_ACCESS_CONNECT_TIMEOUT` | `500ms` por defecto. |
 | `SALES_COMPANY_ACCESS_RESPONSE_TIMEOUT` | `2s` por defecto. |
 
-### Rutas previstas y aplicación del permiso
+### Rutas y permisos
 
-| Ruta prevista | Permiso | Ticket |
+| Ruta | Permiso | Ticket |
 | --- | --- | --- |
 | POST /api/v1/sales | SALES_WRITE | S2-332 |
 | GET /api/v1/sales | SALES_READ | S2-333 |
 | GET /api/v1/sales/{id} | SALES_READ | S2-334 |
 | POST /api/v1/sales/{id}/cancel | SALES_CANCEL | S2-334 |
 
-Sales expone salud, registro y listado de ventas. El filtro deniega las demás rutas funcionales.
+Sales expone salud, registro, listado, detalle y cancelación.
 Al implementar cada ruta, exigir autenticación en el filtro y en el método
 del bean Spring que sirve de entrada al caso de uso, con
 `@PreAuthorize("isAuthenticated()")`. La regla ArchUnit vigente mantiene
@@ -168,7 +168,7 @@ a través del proxy Spring para activar Method Security.
 claves temporales y WireMock para verificar el protocolo, los fallos, las
 revocaciones, la invocación mediante proxy y la denegación de rutas. La
 regresión con PostgreSQL verifica la consulta JPA por empresa e identificador.
-El recorrido HTTP de ventas quedará cubierto con S2-332 y S2-334.
+El recorrido HTTP cubre registro, listado, detalle y cancelación.
 
 ## Integración con Catalog
 
@@ -277,6 +277,48 @@ códigos pueden tener `code: null`.
 El filtro por `PENDING`, `PARTIALLY_PAID` y `PAID` queda pendiente de
 los cobros verificados y de su proyección de estado. La modalidad solo
 identifica si la venta se registró como `CASH` o `CREDIT`.
+
+### Detalle y cancelación (S2-334)
+
+`GET /api/v1/sales/{id}` devuelve los campos del registro con el cliente
+histórico, las líneas en el orden guardado y los importes exactos en DOP.
+Las líneas incluyen `id`, `catalogItemId`, `itemName`, `itemDescription`,
+`unitPrice`, `quantity` y `subtotal`. El campo `cancellation` aparece
+cuando hay metadatos persistidos.
+
+`POST /api/v1/sales/{id}/cancel` recibe un UUID y un objeto JSON como
+`{"reason":"Venta registrada por duplicado"}`. El motivo, tras aplicar
+`strip()`, debe contener entre 1 y 500 unidades UTF-16. Una petición válida
+devuelve 200 con el detalle para una cancelación nueva o repetida. La primera
+cancelación conserva sus valores `cancelledBy`, `cancelledAt` (UTC) y
+`cancelReason`. La operación usa como clave natural la empresa autorizada y
+el UUID de la venta, sin header de idempotencia.
+
+El adaptador PostgreSQL adquiere `FOR UPDATE` sobre la fila de la venta y carga
+el agregado dentro de la misma transacción. La actualización exige estado
+`REGISTERED` y verifica que cambió exactamente una fila. Una actualización
+inesperadamente rechazada devuelve 409. V4 preserva las filas históricas
+`CANCELLED` que carecían de metadatos y exige los tres campos para nuevas
+cancelaciones.
+
+#### Contrato con cuentas por cobrar y abonos
+
+El esquema actual de Sales permite registrar ventas y carece de operaciones
+para persistir cobros o reversiones. El detalle omite `payments`. Ambos modos
+pueden cancelarse en el modelo actual.
+
+Antes de habilitar S2-339, la cancelación y el registro de abonos deben tomar
+el mismo bloqueo de la fila `sales.sales`, por `(company_id, id)`, dentro de
+su transacción local, antes de modificar cuentas o cobros. Bajo ese bloqueo,
+cancelación debe comprobar cobros efectivos en la persistencia autoritativa
+de Sales, incluidas las reversiones que estén soportadas, y devolver 409 si
+queda algún cobro efectivo, parcial o total. El registro de abonos debe
+rechazar una venta `CANCELLED` bajo el mismo bloqueo. Las operaciones sobre
+cuentas deben adquirir sus bloqueos después del de la venta. S2-337 también
+debe coordinar el estado de la cuenta cancelada en esa transacción para que
+la venta deje de figurar como pendiente de cobro. S2-340 podrá exponer los
+cobros vinculados desde Sales. S2-341 podrá registrar la transición con el
+actor, fecha y motivo persistidos.
 
 ### Idempotencia de creación (S2-381)
 

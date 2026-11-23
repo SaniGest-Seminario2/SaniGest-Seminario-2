@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.enums.SaleStatus;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,6 +51,7 @@ class SaleTest {
                 SaleStatus.REGISTERED,
                 BigDecimal.ONE,
                 lines,
+                null,
                 null));
     assertThatNullPointerException()
         .isThrownBy(() ->
@@ -63,6 +65,7 @@ class SaleTest {
                 SaleStatus.REGISTERED,
                 BigDecimal.ONE,
                 lines,
+                null,
                 null));
     assertThatNullPointerException()
         .isThrownBy(() ->
@@ -76,6 +79,7 @@ class SaleTest {
                 SaleStatus.REGISTERED,
                 BigDecimal.ONE,
                 lines,
+                null,
                 null));
     assertThatNullPointerException()
         .isThrownBy(() ->
@@ -89,6 +93,7 @@ class SaleTest {
                 SaleStatus.REGISTERED,
                 BigDecimal.ONE,
                 lines,
+                null,
                 null));
     assertThatNullPointerException()
         .isThrownBy(() ->
@@ -102,6 +107,7 @@ class SaleTest {
                 SaleStatus.REGISTERED,
                 BigDecimal.ONE,
                 lines,
+                null,
                 null));
     assertThatNullPointerException()
         .isThrownBy(() ->
@@ -115,7 +121,13 @@ class SaleTest {
                 null,
                 BigDecimal.ONE,
                 lines,
+                null,
                 null));
+  }
+
+  @Test
+  void rejectsDatesOutsideTheSupportedRange() {
+    List<SaleLine> lines = List.of(line(id, "1"));
     assertThatIllegalArgumentException()
         .isThrownBy(() ->
             new Sale(
@@ -128,6 +140,7 @@ class SaleTest {
                 SaleStatus.REGISTERED,
                 BigDecimal.ONE,
                 lines,
+                null,
                 null));
   }
 
@@ -149,6 +162,7 @@ class SaleTest {
                 SaleStatus.REGISTERED,
                 null,
                 lines,
+                null,
                 null));
     List<SaleLine> overflowing =
         List.of(line(id, "50000000000000000"), line(id, "50000000000000000"));
@@ -166,6 +180,48 @@ class SaleTest {
         .isThrownBy(() -> sale("1", List.of(line(UUID.randomUUID(), "1"))));
   }
 
+  @Test
+  void cancelsOnceAndPreservesTheHistoricalSale() {
+    Sale original = sale("12.50", List.of(line(id, "12.50"))).withCode("V-2026-001");
+    var details = new SaleCancellation(UUID.randomUUID(), Instant.EPOCH, "  Duplicada  ");
+
+    Sale cancelled = original.cancel(details);
+
+    assertThat(original.status()).isEqualTo(SaleStatus.REGISTERED);
+    assertThat(cancelled.status()).isEqualTo(SaleStatus.CANCELLED);
+    assertThat(cancelled.cancellation().cancelReason()).isEqualTo("Duplicada");
+    assertThat(cancelled)
+        .usingRecursiveComparison()
+        .ignoringFields("status", "cancellation")
+        .isEqualTo(original);
+    assertThat(
+            cancelled.cancel(
+                new SaleCancellation(
+                    UUID.randomUUID(), Instant.EPOCH.plusSeconds(1), "Otro motivo")))
+        .isSameAs(cancelled);
+  }
+
+  @Test
+  void rejectsCancellationMetadataOnARegisteredSale() {
+    var original = sale("1", List.of(line(id, "1")));
+    var details = new SaleCancellation(UUID.randomUUID(), Instant.EPOCH, "Duplicada");
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() ->
+            new Sale(
+                id,
+                companyId,
+                clientId,
+                original.clientName(),
+                saleDate,
+                original.mode(),
+                SaleStatus.REGISTERED,
+                original.total(),
+                original.lines(),
+                original.code(),
+                details));
+  }
+
   private Sale sale(String total, List<SaleLine> lines) {
     return new Sale(
         id,
@@ -177,6 +233,7 @@ class SaleTest {
         SaleStatus.REGISTERED,
         new BigDecimal(total),
         lines,
+        null,
         null);
   }
 

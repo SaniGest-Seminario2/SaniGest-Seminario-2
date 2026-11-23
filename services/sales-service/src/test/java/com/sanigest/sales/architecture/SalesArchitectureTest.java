@@ -147,6 +147,13 @@ class SalesArchitectureTest {
             "com.sanigest.expense..",
             "com.sanigest.finance..")
         .check(PRODUCTION);
+    noClasses()
+        .that()
+        .resideOutsideOfPackage("..sales.infrastructure.persistence.jpa..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAPackage("..sales.infrastructure.persistence.jpa..")
+        .check(PRODUCTION);
     classes()
         .that()
         .areAnnotatedWith(Entity.class)
