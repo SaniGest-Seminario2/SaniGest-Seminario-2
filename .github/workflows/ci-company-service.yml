@@ -3,16 +3,6 @@ name: Company Service CI
 on:
   push:
     branches: [main]
-    paths:
-      - "services/company-service/**"
-      - "libraries/common-security/**"
-      - "libraries/common-company-access/**"
-      - "pom.xml"
-      - "config/**"
-      - "scripts/ci/**"
-      - ".github/actions/setup-maven/**"
-      - ".github/workflows/reusable-service-ci.yml"
-      - ".github/workflows/ci-company-service.yml"
   pull_request:
     branches: [main]
     paths:

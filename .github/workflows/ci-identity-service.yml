@@ -3,15 +3,6 @@ name: Identity Service CI
 on:
   push:
     branches: [main]
-    paths:
-      - "services/identity-service/**"
-      - "libraries/common-security/**"
-      - "pom.xml"
-      - "config/**"
-      - "scripts/ci/**"
-      - ".github/actions/setup-maven/**"
-      - ".github/workflows/reusable-service-ci.yml"
-      - ".github/workflows/ci-identity-service.yml"
   pull_request:
     branches: [main]
     paths:
