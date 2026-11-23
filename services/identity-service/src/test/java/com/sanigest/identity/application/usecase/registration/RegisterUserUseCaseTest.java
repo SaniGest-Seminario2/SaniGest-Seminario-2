@@ -48,10 +48,15 @@ class RegisterUserUseCaseTest {
     when(repository.save(org.mockito.ArgumentMatchers.any(User.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
-    User user =
+    var result =
         service.register(
             new RegisterUserCommand(" Person@Example.COM ", "a-secure-password", " Person "));
 
+    assertThat(result.id()).isEqualTo(USER_ID);
+    assertThat(result.email()).isEqualTo("person@example.com");
+    var savedUser = org.mockito.ArgumentCaptor.forClass(User.class);
+    verify(repository).save(savedUser.capture());
+    User user = savedUser.getValue();
     assertThat(user.id()).isEqualTo(USER_ID);
     assertThat(user.email()).isEqualTo(EmailAddress.of("person@example.com"));
     assertThat(user.passwordHash()).isEqualTo("$2a$12$encoded");

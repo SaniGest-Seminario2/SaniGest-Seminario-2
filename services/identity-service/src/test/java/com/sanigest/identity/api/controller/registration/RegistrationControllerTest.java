@@ -7,11 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.sanigest.identity.application.dto.RegisterUserCommand;
+import com.sanigest.identity.application.dto.RegisteredUser;
 import com.sanigest.identity.application.exception.DuplicateEmailException;
 import com.sanigest.identity.application.usecase.registration.RegisterUserUseCase;
-import com.sanigest.identity.domain.model.EmailAddress;
-import com.sanigest.identity.domain.model.User;
-import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +24,6 @@ import org.springframework.test.web.servlet.MockMvc;
 class RegistrationControllerTest {
 
   private static final UUID USER_ID = UUID.fromString("9689d726-54cb-4ed5-ab18-339f5d48e379");
-  private static final Instant NOW = Instant.parse("2026-11-17T12:00:00Z");
 
   @Autowired private MockMvc mockMvc;
 
@@ -34,9 +31,7 @@ class RegistrationControllerTest {
 
   @Test
   void returnsCreatedWithUserIdAndEmailOnSuccess() throws Exception {
-    User user =
-        User.register(
-            USER_ID, EmailAddress.of("person@example.com"), "$2a$12$encoded", "Person", NOW);
+    var user = new RegisteredUser(USER_ID, "person@example.com");
     when(registerUserService.register(any(RegisterUserCommand.class))).thenReturn(user);
 
     mockMvc

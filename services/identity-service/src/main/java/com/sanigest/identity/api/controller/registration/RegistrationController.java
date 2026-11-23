@@ -4,7 +4,6 @@ import com.sanigest.identity.api.dto.registration.RegisterUserRequest;
 import com.sanigest.identity.api.dto.registration.RegisterUserResponse;
 import com.sanigest.identity.application.dto.RegisterUserCommand;
 import com.sanigest.identity.application.usecase.registration.RegisterUserUseCase;
-import com.sanigest.identity.domain.model.User;
 import jakarta.validation.Valid;
 import java.util.Objects;
 import org.springframework.context.annotation.Profile;
@@ -28,10 +27,10 @@ public final class RegistrationController {
 
   @PostMapping("/register")
   ResponseEntity<RegisterUserResponse> register(@Valid @RequestBody RegisterUserRequest request) {
-    User user =
+    var user =
         registerUserService.register(
             new RegisterUserCommand(request.email(), request.password(), request.name()));
-    RegisterUserResponse response = new RegisterUserResponse(user.id(), user.email().value());
+    RegisterUserResponse response = new RegisterUserResponse(user.id(), user.email());
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
 }

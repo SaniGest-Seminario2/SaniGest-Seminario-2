@@ -5,8 +5,6 @@ import static com.sanigest.catalog.api.error.CatalogProblems.problem;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.ClientListingForbiddenException;
-import com.sanigest.catalog.application.exception.InvalidClientQueryException;
-import com.sanigest.catalog.domain.exception.InvalidClientPatch;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,11 +12,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 class ClientErrorHandler {
-  @ExceptionHandler({InvalidClientQueryException.class, InvalidClientPatch.class})
-  ProblemDetail validation() {
-    return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The request is invalid");
-  }
-
   @ExceptionHandler(ClientListingForbiddenException.class)
   ProblemDetail listingForbidden(ClientListingForbiddenException failure) {
     return problem(HttpStatus.FORBIDDEN, "FORBIDDEN", failure.getMessage());

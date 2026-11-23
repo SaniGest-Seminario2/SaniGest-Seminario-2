@@ -304,9 +304,9 @@ class CompanyProfileIT {
     String body = advisorBody(advisor, 0, "{\"module\":\"CATALOG\"}");
     String spoofedBody = body.replaceFirst("\\{", "{\"companyId\":\"" + other.companyId() + "\",");
     var grant = sendAdvisor(advisorPut(owner.token(), spoofedBody));
-    assertThat(grant.statusCode()).isEqualTo(200);
-    assertThat(grant.body()).contains("\"scope\":\"READ\"", "\"revision\":1");
-    assertThat(get(ADVISOR_ACCESS, owner.token()).body()).contains(advisor.toString());
+    String expectedGrant = advisorBody(advisor, 1, "{\"module\":\"CATALOG\",\"scope\":\"READ\"}");
+    assertSelector(grant, expectedGrant);
+    assertSelector(get(ADVISOR_ACCESS, owner.token()), "[" + expectedGrant + "]");
     assertSelector(
         get(ADVISOR_COMPANIES, token(advisor)),
         "[%s]"

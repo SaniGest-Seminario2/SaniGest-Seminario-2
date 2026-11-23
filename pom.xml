@@ -86,6 +86,13 @@
                                     <version>[3.6.3,)</version>
                                 </requireMavenVersion>
                                 <banDuplicatePomDependencyVersions/>
+                                <bannedDependencies>
+                                    <message>Los servicios ejecutables se integran mediante contratos, conforme al ADR-001.</message>
+                                    <excludes>
+                                        <exclude>com.sanigest:*-service</exclude>
+                                        <exclude>com.sanigest:api-gateway</exclude>
+                                    </excludes>
+                                </bannedDependencies>
                             </rules>
                         </configuration>
                     </execution>
