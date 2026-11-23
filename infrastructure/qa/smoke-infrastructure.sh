@@ -28,12 +28,87 @@ export SPRING_DATA_REDIS_PORT="$valkey_port"
 export KAFKA_PORT="$kafka_port"
 export SANIGEST_NETWORK_NAME="$network_name"
 
-cleanup() { docker compose --profile infra down --volumes --remove-orphans; }
-trap cleanup EXIT INT TERM
+stage="Compose configuration and startup"
+stage_started=$(date +%s)
+
+report_stage() {
+  outcome=$1
+  duration=$(( $(date +%s) - stage_started ))
+  printf '%s — %s (%ss)\n' "$outcome" "$stage" "$duration"
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    printf '| %s | %s | %s s |\n' "$stage" "$outcome" "$duration" >>"$GITHUB_STEP_SUMMARY" ||
+      printf '::warning::Could not write the infrastructure stage summary.\n'
+  fi
+}
+
+next_stage() {
+  report_stage Passed
+  stage=$1
+  stage_started=$(date +%s)
+}
+
+log_failure_indicators() {
+  # Inspect a bounded tail and print only fixed descriptions. Container output can contain credentials.
+  docker compose logs --no-color --tail 30 "$1" 2>/dev/null | awk '
+    /[Aa]ddress already in use/ { port_conflict = 1 }
+    /[Pp]ermission denied/ { file_permission = 1 }
+    /[Nn]o space left on device/ { disk_full = 1 }
+    /FATAL:|\[ERROR\]|[[:space:]]ERROR[[:space:]]/ { errors++ }
+    END {
+      if (port_conflict) print "Recent container logs indicate an address conflict."
+      if (file_permission) print "Recent container logs indicate a permissions error."
+      if (disk_full) print "Recent container logs indicate exhausted disk space."
+      if (errors) printf "Recent container logs contain %d error-level entries.\n", errors
+    }
+  '
+}
+
+finish() {
+  result=$?
+  trap - EXIT
+  if [ "$result" -eq 0 ]; then
+    report_stage Passed
+  else
+    report_stage Failed
+    printf '::error::Infrastructure / %s failed (exit %s). See the step log.\n' "$stage" "$result"
+    # Emit container states and health exit codes. Health output and raw logs may contain credentials.
+    for name in postgres valkey kafka; do
+      container_id=$(docker compose ps -aq "$name" 2>/dev/null) || continue
+      [ -n "$container_id" ] || continue
+      printf '%s: ' "$name"
+      docker inspect --format '{{.State.Status}}{{with .State.Health}} health={{.Status}} failing_streak={{.FailingStreak}}{{range .Log}} probe_exit={{.ExitCode}}{{end}}{{end}}' "$container_id" ||
+        printf 'state unavailable\n'
+      log_failure_indicators "$name" || printf 'log indicators unavailable\n'
+    done
+  fi
+  stage="Cleanup of temporary containers and volumes"
+  stage_started=$(date +%s)
+  cleanup_result=0
+  docker compose --profile infra down --volumes --remove-orphans || cleanup_result=$?
+  if [ "$cleanup_result" -eq 0 ]; then
+    report_stage Passed
+  else
+    report_stage Failed
+    printf '::error::Infrastructure cleanup failed (exit %s).\n' "$cleanup_result"
+    [ "$result" -ne 0 ] || result=$cleanup_result
+  fi
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    printf '\n' >>"$GITHUB_STEP_SUMMARY" || :
+  fi
+  exit "$result"
+}
+
+trap finish EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+  printf '### Infrastructure runtime checks\n\n| Check | Result | Duration |\n|---|---|---:|\n' >>"$GITHUB_STEP_SUMMARY" ||
+    printf '::warning::Could not write the infrastructure summary header.\n'
+fi
 
 fail() {
   printf 'QA smoke failed: %s\n' "$1" >&2
-  docker compose ps >&2 || true
   exit 1
 }
 
@@ -69,22 +144,26 @@ service_psql() {
 
 docker compose --profile infra config --quiet
 docker compose --profile infra up -d postgres valkey kafka
+next_stage "PostgreSQL health"
 wait_for_health postgres
+next_stage "Valkey health"
 wait_for_health valkey
+next_stage "Kafka health"
 wait_for_health kafka
+next_stage "Kafka listener and topic operations"
 
-kafka_broker_count="$(docker compose exec -T kafka \
-  /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:29092 2>/dev/null | \
-  grep -c 'id: 1')"
-[ "$kafka_broker_count" -ge 1 ] || fail "Kafka did not expose its internal listener"
+kafka_brokers="$(docker compose exec -T kafka \
+  /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:29092)"
+printf '%s\n' "$kafka_brokers" | grep -q 'id: 1' || fail "Kafka did not expose its internal listener"
 
 docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh \
   --bootstrap-server kafka:29092 --create --if-not-exists \
   --topic qa.smoke.v1 --partitions 1 --replication-factor 1 >/dev/null
-kafka_topic="$(docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh \
-  --bootstrap-server kafka:29092 --list | grep -Fx 'qa.smoke.v1' || true)"
-[ "$kafka_topic" = "qa.smoke.v1" ] || fail "Kafka could not create and list a topic"
+kafka_topics="$(docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server kafka:29092 --list)"
+printf '%s\n' "$kafka_topics" | grep -Fxq 'qa.smoke.v1' || fail "Kafka could not create and list a topic"
 
+next_stage "PostgreSQL bootstrap and database isolation"
 # Re-running the bootstrap must converge without duplicate roles or databases.
 docker compose exec -T postgres \
   /docker-entrypoint-initdb.d/10-create-service-databases.sh >/dev/null
@@ -113,11 +192,11 @@ cross_database_response="$(
 case "$cross_database_response" in
   *'does not have CONNECT privilege'*) ;;
   *)
-    printf '%s\n' "$cross_database_response" >&2
-    fail "Company role connected to the Sales database"
+    fail "Expected a CONNECT privilege rejection for Company on the Sales database"
     ;;
 esac
 
+next_stage "Valkey authentication"
 unauthenticated_response="$(docker compose exec -T valkey valkey-cli ping 2>&1 || true)"
 case "$unauthenticated_response" in
   *NOAUTH*) ;;
@@ -129,6 +208,7 @@ authenticated_response="$(
 )"
 [ "$authenticated_response" = "PONG" ] || fail "Valkey did not return PONG"
 
+next_stage "Valkey cache is disposable after restart"
 docker compose exec -T valkey \
   valkey-cli --no-auth-warning -a "$valkey_password" SET qa:disposable-cache present >/dev/null
 docker compose restart valkey >/dev/null
@@ -137,6 +217,7 @@ cache_value="$(docker compose exec -T valkey \
   valkey-cli --no-auth-warning -a "$valkey_password" GET qa:disposable-cache)"
 [ -z "$cache_value" ] || fail "Valkey retained disposable cache after restart"
 
+next_stage "PostgreSQL data survives restart"
 docker compose restart postgres >/dev/null
 wait_for_health postgres
 business_rows="$(service_psql company "$COMPANY_DB_PASSWORD" \

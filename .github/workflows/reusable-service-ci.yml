@@ -11,70 +11,72 @@ on:
 permissions:
   contents: read
 
+env:
+  SERVICE: ${{ inputs.service }}
+  MAVEN_CACHE_PATHS: |
+    pom.xml
+    libraries/common-security/pom.xml
+    libraries/common-company-access/pom.xml
+    services/${{ inputs.service }}/pom.xml
+
 jobs:
   syntax:
     name: Syntax and compilation
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out repository
+        uses: actions/checkout@v7
 
-      - uses: ./.github/actions/setup-maven
+      - name: Set up Java 21 and Maven cache
+        uses: ./.github/actions/setup-maven
+        with:
+          cache-scope: ${{ inputs.service }}
+          cache-dependency-path: ${{ env.MAVEN_CACHE_PATHS }}
 
-      - name: Validate format, static analysis and compilation
-        env:
-          SERVICE: ${{ inputs.service }}
-        run: mvn -B -pl "services/$SERVICE" -am -DskipTests compile
+      # Resolve Failsafe in the same reactor, before the integration jobs restore the cache.
+      - name: Validate sources and resolve Failsafe dependencies
+        run: >-
+          sh scripts/ci/run-stage.sh "$SERVICE" 'Static analysis, compilation and Failsafe dependency resolution'
+          sh scripts/ci/maven-build.sh -e -pl "services/$SERVICE" -am -DskipTests -DskipITs test-compile failsafe:integration-test
 
   unit-tests:
+    # This service-specific status check is kept independently of Code CI.
     name: Unit tests
     needs: syntax
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
+    env:
+      ARTIFACT: ${{ inputs.service }}-unit-reports-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out repository
+        uses: actions/checkout@v7
 
-      - uses: ./.github/actions/setup-maven
+      - name: Set up Java 21 and Maven cache
+        uses: ./.github/actions/setup-maven
+        with:
+          cache-scope: ${{ inputs.service }}
+          cache-dependency-path: ${{ env.MAVEN_CACHE_PATHS }}
 
-      - name: Run unit tests
+      - name: Run service unit tests
+        id: tests
+        run: >-
+          sh scripts/ci/run-stage.sh "$SERVICE" 'Unit tests'
+          sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true -pl "services/$SERVICE" -am -Pservice-unit -DskipITs test
+
+      - name: Validate and summarize unit test reports
+        if: ${{ !cancelled() && steps.tests.outcome != '' }}
         env:
-          SERVICE: ${{ inputs.service }}
-        run: sh scripts/ci/maven-build.sh -pl "services/$SERVICE" -am -DskipITs test
+          OUTCOME: ${{ steps.tests.outcome }}
+        run: python3 scripts/ci/report.py "$SERVICE" unit "$OUTCOME" "$ARTIFACT" "services/$SERVICE"
 
       - name: Publish unit test reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ inputs.service }}-unit-reports-${{ github.run_id }}
-          path: "services/${{ inputs.service }}/target/surefire-reports/**"
+          name: ${{ env.ARTIFACT }}
+          path: services/${{ inputs.service }}/target/surefire-reports/
           if-no-files-found: warn
-          retention-days: 7
-
-  regression:
-    name: Regression tests
-    needs: smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/setup-maven
-
-      - name: Run regression tests
-        env:
-          SERVICE: ${{ inputs.service }}
-        run: mvn -B -pl "services/$SERVICE" -am -Pregression verify
-
-      - name: Publish regression reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ inputs.service }}-regression-reports-${{ github.run_id }}
-          path: "services/${{ inputs.service }}/target/failsafe-reports/**"
-          if-no-files-found: error
           retention-days: 7
 
   smoke:
@@ -82,22 +84,73 @@ jobs:
     needs: syntax
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
+    env:
+      ARTIFACT: ${{ inputs.service }}-smoke-reports-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out repository
+        uses: actions/checkout@v7
 
-      - uses: ./.github/actions/setup-maven
+      - name: Set up Java 21 and Maven cache
+        uses: ./.github/actions/setup-maven
+        with:
+          cache-scope: ${{ inputs.service }}
+          cache-dependency-path: ${{ env.MAVEN_CACHE_PATHS }}
 
-      - name: Run smoke tests
+      - name: Run smoke integration tests
+        id: tests
+        run: >-
+          sh scripts/ci/run-stage.sh "$SERVICE" 'Smoke tests'
+          sh scripts/ci/maven-build.sh -e -Dspotless.skip=true -Dcheckstyle.skip=true -pl "services/$SERVICE" -am -Psmoke verify
+
+      - name: Validate and summarize smoke reports
+        if: ${{ !cancelled() && steps.tests.outcome != '' }}
         env:
-          SERVICE: ${{ inputs.service }}
-        run: mvn -B -pl "services/$SERVICE" -am -Psmoke verify
+          OUTCOME: ${{ steps.tests.outcome }}
+        run: python3 scripts/ci/report.py "$SERVICE" smoke "$OUTCOME" "$ARTIFACT" "services/$SERVICE"
 
       - name: Publish smoke reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ inputs.service }}-smoke-reports-${{ github.run_id }}
-          path: "services/${{ inputs.service }}/target/failsafe-reports/**"
-          if-no-files-found: error
+          name: ${{ env.ARTIFACT }}
+          path: services/${{ inputs.service }}/target/failsafe-reports/
+          if-no-files-found: warn
+          retention-days: 7
+
+  regression:
+    name: Regression tests
+    needs: syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ARTIFACT: ${{ inputs.service }}-regression-reports-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java 21 and Maven cache
+        uses: ./.github/actions/setup-maven
+        with:
+          cache-scope: ${{ inputs.service }}
+          cache-dependency-path: ${{ env.MAVEN_CACHE_PATHS }}
+
+      - name: Run regression integration tests
+        id: tests
+        run: >-
+          sh scripts/ci/run-stage.sh "$SERVICE" 'Regression tests'
+          sh scripts/ci/maven-build.sh -e -Dspotless.skip=true -Dcheckstyle.skip=true -pl "services/$SERVICE" -am -Pregression verify
+
+      - name: Validate and summarize regression reports
+        if: ${{ !cancelled() && steps.tests.outcome != '' }}
+        env:
+          OUTCOME: ${{ steps.tests.outcome }}
+        run: python3 scripts/ci/report.py "$SERVICE" regression "$OUTCOME" "$ARTIFACT" "services/$SERVICE"
+
+      - name: Publish regression reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: services/${{ inputs.service }}/target/failsafe-reports/
+          if-no-files-found: warn
           retention-days: 7

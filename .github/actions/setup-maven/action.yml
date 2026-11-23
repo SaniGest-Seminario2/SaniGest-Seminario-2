@@ -1,5 +1,14 @@
 name: Set up Maven and Java
 description: Install the Java toolchain and cache Maven dependencies
+inputs:
+  cache-scope:
+    description: Reactor or service that populates this cache
+    default: reactor
+  cache-dependency-path:
+    description: Files that identify the Maven dependency cache
+    default: |
+      pom.xml
+      **/pom.xml
 runs:
   using: composite
   steps:
@@ -7,7 +16,19 @@ runs:
       with:
         distribution: temurin
         java-version: "21"
-        cache: maven
-        cache-dependency-path: |
-          pom.xml
-          **/pom.xml
+
+    # Use the absolute path so existing setup-java archives have the same cache version.
+    - name: Locate Maven repository
+      id: repository
+      shell: bash
+      run: printf 'path=%s/.m2/repository\n' "$HOME" >> "$GITHUB_OUTPUT"
+
+    - name: Restore Maven dependencies
+      uses: actions/cache@v5
+      with:
+        path: ${{ steps.repository.outputs.path }}
+        key: sanigest-maven-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache-scope }}-${{ hashFiles(inputs.cache-dependency-path) }}
+        restore-keys: |
+          sanigest-maven-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache-scope }}-
+          sanigest-maven-${{ runner.os }}-${{ runner.arch }}-reactor-
+          setup-java-${{ runner.os }}-${{ runner.arch == 'X64' && 'x64' || runner.arch == 'X86' && 'ia32' || runner.arch == 'ARM64' && 'arm64' || 'arm' }}-maven-
