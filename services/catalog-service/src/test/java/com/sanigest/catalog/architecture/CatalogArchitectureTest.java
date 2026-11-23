@@ -105,4 +105,15 @@ class CatalogArchitectureTest {
                 call -> call.getTargetOwner().isEquivalentTo(BigDecimal.class)))
         .check(CATALOG);
   }
+
+  @Test
+  void httpDtosDoNotDependOnJpa() {
+    noClasses()
+        .that()
+        .resideInAPackage("..catalog.api.dto..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("jakarta.persistence..", "..catalog.infrastructure..")
+        .check(CATALOG);
+  }
 }
