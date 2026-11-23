@@ -28,6 +28,7 @@ import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.enums.SaleStatus;
 import com.sanigest.sales.domain.model.Sale;
 import com.sanigest.sales.domain.model.SaleLine;
+import jakarta.persistence.EntityManagerFactory;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -52,6 +53,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -102,6 +104,7 @@ class SalesServiceIT {
   @Autowired private Environment environment;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private Flyway flyway;
+  @Autowired private EntityManagerFactory entityManagerFactory;
   @Autowired private SaleRepository sales;
   @Autowired private SaleIdempotencyRepository idempotency;
   @Autowired private CatalogClient catalog;
@@ -942,6 +945,171 @@ class SalesServiceIT {
     }
   }
 
+  @Test
+  @Tag("smoke")
+  void listsARegisteredSaleWithReadPermission() throws Exception {
+    var fixture = fixture();
+    fixture.membership("OWNER", false);
+    try (var http = HttpClient.newHttpClient()) {
+      var response = post(http, fixture, fixture.bearer(), fixture.body());
+      assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(201);
+      var body = new ObjectMapper().readTree(response.body());
+
+      fixture.membership("VIEWER", false, "READ");
+      var listed = page(getSales(http, fixture.bearer(), ""));
+      assertThat(listed.path("content").size()).isEqualTo(1);
+      var summary = listed.path("content").get(0);
+      for (String field :
+          List.of("id", "code", "client", "saleDate", "mode", "status", "total", "currency")) {
+        assertThat(summary.path(field)).isEqualTo(body.path(field));
+      }
+      assertThat(summary.has("lines")).isFalse();
+      assertThat(listed.path("page").asInt()).isZero();
+      assertThat(listed.path("size").asInt()).isEqualTo(20);
+      assertThat(listed.path("totalElements").asLong()).isEqualTo(1);
+      assertThat(listed.path("totalPages").asLong()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void listsStablePagesWithinTheAuthorizedCompanyAndFiltersLiteralSnapshots() throws Exception {
+    var fixture = fixture();
+    var other = fixture();
+    fixture.membership("OPERATOR", false, "READ");
+    other.membership("VIEWER", false, "READ");
+    var first = UUID.fromString("00000000-0000-0000-0000-000000000003");
+    var second = UUID.fromString("00000000-0000-0000-0000-000000000002");
+    var third = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    insertListedSale(fixture, first, "Acme %_! Cliente", "2026-11-23", "REGISTERED", "V-2026-003");
+    insertListedSale(fixture, second, "Acme %_! Cliente", "2026-11-23", "CANCELLED", "V-2026-002");
+    insertListedSale(fixture, third, "Acme %_! Cliente", "2026-11-22", "REGISTERED", "V-2026-001");
+    insertListedSale(
+        fixture, UUID.randomUUID(), "Acme AB! Cliente", "2026-11-23", "REGISTERED", null);
+    insertListedSale(
+        fixture, UUID.randomUUID(), "Acme A_! Cliente", "2026-11-23", "REGISTERED", null);
+    insertListedSale(
+        fixture, UUID.randomUUID(), "Acme %B! Cliente", "2026-11-23", "REGISTERED", null);
+    insertListedSale(
+        fixture, UUID.randomUUID(), "Acme %_! Cliente", "2026-11-24", "REGISTERED", null);
+    insertListedSale(
+        other, UUID.randomUUID(), "Acme %_! Cliente", "2026-11-23", "REGISTERED", "V-2026-003");
+
+    var stats = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+    stats.setStatisticsEnabled(true);
+    stats.clear();
+    try (var http = HttpClient.newHttpClient()) {
+      String filters =
+          "?search=%20aCME%20%25_%21%20&from=2026-11-22&to=2026-11-23&size=2"
+              + "&companyId="
+              + other.company();
+      var firstPage = page(getSales(http, fixture.bearer(), filters));
+      assertThat(stats.getPrepareStatementCount()).isEqualTo(2);
+      assertThat(stats.getEntityLoadCount()).isZero();
+      assertThat(listIds(firstPage)).containsExactly(first.toString(), second.toString());
+      assertThat(firstPage.path("totalElements").asLong()).isEqualTo(3);
+      assertThat(firstPage.path("totalPages").asLong()).isEqualTo(2);
+      var secondPage = page(getSales(http, fixture.bearer(), filters + "&page=1"));
+      assertThat(listIds(secondPage)).containsExactly(third.toString());
+      var emptyPage = page(getSales(http, fixture.bearer(), filters + "&page=2"));
+      assertThat(listIds(emptyPage)).isEmpty();
+      assertThat(emptyPage.path("totalElements").asLong()).isEqualTo(3);
+      var registered = page(getSales(http, fixture.bearer(), filters + "&status=registered"));
+      assertThat(listIds(registered)).containsExactly(first.toString(), third.toString());
+      var cancelled = page(getSales(http, fixture.bearer(), filters + "&status=CANCELLED"));
+      assertThat(listIds(cancelled)).containsExactly(second.toString());
+      assertThat(cancelled.path("totalElements").asLong()).isEqualTo(1);
+      assertThat(page(getSales(http, other.bearer(), filters)).path("totalElements").asLong())
+          .isEqualTo(1);
+      assertThat(
+              page(getSales(http, fixture.bearer(), "?search=AB"))
+                  .path("content")
+                  .get(0)
+                  .path("code")
+                  .isNull())
+          .isTrue();
+      assertThat(countSales(fixture.company())).isEqualTo(7);
+      CATALOG.verify(
+          0,
+          WireMock.getRequestedFor(WireMock.urlPathEqualTo("/api/v1/clients/" + fixture.client())));
+    } finally {
+      stats.setStatisticsEnabled(false);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void rejectsInvalidFiltersAndFailsClosedOnListing() throws Exception {
+    var fixture = fixture();
+    try (var http = HttpClient.newHttpClient()) {
+      assertThat(getSales(http, null, "").statusCode()).isEqualTo(401);
+      assertThat(getSales(http, "invalid", "").statusCode()).isEqualTo(401);
+      fixture.membership("VIEWER", false, "READ");
+      for (String query :
+          List.of(
+              "?status=PAID",
+              "?from=2026-02-29",
+              "?to=0000-01-01",
+              "?from=10000-01-01",
+              "?from=2026-11-23&to=2026-11-22",
+              "?page=bad",
+              "?page=-1",
+              "?page=2147483647",
+              "?size=0",
+              "?size=101")) {
+        var response = getSales(http, fixture.bearer(), query);
+        assertThat(response.statusCode()).as(query).isEqualTo(400);
+        assertThat(response.body()).contains("INVALID_REQUEST");
+      }
+      var empty = page(getSales(http, fixture.bearer(), "?from=2026-11-23"));
+      assertThat(listIds(empty)).isEmpty();
+      assertThat(empty.path("totalPages").asLong()).isZero();
+      fixture.companyReply(403);
+      assertThat(getSales(http, fixture.bearer(), "").statusCode()).isEqualTo(403);
+      fixture.companyReply(503);
+      var unavailable = getSales(http, fixture.bearer(), "");
+      assertThat(unavailable.statusCode()).isEqualTo(503);
+      assertThat(unavailable.body()).contains("AUTHORIZATION_UNAVAILABLE");
+    }
+  }
+
+  private void insertListedSale(
+      Fixture fixture, UUID id, String name, String date, String status, String code) {
+    jdbc.update(
+        """
+        INSERT INTO sales.sales (id, company_id, client_id, client_name, sale_date, mode, status, total, code)
+        VALUES (?, ?, ?, ?, ?, 'CREDIT', ?, 123.40, ?)
+        """,
+        id,
+        fixture.company(),
+        fixture.client(),
+        name,
+        LocalDate.parse(date),
+        status,
+        code);
+  }
+
+  private HttpResponse<String> getSales(HttpClient http, String bearer, String query)
+      throws Exception {
+    var request =
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/sales" + query))
+            .timeout(Duration.ofSeconds(5))
+            .GET();
+    if (bearer != null) {
+      request.header("Authorization", "Bearer " + bearer);
+    }
+    return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static JsonNode page(HttpResponse<String> response) {
+    assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(200);
+    return new ObjectMapper().readTree(response.body());
+  }
+
+  private static List<String> listIds(JsonNode page) {
+    return page.path("content").valueStream().map(row -> row.path("id").asString()).toList();
+  }
+
   private long countSales(UUID company) {
     return jdbc.queryForObject(
         "SELECT count(*) FROM sales.sales WHERE company_id = ?", Long.class, company);
@@ -1059,16 +1227,20 @@ class SalesServiceIT {
     }
 
     void membership(String role, boolean grant) {
+      membership(role, grant, "WRITE");
+    }
+
+    void membership(String role, boolean grant, String scope) {
       CATALOG.stubFor(
           WireMock.get(PATH)
               .withHeader(USER_ASSERTION, equalTo(bearer))
               .willReturn(
                   okJson(
                       """
-                      {"userId":"%s","companyId":"%s","module":"SALES","scope":"WRITE",
+                      {"userId":"%s","companyId":"%s","module":"SALES","scope":"%s",
                       "mode":"MEMBERSHIP","role":"%s","explicitGrant":%s}
                       """
-                          .formatted(user, company, role, grant))));
+                          .formatted(user, company, scope, role, grant))));
     }
 
     void companyReply(int status) {

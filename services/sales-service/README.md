@@ -2,7 +2,7 @@
 
 Sales es dueño de las ventas y sus líneas en PostgreSQL. S2-331 entrega el
 modelo, la persistencia y los endpoints de salud. S2-332 incorpora el registro
-HTTP de ventas.
+HTTP de ventas. S2-333 incorpora el listado paginado.
 Consulta el [contrato funcional v0.7](../../docs/SaniGest_T1001_Contrato_Funcional_v0.7.md)
 y el [ADR-001](../../docs/adr/ADR-001-propiedad-datos-comunicacion-servicios.md).
 
@@ -10,7 +10,7 @@ y el [ADR-001](../../docs/adr/ADR-001-propiedad-datos-comunicacion-servicios.md)
 
 - `domain` conserva los agregados y reglas de venta en Java.
 - `application.port.out.persistence` define la escritura atómica del agregado
-  y la consulta de detalle por empresa e identificador.
+  y las consultas de resumen y detalle por empresa.
 - `infrastructure.persistence.jpa` mapea el agregado a sus tablas privadas.
   `infrastructure.security` configura la validación de JWT y el acceso a salud.
 
@@ -66,8 +66,8 @@ java -jar services/sales-service/target/sales-service-0.1.0-SNAPSHOT.jar --sprin
 
 La salud y sus sondas `liveness` y `readiness` son públicas. La respuesta muestra
 el estado y, en la ruta raíz, los nombres de las sondas. Readiness comprueba
-PostgreSQL. El registro de ventas exige JWT y el resto de rutas funcionales
-se deniega por defecto. La seguridad reutiliza `common-security` para verificar firma, issuer,
+PostgreSQL. El registro y el listado de ventas exigen JWT. Las demás rutas
+funcionales se deniegan por defecto. La seguridad reutiliza `common-security` para verificar firma, issuer,
 audience y expiración.
 
 ## Pruebas
@@ -146,11 +146,11 @@ la configuración local y difiere el tráfico remoto hasta la primera decisión.
 | Ruta prevista | Permiso | Ticket |
 | --- | --- | --- |
 | POST /api/v1/sales | SALES_WRITE | S2-332 |
-| GET /api/v1/sales | SALES_READ | S2-334 |
+| GET /api/v1/sales | SALES_READ | S2-333 |
 | GET /api/v1/sales/{id} | SALES_READ | S2-334 |
 | POST /api/v1/sales/{id}/cancel | SALES_CANCEL | S2-334 |
 
-Sales expone salud y el registro autenticado de ventas. El filtro deniega las demás rutas funcionales.
+Sales expone salud, registro y listado de ventas. El filtro deniega las demás rutas funcionales.
 Al implementar cada ruta, exigir autenticación en el filtro y en el método
 del bean Spring que sirve de entrada al caso de uso, con
 `@PreAuthorize("isAuthenticated()")`. La regla ArchUnit vigente mantiene
@@ -249,6 +249,34 @@ El código sigue `V-AAAA-NNN` con un mínimo de tres dígitos y una secuencia po
 empresa y año de venta. La asignación y la escritura de venta y líneas se
 confirman en la misma transacción de Sales. V2 admite ventas anteriores sin
 código y preserva sus datos.
+
+### Listado de ventas (S2-333)
+
+`GET /api/v1/sales` exige un JWT y una membresía con `SALES_READ`. La empresa
+se resuelve en Company. La consulta usa el nombre histórico del cliente
+guardado en Sales.
+
+| Parámetro opcional | Filtro |
+| --- | --- |
+| `search` | Subcadena literal del nombre, sin distinguir mayúsculas. Se recortan los espacios exteriores. Máximo 250 caracteres UTF-16. |
+| `status` | `REGISTERED` o `CANCELLED`, sin distinguir mayúsculas. |
+| `from`, `to` | Límites inclusivos e independientes en `yyyy-MM-dd`, del año 0001 al 9999. |
+| `page` | Índice desde cero. Predeterminado `0`. |
+| `size` | Predeterminado `20`. Máximo `100`, configurable con `sanigest.sales.max-page-size`. |
+
+La respuesta incluye `content`, `page`, `size`, `totalElements` y
+`totalPages`. El orden es por fecha e identificador descendentes. Un
+desplazamiento superior a 2147483647 o filtros inválidos devuelven 400.
+Una página válida sin filas devuelve 200 con `content: []`.
+El conteo y la página comparten una instantánea de PostgreSQL por petición.
+Cada elemento incluye `id`, `code`, `client` con `id` y `name`,
+`saleDate`, `mode`, `status`, `total` como cadena decimal y
+`currency` con valor `DOP`. Las ventas anteriores a la asignación de
+códigos pueden tener `code: null`.
+
+El filtro por `PENDING`, `PARTIALLY_PAID` y `PAID` queda pendiente de
+los cobros verificados y de su proyección de estado. La modalidad solo
+identifica si la venta se registró como `CASH` o `CREDIT`.
 
 ### Idempotencia de creación (S2-381)
 
