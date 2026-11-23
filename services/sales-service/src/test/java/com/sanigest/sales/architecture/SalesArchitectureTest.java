@@ -6,6 +6,7 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
 
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
+import com.sanigest.sales.application.port.out.persistence.ReceivableRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
@@ -179,6 +180,12 @@ class SalesArchitectureTest {
         .resideInAnyPackage(
             "..sales.application.port.out.persistence..",
             "..sales.infrastructure.persistence.jpa..")
+        .check(PRODUCTION);
+    classes()
+        .that()
+        .haveSimpleName("PostgresReceivableRepository")
+        .should()
+        .implement(ReceivableRepository.class)
         .check(PRODUCTION);
     noClasses()
         .that()

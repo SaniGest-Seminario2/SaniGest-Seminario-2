@@ -9,7 +9,6 @@ import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyReposi
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Claim;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Replay;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Request;
-import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.sanigest.sales.domain.model.Sale;
 import java.util.UUID;
 import java.util.function.Function;
@@ -19,19 +18,16 @@ public final class CreateSaleIdempotently {
   private final SalesAuthorization authorization;
   private final Supplier<UUID> actor;
   private final CreateSale createSale;
-  private final SaleRepository sales;
   private final SaleIdempotencyRepository idempotency;
 
   public CreateSaleIdempotently(
       SalesAuthorization authorization,
       Supplier<UUID> actor,
       CreateSale createSale,
-      SaleRepository sales,
       SaleIdempotencyRepository idempotency) {
     this.authorization = authorization;
     this.actor = actor;
     this.createSale = createSale;
-    this.sales = sales;
     this.idempotency = idempotency;
   }
 
@@ -46,7 +42,7 @@ public final class CreateSaleIdempotently {
             actorId,
             SaleRequestFingerprint.OPERATION,
             key,
-            SaleRequestFingerprint.VERSION,
+            SaleRequestFingerprint.version(command),
             SaleRequestFingerprint.hash(command));
     return switch (idempotency.resolve(request)) {
       case Replay replay -> replay.response();
@@ -61,7 +57,8 @@ public final class CreateSaleIdempotently {
       Function<Sale, CreatedSaleResponse> response) {
     try {
       Sale prepared = createSale.prepare(command, request.companyId());
-      return idempotency.complete(request, claim, () -> response.apply(sales.register(prepared)));
+      return idempotency.complete(
+          request, claim, () -> response.apply(createSale.register(prepared, command.dueDate())));
     } catch (RuntimeException failure) {
       try {
         idempotency.release(request, claim);

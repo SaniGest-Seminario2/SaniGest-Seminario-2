@@ -1,5 +1,6 @@
 package com.sanigest.sales.application.port.out.persistence;
 
+import com.sanigest.sales.domain.model.Receivable;
 import com.sanigest.sales.domain.model.Sale;
 import com.sanigest.sales.domain.model.SaleCancellation;
 import java.util.Optional;
@@ -10,6 +11,9 @@ public interface SaleRepository {
 
   /** Assigns a commercial code and inserts the aggregate in one local transaction. */
   Sale register(Sale sale);
+
+  /** Registers a credit sale and its obligation within the same transaction. */
+  Sale register(Sale sale, Receivable receivable);
 
   Optional<Sale> findByCompanyIdAndId(UUID companyId, UUID saleId);
 

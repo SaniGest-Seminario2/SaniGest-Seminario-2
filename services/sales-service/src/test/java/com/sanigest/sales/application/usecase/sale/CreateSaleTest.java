@@ -69,16 +69,33 @@ class CreateSaleTest {
     when(catalog.getItem(product, tenant)).thenReturn(item(product, Type.PRODUCT, "250.00", true));
     when(catalog.getItem(service, tenant)).thenReturn(item(service, Type.SERVICE, "3200.50", true));
     when(catalog.getItem(free, tenant)).thenReturn(item(free, Type.SERVICE, "0", true));
-    when(repository.register(any()))
-        .thenAnswer(invocation ->
-            invocation.<Sale>getArgument(0).withCode("V-%s-001".formatted(date.getYear())));
+    if (mode == SaleMode.CREDIT) {
+      when(repository.register(any(), any()))
+          .thenAnswer(invocation -> {
+            var obligation = invocation.<com.sanigest.sales.domain.model.Receivable>getArgument(1);
+            assertThat(obligation.totalAmount()).isEqualTo(new BigDecimal(total));
+            assertThat(obligation.balance()).isEqualTo(obligation.totalAmount());
+            assertThat(obligation.companyId()).isEqualTo(tenant);
+            assertThat(obligation.clientId()).isEqualTo(client);
+            return invocation.<Sale>getArgument(0).withCode("V-%s-001".formatted(date.getYear()));
+          });
+    } else {
+      when(repository.register(any()))
+          .thenAnswer(invocation ->
+              invocation.<Sale>getArgument(0).withCode("V-%s-001".formatted(date.getYear())));
+    }
     var lines = List.of(line(product, "4"), line(service, "0.2"));
     if (mode == SaleMode.CREDIT) {
       lines = List.of(line(product, "4"), line(service, "0.2"), line(free, "0.001"));
     }
     var result =
         create.execute(
-            new CreateSaleCommand(client, lines, mode == SaleMode.CASH ? null : date, mode));
+            new CreateSaleCommand(
+                client,
+                lines,
+                mode == SaleMode.CASH ? null : date,
+                mode,
+                mode == SaleMode.CREDIT ? date.plusDays(1) : null));
 
     assertThat(result.id()).isNotNull();
     assertThat(result.companyId()).isEqualTo(tenant);

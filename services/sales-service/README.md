@@ -81,7 +81,7 @@ mvn -B -pl services/sales-service -am -Pregression verify
 ```
 
 El perfil de pruebas usa PostgreSQL 17 en Testcontainers y un puerto HTTP
-dinámico. V1 a V4 se validan desde una base limpia y se ejecuta Flyway por segunda
+dinámico. V1 a V5 se validan desde una base limpia y se ejecuta Flyway por segunda
 vez para comprobar el historial, checksum y ausencia de migraciones pendientes.
 
 Finance recibirá eventos financieros al incorporar cobros, mediante outbox y
@@ -230,6 +230,8 @@ aislamiento y revocación en los dos GET de detalle.
 
 `POST /api/v1/sales` recibe `clientId`, `lines` (entre 1 y 100 entradas con
 `catalogItemId` y `quantity`), `mode` (`CASH` o `CREDIT`) y `saleDate` opcional.
+Las ventas CREDIT nuevas requieren `dueDate` en formato `YYYY-MM-DD`, igual o
+posterior a la fecha efectiva de venta. En CASH se debe omitir o enviar nulo.
 La fecha predeterminada usa `America/Santo_Domingo`. Ambos modos comienzan en
 `REGISTERED`. Los importes DOP se devuelven como cadenas decimales.
 
@@ -307,18 +309,41 @@ El esquema actual de Sales permite registrar ventas y carece de operaciones
 para persistir cobros o reversiones. El detalle omite `payments`. Ambos modos
 pueden cancelarse en el modelo actual.
 
-Antes de habilitar S2-339, la cancelación y el registro de abonos deben tomar
-el mismo bloqueo de la fila `sales.sales`, por `(company_id, id)`, dentro de
-su transacción local, antes de modificar cuentas o cobros. Bajo ese bloqueo,
-cancelación debe comprobar cobros efectivos en la persistencia autoritativa
-de Sales, incluidas las reversiones que estén soportadas, y devolver 409 si
-queda algún cobro efectivo, parcial o total. El registro de abonos debe
-rechazar una venta `CANCELLED` bajo el mismo bloqueo. Las operaciones sobre
-cuentas deben adquirir sus bloqueos después del de la venta. S2-337 también
-debe coordinar el estado de la cuenta cancelada en esa transacción para que
-la venta deje de figurar como pendiente de cobro. S2-340 podrá exponer los
-cobros vinculados desde Sales. S2-341 podrá registrar la transición con el
-actor, fecha y motivo persistidos.
+### Cuenta por cobrar de una venta (S2-337)
+
+Una venta CREDIT nueva crea una cuenta DOP con estado `OPEN`, saldo igual al
+total positivo de la venta y snapshot del cliente. El UUID de la cuenta es
+el mismo de la venta. `GET /api/v1/receivables/{id}` requiere JWT y
+`SALES_READ` en la empresa resuelta por Sales. Una cuenta ausente o ajena
+devuelve 404.
+
+El detalle devuelve `id`, `saleId`, `client {id, name}`, `origin`,
+`totalAmount`, `balance`, `currency`, `dueDate` y `status`. Los importes
+son cadenas con dos decimales. CASH no genera cuenta ni implica cobro
+verificado. El registro de venta y cuenta no genera cobros, facturas,
+movimientos de caja ni eventos.
+
+La migración V5 conserva las ventas previas. Las CREDIT históricas no
+tenían un vencimiento persistido y quedan sin cuenta, incluso cuando
+se reproduce su respuesta idempotente. Una regularización de cartera
+histórica requiere datos de vencimiento verificados y una decisión de
+negocio. El origen `OPENING_BALANCE` queda reservado para S2-385 y admite
+una obligación sin venta asociada.
+
+Al cancelar, Sales conserva el importe y saldo de la cuenta como historial,
+marca la cuenta `CANCELLED` y la excluye del saldo exigible. El estado
+`OVERDUE` se deriva al consultar una obligación exigible cuyo vencimiento
+ya pasó. La cancelación conserva actor, fecha y motivo en la venta.
+
+Para S2-339, ambos flujos deben adquirir los bloqueos en este orden dentro
+de la misma transacción local.
+
+1. Bloquear la venta por empresa e ID.
+2. Comprobar estado y elegibilidad de la venta.
+3. Bloquear la cuenta asociada antes de actualizarla.
+4. Consultar cobros efectivos y sus reversiones en Sales cuando exista esa persistencia.
+5. Aplicar la transición bajo los bloqueos. Rechazar con 409 la cancelación
+   con algún cobro efectivo y el abono contra una venta cancelada.
 
 ### Idempotencia de creación (S2-381)
 
@@ -339,6 +364,9 @@ del artículo y cantidad en orden. Las cantidades equivalentes pierden ceros
 decimales finales. La fecha ausente o nula se representa por `-`. La fecha
 explícita se representa en ISO y se distingue de solicitar el valor por
 defecto. El reloj se consulta durante la preparación de una venta nueva.
+Cuando hay `dueDate`, el fingerprint v2 usa el mismo orden y agrega la fecha
+de vencimiento después de la fecha de venta. Los replays v1 conservan el
+cálculo original y se resuelven antes de validar un vencimiento nuevo.
 El JSON original queda guardado como versión 1 junto con el código HTTP.
 Los reintentos sirven ese JSON directamente, incluidos su fecha, snapshots y
 orden de líneas. Si cambia el algoritmo, conserva el cálculo para versiones
@@ -348,30 +376,27 @@ PostgreSQL reserva la clave con una restricción única. La reserva temporal
 dura `SALES_IDEMPOTENCY_LEASE` (predeterminado `5m`). Sales consulta Catalog
 fuera de la transacción SQL. Antes de asignar el código, una transacción
 bloquea la fila y comprueba el token y la vigencia de la reserva. Venta,
-líneas, contador y resultado se confirman juntos. El token impide que un
+líneas, cuenta de crédito, contador y resultado se confirman juntos. El token impide que un
 proceso desplazado confirme una venta o libere la reserva de su sucesor.
 Al fallar la operación, Sales intenta liberar su reserva. Si la instancia
 cae, un reintento idéntico puede reclamar la reserva al vencer.
 
-La ventana de retención es `SALES_IDEMPOTENCY_RETENTION` (predeterminado
-`7d`). Empieza al guardar el resultado dentro de la transacción exitosa.
-Pasado el plazo, Sales conserva la protección mientras exista la fila.
-Una vez purgada, reutilizar una clave puede crear otra venta. Genera una clave
-nueva por cada operación nueva. La ventana garantiza un efecto persistido
-único por clave y alcance, con reintentos HTTP sujetos a la disponibilidad del
-servicio.
+La configuración `SALES_IDEMPOTENCY_RETENTION` (predeterminado `7d`)
+establece el vencimiento registrado al completar una clave. Sales conserva
+las claves completadas tras ese vencimiento para reproducir el resultado y
+proteger contra duplicados. Cada operación nueva requiere una clave distinta.
+Las claves completadas eliminadas antes de V5 no se pueden reconstruir.
 
-La limpieza es manual. Ejecuta lotes pequeños en Sales DB con el rol de
-Sales. El filtro conserva filas vigentes y `SKIP LOCKED` evita filas que se
-están finalizando. El mismo criterio permite limpiar reservas abandonadas
-tras vencer. Automatizar esta limpieza y acordar la retención transversal
-queda pendiente de S2-408.
+La limpieza operativa solo elimina reservas vencidas que nunca se completaron.
+Ejecuta lotes pequeños en Sales DB con el rol de Sales. `SKIP LOCKED` evita
+filas que se están finalizando. Este criterio preserva las claves confirmadas
+y su respuesta. Automatizar la limpieza queda pendiente de S2-408.
 
 ```sql
 WITH expired AS (
     SELECT company_id, actor_id, operation, idempotency_key
     FROM sales.sale_idempotency_keys
-    WHERE expires_at <= statement_timestamp()
+    WHERE sale_id IS NULL AND expires_at <= statement_timestamp()
     ORDER BY expires_at
     LIMIT 500
     FOR UPDATE SKIP LOCKED

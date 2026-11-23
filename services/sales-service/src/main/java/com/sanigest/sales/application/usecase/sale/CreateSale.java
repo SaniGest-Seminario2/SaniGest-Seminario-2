@@ -11,8 +11,10 @@ import com.sanigest.sales.application.exception.SaleAmountNotRepresentable;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
+import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.model.CatalogCustomerSnapshot;
 import com.sanigest.sales.domain.model.CatalogItemSnapshot;
+import com.sanigest.sales.domain.model.Receivable;
 import com.sanigest.sales.domain.model.Sale;
 import com.sanigest.sales.domain.model.SaleLine;
 import java.time.Clock;
@@ -37,11 +39,19 @@ public class CreateSale {
   public Sale execute(CreateSaleCommand command) {
     UUID companyId = authorization.requireMembership(SALES_WRITE);
     validate(command);
-    return sales.register(prepare(command, companyId));
+    return register(prepare(command, companyId), command.dueDate());
+  }
+
+  Sale register(Sale sale, LocalDate dueDate) {
+    if (sale.mode() == SaleMode.CREDIT) {
+      return sales.register(sale, Receivable.fromSale(sale, dueDate, clock.instant()));
+    }
+    return sales.register(sale);
   }
 
   Sale prepare(CreateSaleCommand command, UUID companyId) {
     LocalDate date = effectiveDate(command);
+    validateDueDate(command, date);
     var client = customer(command.clientId(), companyId);
 
     UUID saleId = UUID.randomUUID();
@@ -60,6 +70,10 @@ public class CreateSale {
       sale = Sale.register(saleId, companyId, client, date, command.mode(), lines);
     } catch (IllegalArgumentException invalid) {
       throw new SaleAmountNotRepresentable(invalid);
+    }
+    if (sale.mode() == SaleMode.CREDIT && sale.total().signum() <= 0) {
+      throw new SaleAmountNotRepresentable(
+          new IllegalArgumentException("Credit sale total must be positive"));
     }
     return sale;
   }
@@ -119,6 +133,19 @@ public class CreateSale {
         Sale.validateDate(command.saleDate());
       }
     } catch (IllegalArgumentException invalid) {
+      throw new InvalidSaleRequest();
+    }
+  }
+
+  private static void validateDueDate(CreateSaleCommand command, LocalDate saleDate) {
+    var dueDate = command.dueDate();
+    if (command.mode() == SaleMode.CASH) {
+      if (dueDate != null) {
+        throw new InvalidSaleRequest();
+      }
+      return;
+    }
+    if (dueDate == null || dueDate.isBefore(saleDate) || dueDate.getYear() > 9999) {
       throw new InvalidSaleRequest();
     }
   }

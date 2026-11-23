@@ -7,7 +7,11 @@ import java.util.List;
 import java.util.UUID;
 
 public record CreateSaleCommand(
-    UUID clientId, List<Line> lines, LocalDate saleDate, SaleMode mode) {
+    UUID clientId, List<Line> lines, LocalDate saleDate, SaleMode mode, LocalDate dueDate) {
+  public CreateSaleCommand(UUID clientId, List<Line> lines, LocalDate saleDate, SaleMode mode) {
+    this(clientId, lines, saleDate, mode, null);
+  }
+
   public static final int MAX_LINES = 100;
 
   public record Line(UUID catalogItemId, BigDecimal quantity) {}

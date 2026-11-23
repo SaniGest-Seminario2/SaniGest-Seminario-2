@@ -179,21 +179,25 @@ class PostgresSaleIdempotencyRepository implements SaleIdempotencyRepository {
     }
     var result = creation.get();
     entityManager.flush();
-    jdbc.update(
-        """
-        UPDATE sales.sale_idempotency_keys
-        SET claim_token = NULL, sale_id = :saleId, response_body = :body, response_status = :status,
-            response_version = :responseVersion, completed_at = statement_timestamp(),
-            expires_at = statement_timestamp() + :retention * interval '1 millisecond'
-        WHERE
-        """
-            + OWNED,
-        parameters
-            .addValue("saleId", result.saleId())
-            .addValue("body", result.body())
-            .addValue("status", result.status())
-            .addValue("responseVersion", RESPONSE_VERSION)
-            .addValue("retention", retentionMillis));
+    int updated =
+        jdbc.update(
+            """
+            UPDATE sales.sale_idempotency_keys
+            SET claim_token = NULL, sale_id = :saleId, response_body = :body, response_status = :status,
+                response_version = :responseVersion, completed_at = statement_timestamp(),
+                expires_at = statement_timestamp() + :retention * interval '1 millisecond'
+            WHERE
+            """
+                + OWNED,
+            parameters
+                .addValue("saleId", result.saleId())
+                .addValue("body", result.body())
+                .addValue("status", result.status())
+                .addValue("responseVersion", RESPONSE_VERSION)
+                .addValue("retention", retentionMillis));
+    if (updated != 1) {
+      throw new IdempotencyInProgress();
+    }
     return result;
   }
 

@@ -38,7 +38,11 @@ class SecurityConfiguration {
                     "/actuator/health/liveness",
                     "/actuator/health/readiness")
                 .permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/sales", "/api/v1/sales/{id}")
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/v1/sales",
+                    "/api/v1/sales/{id}",
+                    "/api/v1/receivables/{id}")
                 .authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/v1/sales", "/api/v1/sales/{id}/cancel")
                 .authenticated()

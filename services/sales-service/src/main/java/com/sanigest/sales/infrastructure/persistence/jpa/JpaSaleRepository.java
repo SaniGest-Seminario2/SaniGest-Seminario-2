@@ -2,6 +2,9 @@ package com.sanigest.sales.infrastructure.persistence.jpa;
 
 import com.sanigest.sales.application.exception.SaleCancellationConflict;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
+import com.sanigest.sales.domain.enums.ReceivableStatus;
+import com.sanigest.sales.domain.enums.SaleMode;
+import com.sanigest.sales.domain.model.Receivable;
 import com.sanigest.sales.domain.model.Sale;
 import com.sanigest.sales.domain.model.SaleCancellation;
 import jakarta.persistence.EntityManager;
@@ -18,7 +21,11 @@ class JpaSaleRepository implements SaleRepository {
   private final EntityManager entityManager;
   private final SaleRows rows;
 
-  JpaSaleRepository(EntityManager entityManager, SaleRows rows) {
+  private final PostgresReceivableRepository receivables;
+
+  JpaSaleRepository(
+      EntityManager entityManager, SaleRows rows, PostgresReceivableRepository receivables) {
+    this.receivables = receivables;
     this.entityManager = entityManager;
     this.rows = rows;
   }
@@ -32,6 +39,26 @@ class JpaSaleRepository implements SaleRepository {
   @Override
   @Transactional
   public Sale register(Sale sale) {
+    if (sale.mode() != SaleMode.CASH) {
+      throw new IllegalArgumentException("Credit registration requires a receivable");
+    }
+    return registerSale(sale);
+  }
+
+  @Override
+  @Transactional
+  public Sale register(Sale sale, Receivable receivable) {
+    if (!Receivable.fromSale(sale, receivable.dueDate(), receivable.createdAt())
+        .equals(receivable)) {
+      throw new IllegalArgumentException("Receivable does not match the sale");
+    }
+    Sale registered = registerSale(sale);
+    entityManager.flush();
+    receivables.insert(receivable, sale.saleDate());
+    return registered;
+  }
+
+  private Sale registerSale(Sale sale) {
     int year = sale.saleDate().getYear();
     long sequence =
         ((Number)
@@ -64,6 +91,16 @@ class JpaSaleRepository implements SaleRepository {
           Sale cancelled = sale.cancel(cancellation);
           if (cancelled == sale) {
             return sale;
+          }
+          if (sale.mode() == SaleMode.CREDIT) {
+            receivables
+                .lockBySale(companyId, saleId)
+                .ifPresent(receivable -> {
+                  if (receivable.status() != ReceivableStatus.OPEN) {
+                    throw new SaleCancellationConflict();
+                  }
+                  receivables.updateStatus(receivable.cancel());
+                });
           }
           if (rows.recordCancellation(
                   companyId,
