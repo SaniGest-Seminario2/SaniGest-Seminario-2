@@ -35,6 +35,60 @@ mvn -B -pl services/company-service -am verify
 Consulta el [arranque local](../../README.md) y el
 [contrato funcional](../../docs/SaniGest_T1001_Contrato_Funcional_v0.7.md).
 
+## Architecture rules
+
+[CompanyArchitectureTest](src/test/java/com/sanigest/company/architecture/CompanyArchitectureTest.java)
+usa ArchUnit sobre las clases compiladas de producción.
+
+- API usa los casos de uso de Application y puede mapear modelos de Domain.
+  Sus controladores y DTO quedan separados de la persistencia, los puertos de
+  salida y los clientes HTTP remotos. Se permite el modelo de lectura
+  `MembershipRepository.ActiveAccess` que devuelve `ResolveCompanyAccess`
+  para mapear la respuesta de autorización.
+- Application usa Domain y sus propios contratos. Puede usar componentes y
+  transacciones de Spring, con el transporte y las tecnologías de persistencia
+  fuera de los casos de uso y de sus puertos.
+- Domain usa sus propios tipos y los tipos de Java ajenos a transporte y
+  persistencia. Infrastructure implementa los puertos de Application, usa
+  Domain y mantiene los repositorios en `infrastructure.persistence.jdbc`,
+  separados de los controladores y DTO HTTP.
+- Las capas y los demás paquetes de primer nivel quedan libres de ciclos. Se
+  prohíben las dependencias de código con otros servicios ejecutables. Las
+  bibliotecas compartidas `common-security` y `common-company-access` se pueden
+  usar donde lo permitan las reglas de capa.
+
+Las reglas se ejecutan con `mvn -B -pl services/company-service -am verify` y
+en el job **Unit tests** de Company. Para ejecutarlas de forma aislada desde la raíz:
+
+```bash
+mvn -B -pl services/company-service -am -Dtest=CompanyArchitectureTest -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Un fallo muestra la regla y las clases o miembros implicados en el reporte
+Surefire, y hace fallar Maven y el job de CI.
+
+Agrega reglas como métodos JUnit en `CompanyArchitectureTest`. Selecciona
+clases de producción existentes y usa `.check(PRODUCTION)`. Por ejemplo, si
+se decide aislar también la implementación de auditoría de los controladores,
+la regla sería:
+
+```java
+@Test
+void controllersDoNotUseAuditInternals() {
+  noClasses()
+      .that().resideInAPackage(COMPANY + ".api.controller..")
+      .should().dependOnClassesThat()
+      .haveFullyQualifiedName(COMPANY + ".application.usecase.audit.CompanyAuditRecorder")
+      .check(PRODUCTION);
+}
+```
+
+Comprueba que una dependencia prohibida provoque el fallo esperado. Si el
+wiring necesita una excepción, documenta las clases implicadas, su
+responsabilidad y el motivo junto a la regla, y limita la excepción a esas
+dependencias. Para los límites de datos, la comunicación entre servicios y
+cambios a esas decisiones, consulta [ADR-001](../../docs/adr/ADR-001-propiedad-datos-comunicacion-servicios.md).
+
 ## Acceso delegado a asesores (S2-313)
 
 Las tres operaciones en `/api/v1/companies/me/advisor-access` requieren JWT de
