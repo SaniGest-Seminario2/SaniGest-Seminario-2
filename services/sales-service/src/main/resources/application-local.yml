@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${SALES_DB_HOST:localhost}:${SALES_DB_PORT:${POSTGRES_PORT:5432}}/sanigest_sales
+
+sanigest:
+  jwt:
+    issuer: ${JWT_ISSUER:sanigest}
+    audience: ${JWT_AUDIENCE:sanigest-api}

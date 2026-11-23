@@ -214,10 +214,11 @@ de crear la red de desarrollo. Las publicaciones están ligadas a `127.0.0.1`.
 PostgreSQL, Valkey,
 Kafka quedan disponibles en `localhost:${POSTGRES_PORT:-5432}`,
 `localhost:${SPRING_DATA_REDIS_PORT:-6379}` y `localhost:${KAFKA_PORT:-9092}`.
-Company, Identity y Catalog usan `COMPANY_SERVICE_PORT` (8080),
-`IDENTITY_SERVICE_PORT` (8081) y `CATALOG_SERVICE_PORT` (8083), respectivamente.
-Consulta el [README de Catalog](services/catalog-service/README.md) para sus
-variables, endpoints y pruebas. Dentro de la red interna de Compose
+Company, Identity, Catalog y Sales usan `COMPANY_SERVICE_PORT` (8080),
+`IDENTITY_SERVICE_PORT` (8081), `CATALOG_SERVICE_PORT` (8083) y
+`SALES_SERVICE_PORT` (8084), respectivamente. Consulta la configuración y las
+pruebas en los README de [Catalog](services/catalog-service/README.md) y
+[Sales](services/sales-service/README.md). Dentro de la red interna de Compose
 se usan `postgres:5432`, `valkey:6379` y `kafka:29092`; `localhost` nunca debe
 usarse entre contenedores.
 
