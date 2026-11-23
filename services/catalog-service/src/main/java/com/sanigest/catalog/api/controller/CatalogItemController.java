@@ -15,6 +15,7 @@ import com.sanigest.catalog.application.usecase.catalogitem.UpdateCatalogItem;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -66,8 +67,15 @@ class CatalogItemController {
   }
 
   @GetMapping("/{id}")
-  CatalogItemDetailResponse detail(@PathVariable String id) {
-    return CatalogItemDetailResponse.from(getCatalogItem.execute(parseId(id)));
+  ResponseEntity<CatalogItemDetailResponse> detail(
+      @PathVariable String id, @RequestParam(required = false) UUID expectedCompanyId) {
+    var detail =
+        CatalogItemDetailResponse.from(getCatalogItem.execute(parseId(id), expectedCompanyId));
+    var response = ResponseEntity.ok();
+    if (expectedCompanyId != null) {
+      response.header("X-Catalog-Company-Id", expectedCompanyId.toString());
+    }
+    return response.body(detail);
   }
 
   @PatchMapping("/{id}")

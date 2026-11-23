@@ -1079,6 +1079,13 @@ class CatalogServiceIT {
   private String membershipToken(
       UUID companyId, MembershipRole role, boolean explicitGrant, Scope scope) throws Exception {
     var jwt = session("REGULAR");
+    stubMembership(jwt, companyId, role, explicitGrant, scope);
+    return jwt;
+  }
+
+  private static void stubMembership(
+      String jwt, UUID companyId, MembershipRole role, boolean explicitGrant, Scope scope)
+      throws Exception {
     var subject = SignedJWT.parse(jwt).getJWTClaimsSet().getSubject();
     COMPANY.stubFor(
         WireMock.get(urlEqualTo(PATH))
@@ -1092,7 +1099,6 @@ class CatalogServiceIT {
                          "mode":"MEMBERSHIP","role":"%s","explicitGrant":%s}
                         """
                             .formatted(subject, companyId, scope, role, explicitGrant))));
-    return jwt;
   }
 
   private static void stubFailure(String jwt, int status) {
@@ -1861,9 +1867,31 @@ class CatalogServiceIT {
         assertThat(get(http, path, readerB, companyA).statusCode()).isEqualTo(404);
         assertThat(get(http, path, null, companyA).statusCode()).isEqualTo(401);
       }
+      for (String path : pathsA) {
+        var bound = get(http, path + "?expectedCompanyId=" + companyA, readerA, companyB);
+        assertThat(bound.statusCode()).isEqualTo(200);
+        assertThat(bound.headers().firstValue("X-Catalog-Company-Id"))
+            .contains(companyA.toString());
+        var mismatch = get(http, path + "?expectedCompanyId=" + companyB, readerA);
+        assertThat(mismatch.statusCode()).isEqualTo(403);
+        assertThat(mismatch.headers().firstValue("X-Catalog-Company-Id")).isEmpty();
+        assertThat(get(http, path + "?expectedCompanyId=" + companyA, readerB).statusCode())
+            .isEqualTo(403);
+        assertThat(get(http, path + "?expectedCompanyId=" + companyB, readerB).statusCode())
+            .isEqualTo(404);
+      }
       for (String path : pathsB) {
         assertThat(get(http, path, readerB, companyA).statusCode()).isEqualTo(200);
         assertThat(get(http, path, readerA, companyB).statusCode()).isEqualTo(404);
+      }
+      stubMembership(readerA, companyB, MembershipRole.OPERATOR, false, Scope.READ);
+      for (String path : pathsB) {
+        assertThat(get(http, path + "?expectedCompanyId=" + companyA, readerA).statusCode())
+            .isEqualTo(403);
+        var bound = get(http, path + "?expectedCompanyId=" + companyB, readerA);
+        assertThat(bound.statusCode()).isEqualTo(200);
+        assertThat(bound.headers().firstValue("X-Catalog-Company-Id"))
+            .contains(companyB.toString());
       }
       stubFailure(readerA, 403);
       for (String path : pathsA) {

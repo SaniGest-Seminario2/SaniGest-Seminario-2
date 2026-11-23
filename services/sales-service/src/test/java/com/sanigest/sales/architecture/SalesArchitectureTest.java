@@ -7,6 +7,7 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
+import com.sanigest.sales.application.usecase.sale.CreateSale;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -37,6 +38,23 @@ class SalesArchitectureTest {
         .resideInAnyPackage("java..", "..sales.application..", "..sales.domain..")
         .check(PRODUCTION);
     slices().matching("com.sanigest.sales.(*)..").should().beFreeOfCycles().check(PRODUCTION);
+  }
+
+  @Test
+  void createsSalesThroughOutgoingPorts() {
+    classes()
+        .that()
+        .haveFullyQualifiedName(CreateSale.class.getName())
+        .should()
+        .dependOnClassesThat()
+        .areAssignableTo(CatalogClient.class)
+        .andShould()
+        .dependOnClassesThat()
+        .areAssignableTo(SalesAuthorization.class)
+        .andShould()
+        .dependOnClassesThat()
+        .areAssignableTo(SaleRepository.class)
+        .check(PRODUCTION);
   }
 
   @Test
@@ -101,6 +119,17 @@ class SalesArchitectureTest {
             "org.springframework.jdbc..",
             "org.springframework.data..")
         .check(PRODUCTION);
+    noClasses()
+        .that()
+        .haveSimpleName("SecurityConfiguration")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "..sales.application..",
+            "..sales.domain..",
+            "..sales.infrastructure.company..",
+            "com.sanigest.companyaccess..")
+        .check(PRODUCTION);
   }
 
   @Test
@@ -137,7 +166,6 @@ class SalesArchitectureTest {
             "..sales.infrastructure..", "..sales.application.port.out.persistence..",
             "..sales.application.port.out.integration..", "org.springframework.web.client..",
             "jakarta.persistence..", "org.springframework.data..")
-        .allowEmptyShould(true)
         .check(PRODUCTION);
   }
 }

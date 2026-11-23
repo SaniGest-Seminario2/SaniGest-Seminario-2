@@ -1,8 +1,8 @@
 # Sales Service
 
 Sales es dueño de las ventas y sus líneas en PostgreSQL. S2-331 entrega el
-modelo, la persistencia y los endpoints de salud. Las operaciones HTTP y su
-documentación OpenAPI se incorporarán con los casos de uso correspondientes.
+modelo, la persistencia y los endpoints de salud. S2-332 incorpora el registro
+HTTP de ventas.
 Consulta el [contrato funcional v0.7](../../docs/SaniGest_T1001_Contrato_Funcional_v0.7.md)
 y el [ADR-001](../../docs/adr/ADR-001-propiedad-datos-comunicacion-servicios.md).
 
@@ -66,8 +66,8 @@ java -jar services/sales-service/target/sales-service-0.1.0-SNAPSHOT.jar --sprin
 
 La salud y sus sondas `liveness` y `readiness` son públicas. La respuesta muestra
 el estado y, en la ruta raíz, los nombres de las sondas. Readiness comprueba
-PostgreSQL. Las demás solicitudes se deniegan por
-defecto. La seguridad reutiliza `common-security` para verificar firma, issuer,
+PostgreSQL. El registro de ventas exige JWT y el resto de rutas funcionales
+se deniega por defecto. La seguridad reutiliza `common-security` para verificar firma, issuer,
 audience y expiración.
 
 ## Pruebas
@@ -80,7 +80,7 @@ mvn -B -pl services/sales-service -am -Pregression verify
 ```
 
 El perfil de pruebas usa PostgreSQL 17 en Testcontainers y un puerto HTTP
-dinámico. V1 se valida desde una base limpia y se ejecuta Flyway por segunda
+dinámico. V1 y V2 se validan desde una base limpia y se ejecuta Flyway por segunda
 vez para comprobar el historial, checksum y ausencia de migraciones pendientes.
 
 Finance recibirá eventos financieros al incorporar cobros, mediante outbox y
@@ -111,8 +111,10 @@ en la resolución de la membresía.
   la auditoría corresponden a S2-334.
 - ADVISOR usa exclusivamente el método delegado con un UUID explícito. Company
   verifica en Identity la elegibilidad actual y comprueba empresa activa,
-  vigencia, alcance exacto y revocación de la concesión. Los flujos públicos de
-  Sales aún carecen de selección delegada y de auditoría de operaciones Sales.
+  alcance exacto y revocación de la concesión. El modelo vigente de Company
+  mantiene la concesión hasta su revocación y carece de una fecha de expiración
+  por concesión. Sales exige un JWT vigente en cada resolución. Los flujos
+  públicos de Sales aún carecen de selección delegada y de auditoría de operaciones Sales.
   El cliente actual de Catalog resuelve membresía regular, por lo que un
   futuro registro delegado también requiere un contrato de Catalog compatible.
 - Una revocación confirmada surte efecto en la siguiente consulta a Company.
@@ -148,11 +150,13 @@ la configuración local y difiere el tráfico remoto hasta la primera decisión.
 | GET /api/v1/sales/{id} | SALES_READ | S2-334 |
 | POST /api/v1/sales/{id}/cancel | SALES_CANCEL | S2-334 |
 
-Actualmente Sales expone salud y el filtro deniega las rutas funcionales.
+Sales expone salud y el registro autenticado de ventas. El filtro deniega las demás rutas funcionales.
 Al implementar cada ruta, exigir autenticación en el filtro y en el método
-del bean Spring invocado por el controlador, con
-`@PreAuthorize("isAuthenticated()")`. El método debe obtener el UUID mediante
-el puerto una vez por operación, antes de tocar Catalog o la persistencia,
+del bean Spring que sirve de entrada al caso de uso, con
+`@PreAuthorize("isAuthenticated()")`. La regla ArchUnit vigente mantiene
+`application` libre de dependencias de Spring. Ubicar la anotación en el
+adaptador de entrada que invoca al caso de uso. El caso de uso debe obtener el
+UUID mediante el puerto una vez por operación, antes de tocar Catalog o la persistencia,
 y utilizar el UUID devuelto para crear o buscar por empresa. Para detalle y
 cancelación la consulta debe incluir empresa e identificador. Un objeto
 inexistente o ajeno se traduce a 404. Validar parámetros de entrada
@@ -221,3 +225,32 @@ WireMock cubre el tráfico saliente, contratos y fallos de Catalog. La
 regresión de Catalog usa su configuración real de Spring Security, JWT
 firmados, PostgreSQL y la autoridad Company simulada para comprobar
 aislamiento y revocación en los dos GET de detalle.
+
+### Registro de ventas (S2-332)
+
+`POST /api/v1/sales` recibe `clientId`, `lines` (entre 1 y 100 entradas con
+`catalogItemId` y `quantity`), `mode` (`CASH` o `CREDIT`) y `saleDate` opcional.
+La fecha predeterminada usa `America/Santo_Domingo`. Ambos modos comienzan en
+`REGISTERED`. Los importes DOP se devuelven como cadenas decimales.
+
+Sales calcula y conserva los precios y subtotales históricos. La cantidad
+admite hasta tres decimales significativos. Si el producto cantidad × precio
+excede el rango permitido o requiere más de dos decimales significativos,
+la venta se rechaza con 422. El mismo rango monetario se aplica al total.
+
+Sales transmite el JWT del actor a Catalog junto con `expectedCompanyId`,
+obtenido de su autorización de escritura. Catalog compara ese UUID con su
+propia membresía autorizada antes de buscar. Sales exige la confirmación
+`X-Catalog-Company-Id` en cada respuesta. Un cambio de contexto devuelve 403.
+Los recursos ausentes y los de otra empresa bajo un contexto válido comparten
+el 404 de Catalog. Desplegar el contrato de Catalog antes de habilitar Sales.
+
+El código sigue `V-AAAA-NNN` con un mínimo de tres dígitos y una secuencia por
+empresa y año de venta. La asignación y la escritura de venta y líneas se
+confirman en la misma transacción de Sales. V2 admite ventas anteriores sin
+código y preserva sus datos.
+
+El contrato funcional requiere idempotencia mediante `Idempotency-Key`.
+S2-381 implementará la garantía persistente. Los reintentos de creación pueden
+registrar ventas adicionales hasta que esa historia esté disponible. Los
+cobros y las cuentas por cobrar corresponden a flujos posteriores.

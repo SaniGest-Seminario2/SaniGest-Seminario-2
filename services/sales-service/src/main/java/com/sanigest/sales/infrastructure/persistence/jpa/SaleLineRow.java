@@ -16,6 +16,9 @@ import java.util.UUID;
 class SaleLineRow {
   @Id private UUID id;
 
+  @Column(nullable = false)
+  private int position;
+
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "sale_id", nullable = false)
   private SaleRow sale;
@@ -40,7 +43,8 @@ class SaleLineRow {
 
   protected SaleLineRow() {}
 
-  SaleLineRow(SaleRow sale, SaleLine line) {
+  SaleLineRow(SaleRow sale, SaleLine line, int position) {
+    this.position = position;
     this.sale = sale;
     id = line.id();
     catalogItemId = line.catalogItemId();

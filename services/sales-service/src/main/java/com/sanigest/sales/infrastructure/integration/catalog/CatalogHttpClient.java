@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 
@@ -30,7 +31,16 @@ final class CatalogHttpClient implements CatalogClient {
 
   @Override
   public CatalogCustomerSnapshot getCustomer(UUID customerId) {
-    var response = fetch(customerId, proxy -> proxy.getCustomer(customerId));
+    return getCustomer(customerId, null);
+  }
+
+  @Override
+  public CatalogCustomerSnapshot getCustomer(UUID customerId, UUID expectedCompanyId) {
+    var response =
+        fetch(
+            customerId,
+            expectedCompanyId,
+            proxy -> proxy.getCustomer(customerId, expectedCompanyId));
     if (response == null
         || !matches(customerId, response.id())
         || !validText(response.name(), 160)) {
@@ -45,7 +55,16 @@ final class CatalogHttpClient implements CatalogClient {
 
   @Override
   public CatalogItemSnapshot getItem(UUID catalogItemId) {
-    var response = fetch(catalogItemId, proxy -> proxy.getItem(catalogItemId));
+    return getItem(catalogItemId, null);
+  }
+
+  @Override
+  public CatalogItemSnapshot getItem(UUID catalogItemId, UUID expectedCompanyId) {
+    var response =
+        fetch(
+            catalogItemId,
+            expectedCompanyId,
+            proxy -> proxy.getItem(catalogItemId, expectedCompanyId));
     if (response == null
         || !matches(catalogItemId, response.id())
         || !validText(response.name(), 200)
@@ -78,14 +97,24 @@ final class CatalogHttpClient implements CatalogClient {
         response.active());
   }
 
-  private <T> T fetch(UUID id, Function<CatalogHttpApi, T> request) {
+  private <T> T fetch(
+      UUID id, UUID expectedCompanyId, Function<CatalogHttpApi, ResponseEntity<T>> request) {
     if (id == null) {
       throw new CatalogResourceInvalidException(INVALID_REQUEST);
     }
     try {
-      return request.apply(
-          api.orElseThrow(() ->
-              new CatalogUnavailableException(CatalogUnavailableException.Reason.NOT_CONFIGURED)));
+      var response =
+          request.apply(
+              api.orElseThrow(() ->
+                  new CatalogUnavailableException(
+                      CatalogUnavailableException.Reason.NOT_CONFIGURED)));
+      if (expectedCompanyId != null
+          && !expectedCompanyId
+              .toString()
+              .equals(response.getHeaders().getFirst("X-Catalog-Company-Id"))) {
+        throw new CatalogResourceInvalidException(INVALID_RESPONSE);
+      }
+      return response.getBody();
     } catch (ResourceAccessException failure) {
       throw new CatalogUnavailableException(CatalogUnavailableException.Reason.TRANSPORT_FAILURE);
     } catch (RestClientException failure) {

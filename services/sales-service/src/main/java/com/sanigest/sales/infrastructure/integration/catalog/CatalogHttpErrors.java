@@ -19,6 +19,8 @@ final class CatalogHttpErrors {
       case 404 ->
           new CatalogResourceInvalidException(
               CatalogResourceInvalidException.Reason.NOT_FOUND_OR_NOT_VISIBLE);
+      case 422 ->
+          new CatalogResourceInvalidException(CatalogResourceInvalidException.Reason.NOT_ELIGIBLE);
       case 429 -> new CatalogUnavailableException(CatalogUnavailableException.Reason.RATE_LIMITED);
       default ->
           new CatalogUnavailableException(CatalogUnavailableException.Reason.DEPENDENCY_FAILURE);

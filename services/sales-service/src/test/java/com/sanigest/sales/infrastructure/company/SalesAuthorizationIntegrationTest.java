@@ -193,6 +193,8 @@ class SalesAuthorizationIntegrationTest {
         .isFalse();
     assertThatThrownBy(() -> operation.delegated(FOREIGN_COMPANY, SALES_READ))
         .isInstanceOf(SalesAuthorizationUnavailable.class);
+    assertThatThrownBy(() -> operation.delegated(COMPANY, SALES_WRITE))
+        .isInstanceOf(SalesAuthorizationUnavailable.class);
 
     reply(aResponse().withStatus(403));
     assertThatThrownBy(() -> operation.delegated(COMPANY, SALES_WRITE))
@@ -232,7 +234,7 @@ class SalesAuthorizationIntegrationTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"json", "user", "role", "scope", "503", "timeout"})
+  @ValueSource(strings = {"json", "user", "role", "scope", "module", "mode", "503", "timeout"})
   void failsClosedWhenCompanyCannotReturnAValidDecision(String failure) throws Exception {
     authenticate();
     reply(
@@ -247,6 +249,8 @@ class SalesAuthorizationIntegrationTest {
                       .formatted(UUID.randomUUID(), COMPANY));
           case "role" -> membership("UNKNOWN", "WRITE", true);
           case "scope" -> membership("OWNER", "CANCEL", true);
+          case "module" -> membership("OWNER", "WRITE", true, "CATALOG");
+          case "mode" -> delegation(COMPANY, "WRITE");
           case "503" -> aResponse().withStatus(503);
           case "timeout" -> membership("OWNER", "WRITE", true).withFixedDelay(1500);
           default -> throw new AssertionError(failure);
@@ -256,12 +260,12 @@ class SalesAuthorizationIntegrationTest {
   }
 
   @Test
-  void keepsHealthPublicAndTheSalesRoutesDenied() throws Exception {
+  void keepsHealthPublicAndUnimplementedSalesRoutesDenied() throws Exception {
     assertThat(status("/actuator/health", "GET", null)).isEqualTo(200);
     String valid = token(USER_KEYS, ISSUER, AUDIENCE, Instant.now().plusSeconds(60));
     assertThat(status("/actuator/health", "GET", valid)).isEqualTo(200);
     assertDeniedRoute("GET", "/api/v1/sales", valid);
-    assertDeniedRoute("POST", "/api/v1/sales", valid);
+    assertThat(status("/api/v1/sales", "POST", null)).isEqualTo(401);
     assertDeniedRoute("GET", "/api/v1/sales/" + UUID.randomUUID(), valid);
     assertDeniedRoute("POST", "/api/v1/sales/" + UUID.randomUUID() + "/cancel", valid);
     REMOTE.verify(0, getRequestedFor(urlEqualTo(PATH)));
@@ -319,12 +323,17 @@ class SalesAuthorizationIntegrationTest {
   }
 
   private static ResponseDefinitionBuilder membership(String role, String scope, boolean grant) {
+    return membership(role, scope, grant, "SALES");
+  }
+
+  private static ResponseDefinitionBuilder membership(
+      String role, String scope, boolean grant, String module) {
     return json(
         """
-        {"userId":"%s","companyId":"%s","module":"SALES","scope":"%s",
+        {"userId":"%s","companyId":"%s","module":"%s","scope":"%s",
          "mode":"MEMBERSHIP","role":"%s","explicitGrant":%s}
         """
-            .formatted(USER, COMPANY, scope, role, grant));
+            .formatted(USER, COMPANY, module, scope, role, grant));
   }
 
   private static ResponseDefinitionBuilder delegation(UUID target, String scope) {

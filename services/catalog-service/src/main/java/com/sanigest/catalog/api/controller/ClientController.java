@@ -14,6 +14,7 @@ import com.sanigest.catalog.domain.exception.InvalidClientPatch;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,8 +49,14 @@ class ClientController {
   }
 
   @GetMapping("/api/v1/clients/{id}")
-  ClientDetailResponse detail(@PathVariable String id) {
-    return ClientDetailResponse.from(getClient.execute(clientId(id)));
+  ResponseEntity<ClientDetailResponse> detail(
+      @PathVariable String id, @RequestParam(required = false) UUID expectedCompanyId) {
+    var detail = ClientDetailResponse.from(getClient.execute(clientId(id), expectedCompanyId));
+    var response = ResponseEntity.ok();
+    if (expectedCompanyId != null) {
+      response.header("X-Catalog-Company-Id", expectedCompanyId.toString());
+    }
+    return response.body(detail);
   }
 
   @PatchMapping("/api/v1/clients/{id}")

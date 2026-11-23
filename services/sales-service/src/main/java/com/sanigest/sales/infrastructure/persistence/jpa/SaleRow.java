@@ -3,6 +3,7 @@ package com.sanigest.sales.infrastructure.persistence.jpa;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.enums.SaleStatus;
 import com.sanigest.sales.domain.model.Sale;
+import com.sanigest.sales.domain.model.SaleLine;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -22,6 +23,9 @@ import java.util.UUID;
 @Table(name = "sales", schema = "sales")
 class SaleRow {
   @Id private UUID id;
+
+  @Column(length = 26)
+  private String code;
 
   @Column(nullable = false)
   private UUID companyId;
@@ -47,13 +51,14 @@ class SaleRow {
   private BigDecimal total;
 
   @OneToMany(mappedBy = "sale", cascade = CascadeType.PERSIST)
-  @OrderBy("id ASC")
+  @OrderBy("position ASC, id ASC")
   private List<SaleLineRow> lines = new ArrayList<>();
 
   protected SaleRow() {}
 
   SaleRow(Sale sale) {
     id = sale.id();
+    code = sale.code();
     companyId = sale.companyId();
     clientId = sale.clientId();
     clientName = sale.clientName();
@@ -61,7 +66,9 @@ class SaleRow {
     mode = sale.mode();
     status = sale.status();
     total = sale.total();
-    sale.lines().forEach(line -> lines.add(new SaleLineRow(this, line)));
+    for (SaleLine line : sale.lines()) {
+      lines.add(new SaleLineRow(this, line, lines.size()));
+    }
   }
 
   Sale toDomain() {
@@ -74,6 +81,7 @@ class SaleRow {
         mode,
         status,
         total,
-        lines.stream().map(line -> line.toDomain(id)).toList());
+        lines.stream().map(line -> line.toDomain(id)).toList(),
+        code);
   }
 }
