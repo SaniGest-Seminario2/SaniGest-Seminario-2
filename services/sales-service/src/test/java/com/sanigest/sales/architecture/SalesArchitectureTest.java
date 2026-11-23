@@ -4,6 +4,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
+import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
@@ -38,6 +39,38 @@ class SalesArchitectureTest {
   }
 
   @Test
+  void isolatesCatalogTransportBehindTheOutgoingPort() {
+    classes()
+        .that()
+        .areAssignableTo(CatalogClient.class)
+        .should()
+        .resideInAnyPackage(
+            "..sales.application.port.out.integration..",
+            "..sales.infrastructure.integration.catalog..")
+        .check(PRODUCTION);
+    classes()
+        .that()
+        .haveSimpleName("CatalogHttpClient")
+        .should()
+        .implement(CatalogClient.class)
+        .check(PRODUCTION);
+    noClasses()
+        .that()
+        .resideOutsideOfPackage("..sales.infrastructure.integration.catalog..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAPackage("..sales.infrastructure.integration.catalog.dto..")
+        .check(PRODUCTION);
+    noClasses()
+        .that()
+        .haveSimpleName("CatalogIdentityInterceptor")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..sales.domain..", "..sales.application.port..")
+        .check(PRODUCTION);
+  }
+
+  @Test
   void isolatesPersistenceAndOtherServices() {
     noClasses()
         .should()
@@ -69,6 +102,7 @@ class SalesArchitectureTest {
         .dependOnClassesThat()
         .resideInAnyPackage(
             "..sales.infrastructure..", "..sales.application.port.out.persistence..",
+            "..sales.application.port.out.integration..", "org.springframework.web.client..",
             "jakarta.persistence..", "org.springframework.data..")
         .allowEmptyShould(true)
         .check(PRODUCTION);

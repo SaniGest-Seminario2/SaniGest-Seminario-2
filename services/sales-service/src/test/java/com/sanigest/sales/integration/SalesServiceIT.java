@@ -1,8 +1,14 @@
 package com.sanigest.sales.integration;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.sanigest.sales.application.exception.CatalogUnavailableException;
+import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.enums.SaleStatus;
@@ -14,10 +20,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,6 +37,9 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -42,6 +53,8 @@ import tools.jackson.databind.ObjectMapper;
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
 class SalesServiceIT {
+  private static final WireMockServer CATALOG = new WireMockServer(0);
+
   @Container
   static final PostgreSQLContainer POSTGRES =
       new PostgreSQLContainer("postgres:17.7-alpine")
@@ -53,12 +66,69 @@ class SalesServiceIT {
   @Autowired private JdbcTemplate jdbc;
   @Autowired private Flyway flyway;
   @Autowired private SaleRepository sales;
+  @Autowired private CatalogClient catalog;
 
   @DynamicPropertySource
   static void database(DynamicPropertyRegistry registry) {
+    if (!CATALOG.isRunning()) {
+      CATALOG.start();
+    }
+    registry.add("sanigest.catalog.origin", CATALOG::baseUrl);
     registry.add("SALES_DB_HOST", POSTGRES::getHost);
     registry.add("SALES_DB_PORT", () -> POSTGRES.getMappedPort(5432));
     registry.add("SALES_DB_PASSWORD", POSTGRES::getPassword);
+  }
+
+  @AfterAll
+  static void stopCatalog() {
+    CATALOG.stop();
+  }
+
+  @Test
+  @Tag("smoke")
+  void loadsCatalogSnapshotsAndKeepsSalesHealthyWhenCatalogFails() throws Exception {
+    var customer = UUID.randomUUID();
+    var item = UUID.randomUUID();
+    var customerPath = "/api/v1/clients/" + customer;
+    var itemPath = "/api/v1/catalog-items/" + item;
+    CATALOG.stubFor(
+        WireMock.get(customerPath)
+            .willReturn(
+                okJson(
+                    """
+                    {"id":"%s","name":"Cliente","taxId":null,"email":null,"phone":null,"address":null,"status":"ACTIVE"}
+                    """
+                        .formatted(customer))));
+    CATALOG.stubFor(
+        WireMock.get(itemPath)
+            .willReturn(
+                okJson(
+                    """
+                      {"id":"%s","name":"Silla","type":"PRODUCT","description":null,
+                    "price":3200.10,"currency":"DOP","active":true}
+                    """
+                        .formatted(item))));
+    var now = Instant.now();
+    var jwt =
+        Jwt.withTokenValue("smoke-session")
+            .header("alg", "RS256")
+            .subject(UUID.randomUUID().toString())
+            .issuedAt(now)
+            .expiresAt(now.plusSeconds(60))
+            .build();
+    SecurityContextHolder.getContext()
+        .setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
+    try (var http = HttpClient.newHttpClient()) {
+      assertThat(catalog.getCustomer(customer).name()).isEqualTo("Cliente");
+      assertThat(catalog.getItem(item).price()).isEqualTo(new BigDecimal("3200.10"));
+      CATALOG.stubFor(WireMock.get(itemPath).willReturn(aResponse().withStatus(503)));
+      assertThatThrownBy(() -> catalog.getItem(item))
+          .isInstanceOf(CatalogUnavailableException.class)
+          .hasMessage("Catalog: DEPENDENCY_FAILURE");
+      assertThat(get(http, "/actuator/health").statusCode()).isEqualTo(200);
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
   }
 
   @Test

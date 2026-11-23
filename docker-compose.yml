@@ -231,6 +231,7 @@ services:
       JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
       JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
       SERVER_PORT: 8080
+      SALES_CATALOG_ORIGIN: ${SALES_CATALOG_ORIGIN:-http://catalog-service:8080}
       SALES_DB_HOST: postgres
       SALES_DB_PORT: 5432
       SALES_DB_PASSWORD: ${SALES_DB_PASSWORD:?Define SALES_DB_PASSWORD in .env}

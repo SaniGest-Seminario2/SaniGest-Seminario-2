@@ -83,7 +83,61 @@ El perfil de pruebas usa PostgreSQL 17 en Testcontainers y un puerto HTTP
 dinámico. V1 se valida desde una base limpia y se ejecuta Flyway por segunda
 vez para comprobar el historial, checksum y ausencia de migraciones pendientes.
 
-S2-380 incorporará Catalog por REST para validar cliente e ítems y obtener los
-snapshots. Los permisos empresariales se resolverán con Company mediante
-`common-company-access` en S2-373. Finance recibirá eventos financieros al
-incorporar cobros, mediante outbox y Kafka conforme al ADR-001.
+Finance recibirá eventos financieros al incorporar cobros, mediante outbox y
+Kafka conforme al ADR-001.
+
+## Integración con Catalog
+
+`application.port.out.integration.CatalogClient` entrega snapshots de clientes
+y artículos elegibles para una venta. El adaptador de
+`infrastructure.integration.catalog` ejecuta dos GET mediante una interfaz
+declarativa de Spring y `RestClient`.
+
+| Ruta en Catalog | Snapshot de Sales |
+| --- | --- |
+| `GET /api/v1/clients/{id}` | UUID, nombre y estado `ACTIVE`. |
+| `GET /api/v1/catalog-items/{id}` | UUID, nombre, tipo `PRODUCT` o `SERVICE`, descripción nullable, precio exacto con escala 2, moneda `DOP` y estado activo. |
+
+Los DTO de transporte son privados de la integración. El cliente valida
+identificadores, estructura, estados e importes antes de construir el snapshot.
+S2-332 consumirá estos valores para registrar la venta y persistir el importe y
+los textos vigentes al momento de vender. Las ventas históricas se consultan
+desde Sales.
+
+| Variable | Configuración |
+| --- | --- |
+| `SALES_CATALOG_ORIGIN` | Origen dedicado de Catalog, por ejemplo `https://catalog.internal`. El perfil `local` y las pruebas admiten HTTP. Compose apunta a `http://catalog-service:8080` por defecto. Si está vacío, las consultas fallan con `NOT_CONFIGURED`. |
+| `SALES_CATALOG_CONNECT_TIMEOUT` | Timeout de conexión. Predeterminado `500ms`. |
+| `SALES_CATALOG_RESPONSE_TIMEOUT` | Timeout de respuesta. Predeterminado `2s`. |
+
+Sales propaga el JWT de sesión validado por Spring Security al origen
+configurado. Sales y Catalog usan la firma, el emisor y la audiencia del
+contrato compartido. El cliente bloquea redirecciones y carece de reintentos
+configurados. Los GET de detalle requieren `CATALOG_READ`. Catalog resuelve
+la membresía vigente contra Company en cada consulta y busca por la empresa
+autorizada y el UUID. Habilita la integración de Catalog con Company para
+autorizar estas consultas según su [configuración](../../libraries/common-company-access/README.md). Los headers de empresa enviados por consumidores se ignoran. El contrato v0.7 asigna como máximo una empresa a cada usuario
+regular. La autorización de escritura de Sales en Company corresponde a
+S2-373 y el caso de uso de S2-332 deberá usar esa empresa verificada.
+Micrometer observa las llamadas HTTP y se envían `X-Trace-Id` y `traceparent`
+para correlación. Las excepciones omiten cuerpos de respuesta y credenciales.
+
+| Fallo | Traducción en Application |
+| --- | --- |
+| Sesión ausente o vencida, 401, 403 | `CatalogAccessDeniedException` con motivos distintos. |
+| 400, 404, recurso inactivo o JSON inválido | `CatalogResourceInvalidException`. Un 404 puede indicar un recurso inexistente o fuera de la empresa autorizada. |
+| 429, 5xx, fallo de red o timeout | `CatalogUnavailableException`. |
+
+Catalog puede estar indisponible durante el arranque de Sales. La salud de Sales
+se comprueba con sus propias dependencias y una consulta remota fallida termina
+sin snapshot. La prueba transaccional de registro corresponde a S2-332.
+
+```sh
+mvn -B -pl services/sales-service -am -Dtest=CatalogHttpClientTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -B -pl services/sales-service,services/catalog-service -am verify
+```
+
+WireMock cubre el tráfico saliente, contratos y fallos de Catalog. La
+regresión de Catalog usa su configuración real de Spring Security, JWT
+firmados, PostgreSQL y la autoridad Company simulada para comprobar
+aislamiento y revocación en los dos GET de detalle.

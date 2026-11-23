@@ -1839,6 +1839,41 @@ class CatalogServiceIT {
 
   @Test
   @Tag("regression")
+  void protectsBothDetailContractsWithCurrentTenantMembership() throws Exception {
+    var companyA = UUID.randomUUID();
+    var companyB = UUID.randomUUID();
+    var readerA = membershipToken(companyA, MembershipRole.OPERATOR, false, Scope.READ);
+    var readerB = membershipToken(companyB, MembershipRole.VIEWER, false, Scope.READ);
+    var clientA = Client.register(companyA, new ClientDetails("Cliente A", null, null, null, null));
+    var clientB = Client.register(companyB, new ClientDetails("Cliente B", null, null, null, null));
+    clients.insert(clientA);
+    clients.insert(clientB);
+    var itemA = CatalogItem.register(companyA, "Silla A", CatalogItemType.PRODUCT, BigDecimal.ONE);
+    var itemB = CatalogItem.register(companyB, "Silla B", CatalogItemType.SERVICE, BigDecimal.TEN);
+    items.insert(itemA);
+    items.insert(itemB);
+    var pathsA = List.of("/api/v1/clients/" + clientA.id(), CATALOG_ITEMS + "/" + itemA.id());
+    var pathsB = List.of("/api/v1/clients/" + clientB.id(), CATALOG_ITEMS + "/" + itemB.id());
+
+    try (var http = HttpClient.newHttpClient()) {
+      for (String path : pathsA) {
+        assertThat(get(http, path, readerA, companyB).statusCode()).isEqualTo(200);
+        assertThat(get(http, path, readerB, companyA).statusCode()).isEqualTo(404);
+        assertThat(get(http, path, null, companyA).statusCode()).isEqualTo(401);
+      }
+      for (String path : pathsB) {
+        assertThat(get(http, path, readerB, companyA).statusCode()).isEqualTo(200);
+        assertThat(get(http, path, readerA, companyB).statusCode()).isEqualTo(404);
+      }
+      stubFailure(readerA, 403);
+      for (String path : pathsA) {
+        assertThat(get(http, path, readerA, companyA).statusCode()).isEqualTo(403);
+      }
+    }
+  }
+
+  @Test
+  @Tag("regression")
   void checksCatalogItemPermissionsOnEveryOperation() throws Exception {
     var tenant = UUID.randomUUID();
     var admin = membershipToken(tenant, MembershipRole.ADMIN, false);
