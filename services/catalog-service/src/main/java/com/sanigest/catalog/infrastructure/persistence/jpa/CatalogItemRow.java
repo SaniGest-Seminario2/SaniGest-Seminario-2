@@ -42,6 +42,12 @@ class CatalogItemRow implements Persistable<UUID> {
   @Column(nullable = false)
   private boolean active;
 
+  @Column(length = CatalogItem.DESCRIPTION_LIMIT)
+  private String description;
+
+  @Column(nullable = false)
+  private long revision;
+
   @Transient private boolean newRow = true;
 
   protected CatalogItemRow() {}
@@ -54,6 +60,15 @@ class CatalogItemRow implements Persistable<UUID> {
     price = item.price();
     currency = item.currency();
     active = item.active();
+    description = item.description();
+  }
+
+  CatalogItem toDomain() {
+    return new CatalogItem(id, companyId, name, type, price, active, description);
+  }
+
+  long revision() {
+    return revision;
   }
 
   @Override

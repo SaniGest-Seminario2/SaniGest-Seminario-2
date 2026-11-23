@@ -146,6 +146,18 @@ Los clientes inactivos conservan su UUID y aparecen en el detalle y en el
 listado según el filtro de estado. Sales debe impedir seleccionar clientes
 `INACTIVE` para nuevas ventas y conservar las referencias históricas.
 
+### Consulta y gestión de productos y servicios
+
+El [contrato OpenAPI](src/main/resources/catalog-openapi.json) describe los filtros,
+los cuerpos de edición y los errores. Company verifica la membresía en cada solicitud.
+Las rutas de S2-325 usan la empresa de esa membresía y no reciben un contexto delegado
+para ADVISOR. Un artículo inactivo sigue disponible en el detalle y puede reactivarse.
+
+Catalog conserva el precio vigente en DOP. Al registrar una venta, Sales debe guardar
+en cada línea un snapshot del nombre, la descripción y el precio unitario efectivo
+con su moneda. Las lecturas y cálculos históricos de Sales deben usar ese snapshot,
+de modo que las ediciones posteriores del catálogo no cambien ventas registradas.
+
 ## Verificación
 
 ```sh

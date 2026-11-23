@@ -18,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.sanigest.catalog.application.dto.SupplierPage;
 import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
+import com.sanigest.catalog.application.exception.CatalogItemAccessException;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.SupplierAccessException;
@@ -26,7 +27,12 @@ import com.sanigest.catalog.application.port.out.integration.CatalogAuthorizatio
 import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
 import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
+import com.sanigest.catalog.application.usecase.catalogitem.CatalogItemCompany;
+import com.sanigest.catalog.application.usecase.catalogitem.ChangeCatalogItemStatus;
 import com.sanigest.catalog.application.usecase.catalogitem.CreateCatalogItem;
+import com.sanigest.catalog.application.usecase.catalogitem.GetCatalogItem;
+import com.sanigest.catalog.application.usecase.catalogitem.ListCatalogItems;
+import com.sanigest.catalog.application.usecase.catalogitem.UpdateCatalogItem;
 import com.sanigest.catalog.application.usecase.client.ChangeClientStatus;
 import com.sanigest.catalog.application.usecase.client.ClientCompany;
 import com.sanigest.catalog.application.usecase.client.CreateClient;
@@ -64,6 +70,11 @@ import org.springframework.test.web.servlet.ResultActions;
 @WebMvcTest
 @Import({
   SecurityConfiguration.class,
+  CatalogItemCompany.class,
+  ChangeCatalogItemStatus.class,
+  GetCatalogItem.class,
+  UpdateCatalogItem.class,
+  ListCatalogItems.class,
   CreateCatalogItem.class,
   CreateClient.class,
   ListClients.class,
@@ -418,6 +429,25 @@ class CatalogWebPolicyTest {
             .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
             .contentType(MediaType.APPLICATION_JSON)
             .content(body));
+  }
+
+  @Test
+  void catalogItemUpdateReportsAnOptimisticConflict() throws Exception {
+    validToken();
+    var company = UUID.randomUUID();
+    var id = UUID.randomUUID();
+    given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.of(company));
+    given(items.update(eq(company), eq(id), any()))
+        .willThrow(
+            new CatalogItemAccessException(
+                CatalogItemAccessException.Reason.CATALOG_ITEM_UPDATE_CONFLICT));
+    mvc.perform(
+            patch("/api/v1/catalog-items/{id}", id)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"price\":2}"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.errorCode").value("CATALOG_ITEM_UPDATE_CONFLICT"));
   }
 
   private void validToken() {

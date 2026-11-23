@@ -5,7 +5,277 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v1/catalog-items/{id}": {
+      "get": {
+        "operationId": "getCatalogItem",
+        "summary": "Consultar un producto o servicio",
+        "description": "Requiere CATALOG_READ en la membresía vigente.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Identificador del artículo",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado de la operación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidCatalogItemRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/CatalogItemUnauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/CatalogItemForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/CatalogItemNotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateCatalogItem",
+        "summary": "Editar nombre, descripción o precio",
+        "description": "Requiere CATALOG_WRITE en la membresía vigente. Los campos omitidos se conservan. description admite null para borrar su valor.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Identificador del artículo",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogItemPatchRequest"
+              },
+              "example": {
+                "description": "Silla de oficina",
+                "price": 3500.0
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado de la operación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidCatalogItemRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/CatalogItemUnauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/CatalogItemForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/CatalogItemNotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/CatalogItemUpdateConflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/catalog-items/{id}/status": {
+      "patch": {
+        "operationId": "changeCatalogItemStatus",
+        "summary": "Activar o desactivar un producto o servicio",
+        "description": "Requiere CATALOG_WRITE en la membresía vigente. Repetir el estado vigente es idempotente.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Identificador del artículo",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogItemStatusRequest"
+              },
+              "example": {
+                "active": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado de la operación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidCatalogItemRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/CatalogItemUnauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/CatalogItemForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/CatalogItemNotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/CatalogItemUpdateConflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
+          }
+        }
+      }
+    },
     "/api/v1/catalog-items": {
+      "get": {
+        "operationId": "listCatalogItems",
+        "summary": "Listar productos y servicios",
+        "description": "Requiere CATALOG_READ en la membresía vigente. Orden por nombre e ID ascendentes. Una página fuera de rango devuelve contenido vacío y conserva los totales.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Tipo exacto",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PRODUCT",
+                "SERVICE"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Fragmento literal del nombre sin distinguir mayúsculas. Se recortan los espacios exteriores.",
+            "schema": {
+              "type": "string",
+              "example": "silla"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "description": "Admite únicamente true o false. Si se omite, incluye ambos estados.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Índice de página desde cero",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Tamaño de página",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado de la operación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidCatalogItemRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/CatalogItemUnauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/CatalogItemForbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
+          }
+        }
+      },
       "post": {
         "operationId": "createCatalogItem",
         "summary": "Registrar un producto o servicio en RD$",
@@ -1225,7 +1495,195 @@
     }
   },
   "components": {
+    "responses": {
+      "InvalidCatalogItemRequest": {
+        "description": "Solicitud inválida",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "CatalogItemUnauthenticated": {
+        "description": "JWT ausente o inválido"
+      },
+      "CatalogItemForbidden": {
+        "description": "La membresía vigente no autoriza la operación",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "CatalogItemNotFound": {
+        "description": "Artículo inexistente o fuera de la empresa autorizada",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "CatalogItemAuthorizationUnavailable": {
+        "description": "No se pudo verificar la autorización empresarial",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "CatalogItemUpdateConflict": {
+        "description": "El artículo fue actualizado por otra solicitud",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
     "schemas": {
+      "CatalogItemDetailResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "price",
+          "currency",
+          "active",
+          "description"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Debe contener texto.",
+            "example": "Silla"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE"
+            ]
+          },
+          "price": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 999999999999.99,
+            "multipleOf": 0.01,
+            "description": "Precio exacto en DOP, con hasta dos decimales significativos."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "DOP"
+            ]
+          },
+          "active": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "example": "Silla de oficina"
+          }
+        }
+      },
+      "CatalogItemPageResponse": {
+        "type": "object",
+        "required": [
+          "content",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogItemDetailResponse"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "CatalogItemPatchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Debe contener texto.",
+            "example": "Silla"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "example": "Silla de oficina"
+          },
+          "price": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 999999999999.99,
+            "multipleOf": 0.01,
+            "description": "Precio exacto en DOP, con hasta dos decimales significativos."
+          }
+        }
+      },
+      "CatalogItemStatusRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
       "CreateCatalogItemRequest": {
         "type": "object",
         "additionalProperties": false,

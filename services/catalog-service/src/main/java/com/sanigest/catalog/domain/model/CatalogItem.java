@@ -4,11 +4,19 @@ import com.sanigest.catalog.domain.enums.CatalogItemType;
 import com.sanigest.catalog.domain.exception.InvalidCatalogItem;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Optional;
 import java.util.UUID;
 
 public record CatalogItem(
-    UUID id, UUID companyId, String name, CatalogItemType type, BigDecimal price, boolean active) {
+    UUID id,
+    UUID companyId,
+    String name,
+    CatalogItemType type,
+    BigDecimal price,
+    boolean active,
+    String description) {
   public static final int NAME_LIMIT = 200;
+  public static final int DESCRIPTION_LIMIT = 1000;
   public static final int PRICE_PRECISION = 14;
   public static final int PRICE_SCALE = 2;
   public static final String CURRENCY = "DOP";
@@ -24,6 +32,37 @@ public record CatalogItem(
     }
     name = name.strip();
     price = normalizedPrice(price);
+    if (description != null
+        && (description.length() > DESCRIPTION_LIMIT || description.indexOf(0) >= 0)) {
+      throw new InvalidCatalogItem("Invalid item description");
+    }
+  }
+
+  public CatalogItem(
+      UUID id,
+      UUID companyId,
+      String name,
+      CatalogItemType type,
+      BigDecimal price,
+      boolean active) {
+    this(id, companyId, name, type, price, active, null);
+  }
+
+  public CatalogItem apply(CatalogItemPatch patch) {
+    return new CatalogItem(
+        id,
+        companyId,
+        patch.name().orElse(name),
+        type,
+        patch.price().orElse(price),
+        active,
+        patch.description().orElse(Optional.ofNullable(description)).orElse(null));
+  }
+
+  public CatalogItem withActive(boolean newActive) {
+    return newActive == active
+        ? this
+        : new CatalogItem(id, companyId, name, type, price, newActive, description);
   }
 
   public static CatalogItem register(

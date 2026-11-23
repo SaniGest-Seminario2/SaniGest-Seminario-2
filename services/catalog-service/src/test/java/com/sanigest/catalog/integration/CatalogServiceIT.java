@@ -19,12 +19,18 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sanigest.catalog.CatalogServiceApplication;
+import com.sanigest.catalog.application.exception.CatalogItemAccessException;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.SupplierAccessException;
+import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
 import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
+import com.sanigest.catalog.application.usecase.catalogitem.ChangeCatalogItemStatus;
 import com.sanigest.catalog.application.usecase.catalogitem.CreateCatalogItem;
+import com.sanigest.catalog.application.usecase.catalogitem.GetCatalogItem;
+import com.sanigest.catalog.application.usecase.catalogitem.ListCatalogItems;
+import com.sanigest.catalog.application.usecase.catalogitem.UpdateCatalogItem;
 import com.sanigest.catalog.application.usecase.client.CreateClient;
 import com.sanigest.catalog.application.usecase.client.ListClients;
 import com.sanigest.catalog.application.usecase.supplier.ChangeSupplierStatus;
@@ -35,6 +41,8 @@ import com.sanigest.catalog.application.usecase.supplier.UpdateSupplier;
 import com.sanigest.catalog.domain.enums.CatalogItemType;
 import com.sanigest.catalog.domain.enums.ClientStatus;
 import com.sanigest.catalog.domain.enums.SupplierStatus;
+import com.sanigest.catalog.domain.model.CatalogItem;
+import com.sanigest.catalog.domain.model.CatalogItemPatch;
 import com.sanigest.catalog.domain.model.Client;
 import com.sanigest.catalog.domain.model.ClientDetails;
 import com.sanigest.catalog.domain.model.ClientPatch;
@@ -67,6 +75,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -152,6 +161,11 @@ class CatalogServiceIT {
       """;
 
   @Autowired CreateCatalogItem createCatalogItem;
+  @Autowired CatalogItemRepository items;
+  @Autowired ListCatalogItems listCatalogItems;
+  @Autowired GetCatalogItem getCatalogItem;
+  @Autowired UpdateCatalogItem updateCatalogItem;
+  @Autowired ChangeCatalogItemStatus changeCatalogItemStatus;
   @Autowired CreateSupplier createSupplier;
   @Autowired ListSuppliers listSuppliers;
   @Autowired GetSupplier getSupplier;
@@ -232,6 +246,17 @@ class CatalogServiceIT {
           .isEqualTo("createSupplier");
       assertThat(document.at("/paths/~1api~1v1~1catalog-items/post/operationId").asString())
           .isEqualTo("createCatalogItem");
+      assertThat(document.at("/paths/~1api~1v1~1catalog-items/get/operationId").asString())
+          .isEqualTo("listCatalogItems");
+      assertThat(document.at("/paths/~1api~1v1~1catalog-items~1{id}/get/operationId").asString())
+          .isEqualTo("getCatalogItem");
+      assertThat(document.at("/paths/~1api~1v1~1catalog-items~1{id}/patch/operationId").asString())
+          .isEqualTo("updateCatalogItem");
+      assertThat(
+              document
+                  .at("/paths/~1api~1v1~1catalog-items~1{id}~1status/patch/operationId")
+                  .asString())
+          .isEqualTo("changeCatalogItemStatus");
       assertThat(document.path("info").path("title").asString())
           .isEqualTo("SaniGest Catalog Service");
       assertThat(
@@ -304,7 +329,8 @@ class CatalogServiceIT {
             "V4__allow_inactive_clients.sql",
             "V5__create_suppliers.sql",
             "V6__support_supplier_management.sql",
-            "V7__create_catalog_items.sql");
+            "V7__create_catalog_items.sql",
+            "V8__support_catalog_item_management.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -856,7 +882,7 @@ class CatalogServiceIT {
 
   @Test
   @Tag("regression")
-  void migratesExistingClientsAndSuppliersThroughV7() throws Exception {
+  void migratesExistingCatalogRecordsThroughV8() throws Exception {
     try (var connection =
             DriverManager.getConnection(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
@@ -894,8 +920,29 @@ class CatalogServiceIT {
         supplierId,
         companyId);
 
+    assertThat(
+            Flyway.configure().dataSource(source).target("7").load().migrate().migrationsExecuted)
+        .isEqualTo(2);
+    var itemId = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO catalog.catalog_items (id, company_id, name, type, price)
+        VALUES (?, ?, 'Existing item', 'PRODUCT', 3200.50)
+        """,
+        itemId,
+        companyId);
     var latest = Flyway.configure().dataSource(source).load();
-    assertThat(latest.migrate().migrationsExecuted).isEqualTo(2);
+    assertThat(latest.migrate().migrationsExecuted).isEqualTo(1);
+    assertThat(
+            jdbc.queryForMap(
+                """
+                SELECT company_id, description, price, revision FROM catalog.catalog_items WHERE id = ?
+                """,
+                itemId))
+        .containsEntry("company_id", companyId)
+        .containsEntry("description", null)
+        .containsEntry("price", new BigDecimal("3200.50"))
+        .containsEntry("revision", 0L);
     latest.validate();
     assertThat(
             jdbc.queryForMap(
@@ -1667,6 +1714,261 @@ class CatalogServiceIT {
           .isInstanceOf(DataIntegrityViolationException.class);
     }
     assertThat(itemCount(company)).isZero();
+  }
+
+  @Test
+  @Tag("smoke")
+  void managesExistingCatalogItemsThroughHttp() throws Exception {
+    var tenant = UUID.randomUUID();
+    var otherTenant = UUID.randomUUID();
+    var owner = authorizedToken(tenant);
+    var reader = membershipToken(tenant, MembershipRole.VIEWER, false, Scope.READ);
+    var outsider = authorizedToken(otherTenant);
+    var outsiderReader = membershipToken(otherTenant, MembershipRole.VIEWER, false, Scope.READ);
+    try (var http = HttpClient.newHttpClient()) {
+      var service = postItem(http, owner, SERVICE_ITEM, null);
+      var product = postItem(http, owner, PRODUCT_ITEM, null);
+      assertPersistedItem(service, tenant, "Consultoría", "SERVICE", "15000.00");
+      assertPersistedItem(product, tenant, "Silla", "PRODUCT", "3200.00");
+      var id = UUID.fromString(JsonMapper.shared().readTree(product.body()).path("id").asString());
+      var path = CATALOG_ITEMS + "/" + id;
+      var listed = successfulBody(get(http, CATALOG_ITEMS, reader));
+      assertThat(listed.path("totalElements").asLong()).isEqualTo(2);
+      assertThat(
+              successfulBody(get(http, CATALOG_ITEMS + "?type=SERVICE", reader))
+                  .path("content")
+                  .get(0)
+                  .path("type")
+                  .asString())
+          .isEqualTo("SERVICE");
+      assertThat(
+              successfulBody(get(http, CATALOG_ITEMS + "?search=%20sIL%20", reader))
+                  .path("content")
+                  .get(0)
+                  .path("id")
+                  .asString())
+          .isEqualTo(id.toString());
+      var detail = successfulBody(get(http, path, reader));
+      assertThat(detail.path("name").asString()).isEqualTo("Silla");
+      assertThat(detail.has("revision")).isFalse();
+      assertThat(detail.has("companyId")).isFalse();
+
+      var edited =
+          patch(http, path, owner, "{\"description\":\"Silla gris\",\"price\":3500.00}", null);
+      assertThat(edited.body()).contains("\"price\":3500.00");
+      var updated = successfulBody(edited);
+      assertThat(updated.path("description").asString()).isEqualTo("Silla gris");
+      assertThat(updated.path("currency").asString()).isEqualTo("DOP");
+      assertThat(successfulBody(get(http, path, reader))).isEqualTo(updated);
+
+      var inactive =
+          successfulBody(patch(http, path + "/status", owner, "{\"active\":false}", null));
+      assertThat(inactive.path("active").asBoolean()).isFalse();
+      assertThat(successfulBody(get(http, path, reader))).isEqualTo(inactive);
+      assertThat(
+              successfulBody(
+                      get(http, CATALOG_ITEMS + "?type=PRODUCT&search=sil&active=false", reader))
+                  .path("content")
+                  .get(0))
+          .isEqualTo(inactive);
+      var revision = itemRevision(id);
+      assertThat(successfulBody(patch(http, path + "/status", owner, "{\"active\":false}", null)))
+          .isEqualTo(inactive);
+      assertThat(itemRevision(id)).isEqualTo(revision);
+
+      assertThat(successfulBody(patch(http, path + "/status", owner, "{\"active\":true}", null)))
+          .isEqualTo(updated);
+      assertThat(get(http, path, outsiderReader, tenant).statusCode()).isEqualTo(404);
+      assertThat(patch(http, path, outsider, "{\"price\":1}", tenant).statusCode()).isEqualTo(404);
+      assertThat(patch(http, path + "/status", outsider, "{\"active\":false}", tenant).statusCode())
+          .isEqualTo(404);
+      assertThat(items.find(tenant, id))
+          .hasValueSatisfying(saved -> {
+            assertThat(saved.id()).isEqualTo(id);
+            assertThat(saved.companyId()).isEqualTo(tenant);
+            assertThat(saved.description()).isEqualTo("Silla gris");
+            assertThat(saved.price()).isEqualTo(new BigDecimal("3500.00"));
+            assertThat(saved.active()).isTrue();
+          });
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void paginatesLiteralSearchResultsWithStableTenantScopedCounts() throws Exception {
+    var tenant = UUID.randomUUID();
+    var reader = membershipToken(tenant, MembershipRole.VIEWER, false, Scope.READ);
+    var first = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    var second = UUID.fromString("00000000-0000-0000-0000-000000000002");
+    items.insert(
+        new CatalogItem(
+            second, tenant, "Silla %_!", CatalogItemType.PRODUCT, BigDecimal.ONE, true));
+    items.insert(
+        new CatalogItem(first, tenant, "Silla %_!", CatalogItemType.PRODUCT, BigDecimal.ONE, true));
+    items.insert(
+        CatalogItem.register(tenant, "Silla ABC", CatalogItemType.PRODUCT, BigDecimal.ONE));
+    items.insert(
+        CatalogItem.register(tenant, "Silla %_!", CatalogItemType.SERVICE, BigDecimal.ONE));
+    items.insert(
+        CatalogItem.register(
+            UUID.randomUUID(), "Silla %_!", CatalogItemType.PRODUCT, BigDecimal.ONE));
+    items.insert(
+        CatalogItem.register(tenant, "Silla %_!", CatalogItemType.PRODUCT, BigDecimal.ONE)
+            .withActive(false));
+
+    try (var http = HttpClient.newHttpClient()) {
+      var path = CATALOG_ITEMS + "?type=PRODUCT&search=SILLA%20%25_%21&active=true&size=1";
+      var page = successfulBody(get(http, path, reader));
+      assertThat(page.path("totalElements").asLong()).isEqualTo(2);
+      assertThat(page.path("totalPages").asLong()).isEqualTo(2);
+      assertThat(page.path("content").get(0).path("id").asString()).isEqualTo(first.toString());
+      page = successfulBody(get(http, path + "&page=1", reader));
+      assertThat(page.path("content").get(0).path("id").asString()).isEqualTo(second.toString());
+      page = successfulBody(get(http, path + "&page=2147483647", reader));
+      assertThat(page.path("content").size()).isZero();
+      assertThat(page.path("totalElements").asLong()).isEqualTo(2);
+      page = successfulBody(get(http, CATALOG_ITEMS + "?search=missing", reader));
+      assertThat(page.path("totalPages").asLong()).isZero();
+      assertThat(page.path("content").size()).isZero();
+      for (var query : List.of("?type=OTHER", "?active=TRUE", "?page=-1", "?size=101", "?size=0")) {
+        assertThat(get(http, CATALOG_ITEMS + query, reader).statusCode()).isEqualTo(400);
+      }
+      assertThat(get(http, CATALOG_ITEMS + "/1-1-1-1-1", reader).statusCode()).isEqualTo(400);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void checksCatalogItemPermissionsOnEveryOperation() throws Exception {
+    var tenant = UUID.randomUUID();
+    var admin = membershipToken(tenant, MembershipRole.ADMIN, false);
+    var reader = membershipToken(tenant, MembershipRole.VIEWER, false, Scope.READ);
+    var viewer = membershipToken(tenant, MembershipRole.VIEWER, false);
+    var operator = membershipToken(tenant, MembershipRole.OPERATOR, false);
+    var writer = membershipToken(tenant, MembershipRole.OPERATOR, true);
+    var advisor = session("ADVISOR");
+    stubFailure(advisor, 403);
+    var advisorWithRead = session("ADVISOR");
+    stubFailure(advisorWithRead, 403);
+    var advisorId = SignedJWT.parse(advisorWithRead).getJWTClaimsSet().getSubject();
+    COMPANY.stubFor(
+        WireMock.get(urlEqualTo(PATH))
+            .withHeader(USER_ASSERTION, WireMock.absent())
+            .willReturn(
+                aResponse()
+                    .withHeader("Content-Type", "application/json")
+                    .withBody(
+                        """
+                        {"userId":"%s","companyId":"%s","module":"CATALOG","scope":"READ","mode":"DELEGATED"}
+                        """
+                            .formatted(advisorId, tenant))));
+    var timeout = session("REGULAR");
+    COMPANY.stubFor(
+        WireMock.get(urlEqualTo(PATH))
+            .withHeader(USER_ASSERTION, equalTo(timeout))
+            .willReturn(aResponse().withFixedDelay(3000)));
+    var item = CatalogItem.register(tenant, "Silla", CatalogItemType.PRODUCT, BigDecimal.ONE);
+    items.insert(item);
+    var path = CATALOG_ITEMS + "/" + item.id();
+
+    try (var http = HttpClient.newHttpClient()) {
+      assertThat(get(http, CATALOG_ITEMS, null).statusCode()).isEqualTo(401);
+      assertThat(get(http, path, "invalid").statusCode()).isEqualTo(401);
+      assertThat(patch(http, path, null, "{\"price\":2}", null).statusCode()).isEqualTo(401);
+      assertThat(get(http, path, reader).statusCode()).isEqualTo(200);
+      assertThat(get(http, path, advisor, tenant).statusCode()).isEqualTo(403);
+      for (var denied : List.of(viewer, operator, advisor, advisorWithRead)) {
+        assertThat(patch(http, path, denied, "{\"price\":2}", tenant).statusCode()).isEqualTo(403);
+        assertThat(patch(http, path + "/status", denied, "{\"active\":false}", tenant).statusCode())
+            .isEqualTo(403);
+      }
+      COMPANY.verify(
+          0, getRequestedFor(urlEqualTo(PATH)).withHeader(USER_ASSERTION, WireMock.absent()));
+      var updated = successfulBody(patch(http, path, admin, "{\"description\":\"Gris\"}", null));
+      assertThat(updated.path("description").asString()).isEqualTo("Gris");
+      var cleared = successfulBody(patch(http, path, writer, "{\"description\":null}", null));
+      assertThat(cleared.path("description").isNull()).isTrue();
+      stubFailure(writer, 403);
+      assertThat(patch(http, path + "/status", writer, "{\"active\":false}", null).statusCode())
+          .isEqualTo(403);
+      assertThat(patch(http, path, timeout, "{\"price\":2}", null).statusCode()).isEqualTo(503);
+      for (var invalid :
+          List.of("null", "{}", "{\"price\":10.999}", "{\"price\":-1}", "{\"active\":false}")) {
+        assertThat(patch(http, path, admin, invalid, null).statusCode()).isEqualTo(400);
+      }
+      assertThat(patch(http, path + "/status", admin, "{\"active\":\"false\"}", null).statusCode())
+          .isEqualTo(400);
+      assertThat(successfulBody(get(http, path, reader))).isEqualTo(cleared);
+      assertThat(itemRevision(item.id())).isEqualTo(2);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void detectsConcurrentCatalogItemChangesInPostgres() throws Exception {
+    var item =
+        CatalogItem.register(UUID.randomUUID(), "Silla", CatalogItemType.PRODUCT, BigDecimal.ONE);
+    items.insert(item);
+    var read = new CountDownLatch(1);
+    var committed = new CountDownLatch(1);
+    try (var executor = Executors.newSingleThreadExecutor()) {
+      var stale =
+          executor.submit(() ->
+              items.update(
+                  item.companyId(),
+                  item.id(),
+                  current -> {
+                    read.countDown();
+                    try {
+                      if (!committed.await(10, TimeUnit.SECONDS)) {
+                        throw new AssertionError("Concurrent write did not finish");
+                      }
+                    } catch (InterruptedException interrupted) {
+                      Thread.currentThread().interrupt();
+                      throw new AssertionError(interrupted);
+                    }
+                    return current.withActive(false);
+                  }));
+      try {
+        assertThat(read.await(10, TimeUnit.SECONDS)).isTrue();
+        items.update(
+            item.companyId(),
+            item.id(),
+            current ->
+                current.apply(
+                    new CatalogItemPatch(
+                        Optional.empty(), Optional.empty(), Optional.of(new BigDecimal("3.50")))));
+      } finally {
+        committed.countDown();
+      }
+      assertThatThrownBy(() -> stale.get(10, TimeUnit.SECONDS))
+          .hasCauseInstanceOf(CatalogItemAccessException.class)
+          .hasRootCauseMessage("CATALOG_ITEM_UPDATE_CONFLICT");
+    }
+    assertThat(items.find(item.companyId(), item.id()))
+        .hasValueSatisfying(saved -> {
+          assertThat(saved.active()).isTrue();
+          assertThat(saved.price()).isEqualTo(new BigDecimal("3.50"));
+        });
+    assertThat(itemRevision(item.id())).isEqualTo(1);
+  }
+
+  @Test
+  void catalogItemManagementRequiresAuthenticationThroughTheSpringProxy() {
+    var id = UUID.randomUUID();
+    assertThatThrownBy(() -> listCatalogItems.execute(null, null, null, 0, 20))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(() -> getCatalogItem.execute(id)).isInstanceOf(AccessDeniedException.class);
+    var patch = new CatalogItemPatch(Optional.of("Silla"), Optional.empty(), Optional.empty());
+    assertThatThrownBy(() -> updateCatalogItem.execute(id, patch))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(() -> changeCatalogItemStatus.execute(id, false))
+        .isInstanceOf(AccessDeniedException.class);
+  }
+
+  private long itemRevision(UUID id) {
+    return new JdbcTemplate(dataSource)
+        .queryForObject("SELECT revision FROM catalog.catalog_items WHERE id = ?", Long.class, id);
   }
 
   private HttpResponse<String> postItem(
