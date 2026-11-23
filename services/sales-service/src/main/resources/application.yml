@@ -36,6 +36,13 @@ server:
   shutdown: graceful
 
 sanigest:
+  company-access:
+    enabled: ${SALES_COMPANY_ACCESS_ENABLED:false}
+    origin: ${SALES_COMPANY_ACCESS_ORIGIN:}
+    issuer: ${SALES_COMPANY_ACCESS_ISSUER:sales-company-access}
+    private-key-location: ${SALES_COMPANY_ACCESS_PRIVATE_KEY_LOCATION:}
+    connect-timeout: ${SALES_COMPANY_ACCESS_CONNECT_TIMEOUT:500ms}
+    response-timeout: ${SALES_COMPANY_ACCESS_RESPONSE_TIMEOUT:2s}
   catalog:
     origin: ${SALES_CATALOG_ORIGIN:}
     connect-timeout: ${SALES_CATALOG_CONNECT_TIMEOUT:500ms}

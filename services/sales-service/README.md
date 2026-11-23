@@ -86,6 +86,86 @@ vez para comprobar el historial, checksum y ausencia de migraciones pendientes.
 Finance recibirá eventos financieros al incorporar cobros, mediante outbox y
 Kafka conforme al ADR-001.
 
+## Autorización empresarial
+
+`SalesAuthorization` resuelve el UUID de la empresa autorizada a partir de una
+membresía vigente o una delegación explícita. El adaptador
+`CompanySalesAuthorization` consulta Company para el módulo `SALES` mediante
+`common-company-access`. Los roles y concesiones se obtienen de Company en cada
+operación. Los claims empresariales, el body y `X-Company-Id` carecen de efecto
+en la resolución de la membresía.
+
+| Rol o contexto | SALES_READ | SALES_WRITE | SALES_CANCEL |
+| --- | --- | --- | --- |
+| OWNER | Sí | Sí | Sí |
+| ADMIN | Sí | Sí | Sí |
+| OPERATOR | Sí | Con concesión vigente SALES_WRITE | Denegado |
+| VIEWER (READ_ONLY en Jira) | Sí | Denegado | Denegado |
+| ADVISOR | Delegación vigente SALES/READ | Delegación vigente SALES/WRITE | Denegado |
+
+- `SALES_READ` usa `READ` y cubre listado, detalle y líneas. `SALES_WRITE`
+  usa `WRITE` y cubre registro.
+- `SALES_CANCEL` consulta la membresía con `WRITE` y exige el rol vigente
+  OWNER o ADMIN. El alcance genérico WRITE y las concesiones de OPERATOR
+  carecen de efecto para cancelar. La elegibilidad de la venta, el motivo y
+  la auditoría corresponden a S2-334.
+- ADVISOR usa exclusivamente el método delegado con un UUID explícito. Company
+  verifica en Identity la elegibilidad actual y comprueba empresa activa,
+  vigencia, alcance exacto y revocación de la concesión. Los flujos públicos de
+  Sales aún carecen de selección delegada y de auditoría de operaciones Sales.
+  El cliente actual de Catalog resuelve membresía regular, por lo que un
+  futuro registro delegado también requiere un contrato de Catalog compatible.
+- Una revocación confirmada surte efecto en la siguiente consulta a Company.
+  Una operación ya autorizada puede seguir en curso. La integración
+  deshabilitada, un timeout o una respuesta inválida producen
+  `SalesAuthorizationUnavailable` (503). Una denegación de Company o de la
+  política produce `SalesAccessForbidden` (403). El filtro distingue sesión
+  ausente o inválida (401) y el advice traduce errores de negocio al formato
+  Problem Details.
+
+### Configuración de Company
+
+Registra la clave pública específica de Sales en Company bajo
+`sanigest.company-access.callers.sales`, con `issuer` y `public-key`.
+Monta en Sales su clave privada RSA PKCS#8. Habilitar el cliente construye
+la configuración local y difiere el tráfico remoto hasta la primera decisión.
+
+| Variable | Valor |
+| --- | --- |
+| `SALES_COMPANY_ACCESS_ENABLED` | `false` por defecto. |
+| `SALES_COMPANY_ACCESS_ORIGIN` | Origen privado de Company. HTTPS, con HTTP admitido en perfiles `local` y `test`. |
+| `SALES_COMPANY_ACCESS_ISSUER` | `sales-company-access` por defecto. Debe coincidir con el emisor registrado para SALES. |
+| `SALES_COMPANY_ACCESS_PRIVATE_KEY_LOCATION` | Ubicación `file:` de la clave privada exclusiva de Sales. |
+| `SALES_COMPANY_ACCESS_CONNECT_TIMEOUT` | `500ms` por defecto. |
+| `SALES_COMPANY_ACCESS_RESPONSE_TIMEOUT` | `2s` por defecto. |
+
+### Rutas previstas y aplicación del permiso
+
+| Ruta prevista | Permiso | Ticket |
+| --- | --- | --- |
+| POST /api/v1/sales | SALES_WRITE | S2-332 |
+| GET /api/v1/sales | SALES_READ | S2-334 |
+| GET /api/v1/sales/{id} | SALES_READ | S2-334 |
+| POST /api/v1/sales/{id}/cancel | SALES_CANCEL | S2-334 |
+
+Actualmente Sales expone salud y el filtro deniega las rutas funcionales.
+Al implementar cada ruta, exigir autenticación en el filtro y en el método
+del bean Spring invocado por el controlador, con
+`@PreAuthorize("isAuthenticated()")`. El método debe obtener el UUID mediante
+el puerto una vez por operación, antes de tocar Catalog o la persistencia,
+y utilizar el UUID devuelto para crear o buscar por empresa. Para detalle y
+cancelación la consulta debe incluir empresa e identificador. Un objeto
+inexistente o ajeno se traduce a 404. Validar parámetros de entrada
+en la frontera HTTP para devolver 400 cuando corresponda. Invocar el bean
+a través del proxy Spring para activar Method Security.
+
+`CompanySalesAuthorizationTest` prueba la matriz.
+`SalesAuthorizationIntegrationTest` arranca Spring, usa tokens firmados con
+claves temporales y WireMock para verificar el protocolo, los fallos, las
+revocaciones, la invocación mediante proxy y la denegación de rutas. La
+regresión con PostgreSQL verifica la consulta JPA por empresa e identificador.
+El recorrido HTTP de ventas quedará cubierto con S2-332 y S2-334.
+
 ## Integración con Catalog
 
 `application.port.out.integration.CatalogClient` entrega snapshots de clientes
@@ -117,8 +197,8 @@ configurados. Los GET de detalle requieren `CATALOG_READ`. Catalog resuelve
 la membresía vigente contra Company en cada consulta y busca por la empresa
 autorizada y el UUID. Habilita la integración de Catalog con Company para
 autorizar estas consultas según su [configuración](../../libraries/common-company-access/README.md). Los headers de empresa enviados por consumidores se ignoran. El contrato v0.7 asigna como máximo una empresa a cada usuario
-regular. La autorización de escritura de Sales en Company corresponde a
-S2-373 y el caso de uso de S2-332 deberá usar esa empresa verificada.
+regular. El caso de uso de S2-332 deberá usar la empresa verificada por el puerto
+de autorización de Sales.
 Micrometer observa las llamadas HTTP y se envían `X-Trace-Id` y `traceparent`
 para correlación. Las excepciones omiten cuerpos de respuesta y credenciales.
 

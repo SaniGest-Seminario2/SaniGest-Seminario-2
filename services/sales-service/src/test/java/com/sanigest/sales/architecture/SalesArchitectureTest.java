@@ -5,6 +5,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
+import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
@@ -67,6 +68,38 @@ class SalesArchitectureTest {
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("..sales.domain..", "..sales.application.port..")
+        .check(PRODUCTION);
+  }
+
+  @Test
+  void isolatesCompanyAuthorizationBehindTheSalesPort() {
+    classes()
+        .that()
+        .areAssignableTo(SalesAuthorization.class)
+        .should()
+        .resideInAnyPackage(
+            "..sales.application.port.out.integration..", "..sales.infrastructure.company..")
+        .check(PRODUCTION);
+    classes()
+        .that()
+        .haveSimpleName("CompanySalesAuthorization")
+        .should()
+        .implement(SalesAuthorization.class)
+        .check(PRODUCTION);
+    noClasses()
+        .that()
+        .resideInAPackage("..sales.infrastructure.company..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "..sales.domain..",
+            "..sales.api..",
+            "..sales.infrastructure.persistence..",
+            "..sales.application.port.out.persistence..",
+            "java.sql..",
+            "jakarta.persistence..",
+            "org.springframework.jdbc..",
+            "org.springframework.data..")
         .check(PRODUCTION);
   }
 
