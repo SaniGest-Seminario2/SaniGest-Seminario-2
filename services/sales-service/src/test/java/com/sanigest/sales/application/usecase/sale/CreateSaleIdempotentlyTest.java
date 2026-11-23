@@ -23,7 +23,6 @@ import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyReposi
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Claim;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Replay;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Request;
-import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.model.Sale;
 import java.math.BigDecimal;
@@ -38,12 +37,11 @@ import org.junit.jupiter.api.Test;
 class CreateSaleIdempotentlyTest {
   private final SalesAuthorization authorization = mock(SalesAuthorization.class);
   private final CreateSale create = mock(CreateSale.class);
-  private final SaleRepository sales = mock(SaleRepository.class);
   private final SaleIdempotencyRepository idempotency = mock(SaleIdempotencyRepository.class);
   private final UUID company = UUID.randomUUID();
   private final UUID actor = UUID.randomUUID();
   private final CreateSaleIdempotently useCase =
-      new CreateSaleIdempotently(authorization, () -> actor, create, sales, idempotency);
+      new CreateSaleIdempotently(authorization, () -> actor, create, idempotency);
   private final CreateSaleCommand command =
       new CreateSaleCommand(
           UUID.randomUUID(),
@@ -64,7 +62,7 @@ class CreateSaleIdempotentlyTest {
     Sale prepared = mock(Sale.class);
     Sale registered = mock(Sale.class);
     when(create.prepare(command, company)).thenReturn(prepared);
-    when(sales.register(prepared)).thenReturn(registered);
+    when(create.register(prepared, null)).thenReturn(registered);
     when(idempotency.complete(any(), eq(claim), any()))
         .thenAnswer(invocation -> invocation.<Supplier<CreatedSaleResponse>>getArgument(2).get());
     assertThat(
@@ -95,7 +93,7 @@ class CreateSaleIdempotentlyTest {
     assertThatThrownBy(() -> useCase.execute("test", command, unexpectedResponse()))
         .isInstanceOf(SalesAccessForbidden.class);
     verify(idempotency).resolve(any());
-    verifyNoInteractions(create, sales);
+    verifyNoInteractions(create);
   }
 
   @Test
@@ -108,7 +106,7 @@ class CreateSaleIdempotentlyTest {
         .isInstanceOf(IdempotencyInProgress.class);
     assertThatThrownBy(() -> useCase.execute("test", null, unexpectedResponse()))
         .isInstanceOf(InvalidSaleRequest.class);
-    verifyNoInteractions(create, sales);
+    verifyNoInteractions(create);
   }
 
   @Test
@@ -124,7 +122,7 @@ class CreateSaleIdempotentlyTest {
     assertThatThrownBy(() -> useCase.execute("test", command, unexpectedResponse()))
         .isSameAs(databaseFailure);
     verify(idempotency, org.mockito.Mockito.times(2)).release(any(), eq(claim));
-    verifyNoInteractions(sales);
+    org.mockito.Mockito.verify(create, org.mockito.Mockito.never()).register(any(), any());
   }
 
   @Test

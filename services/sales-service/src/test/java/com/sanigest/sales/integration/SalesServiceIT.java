@@ -190,7 +190,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("5");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -220,13 +220,14 @@ class SalesServiceIT {
                 """,
                 String.class))
         .containsExactlyInAnyOrder(
-            "sales", "sale_lines", "sale_number_sequences", "sale_idempotency_keys");
+            "sales", "sale_lines", "sale_number_sequences", "sale_idempotency_keys", "receivables");
 
     assertThat(
             jdbc.queryForList(
                 """
                 SELECT table_name || '.' || column_name || ':' || data_type || ':' || is_nullable
-                FROM information_schema.columns WHERE table_schema = 'sales' AND table_name <> 'sale_idempotency_keys'
+                FROM information_schema.columns WHERE table_schema = 'sales'
+                  AND table_name NOT IN ('sale_idempotency_keys', 'receivables')
                 """,
                 String.class))
         .containsExactlyInAnyOrder(
@@ -269,7 +270,10 @@ class SalesServiceIT {
             "sales_company_code_key",
             "sale_number_sequences_pkey",
             "sale_idempotency_keys_pkey",
-            "sale_idempotency_expiration_idx");
+            "sale_idempotency_expiration_idx",
+            "sales_company_id_sale_date_key",
+            "receivables_pkey",
+            "receivables_sale_id_key");
     assertThat(
             jdbc.queryForList(
                 """
@@ -284,7 +288,8 @@ class SalesServiceIT {
                 String.class))
         .containsExactlyInAnyOrder(
             "sale_lines.sale_lines_sale_fk -> sales.sales",
-            "sale_idempotency_keys.sale_idempotency_sale_fk -> sales.sales");
+            "sale_idempotency_keys.sale_idempotency_sale_fk -> sales.sales",
+            "receivables.receivables_sale_fk -> sales.sales");
 
     var history =
         jdbc.queryForList(
@@ -292,8 +297,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(4);
-    assertThat(history.getLast()).containsEntry("version", "4").containsEntry("success", true);
+    assertThat(history).hasSize(5);
+    assertThat(history.getLast()).containsEntry("version", "5").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -324,7 +329,7 @@ class SalesServiceIT {
     legacy.update(
         """
         INSERT INTO sales.sales (id, company_id, client_id, client_name, sale_date, mode, status, total)
-        VALUES (?, ?, ?, 'Cliente histórico', DATE '2026-11-23', 'CASH', 'REGISTERED', 15.00)
+        VALUES (?, ?, ?, 'Cliente histórico', DATE '2026-11-23', 'CREDIT', 'REGISTERED', 15.00)
         """,
         saleId,
         UUID.randomUUID(),
@@ -355,8 +360,13 @@ class SalesServiceIT {
         """,
         legacyCancellation,
         saleId);
+    assertThat(
+            Flyway.configure().dataSource(upgrade).target("4").load().migrate().migrationsExecuted)
+        .isEqualTo(1);
     assertThat(current.migrate().migrationsExecuted).isEqualTo(1);
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("4");
+    assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
+        .isZero();
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("5");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
@@ -555,6 +565,7 @@ class SalesServiceIT {
       assertThat(body.path("code").asString()).isEqualTo("V-2026-001");
       assertThat(body.path("status").asString()).isEqualTo("REGISTERED");
       assertThat(body.path("mode").asString()).isEqualTo("CASH");
+      assertThat(countReceivables(fixture.company())).isZero();
       assertThat(body.path("saleDate").asString()).isEqualTo("2026-11-23");
       assertThat(body.path("currency").asString()).isEqualTo("DOP");
       assertThat(body.path("client").path("id").asString()).isEqualTo(fixture.client().toString());
@@ -745,13 +756,13 @@ class SalesServiceIT {
     var fixture = fixture();
     fixture.membership("OWNER", false);
     String key = UUID.randomUUID().toString();
-    String changed = fixture.body().replace("CASH", "CREDIT");
+    String changed = creditBody(fixture);
     var barrier = new CyclicBarrier(participants);
     try (var http = HttpClient.newHttpClient();
         var executor = Executors.newFixedThreadPool(participants)) {
       List<Callable<HttpResponse<String>>> requests = new ArrayList<>();
       for (int i = 0; i < participants; i++) {
-        String payload = differentPayload && i == 0 ? changed : fixture.body();
+        String payload = !differentPayload || i == 0 ? changed : fixture.body();
         requests.add(() -> {
           barrier.await(5, TimeUnit.SECONDS);
           return post(http, fixture, fixture.bearer(), payload, key);
@@ -776,6 +787,7 @@ class SalesServiceIT {
       var replay = post(http, fixture, fixture.bearer(), payload, key);
       assertThat(replay.statusCode()).isEqualTo(201);
       assertThat(replay.body()).isEqualTo(winner.body());
+      assertThat(countReceivables(fixture.company())).isEqualTo(payload.equals(changed) ? 1 : 0);
       CATALOG.verify(1, WireMock.getRequestedFor(WireMock.urlPathEqualTo(fixture.productPath())));
       assertThat(countSales(fixture.company())).isEqualTo(1);
       assertThat(
@@ -808,7 +820,7 @@ class SalesServiceIT {
     original.membership("OWNER", false);
     sameTenant.membership("OWNER", false);
     try (var http = HttpClient.newHttpClient()) {
-      var first = post(http, original, original.bearer(), original.body(), key);
+      var first = post(http, original, original.bearer(), creditBody(original), key);
       assertThat(first.statusCode()).withFailMessage(first.body()).isEqualTo(201);
       var otherActor = post(http, sameTenant, sameTenant.bearer(), sameTenant.body(), key);
       assertThat(otherActor.statusCode()).isEqualTo(201);
@@ -840,13 +852,22 @@ class SalesServiceIT {
                 http,
                 original,
                 original.bearer(),
-                original.body(),
+                creditBody(original),
                 key,
                 secondInstance
                     .getEnvironment()
                     .getRequiredProperty("local.server.port", Integer.class));
         assertThat(response.statusCode()).isEqualTo(201);
         assertThat(response.body()).isEqualTo(first.body());
+        var id = UUID.fromString(new ObjectMapper().readTree(first.body()).path("id").asString());
+        var stored =
+            secondInstance
+                .getBean(
+                    com.sanigest.sales.application.port.out.persistence.ReceivableRepository.class)
+                .findByCompanyIdAndId(original.company(), id)
+                .orElseThrow();
+        assertThat(stored.status().name()).isEqualTo("OPEN");
+        assertThat(stored.balance()).isEqualTo(new BigDecimal("12601.50"));
         CATALOG.verify(
             1, WireMock.getRequestedFor(WireMock.urlPathEqualTo(original.productPath())));
       }
@@ -945,10 +966,11 @@ class SalesServiceIT {
             .formatted(key));
     try (var http = HttpClient.newHttpClient()) {
       try {
-        var failed = post(http, fixture, fixture.bearer(), fixture.body(), key);
+        var failed = post(http, fixture, fixture.bearer(), creditBody(fixture), key);
         assertThat(failed.statusCode()).isEqualTo(409);
         assertThat(failed.body()).contains("SALE_CONFLICT");
         assertThat(countSales(fixture.company())).isZero();
+        assertThat(countReceivables(fixture.company())).isZero();
         assertThat(
                 jdbc.queryForObject(
                     """
@@ -969,7 +991,7 @@ class SalesServiceIT {
         jdbc.execute(
             "ALTER TABLE sales.sale_idempotency_keys DROP CONSTRAINT reject_test_response");
       }
-      var recovered = post(http, fixture, fixture.bearer(), fixture.body(), key);
+      var recovered = post(http, fixture, fixture.bearer(), creditBody(fixture), key);
       assertThat(recovered.statusCode()).isEqualTo(201);
       assertThat(recovered.body()).contains("V-2026-001");
     }
@@ -1175,7 +1197,7 @@ class SalesServiceIT {
     admin.membership("ADMIN", false);
     try (var http = HttpClient.newHttpClient();
         var executor = Executors.newFixedThreadPool(2)) {
-      String id = registerForLifecycle(http, owner).path("id").asString();
+      String id = registerCredit(http, owner);
       var start = new CyclicBarrier(2);
       var first =
           executor.submit(() -> {
@@ -1198,6 +1220,9 @@ class SalesServiceIT {
           .isEqualTo(details.cancelledBy().equals(owner.user()) ? "Primera" : "Segunda");
       assertThat(details.cancelledBy()).isIn(owner.user(), admin.user());
       assertThat(countSales(owner.company())).isEqualTo(1);
+      owner.membership("OWNER", false, "READ");
+      assertThat(page(getReceivable(http, owner.bearer(), id)).path("status").asString())
+          .isEqualTo("CANCELLED");
     }
   }
 
@@ -1270,7 +1295,7 @@ class SalesServiceIT {
     var owner = fixture();
     owner.membership("OWNER", false);
     try (var http = HttpClient.newHttpClient()) {
-      String id = registerForLifecycle(http, owner).path("id").asString();
+      String id = registerCredit(http, owner);
       jdbc.execute(
           """
           CREATE FUNCTION sales.test_skip_sale_update() RETURNS trigger LANGUAGE plpgsql AS
@@ -1291,11 +1316,240 @@ class SalesServiceIT {
             sales.findByCompanyIdAndId(owner.company(), UUID.fromString(id)).orElseThrow();
         assertThat(unchanged.status()).isEqualTo(SaleStatus.REGISTERED);
         assertThat(unchanged.cancellation()).isNull();
+        owner.membership("OWNER", false, "READ");
+        assertThat(page(getReceivable(http, owner.bearer(), id)).path("status").asString())
+            .isEqualTo("OPEN");
       } finally {
         jdbc.execute("DROP TRIGGER IF EXISTS test_skip_sale_update ON sales.sales");
         jdbc.execute("DROP FUNCTION sales.test_skip_sale_update()");
       }
     }
+  }
+
+  @Test
+  @Tag("regression")
+  void replaysCompletedLegacyCreditWithoutInventingADueDateOrCallingCatalog() throws Exception {
+    var owner = fixture();
+    owner.membership("OWNER", false);
+    var saleId = UUID.randomUUID();
+    var key = UUID.randomUUID().toString();
+    var payload = owner.body().replace("CASH", "CREDIT");
+    var response = "{\"id\":\"%s\",\"mode\":\"CREDIT\"}".formatted(saleId);
+    jdbc.update(
+        """
+        INSERT INTO sales.sales (id, company_id, client_id, client_name, sale_date, mode, status, total)
+        VALUES (?, ?, ?, 'Cliente', DATE '2026-11-23', 'CREDIT', 'REGISTERED', 12601.50)
+        """,
+        saleId,
+        owner.company(),
+        owner.client());
+    var canonical =
+        String.join(
+            "\n",
+            "POST /api/v1/sales",
+            "1",
+            owner.client().toString(),
+            "CREDIT",
+            "2026-11-23",
+            owner.product().toString(),
+            "2",
+            owner.service().toString(),
+            "3");
+    var hash =
+        java.util.HexFormat.of()
+            .formatHex(
+                java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    jdbc.update(
+        """
+        INSERT INTO sales.sale_idempotency_keys
+            (company_id, actor_id, operation, idempotency_key, fingerprint_version, request_hash,
+             sale_id, response_body, response_status, response_version, created_at, completed_at, expires_at)
+        VALUES (?, ?, 'POST /api/v1/sales', ?, 1, ?, ?, ?, 201, 1,
+                now() - interval '3 days', now() - interval '2 days', now() - interval '1 day')
+        """,
+        owner.company(),
+        owner.user(),
+        key,
+        hash,
+        saleId,
+        response);
+    try (var http = HttpClient.newHttpClient()) {
+      var replay = post(http, owner, owner.bearer(), payload, key);
+      assertThat(replay.statusCode()).isEqualTo(201);
+      assertThat(replay.body()).isEqualTo(response);
+      assertThat(post(http, owner, owner.bearer(), creditBody(owner), key).statusCode())
+          .isEqualTo(409);
+      assertThat(countReceivables(owner.company())).isZero();
+      assertThat(countSales(owner.company())).isEqualTo(1);
+      CATALOG.verify(0, WireMock.getRequestedFor(WireMock.urlPathEqualTo(owner.productPath())));
+    }
+  }
+
+  @Test
+  @Tag("smoke")
+  void creditCreatesOneReceivableAndCancellationPreservesTheOriginalAmount() throws Exception {
+    var owner = fixture();
+    owner.membership("OWNER", false);
+    var other = fixture();
+    other.membership("OWNER", false);
+    try (var http = HttpClient.newHttpClient()) {
+      var key = UUID.randomUUID().toString();
+      var payload = creditBody(owner);
+      var created = post(http, owner, owner.bearer(), payload, key);
+      assertThat(created.statusCode()).withFailMessage(created.body()).isEqualTo(201);
+      var sale = new ObjectMapper().readTree(created.body());
+      String id = sale.path("id").asString();
+      owner.membership("OWNER", false, "READ");
+      var receivable = page(getReceivable(http, owner.bearer(), id));
+      assertThat(receivable.path("saleId").asString()).isEqualTo(id);
+      assertThat(receivable.path("origin").asString()).isEqualTo("SALE");
+      assertThat(receivable.path("currency").asString()).isEqualTo("DOP");
+      assertThat(receivable.path("dueDate").asString()).isEqualTo("2026-12-23");
+      assertThat(receivable.path("client")).isEqualTo(sale.path("client"));
+      assertThat(receivable.path("balance")).isEqualTo(sale.path("total"));
+      assertThat(receivable.path("totalAmount")).isEqualTo(sale.path("total"));
+      assertThat(receivable.path("status").asString()).isEqualTo("OPEN");
+
+      owner.membership("OWNER", false);
+      jdbc.update(
+          """
+          UPDATE sales.sale_idempotency_keys
+          SET completed_at = now() - interval '1 minute', created_at = now() - interval '1 minute',
+              expires_at = now() - interval '1 second'
+          WHERE sale_id = ?
+          """,
+          UUID.fromString(id));
+      var replay = post(http, owner, owner.bearer(), payload, key);
+      assertThat(replay.statusCode()).isEqualTo(201);
+      assertThat(replay.body()).isEqualTo(created.body());
+      assertThat(
+              post(http, owner, owner.bearer(), payload.replace("12-23", "12-24"), key)
+                  .statusCode())
+          .isEqualTo(409);
+      assertThat(countReceivables(owner.company())).isEqualTo(1);
+      owner.membership("OWNER", false, "READ");
+      other.membership("OWNER", false, "READ");
+      assertThat(getReceivable(http, null, id).statusCode()).isEqualTo(401);
+      assertThat(getReceivable(http, "invalid", id).statusCode()).isEqualTo(401);
+      assertThat(getReceivable(http, other.bearer(), id).statusCode()).isEqualTo(404);
+      assertThat(getReceivable(http, owner.bearer(), UUID.randomUUID().toString()).statusCode())
+          .isEqualTo(404);
+      other.companyReply(403);
+      assertThat(getReceivable(http, other.bearer(), id).statusCode()).isEqualTo(403);
+
+      owner.membership("OWNER", false);
+      var cancelled = cancel(http, owner.bearer(), id, "{\"reason\":\"Duplicada\"}");
+      assertThat(page(cancelled).path("status").asString()).isEqualTo("CANCELLED");
+      owner.membership("OWNER", false, "READ");
+      var stored = page(getReceivable(http, owner.bearer(), id));
+      assertThat(stored.path("status").asString()).isEqualTo("CANCELLED");
+      assertThat(stored.path("totalAmount")).isEqualTo(receivable.path("totalAmount"));
+      assertThat(stored.path("balance")).isEqualTo(receivable.path("balance"));
+      assertThat(countReceivables(owner.company())).isEqualTo(1);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void invalidDueDatesAndInsertFailureLeaveNoCreditSaleAndAllowRetry() throws Exception {
+    var owner = fixture();
+    owner.membership("OWNER", false);
+    try (var http = HttpClient.newHttpClient()) {
+      String payload = creditBody(owner);
+      for (String invalid :
+          List.of(
+              owner.body().replace("CASH", "CREDIT"),
+              payload.replace("2026-12-23", "2026-11-22"),
+              payload.replace("2026-12-23", "2026-02-30"),
+              payload.replace("2026-12-23", "2026-12-23T00:00:00"))) {
+        assertThat(post(http, owner, owner.bearer(), invalid).statusCode()).isEqualTo(400);
+      }
+      String key = UUID.randomUUID().toString();
+      jdbc.execute(
+          """
+          ALTER TABLE sales.sales ADD CONSTRAINT reject_test_credit_sale
+          CHECK (company_id <> '%s')
+          """
+              .formatted(owner.company()));
+      try {
+        assertThat(post(http, owner, owner.bearer(), payload, key).statusCode()).isEqualTo(409);
+        assertThat(countSales(owner.company())).isZero();
+        assertThat(countReceivables(owner.company())).isZero();
+      } finally {
+        jdbc.execute("ALTER TABLE sales.sales DROP CONSTRAINT reject_test_credit_sale");
+      }
+      jdbc.execute(
+          """
+          ALTER TABLE sales.receivables ADD CONSTRAINT reject_test_receivable
+          CHECK (company_id <> '%s')
+          """
+              .formatted(owner.company()));
+      try {
+        assertThat(post(http, owner, owner.bearer(), payload, key).statusCode()).isEqualTo(409);
+        assertThat(countSales(owner.company())).isZero();
+        assertThat(countReceivables(owner.company())).isZero();
+      } finally {
+        jdbc.execute("ALTER TABLE sales.receivables DROP CONSTRAINT reject_test_receivable");
+      }
+      var retry = post(http, owner, owner.bearer(), payload, key);
+      assertThat(retry.statusCode()).withFailMessage(retry.body()).isEqualTo(201);
+      assertThat(retry.body()).contains("V-2026-001");
+      assertThat(countReceivables(owner.company())).isEqualTo(1);
+      assertThatThrownBy(() -> copyReceivable(owner.company(), owner.company()))
+          .isInstanceOf(DataIntegrityViolationException.class)
+          .hasMessageContaining("receivables_sale_id_key");
+
+      assertThatThrownBy(() ->
+              jdbc.update(
+                  "UPDATE sales.receivables SET company_id = ? WHERE company_id = ?",
+                  UUID.randomUUID(),
+                  owner.company()))
+          .isInstanceOf(DataIntegrityViolationException.class)
+          .hasMessageContaining("receivables_sale_fk");
+    }
+  }
+
+  private void copyReceivable(UUID sourceCompany, UUID targetCompany) {
+    jdbc.update(
+        """
+        INSERT INTO sales.receivables
+            (id, company_id, sale_id, sale_date, client_id, client_name, total_amount,
+             balance, due_date, status, created_at, origin)
+        SELECT ?, ?, sale_id, sale_date, client_id, client_name, total_amount, balance,
+               due_date, status, created_at, origin
+          FROM sales.receivables WHERE company_id = ?
+        """,
+        UUID.randomUUID(),
+        targetCompany,
+        sourceCompany);
+  }
+
+  private long countReceivables(UUID company) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM sales.receivables WHERE company_id = ?", Long.class, company);
+  }
+
+  private String registerCredit(HttpClient http, Fixture fixture) throws Exception {
+    var response = post(http, fixture, fixture.bearer(), creditBody(fixture));
+    assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(201);
+    return new ObjectMapper().readTree(response.body()).path("id").asString();
+  }
+
+  private static String creditBody(Fixture fixture) {
+    return fixture.body().replace("\"CASH\"", "\"CREDIT\",\"dueDate\":\"2026-12-23\"");
+  }
+
+  private HttpResponse<String> getReceivable(HttpClient http, String bearer, String id)
+      throws Exception {
+    var request =
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/receivables/" + id))
+            .timeout(Duration.ofSeconds(5))
+            .GET();
+    if (bearer != null) {
+      request.header("Authorization", "Bearer " + bearer);
+    }
+    return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
   }
 
   private JsonNode registerForLifecycle(HttpClient http, Fixture fixture) throws Exception {

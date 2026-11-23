@@ -55,7 +55,8 @@ class SaleControllerTest {
             UUID.randomUUID(),
             List.of(new CreateSaleLineRequest(UUID.randomUUID(), BigDecimal.ONE)),
             null,
-            SaleMode.CASH);
+            SaleMode.CASH,
+            null);
     String key = "a".repeat(124) + "._~-";
     String body = "{\"client\":{\"name\":\"José\"}}";
     when(creation.execute(eq(key), eq(command.toCommand()), any()))
