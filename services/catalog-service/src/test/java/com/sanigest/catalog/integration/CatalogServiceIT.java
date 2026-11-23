@@ -24,6 +24,7 @@ import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.SupplierAccessException;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
 import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
+import com.sanigest.catalog.application.usecase.catalogitem.CreateCatalogItem;
 import com.sanigest.catalog.application.usecase.client.CreateClient;
 import com.sanigest.catalog.application.usecase.client.ListClients;
 import com.sanigest.catalog.application.usecase.supplier.ChangeSupplierStatus;
@@ -31,6 +32,7 @@ import com.sanigest.catalog.application.usecase.supplier.CreateSupplier;
 import com.sanigest.catalog.application.usecase.supplier.GetSupplier;
 import com.sanigest.catalog.application.usecase.supplier.ListSuppliers;
 import com.sanigest.catalog.application.usecase.supplier.UpdateSupplier;
+import com.sanigest.catalog.domain.enums.CatalogItemType;
 import com.sanigest.catalog.domain.enums.ClientStatus;
 import com.sanigest.catalog.domain.enums.SupplierStatus;
 import com.sanigest.catalog.domain.model.Client;
@@ -47,6 +49,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -138,6 +141,17 @@ class CatalogServiceIT {
       {"name":"Office","contact":"Laura"}
       """;
 
+  private static final String CATALOG_ITEMS = "/api/v1/catalog-items";
+  private static final String SERVICE_ITEM =
+      """
+      {"name":"Consultoría","type":"SERVICE","price":15000.00}
+      """;
+  private static final String PRODUCT_ITEM =
+      """
+      {"name":"Silla","type":"PRODUCT","price":3200.00}
+      """;
+
+  @Autowired CreateCatalogItem createCatalogItem;
   @Autowired CreateSupplier createSupplier;
   @Autowired ListSuppliers listSuppliers;
   @Autowired GetSupplier getSupplier;
@@ -216,6 +230,8 @@ class CatalogServiceIT {
           .isEqualTo("listClients");
       assertThat(document.at("/paths/~1api~1v1~1suppliers/post/operationId").asString())
           .isEqualTo("createSupplier");
+      assertThat(document.at("/paths/~1api~1v1~1catalog-items/post/operationId").asString())
+          .isEqualTo("createCatalogItem");
       assertThat(document.path("info").path("title").asString())
           .isEqualTo("SaniGest Catalog Service");
       assertThat(
@@ -275,7 +291,10 @@ class CatalogServiceIT {
                 "SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname IN ('public', 'catalog')",
                 String.class))
         .containsExactlyInAnyOrder(
-            "public.flyway_schema_history", "catalog.clients", "catalog.suppliers");
+            "public.flyway_schema_history",
+            "catalog.clients",
+            "catalog.suppliers",
+            "catalog.catalog_items");
     assertThat(flyway.info().applied())
         .extracting(migration -> migration.getScript())
         .containsExactly(
@@ -284,7 +303,8 @@ class CatalogServiceIT {
             "V3__index_clients_by_company_and_name.sql",
             "V4__allow_inactive_clients.sql",
             "V5__create_suppliers.sql",
-            "V6__support_supplier_management.sql");
+            "V6__support_supplier_management.sql",
+            "V7__create_catalog_items.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -836,7 +856,7 @@ class CatalogServiceIT {
 
   @Test
   @Tag("regression")
-  void migratesExistingClientsAndSuppliersThroughV6() throws Exception {
+  void migratesExistingClientsAndSuppliersThroughV7() throws Exception {
     try (var connection =
             DriverManager.getConnection(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
@@ -875,7 +895,7 @@ class CatalogServiceIT {
         companyId);
 
     var latest = Flyway.configure().dataSource(source).load();
-    assertThat(latest.migrate().migrationsExecuted).isEqualTo(1);
+    assertThat(latest.migrate().migrationsExecuted).isEqualTo(2);
     latest.validate();
     assertThat(
             jdbc.queryForMap(
@@ -1538,6 +1558,172 @@ class CatalogServiceIT {
       request.header("X-Company-Id", forgedCompany.toString());
     }
     return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  @Test
+  @Tag("smoke")
+  void registersBothCatalogItemTypesWithExactDopPricesForTheAuthorizedCompany() throws Exception {
+    var companyA = UUID.randomUUID();
+    var companyB = UUID.randomUUID();
+    var owner = authorizedToken(companyA);
+    var admin = membershipToken(companyB, MembershipRole.ADMIN, false);
+    var viewer = membershipToken(companyA, MembershipRole.VIEWER, false);
+    try (var http = HttpClient.newHttpClient()) {
+      var service = postItem(http, owner, SERVICE_ITEM, companyB);
+      var product = postItem(http, owner, PRODUCT_ITEM, null);
+      var other = postItem(http, admin, PRODUCT_ITEM, companyA);
+      assertPersistedItem(service, companyA, "Consultoría", "SERVICE", "15000.00");
+      assertPersistedItem(product, companyA, "Silla", "PRODUCT", "3200.00");
+      assertPersistedItem(other, companyB, "Silla", "PRODUCT", "3200.00");
+
+      for (var input :
+          List.of(
+              SERVICE_ITEM.replace("15000.00", "-0.01"),
+              SERVICE_ITEM.replace("15000.00", "10.999"),
+              SERVICE_ITEM.replace("15000.00", "1000000000000"),
+              SERVICE_ITEM.replace("15000.00", "null"),
+              SERVICE_ITEM.replace("15000.00", "\"invalid\""),
+              SERVICE_ITEM.replace("SERVICE", "OTHER"),
+              SERVICE_ITEM.replace("Consultoría", "  "),
+              SERVICE_ITEM.replace("\"name\"", "\"currency\":\"USD\",\"name\""),
+              SERVICE_ITEM.replace("\"name\"", "\"companyId\":\"" + companyB + "\",\"name\""))) {
+        var rejected = postItem(http, owner, input, null);
+        assertThat(rejected.statusCode()).as(rejected.body()).isEqualTo(400);
+        assertThat(JsonMapper.shared().readTree(rejected.body()).path("errorCode").asString())
+            .isEqualTo("INVALID_REQUEST");
+      }
+      assertThat(postItem(http, viewer, SERVICE_ITEM, null).statusCode()).isEqualTo(403);
+      assertThat(itemCount(companyA)).isEqualTo(2);
+      assertThat(itemCount(companyB)).isEqualTo(1);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void catalogItemWriteRechecksCompanyPermissionsAndFailsClosed() throws Exception {
+    var company = UUID.randomUUID();
+    var ungranted = membershipToken(company, MembershipRole.OPERATOR, false);
+    var operator = membershipToken(company, MembershipRole.OPERATOR, true);
+    var advisor = session("ADVISOR");
+    var timeout = session("REGULAR");
+    var unavailable = session("REGULAR");
+    stubFailure(advisor, 403);
+    stubFailure(unavailable, 503);
+    COMPANY.stubFor(
+        WireMock.get(urlEqualTo(PATH))
+            .withHeader(USER_ASSERTION, equalTo(timeout))
+            .willReturn(aResponse().withFixedDelay(3000)));
+
+    try (var http = HttpClient.newHttpClient()) {
+      assertThat(postItem(http, null, PRODUCT_ITEM, null).statusCode()).isEqualTo(401);
+      assertThat(postItem(http, "invalid", PRODUCT_ITEM, null).statusCode()).isEqualTo(401);
+      assertThat(postItem(http, ungranted, PRODUCT_ITEM, null).statusCode()).isEqualTo(403);
+      assertThat(postItem(http, advisor, PRODUCT_ITEM, company).statusCode()).isEqualTo(403);
+      assertThat(postItem(http, operator, PRODUCT_ITEM, null).statusCode()).isEqualTo(201);
+      stubFailure(operator, 403);
+      assertThat(postItem(http, operator, PRODUCT_ITEM, null).statusCode()).isEqualTo(403);
+      for (var token : List.of(timeout, unavailable)) {
+        var rejected = postItem(http, token, PRODUCT_ITEM, null);
+        assertThat(rejected.statusCode()).isEqualTo(503);
+        assertThat(JsonMapper.shared().readTree(rejected.body()).path("errorCode").asString())
+            .isEqualTo("AUTHORIZATION_UNAVAILABLE");
+      }
+      assertThat(itemCount(company)).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void catalogItemUseCaseRequiresAuthenticationOutsideTheWebFilter() {
+    assertThatThrownBy(
+            () -> createCatalogItem.execute("Chair", CatalogItemType.PRODUCT, BigDecimal.ONE))
+        .isInstanceOf(AccessDeniedException.class);
+  }
+
+  @Test
+  @Tag("regression")
+  void postgresEnforcesCatalogItemConstraints() {
+    var company = UUID.randomUUID();
+    var jdbc = new JdbcTemplate(dataSource);
+    for (var invalid :
+        List.of(
+            List.of("Chair", "PRODUCT", "-0.01", "DOP"),
+            List.of("Chair", "PRODUCT", "1000000000000", "DOP"),
+            List.of("Chair", "PRODUCT", "NaN", "DOP"),
+            List.of("Chair", "OTHER", "0", "DOP"),
+            List.of("Chair", "SERVICE", "0", "USD"),
+            List.of(" \t ", "PRODUCT", "0", "DOP"))) {
+      assertThatThrownBy(() ->
+              jdbc.update(
+                  """
+                  INSERT INTO catalog.catalog_items (id, company_id, name, type, price, currency)
+                  VALUES (?, ?, ?, ?, CAST(? AS NUMERIC), ?)
+                  """,
+                  UUID.randomUUID(),
+                  company,
+                  invalid.get(0),
+                  invalid.get(1),
+                  invalid.get(2),
+                  invalid.get(3)))
+          .isInstanceOf(DataIntegrityViolationException.class);
+    }
+    assertThat(itemCount(company)).isZero();
+  }
+
+  private HttpResponse<String> postItem(
+      HttpClient http, String token, String json, UUID companyHeader)
+      throws IOException, InterruptedException {
+    var request =
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + CATALOG_ITEMS))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(json));
+    if (token != null) {
+      request.header("Authorization", "Bearer " + token);
+    }
+    if (companyHeader != null) {
+      request.header("X-Company-Id", companyHeader.toString());
+    }
+    return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private long itemCount(UUID company) {
+    return new JdbcTemplate(dataSource)
+        .queryForObject(
+            "SELECT count(*) FROM catalog.catalog_items WHERE company_id = ?", Long.class, company);
+  }
+
+  private void assertPersistedItem(
+      HttpResponse<String> response, UUID company, String name, String type, String price) {
+    assertThat(response.statusCode()).as(response.body()).isEqualTo(201);
+    assertThat(response.body()).contains("\"price\":" + price);
+    var json = JsonMapper.shared().readTree(response.body());
+    var id = UUID.fromString(json.path("id").asString());
+    assertThat(json.path("companyId").asString()).isEqualTo(company.toString());
+    assertThat(json.path("name").asString()).isEqualTo(name);
+    assertThat(json.path("type").asString()).isEqualTo(type);
+    assertThat(json.path("currency").asString()).isEqualTo("DOP");
+    assertThat(json.path("active").asBoolean()).isTrue();
+    assertThat(json.has("stock")).isFalse();
+    assertThat(
+            new JdbcTemplate(dataSource)
+                .queryForMap(
+                    """
+                    SELECT company_id, name, type, price, currency, active FROM catalog.catalog_items WHERE id = ?
+                    """,
+                    id))
+        .containsExactlyInAnyOrderEntriesOf(
+            Map.of(
+                "company_id",
+                company,
+                "name",
+                name,
+                "type",
+                type,
+                "price",
+                new BigDecimal(price),
+                "currency",
+                "DOP",
+                "active",
+                true));
   }
 
   private static void assertConnectionRejected(

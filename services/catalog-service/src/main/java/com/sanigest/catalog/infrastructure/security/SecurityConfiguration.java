@@ -53,7 +53,11 @@ class SecurityConfiguration {
                     "/api/v1/suppliers/{id}",
                     "/api/v1/suppliers/{id}/status")
                 .authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/v1/clients", "/api/v1/suppliers")
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/v1/clients",
+                    "/api/v1/suppliers",
+                    "/api/v1/catalog-items")
                 .authenticated()
                 .anyRequest()
                 .denyAll())

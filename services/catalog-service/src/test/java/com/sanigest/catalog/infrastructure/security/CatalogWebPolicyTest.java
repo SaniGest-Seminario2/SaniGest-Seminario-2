@@ -23,8 +23,10 @@ import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.SupplierAccessException;
 import com.sanigest.catalog.application.exception.SupplierCreationException;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
 import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
+import com.sanigest.catalog.application.usecase.catalogitem.CreateCatalogItem;
 import com.sanigest.catalog.application.usecase.client.ChangeClientStatus;
 import com.sanigest.catalog.application.usecase.client.ClientCompany;
 import com.sanigest.catalog.application.usecase.client.CreateClient;
@@ -62,6 +64,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @WebMvcTest
 @Import({
   SecurityConfiguration.class,
+  CreateCatalogItem.class,
   CreateClient.class,
   ListClients.class,
   ClientCompany.class,
@@ -79,6 +82,7 @@ class CatalogWebPolicyTest {
   @Autowired MockMvc mvc;
   @MockitoBean JwtDecoder decoder;
   @MockitoBean ClientRepository clients;
+  @MockitoBean CatalogItemRepository items;
   @MockitoBean SupplierRepository suppliers;
   @MockitoBean CatalogAuthorization authorization;
 
