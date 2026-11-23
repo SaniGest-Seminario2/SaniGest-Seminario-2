@@ -15,9 +15,14 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.sanigest.sales.SalesServiceApplication;
 import com.sanigest.sales.api.controller.SaleController;
 import com.sanigest.sales.application.exception.CatalogUnavailableException;
+import com.sanigest.sales.application.exception.IdempotencyInProgress;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
+import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository;
+import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Claim;
+import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Request;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.enums.SaleStatus;
@@ -43,7 +48,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
@@ -54,6 +61,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
@@ -95,6 +103,7 @@ class SalesServiceIT {
   @Autowired private JdbcTemplate jdbc;
   @Autowired private Flyway flyway;
   @Autowired private SaleRepository sales;
+  @Autowired private SaleIdempotencyRepository idempotency;
   @Autowired private CatalogClient catalog;
 
   @DynamicPropertySource
@@ -177,7 +186,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("2");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -206,13 +215,14 @@ class SalesServiceIT {
                 SELECT table_name FROM information_schema.tables WHERE table_schema = 'sales'
                 """,
                 String.class))
-        .containsExactlyInAnyOrder("sales", "sale_lines", "sale_number_sequences");
+        .containsExactlyInAnyOrder(
+            "sales", "sale_lines", "sale_number_sequences", "sale_idempotency_keys");
 
     assertThat(
             jdbc.queryForList(
                 """
                 SELECT table_name || '.' || column_name || ':' || data_type || ':' || is_nullable
-                FROM information_schema.columns WHERE table_schema = 'sales'
+                FROM information_schema.columns WHERE table_schema = 'sales' AND table_name <> 'sale_idempotency_keys'
                 """,
                 String.class))
         .containsExactlyInAnyOrder(
@@ -250,7 +260,9 @@ class SalesServiceIT {
             "sales_company_date_id_idx",
             "sale_lines_sale_id_idx",
             "sales_company_code_key",
-            "sale_number_sequences_pkey");
+            "sale_number_sequences_pkey",
+            "sale_idempotency_keys_pkey",
+            "sale_idempotency_expiration_idx");
     assertThat(
             jdbc.queryForList(
                 """
@@ -263,7 +275,9 @@ class SalesServiceIT {
                 WHERE c.contype = 'f' AND source_schema.nspname = 'sales'
                 """,
                 String.class))
-        .containsExactly("sale_lines.sale_lines_sale_fk -> sales.sales");
+        .containsExactlyInAnyOrder(
+            "sale_lines.sale_lines_sale_fk -> sales.sales",
+            "sale_idempotency_keys.sale_idempotency_sale_fk -> sales.sales");
 
     var history =
         jdbc.queryForList(
@@ -271,8 +285,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(2);
-    assertThat(history.getLast()).containsEntry("version", "2").containsEntry("success", true);
+    assertThat(history).hasSize(3);
+    assertThat(history.getLast()).containsEntry("version", "3").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -319,7 +333,11 @@ class SalesServiceIT {
         UUID.randomUUID());
 
     var current = Flyway.configure().dataSource(upgrade).load();
+    assertThat(
+            Flyway.configure().dataSource(upgrade).target("2").load().migrate().migrationsExecuted)
+        .isEqualTo(1);
     assertThat(current.migrate().migrationsExecuted).isEqualTo(1);
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("3");
     current.validate();
     assertThat(
             legacy.queryForMap(
@@ -491,10 +509,13 @@ class SalesServiceIT {
       assertThat(post(http, fixture, null, fixture.body()).statusCode()).isEqualTo(401);
       assertThat(post(http, fixture, "invalid", fixture.body()).statusCode()).isEqualTo(401);
       assertThat(AopUtils.isAopProxy(controller)).isTrue();
-      assertThatThrownBy(() -> controller.create(null))
+      assertThatThrownBy(() -> controller.create(null, null))
           .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
       fixture.membership("OWNER", false);
-      var response = post(http, fixture, fixture.bearer(), fixture.body());
+      assertThat(post(http, fixture, fixture.bearer(), fixture.body(), null).statusCode())
+          .isEqualTo(400);
+      String key = UUID.randomUUID().toString();
+      var response = post(http, fixture, fixture.bearer(), fixture.body(), key);
       assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(201);
       var body = new ObjectMapper().readTree(response.body());
       var id = UUID.fromString(body.path("id").asString());
@@ -516,6 +537,20 @@ class SalesServiceIT {
               .withQueryParam("expectedCompanyId", equalTo(fixture.company().toString()))
               .withHeader("Authorization", equalTo("Bearer " + fixture.bearer())));
       fixture.item(fixture.productPath(), fixture.product(), "PRODUCT", "9999.00", true);
+      var replay =
+          post(
+              http,
+              fixture,
+              fixture.bearer(),
+              fixture.body().replace("\"quantity\":2", "\"quantity\":2.0000"),
+              key);
+      assertThat(replay.statusCode()).isEqualTo(201);
+      assertThat(replay.body()).isEqualTo(response.body());
+      var conflict =
+          post(http, fixture, fixture.bearer(), fixture.body().replace("CASH", "CREDIT"), key);
+      assertThat(conflict.statusCode()).isEqualTo(409);
+      assertThat(conflict.body()).contains("IDEMPOTENCY_CONFLICT");
+      assertThat(post(http, fixture, null, fixture.body(), key).statusCode()).isEqualTo(401);
       var stored = sales.findByCompanyIdAndId(fixture.company(), id).orElseThrow();
       assertThat(stored.total()).isEqualTo(new BigDecimal("12601.50"));
       assertThat(stored.lines())
@@ -542,7 +577,8 @@ class SalesServiceIT {
         assertThat(post(http, fixture, fixture.bearer(), invalid).statusCode()).isEqualTo(400);
       }
       fixture.membership("VIEWER", false);
-      assertThat(post(http, fixture, fixture.bearer(), fixture.body()).statusCode()).isEqualTo(403);
+      assertThat(post(http, fixture, fixture.bearer(), fixture.body(), key).statusCode())
+          .isEqualTo(403);
       fixture.membership("OWNER", false);
       fixture.customer("INACTIVE");
       assertThat(post(http, fixture, fixture.bearer(), fixture.body()).statusCode()).isEqualTo(422);
@@ -575,12 +611,16 @@ class SalesServiceIT {
       fixture.membership(role, grant);
     }
     try (var http = HttpClient.newHttpClient()) {
-      var response = post(http, fixture, fixture.bearer(), fixture.body());
+      String key = UUID.randomUUID().toString();
+      var response = post(http, fixture, fixture.bearer(), fixture.body(), key);
       assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(expected);
       if (expected == 201) {
         fixture.companyReply(403);
-        assertThat(post(http, fixture, fixture.bearer(), fixture.body()).statusCode())
+        assertThat(post(http, fixture, fixture.bearer(), fixture.body(), key).statusCode())
             .isEqualTo(403);
+        fixture.companyReply(503);
+        assertThat(post(http, fixture, fixture.bearer(), fixture.body(), key).statusCode())
+            .isEqualTo(503);
       }
       assertThat(countSales(fixture.company())).isEqualTo(expected == 201 ? 1 : 0);
     }
@@ -617,11 +657,12 @@ class SalesServiceIT {
     CATALOG.stubFor(
         WireMock.get(WireMock.urlPathEqualTo(fixture.servicePath())).willReturn(answer));
     try (var http = HttpClient.newHttpClient()) {
-      assertThat(post(http, fixture, fixture.bearer(), fixture.body()).statusCode())
+      String key = UUID.randomUUID().toString();
+      assertThat(post(http, fixture, fixture.bearer(), fixture.body(), key).statusCode())
           .isEqualTo(expected);
       assertThat(countSales(fixture.company())).isZero();
       fixture.item(fixture.servicePath(), fixture.service(), "SERVICE", "3200.50", true);
-      var created = post(http, fixture, fixture.bearer(), fixture.body());
+      var created = post(http, fixture, fixture.bearer(), fixture.body(), key);
       assertThat(created.statusCode()).withFailMessage(created.body()).isEqualTo(201);
       assertThat(new ObjectMapper().readTree(created.body()).path("code").asString())
           .isEqualTo("V-2026-001");
@@ -663,6 +704,244 @@ class SalesServiceIT {
     }
   }
 
+  @ParameterizedTest
+  @CsvSource({"2,false", "10,false", "2,true"})
+  @Tag("regression")
+  void concurrentRequestsPersistOneResponse(int participants, boolean differentPayload)
+      throws Exception {
+    var fixture = fixture();
+    fixture.membership("OWNER", false);
+    String key = UUID.randomUUID().toString();
+    String changed = fixture.body().replace("CASH", "CREDIT");
+    var barrier = new CyclicBarrier(participants);
+    try (var http = HttpClient.newHttpClient();
+        var executor = Executors.newFixedThreadPool(participants)) {
+      List<Callable<HttpResponse<String>>> requests = new ArrayList<>();
+      for (int i = 0; i < participants; i++) {
+        String payload = differentPayload && i == 0 ? changed : fixture.body();
+        requests.add(() -> {
+          barrier.await(5, TimeUnit.SECONDS);
+          return post(http, fixture, fixture.bearer(), payload, key);
+        });
+      }
+      var responses = new ArrayList<HttpResponse<String>>();
+      for (var future : executor.invokeAll(requests, 15, TimeUnit.SECONDS)) {
+        responses.add(future.get());
+      }
+      var winner =
+          responses.stream().filter(result -> result.statusCode() == 201).findFirst().orElseThrow();
+      for (var response : responses) {
+        if (response.statusCode() == 201) {
+          assertThat(response.body()).isEqualTo(winner.body());
+        } else {
+          assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(409);
+          assertThat(response.body())
+              .contains(differentPayload ? "IDEMPOTENCY_CONFLICT" : "IDEMPOTENCY_IN_PROGRESS");
+        }
+      }
+      String payload = winner.body().contains("CREDIT") ? changed : fixture.body();
+      var replay = post(http, fixture, fixture.bearer(), payload, key);
+      assertThat(replay.statusCode()).isEqualTo(201);
+      assertThat(replay.body()).isEqualTo(winner.body());
+      CATALOG.verify(1, WireMock.getRequestedFor(WireMock.urlPathEqualTo(fixture.productPath())));
+      assertThat(countSales(fixture.company())).isEqualTo(1);
+      assertThat(
+              jdbc.queryForObject(
+                  """
+                  SELECT last_number FROM sales.sale_number_sequences WHERE company_id = ?
+                  """,
+                  Long.class,
+                  fixture.company()))
+          .isEqualTo(1);
+      assertThat(
+              jdbc.queryForObject(
+                  """
+                  SELECT count(*) FROM sales.sale_lines l JOIN sales.sales s ON s.id = l.sale_id
+                  WHERE s.company_id = ?
+                  """,
+                  Long.class,
+                  fixture.company()))
+          .isEqualTo(2);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void isolatesTheSameKeyAcrossActorsAndCompaniesAndReplaysFromAnotherInstance() throws Exception {
+    String key = UUID.randomUUID().toString();
+    var original = fixture();
+    var sameTenant = fixture(UUID.randomUUID(), original.company(), "REGULAR");
+    var differentTenant = fixture(original.user(), UUID.randomUUID(), "REGULAR");
+    original.membership("OWNER", false);
+    sameTenant.membership("OWNER", false);
+    try (var http = HttpClient.newHttpClient()) {
+      var first = post(http, original, original.bearer(), original.body(), key);
+      assertThat(first.statusCode()).withFailMessage(first.body()).isEqualTo(201);
+      var otherActor = post(http, sameTenant, sameTenant.bearer(), sameTenant.body(), key);
+      assertThat(otherActor.statusCode()).isEqualTo(201);
+      assertThat(otherActor.body()).contains("V-2026-002");
+
+      differentTenant.membership("OWNER", false);
+      var otherCompany =
+          post(http, differentTenant, differentTenant.bearer(), differentTenant.body(), key);
+      assertThat(otherCompany.statusCode()).isEqualTo(201);
+      assertThat(otherCompany.body()).contains("V-2026-001").isNotEqualTo(first.body());
+
+      original.membership("OWNER", false);
+      try (var secondInstance =
+          new SpringApplicationBuilder(SalesServiceApplication.class)
+              .profiles("test")
+              .run(
+                  "--server.port=0",
+                  "--spring.datasource.url=" + POSTGRES.getJdbcUrl(),
+                  "--spring.datasource.password=" + POSTGRES.getPassword(),
+                  "--sanigest.jwt.public-key="
+                      + environment.getRequiredProperty("sanigest.jwt.public-key"),
+                  "--sanigest.company-access.enabled=true",
+                  "--sanigest.company-access.origin=" + CATALOG.baseUrl(),
+                  "--sanigest.company-access.private-key-location="
+                      + environment.getRequiredProperty(
+                          "sanigest.company-access.private-key-location"))) {
+        var response =
+            post(
+                http,
+                original,
+                original.bearer(),
+                original.body(),
+                key,
+                secondInstance
+                    .getEnvironment()
+                    .getRequiredProperty("local.server.port", Integer.class));
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(response.body()).isEqualTo(first.body());
+        CATALOG.verify(
+            1, WireMock.getRequestedFor(WireMock.urlPathEqualTo(original.productPath())));
+      }
+    }
+    assertThat(countSales(original.company())).isEqualTo(2);
+    assertThat(countSales(differentTenant.company())).isEqualTo(1);
+  }
+
+  @Test
+  @Tag("regression")
+  void translatesAnUncommittedClaimLockTimeoutAndAllowsRetryAfterRollback() throws Exception {
+    var fixture = fixture();
+    fixture.membership("OWNER", false);
+    String key = UUID.randomUUID().toString();
+    try (var http = HttpClient.newHttpClient();
+        var connection =
+            new DriverManagerDataSource(
+                    POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+                .getConnection()) {
+      connection.setAutoCommit(false);
+      try (var insert =
+          connection.prepareStatement(
+              """
+              INSERT INTO sales.sale_idempotency_keys
+                  (company_id, actor_id, operation, idempotency_key, fingerprint_version, request_hash,
+                   claim_token, created_at, expires_at)
+              VALUES (?, ?, 'POST /api/v1/sales', ?, 1, repeat('a', 64), ?, now(), now() + interval '1 minute')
+              """)) {
+        insert.setObject(1, fixture.company());
+        insert.setObject(2, fixture.user());
+        insert.setString(3, key);
+        insert.setObject(4, UUID.randomUUID());
+        insert.executeUpdate();
+        var busy = post(http, fixture, fixture.bearer(), fixture.body(), key);
+        assertThat(busy.statusCode()).withFailMessage(busy.body()).isEqualTo(409);
+        assertThat(busy.body()).contains("IDEMPOTENCY_IN_PROGRESS");
+        assertThat(busy.headers().firstValue("Retry-After")).contains("1");
+        assertThat(countSales(fixture.company())).isZero();
+        connection.rollback();
+      }
+      assertThat(post(http, fixture, fixture.bearer(), fixture.body(), key).statusCode())
+          .isEqualTo(201);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void reclaimsAnAbandonedLeaseAndFencesTheOriginalWorker() {
+    var request =
+        new Request(
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            "POST /api/v1/sales",
+            UUID.randomUUID().toString(),
+            1,
+            "a".repeat(64));
+    var abandoned = (Claim) idempotency.resolve(request);
+    assertThatThrownBy(() -> idempotency.resolve(request))
+        .isInstanceOf(IdempotencyInProgress.class);
+    jdbc.update(
+        """
+        UPDATE sales.sale_idempotency_keys
+        SET created_at = now() - interval '2 minutes', expires_at = now() - interval '1 minute'
+        WHERE company_id = ?
+        """,
+        request.companyId());
+    var replacement = (Claim) idempotency.resolve(request);
+    assertThat(replacement.token()).isNotEqualTo(abandoned.token());
+    assertThatThrownBy(() ->
+            idempotency.complete(
+                request,
+                abandoned,
+                () -> {
+                  throw new AssertionError(
+                      "An abandoned claim must never enter the sale transaction");
+                }))
+        .isInstanceOf(IdempotencyInProgress.class);
+    idempotency.release(request, abandoned);
+    assertThatThrownBy(() -> idempotency.resolve(request))
+        .isInstanceOf(IdempotencyInProgress.class);
+    idempotency.release(request, replacement);
+    assertThat(idempotency.resolve(request)).isInstanceOf(Claim.class);
+  }
+
+  @Test
+  @Tag("regression")
+  void rollsBackSaleAndCounterWhenTheIdempotencyResultCannotBeWritten() throws Exception {
+    var fixture = fixture();
+    fixture.membership("OWNER", false);
+    String key = UUID.randomUUID().toString();
+    jdbc.execute(
+        """
+        ALTER TABLE sales.sale_idempotency_keys ADD CONSTRAINT reject_test_response
+        CHECK (idempotency_key <> '%s' OR response_body IS NULL)
+        """
+            .formatted(key));
+    try (var http = HttpClient.newHttpClient()) {
+      try {
+        var failed = post(http, fixture, fixture.bearer(), fixture.body(), key);
+        assertThat(failed.statusCode()).isEqualTo(409);
+        assertThat(failed.body()).contains("SALE_CONFLICT");
+        assertThat(countSales(fixture.company())).isZero();
+        assertThat(
+                jdbc.queryForObject(
+                    """
+                    SELECT count(*) FROM sales.sale_number_sequences WHERE company_id = ?
+                    """,
+                    Long.class,
+                    fixture.company()))
+            .isZero();
+        assertThat(
+                jdbc.queryForObject(
+                    """
+                    SELECT count(*) FROM sales.sale_idempotency_keys WHERE company_id = ?
+                    """,
+                    Long.class,
+                    fixture.company()))
+            .isZero();
+      } finally {
+        jdbc.execute(
+            "ALTER TABLE sales.sale_idempotency_keys DROP CONSTRAINT reject_test_response");
+      }
+      var recovered = post(http, fixture, fixture.bearer(), fixture.body(), key);
+      assertThat(recovered.statusCode()).isEqualTo(201);
+      assertThat(recovered.body()).contains("V-2026-001");
+    }
+  }
+
   private long countSales(UUID company) {
     return jdbc.queryForObject(
         "SELECT count(*) FROM sales.sales WHERE company_id = ?", Long.class, company);
@@ -670,14 +949,28 @@ class SalesServiceIT {
 
   private HttpResponse<String> post(HttpClient http, Fixture fixture, String bearer, String body)
       throws Exception {
+    return post(http, fixture, bearer, body, UUID.randomUUID().toString());
+  }
+
+  private HttpResponse<String> post(
+      HttpClient http, Fixture fixture, String bearer, String body, String key) throws Exception {
+    return post(http, fixture, bearer, body, key, port);
+  }
+
+  private HttpResponse<String> post(
+      HttpClient http, Fixture fixture, String bearer, String body, String key, int targetPort)
+      throws Exception {
     var request =
-        HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/sales"))
+        HttpRequest.newBuilder(URI.create("http://localhost:" + targetPort + "/api/v1/sales"))
             .header("Content-Type", "application/json")
             .header("X-Company-Id", fixture.user().toString())
             .timeout(Duration.ofSeconds(10))
             .POST(HttpRequest.BodyPublishers.ofString(body));
     if (bearer != null) {
       request.header("Authorization", "Bearer " + bearer);
+    }
+    if (key != null) {
+      request.header("Idempotency-Key", key);
     }
     return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
   }
@@ -687,12 +980,16 @@ class SalesServiceIT {
   }
 
   private static Fixture fixture(String accountType) throws Exception {
-    UUID user = UUID.randomUUID();
+    return fixture(UUID.randomUUID(), UUID.randomUUID(), accountType);
+  }
+
+  private static Fixture fixture(UUID user, UUID company, String accountType) throws Exception {
     var claims =
         new JWTClaimsSet.Builder()
             .issuer("sanigest-test")
             .audience("sanigest-api-test")
             .subject(user.toString())
+            .jwtID(UUID.randomUUID().toString())
             .issueTime(Date.from(Instant.now()))
             .expirationTime(Date.from(Instant.now().plusSeconds(120)))
             .claim("role", "OWNER")
@@ -703,7 +1000,7 @@ class SalesServiceIT {
     var fixture =
         new Fixture(
             user,
-            UUID.randomUUID(),
+            company,
             UUID.randomUUID(),
             UUID.randomUUID(),
             UUID.randomUUID(),

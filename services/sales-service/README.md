@@ -250,7 +250,72 @@ empresa y año de venta. La asignación y la escritura de venta y líneas se
 confirman en la misma transacción de Sales. V2 admite ventas anteriores sin
 código y preserva sus datos.
 
-El contrato funcional requiere idempotencia mediante `Idempotency-Key`.
-S2-381 implementará la garantía persistente. Los reintentos de creación pueden
-registrar ventas adicionales hasta que esa historia esté disponible. Los
-cobros y las cuentas por cobrar corresponden a flujos posteriores.
+### Idempotencia de creación (S2-381)
+
+Envía exactamente un header `Idempotency-Key` de 1 a 128 caracteres ASCII
+`[A-Za-z0-9._~-]`. Conserva la clave y el cuerpo para reintentar la misma
+venta. Una clave ausente, repetida o inválida devuelve `400`.
+
+Sales comprueba `SALES_WRITE` con Company en cada petición. La clave distingue
+empresa autorizada, UUID del actor autenticado y operación `POST /api/v1/sales`.
+Un reintento idéntico devuelve el `201` y el JSON original. Una clave asociada
+a otro payload devuelve `409 IDEMPOTENCY_CONFLICT`. Si otra instancia está
+procesando la clave, Sales devuelve `409 IDEMPOTENCY_IN_PROGRESS` con
+`Retry-After: 1`. Usa la misma clave y el mismo cuerpo al reintentar.
+
+El fingerprint v1 aplica SHA-256 a campos UTF-8 separados por saltos de línea.
+Incluye operación, versión, UUID del cliente, modalidad, fecha y pares de UUID
+del artículo y cantidad en orden. Las cantidades equivalentes pierden ceros
+decimales finales. La fecha ausente o nula se representa por `-`. La fecha
+explícita se representa en ISO y se distingue de solicitar el valor por
+defecto. El reloj se consulta durante la preparación de una venta nueva.
+El JSON original queda guardado como versión 1 junto con el código HTTP.
+Los reintentos sirven ese JSON directamente, incluidos su fecha, snapshots y
+orden de líneas. Si cambia el algoritmo, conserva el cálculo para versiones
+aún retenidas antes de habilitar otra versión.
+
+PostgreSQL reserva la clave con una restricción única. La reserva temporal
+dura `SALES_IDEMPOTENCY_LEASE` (predeterminado `5m`). Sales consulta Catalog
+fuera de la transacción SQL. Antes de asignar el código, una transacción
+bloquea la fila y comprueba el token y la vigencia de la reserva. Venta,
+líneas, contador y resultado se confirman juntos. El token impide que un
+proceso desplazado confirme una venta o libere la reserva de su sucesor.
+Al fallar la operación, Sales intenta liberar su reserva. Si la instancia
+cae, un reintento idéntico puede reclamar la reserva al vencer.
+
+La ventana de retención es `SALES_IDEMPOTENCY_RETENTION` (predeterminado
+`7d`). Empieza al guardar el resultado dentro de la transacción exitosa.
+Pasado el plazo, Sales conserva la protección mientras exista la fila.
+Una vez purgada, reutilizar una clave puede crear otra venta. Genera una clave
+nueva por cada operación nueva. La ventana garantiza un efecto persistido
+único por clave y alcance, con reintentos HTTP sujetos a la disponibilidad del
+servicio.
+
+La limpieza es manual. Ejecuta lotes pequeños en Sales DB con el rol de
+Sales. El filtro conserva filas vigentes y `SKIP LOCKED` evita filas que se
+están finalizando. El mismo criterio permite limpiar reservas abandonadas
+tras vencer. Automatizar esta limpieza y acordar la retención transversal
+queda pendiente de S2-408.
+
+```sql
+WITH expired AS (
+    SELECT company_id, actor_id, operation, idempotency_key
+    FROM sales.sale_idempotency_keys
+    WHERE expires_at <= statement_timestamp()
+    ORDER BY expires_at
+    LIMIT 500
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM sales.sale_idempotency_keys
+USING expired
+WHERE sale_idempotency_keys.company_id = expired.company_id
+  AND sale_idempotency_keys.actor_id = expired.actor_id
+  AND sale_idempotency_keys.operation = expired.operation
+  AND sale_idempotency_keys.idempotency_key = expired.idempotency_key;
+```
+
+Micrometer registra `sales.idempotency.resolve` y
+`sales.idempotency.requests`, con resultados `created`, `replay`,
+`conflict`, `in_progress` y `persistence_failure`. Las métricas omiten
+claves, cuerpos y credenciales. Los perfiles Maven `smoke` y `regression`
+incluyen el flujo HTTP con PostgreSQL y WireMock.

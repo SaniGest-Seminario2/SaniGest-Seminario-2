@@ -2,15 +2,19 @@ package com.sanigest.sales.api.error;
 
 import static com.sanigest.sales.api.error.SalesProblems.problem;
 
+import com.sanigest.sales.api.controller.InvalidIdempotencyKey;
 import com.sanigest.sales.api.controller.SaleController;
 import com.sanigest.sales.application.exception.CatalogAccessDeniedException;
 import com.sanigest.sales.application.exception.CatalogResourceInvalidException;
 import com.sanigest.sales.application.exception.CatalogUnavailableException;
+import com.sanigest.sales.application.exception.IdempotencyConflict;
+import com.sanigest.sales.application.exception.IdempotencyInProgress;
 import com.sanigest.sales.application.exception.InvalidSaleRequest;
 import com.sanigest.sales.application.exception.SaleAmountNotRepresentable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -66,5 +70,32 @@ class SaleErrorHandler {
   @ExceptionHandler(DataIntegrityViolationException.class)
   ProblemDetail conflict() {
     return problem(HttpStatus.CONFLICT, "SALE_CONFLICT", "The sale could not be recorded");
+  }
+
+  @ExceptionHandler(InvalidIdempotencyKey.class)
+  ProblemDetail invalidKey() {
+    return problem(
+        HttpStatus.BAD_REQUEST,
+        "INVALID_IDEMPOTENCY_KEY",
+        "Provide one Idempotency-Key with 1 to 128 characters from A-Z, a-z, 0-9, . _ ~ -");
+  }
+
+  @ExceptionHandler(IdempotencyConflict.class)
+  ProblemDetail idempotencyConflict() {
+    return problem(
+        HttpStatus.CONFLICT,
+        "IDEMPOTENCY_CONFLICT",
+        "This Idempotency-Key was used with a different sale request");
+  }
+
+  @ExceptionHandler(IdempotencyInProgress.class)
+  ResponseEntity<ProblemDetail> idempotencyInProgress() {
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .header("Retry-After", "1")
+        .body(
+            problem(
+                HttpStatus.CONFLICT,
+                "IDEMPOTENCY_IN_PROGRESS",
+                "The sale request is being processed. Retry with the same key"));
   }
 }

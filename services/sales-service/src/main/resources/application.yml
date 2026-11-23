@@ -45,6 +45,10 @@ server:
   shutdown: graceful
 
 sanigest:
+  sales:
+    idempotency:
+      retention: ${SALES_IDEMPOTENCY_RETENTION:7d}
+      lease: ${SALES_IDEMPOTENCY_LEASE:5m}
   company-access:
     enabled: ${SALES_COMPANY_ACCESS_ENABLED:false}
     origin: ${SALES_COMPANY_ACCESS_ORIGIN:}
