@@ -12,6 +12,14 @@ public record Supplier(UUID id, UUID companyId, SupplierDetails details, Supplie
     Objects.requireNonNull(status);
   }
 
+  public Supplier updateDetails(SupplierPatch patch) {
+    return new Supplier(id, companyId, patch.applyTo(details), status);
+  }
+
+  public Supplier changeStatus(SupplierStatus nextStatus) {
+    return status == nextStatus ? this : new Supplier(id, companyId, details, nextStatus);
+  }
+
   public static Supplier register(UUID companyId, SupplierDetails details) {
     return new Supplier(UUID.randomUUID(), companyId, details, SupplierStatus.ACTIVE);
   }

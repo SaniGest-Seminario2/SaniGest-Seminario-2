@@ -39,6 +39,9 @@ class SupplierRow implements Persistable<UUID> {
   @Column(nullable = false, length = 16)
   private SupplierStatus status;
 
+  @Column(nullable = false)
+  private long revision;
+
   protected SupplierRow() {}
 
   SupplierRow(Supplier supplier) {
@@ -51,6 +54,15 @@ class SupplierRow implements Persistable<UUID> {
     phone = details.phone();
     email = details.email();
     status = supplier.status();
+  }
+
+  Supplier toDomain() {
+    return new Supplier(
+        id, companyId, new SupplierDetails(name, taxId, contact, phone, email), status);
+  }
+
+  long revision() {
+    return revision;
   }
 
   @Override

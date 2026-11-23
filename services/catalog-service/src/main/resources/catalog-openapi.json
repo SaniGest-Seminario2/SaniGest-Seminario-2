@@ -229,6 +229,410 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "listSuppliers",
+        "summary": "Listar proveedores",
+        "description": "Requiere CATALOG_READ en la membresía activa resuelta por Company. Este contrato usa contexto de membresía empresarial. Un encabezado X-Company-Id no concede acceso delegado. Los filtros se pueden combinar. Los resultados se ordenan por nombre y UUID ascendentes. Una página sin coincidencias tiene content vacío.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de proveedores de la empresa autorizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierPage"
+                },
+                "example": {
+                  "content": [
+                    {
+                      "id": "195a2821-5d76-44f8-990e-77e3d5d9cde6",
+                      "name": "OfiCentro Dominicana",
+                      "taxId": "131-12345-1",
+                      "status": "ACTIVE"
+                    }
+                  ],
+                  "page": 0,
+                  "size": 20,
+                  "totalElements": 1,
+                  "totalPages": 1
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo verificar la autorización empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Fragmento literal del nombre o documento fiscal, sin distinguir mayúsculas. Se recortan espacios exteriores y se omite el filtro si queda vacío.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "ACTIVE o INACTIVE, sin distinguir mayúsculas. Se recortan espacios exteriores y se omite el filtro si queda vacío.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Índice de página desde cero.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Registros por página. El máximo por defecto es 100 y se configura con sanigest.catalog.suppliers.max-page-size.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1,
+              "default": 20
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/suppliers/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getSupplier",
+        "summary": "Consultar un proveedor",
+        "description": "Requiere CATALOG_READ en la membresía activa resuelta por Company. Este contrato usa contexto de membresía empresarial. Un encabezado X-Company-Id no concede acceso delegado. Incluye proveedores ACTIVE e INACTIVE.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Datos vigentes del proveedor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierDetail"
+                },
+                "example": {
+                  "id": "195a2821-5d76-44f8-990e-77e3d5d9cde6",
+                  "name": "OfiCentro Dominicana",
+                  "taxId": "131-12345-1",
+                  "contact": "Laura Méndez",
+                  "phone": "(809) 555-0118",
+                  "email": "ventas@example.do",
+                  "status": "ACTIVE"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo verificar la autorización empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Proveedor inexistente o no visible en la empresa autorizada",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateSupplier",
+        "summary": "Editar los datos de un proveedor",
+        "description": "Requiere CATALOG_WRITE en la membresía activa resuelta por Company. Este contrato usa contexto de membresía empresarial. Un encabezado X-Company-Id no concede acceso delegado. Los campos omitidos conservan su valor. taxId, phone y email admiten null para borrar el dato. name y contact deben contener texto si se informan. Se requiere al menos un campo editable.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proveedor actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierDetail"
+                },
+                "example": {
+                  "id": "195a2821-5d76-44f8-990e-77e3d5d9cde6",
+                  "name": "OfiCentro Dominicana",
+                  "taxId": "131-12345-1",
+                  "contact": "Laura Méndez",
+                  "phone": "(809) 555-0118",
+                  "email": "nuevo@example.do",
+                  "status": "ACTIVE"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo verificar la autorización empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Proveedor inexistente o no visible en la empresa autorizada",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Documento fiscal duplicado o actualización concurrente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierPatchRequest"
+              },
+              "example": {
+                "email": "nuevo@example.do",
+                "phone": null
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/suppliers/{id}/status": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "operationId": "changeSupplierStatus",
+        "summary": "Cambiar el estado de un proveedor",
+        "description": "Requiere CATALOG_WRITE en la membresía activa resuelta por Company. Este contrato usa contexto de membresía empresarial. Un encabezado X-Company-Id no concede acceso delegado. ACTIVE reactiva el proveedor e INACTIVE lo desactiva conservando su UUID, empresa e historial. Repetir el estado devuelve 200 sin modificar la revisión.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proveedor con el estado solicitado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierDetail"
+                },
+                "example": {
+                  "id": "195a2821-5d76-44f8-990e-77e3d5d9cde6",
+                  "name": "OfiCentro Dominicana",
+                  "taxId": "131-12345-1",
+                  "contact": "Laura Méndez",
+                  "phone": "(809) 555-0118",
+                  "email": "ventas@example.do",
+                  "status": "INACTIVE"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo verificar la autorización empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Proveedor inexistente o no visible en la empresa autorizada",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Actualización concurrente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierStatusRequest"
+              },
+              "example": {
+                "status": "INACTIVE"
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/clients": {
@@ -833,6 +1237,188 @@
             "enum": [
               "ACTIVE"
             ]
+          }
+        }
+      },
+      "SupplierStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "INACTIVE"
+        ]
+      },
+      "SupplierDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "taxId",
+          "contact",
+          "phone",
+          "email",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "\\S",
+            "description": "Obligatorio. Se eliminan los espacios en los extremos."
+          },
+          "taxId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "description": "Se eliminan los espacios en los extremos y un valor vacío se guarda como null. El documento es único por empresa cuando se informa."
+          },
+          "contact": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "\\S",
+            "description": "Obligatorio. Se eliminan los espacios en los extremos."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "pattern": "^\\+?(?=(?:[^0-9]*[0-9]){7})[0-9() .-]{7,32}$"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "format": "email",
+            "maxLength": 320,
+            "pattern": "^[^\\s@]+@[^\\s@.]+(?:\\.[^\\s@.]+)+$"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SupplierStatus"
+          }
+        }
+      },
+      "SupplierListItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "taxId",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "\\S",
+            "description": "Obligatorio. Se eliminan los espacios en los extremos."
+          },
+          "taxId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "description": "Se eliminan los espacios en los extremos y un valor vacío se guarda como null. El documento es único por empresa cuando se informa."
+          },
+          "status": {
+            "$ref": "#/components/schemas/SupplierStatus"
+          }
+        }
+      },
+      "SupplierPage": {
+        "type": "object",
+        "required": [
+          "content",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupplierListItem"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "SupplierPatchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "\\S",
+            "description": "Obligatorio. Se eliminan los espacios en los extremos."
+          },
+          "taxId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "description": "Se eliminan los espacios en los extremos y un valor vacío se guarda como null. El documento es único por empresa cuando se informa."
+          },
+          "contact": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "\\S",
+            "description": "Obligatorio. Se eliminan los espacios en los extremos."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "pattern": "^\\+?(?=(?:[^0-9]*[0-9]){7})[0-9() .-]{7,32}$"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "format": "email",
+            "maxLength": 320,
+            "pattern": "^[^\\s@]+@[^\\s@.]+(?:\\.[^\\s@.]+)+$"
+          }
+        }
+      },
+      "SupplierStatusRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/SupplierStatus"
           }
         }
       },

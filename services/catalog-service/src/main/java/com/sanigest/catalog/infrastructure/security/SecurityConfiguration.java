@@ -39,12 +39,19 @@ class SecurityConfiguration {
                     "/actuator/health/readiness",
                     "/v3/api-docs")
                 .permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/clients")
-                .authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/v1/clients/{id}")
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/v1/clients",
+                    "/api/v1/clients/{id}",
+                    "/api/v1/suppliers",
+                    "/api/v1/suppliers/{id}")
                 .authenticated()
                 .requestMatchers(
-                    HttpMethod.PATCH, "/api/v1/clients/{id}", "/api/v1/clients/{id}/status")
+                    HttpMethod.PATCH,
+                    "/api/v1/clients/{id}",
+                    "/api/v1/clients/{id}/status",
+                    "/api/v1/suppliers/{id}",
+                    "/api/v1/suppliers/{id}/status")
                 .authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/v1/clients", "/api/v1/suppliers")
                 .authenticated()
