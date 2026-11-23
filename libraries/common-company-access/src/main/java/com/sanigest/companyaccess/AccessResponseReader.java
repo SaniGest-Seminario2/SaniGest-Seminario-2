@@ -37,7 +37,7 @@ final class AccessResponseReader {
       var mode = requiredText(json, "mode");
       if (query.target() != null) {
         validateDelegation(json, query, company, mode);
-        return new Response(user, company, query.module(), query.scope(), mode, null, null);
+        return new Response(user, company, query.module(), query.scope(), mode, null, null, null);
       }
       if (!"MEMBERSHIP".equals(mode) || !json.path("explicitGrant").isBoolean()) {
         throw new CompanyAccessUnavailable();
@@ -49,10 +49,21 @@ final class AccessResponseReader {
           query.scope(),
           mode,
           MembershipRole.valueOf(requiredText(json, "role")),
-          json.path("explicitGrant").booleanValue());
+          json.path("explicitGrant").booleanValue(),
+          companyName(json, query));
     } catch (JacksonException | IllegalArgumentException invalid) {
       throw new CompanyAccessUnavailable();
     }
+  }
+
+  private static String companyName(JsonNode json, Query query) {
+    var name = json.path("companyName");
+    if (query.module() == CompanyAccess.Module.SALES
+        && query.scope() == CompanyAccess.Scope.WRITE
+        && name.isString()) {
+      return name.stringValue();
+    }
+    return null;
   }
 
   private static void validateDelegation(

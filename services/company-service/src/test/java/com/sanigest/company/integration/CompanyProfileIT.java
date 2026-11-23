@@ -76,6 +76,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import tools.jackson.databind.ObjectMapper;
 
 @Tag("regression")
 @ActiveProfiles("test")
@@ -95,7 +96,10 @@ class CompanyProfileIT {
       new AdvisorPermission(Module.CATALOG, Scope.WRITE);
   private static final String CATALOG_ISSUER = "catalog-company-access-test";
   private static final KeyPair CATALOG_KEYS = serviceKeys();
-  private static final Path CATALOG_PUBLIC_KEY = catalogPublicKey();
+  private static final Path CATALOG_PUBLIC_KEY = accessPublicKey(CATALOG_KEYS);
+  private static final String SALES_ISSUER = "sales-company-access-test";
+  private static final KeyPair SALES_KEYS = serviceKeys();
+  private static final Path SALES_PUBLIC_KEY = accessPublicKey(SALES_KEYS);
   private static final KeyPair SERVICE_KEYS = serviceKeys();
   private static final Path SERVICE_KEY_FILE = serviceKeyFile();
   private static final ConcurrentHashMap<UUID, String> ADVISOR_ACCOUNTS = new ConcurrentHashMap<>();
@@ -131,6 +135,10 @@ class CompanyProfileIT {
         "sanigest.identity-url", () -> "http://127.0.0.1:" + IDENTITY.getAddress().getPort());
     properties.add("sanigest.advisor-eligibility.issuer", () -> SERVICE_ISSUER);
     properties.add("sanigest.company-access.callers.catalog.issuer", () -> CATALOG_ISSUER);
+    properties.add("sanigest.company-access.callers.sales.issuer", () -> SALES_ISSUER);
+    properties.add(
+        "sanigest.company-access.callers.sales.public-key",
+        () -> SALES_PUBLIC_KEY.toUri().toString());
     properties.add(
         "sanigest.company-access.callers.catalog.public-key",
         () -> CATALOG_PUBLIC_KEY.toUri().toString());
@@ -148,6 +156,7 @@ class CompanyProfileIT {
     IDENTITY_THREADS.close();
     Files.deleteIfExists(SERVICE_KEY_FILE);
     Files.deleteIfExists(CATALOG_PUBLIC_KEY);
+    Files.deleteIfExists(SALES_PUBLIC_KEY);
   }
 
   private static HttpServer identity() {
@@ -223,6 +232,25 @@ class CompanyProfileIT {
   }
 
   @Test
+  void salesWriteReceivesTheCurrentNameOfTheVerifiedCompany() throws Exception {
+    var owner = newOwner("Invoice Company");
+    UUID other = newOwner("Unrelated Company").companyId();
+    String assertion =
+        companyAssertion(owner.actorId(), "SALES", "WRITE", null, SALES_ISSUER, SALES_KEYS);
+    var response = internalAccess(assertion, owner.token(), other);
+    assertThat(response.statusCode()).isEqualTo(200);
+    var body = new ObjectMapper().readTree(response.body());
+    assertThat(body.path("companyName").asString()).isEqualTo("Invoice Company SRL");
+    assertThat(body.path("companyId").asString()).isEqualTo(owner.companyId().toString());
+
+    String read =
+        companyAssertion(owner.actorId(), "SALES", "READ", null, SALES_ISSUER, SALES_KEYS);
+    var readResponse = internalAccess(read, owner.token(), other);
+    assertThat(readResponse.statusCode()).isEqualTo(200);
+    assertThat(readResponse.body()).doesNotContain("companyName");
+  }
+
+  @Test
   void internalDelegationEnforcesModuleScopeAndRevocation(CapturedOutput output) throws Exception {
     var owner = newOwner("Internal delegation");
     UUID advisor = eligibleAdvisor();
@@ -272,10 +300,16 @@ class CompanyProfileIT {
 
   private static String companyAssertion(UUID user, String module, String scope, UUID target)
       throws JOSEException {
+    return companyAssertion(user, module, scope, target, CATALOG_ISSUER, CATALOG_KEYS);
+  }
+
+  private static String companyAssertion(
+      UUID user, String module, String scope, UUID target, String issuer, KeyPair keys)
+      throws JOSEException {
     Instant now = Instant.now();
     var claims =
         new JWTClaimsSet.Builder()
-            .issuer(CATALOG_ISSUER)
+            .issuer(issuer)
             .audience(CompanyAccessProtocol.AUDIENCE)
             .subject(user.toString())
             .issueTime(Date.from(now))
@@ -291,7 +325,7 @@ class CompanyProfileIT {
                 .type(new JOSEObjectType(CompanyAccessProtocol.TOKEN_TYPE))
                 .build(),
             claims.build());
-    jwt.sign(new RSASSASigner((RSAPrivateKey) CATALOG_KEYS.getPrivate()));
+    jwt.sign(new RSASSASigner((RSAPrivateKey) keys.getPrivate()));
     return jwt.serialize();
   }
 
@@ -670,10 +704,10 @@ class CompanyProfileIT {
     }
   }
 
-  private static Path catalogPublicKey() {
+  private static Path accessPublicKey(KeyPair keys) {
     try {
-      Path file = Files.createTempFile("catalog-company-access-test-", ".pem");
-      String key = Base64.getMimeEncoder().encodeToString(CATALOG_KEYS.getPublic().getEncoded());
+      Path file = Files.createTempFile("company-access-test-", ".pem");
+      String key = Base64.getMimeEncoder().encodeToString(keys.getPublic().getEncoded());
       Files.writeString(
           file, "-----BEGIN PUBLIC KEY-----\n" + key + "\n-----END PUBLIC KEY-----\n");
       return file;

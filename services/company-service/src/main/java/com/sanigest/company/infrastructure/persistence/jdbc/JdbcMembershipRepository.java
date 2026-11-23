@@ -30,7 +30,7 @@ class JdbcMembershipRepository implements MembershipRepository {
     return DataAccessUtils.optionalResult(
         jdbc.query(
             """
-            SELECT m.company_id, m.role, EXISTS (
+            SELECT m.company_id, c.name AS company_name, m.role, EXISTS (
               SELECT 1 FROM membership_permissions mp
               JOIN company_permissions cp ON cp.id = mp.permission_id
               WHERE mp.membership_id = m.id AND cp.company_id = m.company_id AND cp.permission = ?
@@ -42,7 +42,8 @@ class JdbcMembershipRepository implements MembershipRepository {
                 new ActiveAccess(
                     row.getObject("company_id", UUID.class),
                     CompanyRole.valueOf(row.getString("role")),
-                    row.getBoolean("explicit_grant")),
+                    row.getBoolean("explicit_grant"),
+                    row.getString("company_name")),
             permission,
             userId));
   }

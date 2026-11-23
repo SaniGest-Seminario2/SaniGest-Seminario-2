@@ -50,7 +50,10 @@ class CompanyAccessController {
               query.scope(),
               "MEMBERSHIP",
               MembershipRole.valueOf(membership.role().name()),
-              membership.explicitGrant()));
+              membership.explicitGrant(),
+              "SALES_WRITE".equals(query.module().name() + "_" + query.scope().name())
+                  ? membership.companyName()
+                  : null));
     }
     access.requireDelegation(
         query.userId(),
@@ -65,6 +68,7 @@ class CompanyAccessController {
             query.module(),
             query.scope(),
             "DELEGATED",
+            null,
             null,
             null));
   }

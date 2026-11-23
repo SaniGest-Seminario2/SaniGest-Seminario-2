@@ -46,7 +46,7 @@ class CompanyAccessControllerTest {
     session(USER);
     when(accounts.resolve(SESSION)).thenReturn(AccountType.REGULAR);
     when(memberships.findActiveAccess(USER, "CATALOG_WRITE"))
-        .thenReturn(Optional.of(new ActiveAccess(COMPANY, CompanyRole.OPERATOR, true)));
+        .thenReturn(Optional.of(new ActiveAccess(COMPANY, CompanyRole.OPERATOR, true, "Empresa")));
     var response = controller.resolve(assertion(null), SESSION);
     assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
     assertThat(response.getBody())
@@ -54,8 +54,20 @@ class CompanyAccessControllerTest {
           assertThat(body.companyId()).isEqualTo(COMPANY);
           assertThat(body.role()).isEqualTo(CompanyAccess.MembershipRole.OPERATOR);
           assertThat(body.explicitGrant()).isTrue();
+          assertThat(body.companyName()).isNull();
         });
     verifyNoInteractions(advisors);
+  }
+
+  @Test
+  void includesCompanyNameInSalesWriteMembership() {
+    session(USER);
+    when(accounts.resolve(SESSION)).thenReturn(AccountType.REGULAR);
+    when(memberships.findActiveAccess(USER, "SALES_WRITE"))
+        .thenReturn(Optional.of(new ActiveAccess(COMPANY, CompanyRole.OWNER, false, "Empresa")));
+    var response = controller.resolve(assertion(null, "SALES"), SESSION);
+    assertThat(response.getBody().companyId()).isEqualTo(COMPANY);
+    assertThat(response.getBody().companyName()).isEqualTo("Empresa");
   }
 
   @Test
@@ -111,11 +123,15 @@ class CompanyAccessControllerTest {
   }
 
   private static Jwt assertion(UUID target) {
+    return assertion(target, "CATALOG");
+  }
+
+  private static Jwt assertion(UUID target, String module) {
     var jwt =
         Jwt.withTokenValue("service-assertion")
             .header("alg", "RS256")
             .subject(USER.toString())
-            .claim("module", "CATALOG")
+            .claim("module", module)
             .claim("scope", "WRITE");
     if (target != null) {
       jwt.claim("company_id", target.toString());

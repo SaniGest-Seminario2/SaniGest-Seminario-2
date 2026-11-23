@@ -41,6 +41,10 @@ payload. La conexión usa HTTPS salvo durante desarrollo y pruebas locales.
 | `401`, `404`, `5xx` y restantes estados inesperados | Error técnico. La librería lanza `CompanyAccessUnavailable`. |
 | Timeout, red caída, cuerpo inválido o identidad, módulo, alcance o empresa delegada discordantes | Error técnico. La librería lanza `CompanyAccessUnavailable`. |
 
+Para membresía `SALES / WRITE`, Company incluye `companyName` desde la empresa
+activa asociada a `companyId`. Sales verifica la autorización antes de utilizar
+el dato como snapshot. El campo es opcional durante el despliegue de Company.
+
 Sin caché de decisiones y con `Cache-Control: no-store` en la respuesta de
 Company. Una revocación confirmada se aplica desde la siguiente consulta que
 lea el estado actual. Una operación ya autorizada puede seguir en curso.

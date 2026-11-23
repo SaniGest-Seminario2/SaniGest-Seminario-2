@@ -5,7 +5,9 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
+import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
+import com.sanigest.sales.application.port.out.persistence.InvoiceRepository;
 import com.sanigest.sales.application.port.out.persistence.ReceivableRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
@@ -132,6 +134,22 @@ class SalesArchitectureTest {
             "..sales.domain..",
             "..sales.infrastructure.company..",
             "com.sanigest.companyaccess..")
+        .check(PRODUCTION);
+  }
+
+  @Test
+  void keepsInvoiceSnapshotAndStorageBehindSalesPorts() {
+    classes()
+        .that()
+        .haveSimpleName("CompanySalesAuthorization")
+        .should()
+        .implement(InvoiceCompanyAccess.class)
+        .check(PRODUCTION);
+    classes()
+        .that()
+        .haveSimpleName("PostgresInvoiceRepository")
+        .should()
+        .implement(InvoiceRepository.class)
         .check(PRODUCTION);
   }
 

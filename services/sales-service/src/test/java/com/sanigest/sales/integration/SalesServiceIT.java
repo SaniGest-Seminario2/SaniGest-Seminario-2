@@ -20,10 +20,13 @@ import com.sanigest.sales.api.controller.SaleController;
 import com.sanigest.sales.application.exception.CatalogUnavailableException;
 import com.sanigest.sales.application.exception.IdempotencyInProgress;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
+import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess.CompanyContext;
+import com.sanigest.sales.application.port.out.persistence.InvoiceRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Claim;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Request;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
+import com.sanigest.sales.application.usecase.invoice.IssueInvoice;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.enums.SaleStatus;
 import com.sanigest.sales.domain.model.Sale;
@@ -39,10 +42,12 @@ import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
@@ -107,6 +112,7 @@ class SalesServiceIT {
   @Autowired private Flyway flyway;
   @Autowired private EntityManagerFactory entityManagerFactory;
   @Autowired private SaleRepository sales;
+  @Autowired private InvoiceRepository invoices;
   @Autowired private SaleIdempotencyRepository idempotency;
   @Autowired private CatalogClient catalog;
 
@@ -190,7 +196,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("5");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -220,14 +226,21 @@ class SalesServiceIT {
                 """,
                 String.class))
         .containsExactlyInAnyOrder(
-            "sales", "sale_lines", "sale_number_sequences", "sale_idempotency_keys", "receivables");
+            "sales",
+            "sale_lines",
+            "sale_number_sequences",
+            "sale_idempotency_keys",
+            "receivables",
+            "internal_invoices",
+            "internal_invoice_lines",
+            "invoice_number_sequences");
 
     assertThat(
             jdbc.queryForList(
                 """
                 SELECT table_name || '.' || column_name || ':' || data_type || ':' || is_nullable
                 FROM information_schema.columns WHERE table_schema = 'sales'
-                  AND table_name NOT IN ('sale_idempotency_keys', 'receivables')
+                  AND table_name IN ('sales', 'sale_lines', 'sale_number_sequences')
                 """,
                 String.class))
         .containsExactlyInAnyOrder(
@@ -273,7 +286,14 @@ class SalesServiceIT {
             "sale_idempotency_expiration_idx",
             "sales_company_id_sale_date_key",
             "receivables_pkey",
-            "receivables_sale_id_key");
+            "receivables_sale_id_key",
+            "invoice_number_sequences_pkey",
+            "internal_invoices_pkey",
+            "invoice_company_number_key",
+            "invoice_request_key",
+            "invoice_one_issued_per_sale",
+            "internal_invoice_lines_pkey",
+            "invoice_line_source_key");
     assertThat(
             jdbc.queryForList(
                 """
@@ -289,16 +309,22 @@ class SalesServiceIT {
         .containsExactlyInAnyOrder(
             "sale_lines.sale_lines_sale_fk -> sales.sales",
             "sale_idempotency_keys.sale_idempotency_sale_fk -> sales.sales",
-            "receivables.receivables_sale_fk -> sales.sales");
+            "receivables.receivables_sale_fk -> sales.sales",
+            "internal_invoices.invoice_sale_fk -> sales.sales",
+            "internal_invoice_lines.invoice_lines_invoice_fk -> sales.internal_invoices");
 
+    assertMigrationHistory();
+  }
+
+  private void assertMigrationHistory() {
     var history =
         jdbc.queryForList(
             """
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(5);
-    assertThat(history.getLast()).containsEntry("version", "5").containsEntry("success", true);
+    assertThat(history).hasSize(6);
+    assertThat(history.getLast()).containsEntry("version", "6").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -363,10 +389,15 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("4").load().migrate().migrationsExecuted)
         .isEqualTo(1);
+    assertThat(
+            Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
+        .isEqualTo(1);
     assertThat(current.migrate().migrationsExecuted).isEqualTo(1);
+    assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
+        .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("5");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("6");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
@@ -1498,7 +1529,15 @@ class SalesServiceIT {
       assertThat(countReceivables(owner.company())).isEqualTo(1);
       assertThatThrownBy(() -> copyReceivable(owner.company(), owner.company()))
           .isInstanceOf(DataIntegrityViolationException.class)
-          .hasMessageContaining("receivables_sale_id_key");
+          .hasMessageContaining(
+              "receivables_sale_id_key",
+              "invoice_number_sequences_pkey",
+              "internal_invoices_pkey",
+              "invoice_company_number_key",
+              "invoice_request_key",
+              "invoice_one_issued_per_sale",
+              "internal_invoice_lines_pkey",
+              "invoice_line_source_key");
 
       assertThatThrownBy(() ->
               jdbc.update(
@@ -1528,6 +1567,288 @@ class SalesServiceIT {
   private long countReceivables(UUID company) {
     return jdbc.queryForObject(
         "SELECT count(*) FROM sales.receivables WHERE company_id = ?", Long.class, company);
+  }
+
+  @Test
+  @Tag("smoke")
+  void issuesAndReplaysAnInternalInvoiceOverHttp() throws Exception {
+    var owner = fixture();
+    var other = fixture();
+    owner.membership("OWNER", false);
+    other.membership("OWNER", false);
+    try (var http = HttpClient.newHttpClient()) {
+      var sale = registerForLifecycle(http, owner);
+      String id = sale.path("id").asString();
+      assertThat(countInvoices(owner.company())).isZero();
+      assertThat(invoice(http, null, id, "invoice", "").statusCode()).isEqualTo(401);
+      assertThat(invoice(http, owner.bearer(), id, null, "").statusCode()).isEqualTo(400);
+      assertThat(invoice(http, owner.bearer(), id, "bad key", "").statusCode()).isEqualTo(400);
+      assertThat(invoice(http, owner.bearer(), id, "invoice", "{}").statusCode()).isEqualTo(400);
+      assertThat(invoice(http, owner.bearer(), "1-1-1-1-1", "invoice", "").statusCode())
+          .isEqualTo(400);
+      assertThat(invoice(http, other.bearer(), id, "invoice", "").statusCode()).isEqualTo(404);
+      owner.membership("VIEWER", false);
+      assertThat(invoice(http, owner.bearer(), id, "invoice", "").statusCode()).isEqualTo(403);
+      owner.membership("OPERATOR", false);
+      assertThat(invoice(http, owner.bearer(), id, "invoice", "").statusCode()).isEqualTo(403);
+      owner.membership("OPERATOR", true, "WRITE", " ");
+      assertThat(invoice(http, owner.bearer(), id, "invoice", "").statusCode()).isEqualTo(503);
+      owner.companyReply(503);
+      assertThat(invoice(http, owner.bearer(), id, "invoice", "").statusCode()).isEqualTo(503);
+      assertThat(countInvoices(owner.company())).isZero();
+      owner.membership("OPERATOR", true);
+
+      owner.item(owner.productPath(), owner.product(), "PRODUCT", "9999.00", true);
+      var created = invoice(http, owner.bearer(), id, "invoice", "");
+      assertThat(created.statusCode()).withFailMessage(created.body()).isEqualTo(201);
+      var document = new ObjectMapper().readTree(created.body());
+      assertThat(document.path("number").asString()).matches("FAC-[0-9]{4}-001");
+      assertThat(document.path("documentType").asString()).isEqualTo("INTERNAL");
+      assertThat(document.path("fiscalClassification").asString()).isEqualTo("NOT_FISCAL");
+      assertThat(document.path("status").asString()).isEqualTo("ISSUED");
+      assertThat(document.path("currency").asString()).isEqualTo("DOP");
+      assertThat(document.path("company").path("name").asString()).isEqualTo("Empresa histórica");
+      for (String field : List.of("client", "lines", "saleDate", "total")) {
+        assertThat(document.path(field)).isEqualTo(sale.path(field));
+      }
+      assertThat(
+              jdbc.queryForList(
+                  """
+                  SELECT l.catalog_item_id FROM sales.internal_invoice_lines l
+                  JOIN sales.internal_invoices i ON i.id = l.invoice_id
+                  WHERE i.company_id = ? ORDER BY l.position
+                  """,
+                  UUID.class,
+                  owner.company()))
+          .containsExactly(owner.product(), owner.service());
+
+      owner.membership("OWNER", false, "WRITE", "Nombre nuevo");
+      var replay = invoice(http, owner.bearer(), id, "invoice", "");
+      assertThat(replay.statusCode()).isEqualTo(201);
+      assertThat(replay.body()).isEqualTo(created.body());
+      assertThat(invoice(http, owner.bearer(), id, "another-key", "").statusCode()).isEqualTo(409);
+      String second = registerForLifecycle(http, owner).path("id").asString();
+      var conflict = invoice(http, owner.bearer(), second, "invoice", "");
+      assertThat(conflict.statusCode()).isEqualTo(409);
+      assertThat(conflict.body()).contains("IDEMPOTENCY_CONFLICT");
+      assertThat(cancel(http, owner.bearer(), id, "{\"reason\":\"Duplicada\"}").statusCode())
+          .isEqualTo(409);
+      assertThat(cancel(http, owner.bearer(), second, "{\"reason\":\"Duplicada\"}").statusCode())
+          .isEqualTo(200);
+      assertThat(invoice(http, owner.bearer(), second, "new-key", "").statusCode()).isEqualTo(409);
+      assertThat(countInvoices(owner.company())).isEqualTo(1);
+      assertThat(countReceivables(owner.company())).isZero();
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void allocatesInvoiceNumbersPerCompanyAndBusinessYearAndRollsBackLineFailure() throws Exception {
+    var owner = fixture();
+    var other = fixture();
+    owner.membership("ADMIN", false);
+    other.membership("OWNER", false);
+    try (var http = HttpClient.newHttpClient()) {
+      var credit = UUID.fromString(registerCredit(http, owner));
+      var cash = UUID.fromString(registerForLifecycle(http, owner).path("id").asString());
+      var nextYear = UUID.fromString(registerForLifecycle(http, owner).path("id").asString());
+      var otherSale = UUID.fromString(registerForLifecycle(http, other).path("id").asString());
+      var originalReceivable =
+          jdbc.queryForMap(
+              "SELECT * FROM sales.receivables WHERE company_id = ? AND sale_id = ?",
+              owner.company(),
+              credit);
+      var dec31 = invoiceUseCase(owner, "2027-01-01T03:59:59Z");
+      var jan1 = invoiceUseCase(owner, "2027-01-01T04:00:00Z");
+
+      jdbc.execute(
+          "ALTER TABLE sales.internal_invoice_lines ADD CONSTRAINT invoice_test_failure "
+              + "CHECK (catalog_item_id <> '"
+              + owner.service()
+              + "'::uuid)");
+      try {
+        assertThatThrownBy(() -> dec31.execute(credit, "credit", invoice -> invoice.number()))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(countInvoices(owner.company())).isZero();
+        assertThat(
+                jdbc.queryForObject(
+                    "SELECT count(*) FROM sales.invoice_number_sequences WHERE company_id = ?",
+                    Long.class,
+                    owner.company()))
+            .isZero();
+      } finally {
+        jdbc.execute(
+            "ALTER TABLE sales.internal_invoice_lines DROP CONSTRAINT invoice_test_failure");
+      }
+
+      assertThat(dec31.execute(credit, "credit", invoice -> invoice.number()))
+          .isEqualTo("FAC-2026-001");
+      assertThat(dec31.execute(cash, "cash", invoice -> invoice.number()))
+          .isEqualTo("FAC-2026-002");
+      assertThat(jan1.execute(nextYear, "new-year", invoice -> invoice.number()))
+          .isEqualTo("FAC-2027-001");
+      assertThat(
+              invoiceUseCase(other, "2027-01-01T03:59:59Z")
+                  .execute(otherSale, "credit", invoice -> invoice.number()))
+          .isEqualTo("FAC-2026-001");
+      assertThat(countReceivables(owner.company())).isEqualTo(1);
+      assertThat(
+              jdbc.queryForMap(
+                  "SELECT * FROM sales.receivables WHERE company_id = ? AND sale_id = ?",
+                  owner.company(),
+                  credit))
+          .isEqualTo(originalReceivable);
+      assertThatThrownBy(() ->
+              jdbc.update(
+                  """
+                  INSERT INTO sales.internal_invoices
+                    (id, company_id, sale_id, sale_date, number, document_type, fiscal_classification,
+                     status, issued_at, issued_by, company_name, client_id, client_name, total, currency,
+                     idempotency_key, response_body)
+                  SELECT ?, company_id, sale_id, sale_date, 'FAC-2026-999', document_type,
+                     fiscal_classification, status, issued_at, issued_by, company_name,
+                     client_id, client_name, total, currency, 'duplicate', response_body
+                  FROM sales.internal_invoices WHERE company_id = ? AND sale_id = ?
+                  """,
+                  UUID.randomUUID(),
+                  owner.company(),
+                  credit))
+          .isInstanceOf(DataIntegrityViolationException.class)
+          .hasMessageContaining("invoice_one_issued_per_sale");
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void concurrentInvoiceRetriesAndCancellationShareTheSameTransactionLocks() throws Exception {
+    var owner = fixture();
+    owner.membership("OWNER", false);
+    try (var http = HttpClient.newHttpClient()) {
+      String sameKeySale = registerForLifecycle(http, owner).path("id").asString();
+      String differentKeysSale = registerForLifecycle(http, owner).path("id").asString();
+      String cancellationSale = registerCredit(http, owner);
+
+      var retries =
+          race(
+              () -> invoice(http, owner.bearer(), sameKeySale, "same", ""),
+              () -> invoice(http, owner.bearer(), sameKeySale, "same", ""));
+      assertThat(retries).extracting(HttpResponse::statusCode).containsExactly(201, 201);
+      assertThat(retries.getFirst().body()).isEqualTo(retries.getLast().body());
+
+      var duplicates =
+          race(
+              () -> invoice(http, owner.bearer(), differentKeysSale, "first", ""),
+              () -> invoice(http, owner.bearer(), differentKeysSale, "second", ""));
+      assertThat(duplicates)
+          .extracting(HttpResponse::statusCode)
+          .containsExactlyInAnyOrder(201, 409);
+
+      var cancellation =
+          race(
+              () -> invoice(http, owner.bearer(), cancellationSale, "cancellation-race", ""),
+              () -> cancel(http, owner.bearer(), cancellationSale, "{\"reason\":\"Duplicada\"}"));
+      assertThat(cancellation).extracting(HttpResponse::statusCode).contains(409);
+      boolean issued = cancellation.getFirst().statusCode() == 201;
+      assertThat(cancellation.getFirst().statusCode()).isEqualTo(issued ? 201 : 409);
+      assertThat(cancellation.getLast().statusCode()).isEqualTo(issued ? 409 : 200);
+      var saleId = UUID.fromString(cancellationSale);
+      assertThat(sales.findByCompanyIdAndId(owner.company(), saleId).orElseThrow().status())
+          .isEqualTo(issued ? SaleStatus.REGISTERED : SaleStatus.CANCELLED);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT status FROM sales.receivables WHERE company_id = ? AND sale_id = ?",
+                  String.class,
+                  owner.company(),
+                  saleId))
+          .isEqualTo(issued ? "OPEN" : "CANCELLED");
+      assertThat(countInvoices(owner.company())).isEqualTo(issued ? 3 : 2);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void serializesNumberAllocationAndSameKeyConflictsAcrossDifferentSales() throws Exception {
+    var owner = fixture();
+    owner.membership("OWNER", false);
+    try (var http = HttpClient.newHttpClient()) {
+      String first = registerForLifecycle(http, owner).path("id").asString();
+      String second = registerForLifecycle(http, owner).path("id").asString();
+      var issued =
+          race(
+              () -> invoice(http, owner.bearer(), first, "first-sale", ""),
+              () -> invoice(http, owner.bearer(), second, "second-sale", ""));
+      assertThat(issued).extracting(HttpResponse::statusCode).containsExactly(201, 201);
+      assertThat(
+              jdbc.queryForList(
+                  "SELECT number FROM sales.internal_invoices WHERE company_id = ? ORDER BY number",
+                  String.class,
+                  owner.company()))
+          .satisfiesExactly(
+              number -> assertThat(number).matches("FAC-[0-9]{4}-001"),
+              number -> assertThat(number).matches("FAC-[0-9]{4}-002"));
+
+      String third = registerForLifecycle(http, owner).path("id").asString();
+      String fourth = registerForLifecycle(http, owner).path("id").asString();
+      var conflict =
+          race(
+              () -> invoice(http, owner.bearer(), third, "shared-key", ""),
+              () -> invoice(http, owner.bearer(), fourth, "shared-key", ""));
+      assertThat(conflict).extracting(HttpResponse::statusCode).containsExactlyInAnyOrder(201, 409);
+      assertThat(
+              conflict.stream()
+                  .filter(response -> response.statusCode() == 409)
+                  .findFirst()
+                  .orElseThrow()
+                  .body())
+          .contains("IDEMPOTENCY_CONFLICT");
+      assertThat(countInvoices(owner.company())).isEqualTo(3);
+    }
+  }
+
+  private IssueInvoice invoiceUseCase(Fixture fixture, String instant) {
+    return new IssueInvoice(
+        () -> new CompanyContext(fixture.company(), "Empresa histórica"),
+        fixture::user,
+        invoices,
+        Clock.fixed(Instant.parse(instant), ZoneOffset.UTC));
+  }
+
+  private long countInvoices(UUID company) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM sales.internal_invoices WHERE company_id = ?", Long.class, company);
+  }
+
+  private HttpResponse<String> invoice(
+      HttpClient http, String bearer, String saleId, String key, String body) throws Exception {
+    var request =
+        HttpRequest.newBuilder(
+                URI.create("http://localhost:" + port + "/api/v1/sales/" + saleId + "/invoices"))
+            .timeout(Duration.ofSeconds(10))
+            .POST(HttpRequest.BodyPublishers.ofString(body));
+    if (bearer != null) {
+      request.header("Authorization", "Bearer " + bearer);
+    }
+    if (key != null) {
+      request.header("Idempotency-Key", key);
+    }
+    return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static <T> List<T> race(Callable<T> first, Callable<T> second) throws Exception {
+    var barrier = new CyclicBarrier(2);
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var firstResult =
+          pool.submit(() -> {
+            barrier.await(5, TimeUnit.SECONDS);
+            return first.call();
+          });
+      var secondResult =
+          pool.submit(() -> {
+            barrier.await(5, TimeUnit.SECONDS);
+            return second.call();
+          });
+      return List.of(firstResult.get(15, TimeUnit.SECONDS), secondResult.get(15, TimeUnit.SECONDS));
+    }
   }
 
   private String registerCredit(HttpClient http, Fixture fixture) throws Exception {
@@ -1734,6 +2055,10 @@ class SalesServiceIT {
     }
 
     void membership(String role, boolean grant, String scope) {
+      membership(role, grant, scope, "Empresa histórica");
+    }
+
+    void membership(String role, boolean grant, String scope, String companyName) {
       CATALOG.stubFor(
           WireMock.get(PATH)
               .withHeader(USER_ASSERTION, equalTo(bearer))
@@ -1741,9 +2066,9 @@ class SalesServiceIT {
                   okJson(
                       """
                       {"userId":"%s","companyId":"%s","module":"SALES","scope":"%s",
-                      "mode":"MEMBERSHIP","role":"%s","explicitGrant":%s}
+                      "mode":"MEMBERSHIP","role":"%s","explicitGrant":%s,"companyName":"%s"}
                       """
-                          .formatted(user, company, scope, role, grant))));
+                          .formatted(user, company, scope, role, grant, companyName))));
     }
 
     void companyReply(int status) {

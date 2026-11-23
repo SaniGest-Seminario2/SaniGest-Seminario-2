@@ -44,7 +44,11 @@ class SecurityConfiguration {
                     "/api/v1/sales/{id}",
                     "/api/v1/receivables/{id}")
                 .authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/v1/sales", "/api/v1/sales/{id}/cancel")
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/v1/sales",
+                    "/api/v1/sales/{id}/cancel",
+                    "/api/v1/sales/{id}/invoices")
                 .authenticated()
                 .anyRequest()
                 .denyAll())
