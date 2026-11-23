@@ -4,6 +4,7 @@ import static com.sanigest.catalog.application.exception.ClientAccessException.R
 import static com.sanigest.catalog.application.exception.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
 import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
 import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.domain.enums.SupplierStatus.ACTIVE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -15,9 +16,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.sanigest.catalog.application.dto.SupplierPage;
 import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.exception.SupplierAccessException;
 import com.sanigest.catalog.application.exception.SupplierCreationException;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
@@ -28,10 +31,18 @@ import com.sanigest.catalog.application.usecase.client.CreateClient;
 import com.sanigest.catalog.application.usecase.client.GetClient;
 import com.sanigest.catalog.application.usecase.client.ListClients;
 import com.sanigest.catalog.application.usecase.client.UpdateClient;
+import com.sanigest.catalog.application.usecase.supplier.ChangeSupplierStatus;
 import com.sanigest.catalog.application.usecase.supplier.CreateSupplier;
+import com.sanigest.catalog.application.usecase.supplier.GetSupplier;
+import com.sanigest.catalog.application.usecase.supplier.ListSuppliers;
+import com.sanigest.catalog.application.usecase.supplier.SupplierCompany;
+import com.sanigest.catalog.application.usecase.supplier.UpdateSupplier;
 import com.sanigest.catalog.domain.model.Client;
 import com.sanigest.catalog.domain.model.ClientDetails;
+import com.sanigest.catalog.domain.model.Supplier;
+import com.sanigest.catalog.domain.model.SupplierDetails;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
@@ -57,7 +68,12 @@ import org.springframework.test.web.servlet.ResultActions;
   GetClient.class,
   UpdateClient.class,
   ChangeClientStatus.class,
-  CreateSupplier.class
+  CreateSupplier.class,
+  GetSupplier.class,
+  ListSuppliers.class,
+  SupplierCompany.class,
+  UpdateSupplier.class,
+  ChangeSupplierStatus.class
 })
 class CatalogWebPolicyTest {
   @Autowired MockMvc mvc;
@@ -291,6 +307,97 @@ class CatalogWebPolicyTest {
         .andExpect(status().isServiceUnavailable())
         .andExpect(jsonPath("$.errorCode").value("AUTHORIZATION_UNAVAILABLE"));
     verifyNoInteractions(suppliers);
+  }
+
+  @Test
+  void validatesSupplierQueryAndPatchShapesBeforeAccessingPersistence() throws Exception {
+    validToken();
+    var path = "/api/v1/suppliers/" + UUID.randomUUID();
+    for (var invalid :
+        new String[][] {
+          {"page", "-1"}, {"page", "abc"}, {"size", "0"}, {"size", "101"}, {"status", "DELETED"}
+        }) {
+      mvc.perform(
+              get("/api/v1/suppliers")
+                  .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                  .param(invalid[0], invalid[1]))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+    }
+    for (var invalid : new String[] {"not-a-uuid", "1-1-1-1-1"}) {
+      mvc.perform(
+              get("/api/v1/suppliers/" + invalid).header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+          .andExpect(status().isBadRequest());
+    }
+    for (var invalid :
+        new String[] {
+          "{}",
+          "[]",
+          "null",
+          "{\"revision\":1}",
+          "{\"companyId\":null}",
+          "{\"id\":null}",
+          "{\"status\":\"ACTIVE\"}",
+          "{\"taxId\":1}"
+        }) {
+      writeRequest(path, invalid).andExpect(status().isBadRequest());
+    }
+    for (var invalid :
+        new String[] {
+          "{}",
+          "{\"status\":null}",
+          "{\"status\":\"UNKNOWN\"}",
+          "{\"status\":\"ACTIVE\",\"name\":\"Other\"}"
+        }) {
+      writeRequest(path + "/status", invalid).andExpect(status().isBadRequest());
+    }
+    verifyNoInteractions(suppliers);
+  }
+
+  @Test
+  void mapsSupplierPagesAndAccessErrorsToTheHttpContract() throws Exception {
+    validToken();
+    var companyId = UUID.randomUUID();
+    var supplier =
+        Supplier.register(companyId, new SupplierDetails("Office", "123", "Laura", null, null));
+    given(authorization.membership(CATALOG_READ)).willReturn(Optional.of(companyId));
+    given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.of(companyId));
+    given(suppliers.search(companyId, null, null, 0, 20))
+        .willReturn(
+            new SupplierPage(
+                List.of(new SupplierPage.Item(supplier.id(), "Office", "123", ACTIVE)), 0, 20, 1));
+    var path = "/api/v1/suppliers/" + supplier.id();
+    given(suppliers.find(companyId, supplier.id()))
+        .willReturn(Optional.of(supplier), Optional.empty());
+    given(suppliers.update(eq(companyId), eq(supplier.id()), any()))
+        .willAnswer(call -> call.<UnaryOperator<Supplier>>getArgument(2).apply(supplier))
+        .willAnswer(call -> call.<UnaryOperator<Supplier>>getArgument(2).apply(supplier))
+        .willThrow(new SupplierAccessException(SupplierAccessException.Reason.DUPLICATE_TAX_ID))
+        .willThrow(
+            new SupplierAccessException(SupplierAccessException.Reason.SUPPLIER_UPDATE_CONFLICT));
+    mvc.perform(get("/api/v1/suppliers").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].id").value(supplier.id().toString()))
+        .andExpect(jsonPath("$.totalPages").value(1));
+    mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.contact").value("Laura"));
+    mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value("SUPPLIER_NOT_FOUND"));
+    writeRequest(path, "{\"taxId\":null,\"email\":\"new@example.org\"}")
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.taxId").isEmpty())
+        .andExpect(jsonPath("$.email").value("new@example.org"));
+    writeRequest(path + "/status", "{\"status\":\"INACTIVE\"}")
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("INACTIVE"));
+    writeRequest(path, "{\"taxId\":\"duplicate\"}")
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.errorCode").value("DUPLICATE_TAX_ID"));
+    writeRequest(path + "/status", "{\"status\":\"INACTIVE\"}")
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.errorCode").value("SUPPLIER_UPDATE_CONFLICT"));
   }
 
   private ResultActions registerSupplier(String body) throws Exception {

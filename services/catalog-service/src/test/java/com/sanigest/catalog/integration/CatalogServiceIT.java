@@ -21,18 +21,25 @@ import com.nimbusds.jwt.SignedJWT;
 import com.sanigest.catalog.CatalogServiceApplication;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.exception.SupplierAccessException;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
 import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
 import com.sanigest.catalog.application.usecase.client.CreateClient;
 import com.sanigest.catalog.application.usecase.client.ListClients;
+import com.sanigest.catalog.application.usecase.supplier.ChangeSupplierStatus;
 import com.sanigest.catalog.application.usecase.supplier.CreateSupplier;
+import com.sanigest.catalog.application.usecase.supplier.GetSupplier;
+import com.sanigest.catalog.application.usecase.supplier.ListSuppliers;
+import com.sanigest.catalog.application.usecase.supplier.UpdateSupplier;
 import com.sanigest.catalog.domain.enums.ClientStatus;
+import com.sanigest.catalog.domain.enums.SupplierStatus;
 import com.sanigest.catalog.domain.model.Client;
 import com.sanigest.catalog.domain.model.ClientDetails;
 import com.sanigest.catalog.domain.model.ClientPatch;
 import com.sanigest.catalog.domain.model.ClientPatch.Field;
 import com.sanigest.catalog.domain.model.Supplier;
 import com.sanigest.catalog.domain.model.SupplierDetails;
+import com.sanigest.catalog.domain.model.SupplierPatch;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
 import com.sanigest.companyaccess.CompanyAccess.Scope;
 import com.zaxxer.hikari.HikariConfig;
@@ -132,6 +139,10 @@ class CatalogServiceIT {
       """;
 
   @Autowired CreateSupplier createSupplier;
+  @Autowired ListSuppliers listSuppliers;
+  @Autowired GetSupplier getSupplier;
+  @Autowired UpdateSupplier updateSupplier;
+  @Autowired ChangeSupplierStatus changeSupplierStatus;
   @Autowired SupplierRepository suppliers;
   @Autowired PlatformTransactionManager transactions;
   @Autowired CreateClient createClient;
@@ -272,7 +283,8 @@ class CatalogServiceIT {
             "V2__create_clients.sql",
             "V3__index_clients_by_company_and_name.sql",
             "V4__allow_inactive_clients.sql",
-            "V5__create_suppliers.sql");
+            "V5__create_suppliers.sql",
+            "V6__support_supplier_management.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -824,7 +836,7 @@ class CatalogServiceIT {
 
   @Test
   @Tag("regression")
-  void migratesAnExistingActiveClientFromV3() throws Exception {
+  void migratesExistingClientsAndSuppliersThroughV6() throws Exception {
     try (var connection =
             DriverManager.getConnection(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
@@ -850,8 +862,27 @@ class CatalogServiceIT {
         id,
         companyId);
 
-    assertThat(Flyway.configure().dataSource(source).load().migrate().migrationsExecuted)
+    assertThat(
+            Flyway.configure().dataSource(source).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(2);
+    var supplierId = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO catalog.suppliers (id, company_id, name, tax_id, contact)
+        VALUES (?, ?, 'Existing supplier', '123', 'Laura')
+        """,
+        supplierId,
+        companyId);
+
+    var latest = Flyway.configure().dataSource(source).load();
+    assertThat(latest.migrate().migrationsExecuted).isEqualTo(1);
+    latest.validate();
+    assertThat(
+            jdbc.queryForMap(
+                "SELECT company_id, tax_id, status, revision FROM catalog.suppliers WHERE id = ?",
+                supplierId))
+        .containsExactlyInAnyOrderEntriesOf(
+            Map.of("company_id", companyId, "tax_id", "123", "status", "ACTIVE", "revision", 0L));
     assertThat(
             jdbc.queryForMap(
                 """
@@ -1178,6 +1209,15 @@ class CatalogServiceIT {
     var details = new SupplierDetails("Office", null, "Laura", null, null);
     assertThatThrownBy(() -> createSupplier.execute(details))
         .isInstanceOf(AccessDeniedException.class);
+    var id = UUID.randomUUID();
+    assertThatThrownBy(() -> listSuppliers.execute(null, null, 0, 20))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(() -> getSupplier.execute(id)).isInstanceOf(AccessDeniedException.class);
+    var patch = new SupplierPatch(Map.of(SupplierPatch.Field.NAME, "Updated"));
+    assertThatThrownBy(() -> updateSupplier.execute(id, patch))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(() -> changeSupplierStatus.execute(id, SupplierStatus.INACTIVE))
+        .isInstanceOf(AccessDeniedException.class);
   }
 
   @Test
@@ -1202,6 +1242,280 @@ class CatalogServiceIT {
     assertThatThrownBy(() -> suppliers.insert(supplier))
         .isInstanceOf(DataIntegrityViolationException.class);
     assertThat(supplierCount(company)).isEqualTo(1);
+  }
+
+  @Test
+  @Tag("smoke")
+  void managesSuppliersThroughTheHttpLifecycle() throws Exception {
+    var company = UUID.randomUUID();
+    var owner = authorizedToken(company);
+    var viewer = membershipToken(company, MembershipRole.VIEWER, false, Scope.READ);
+    var otherCompany = UUID.randomUUID();
+    var otherReader = membershipToken(otherCompany, MembershipRole.OWNER, false, Scope.READ);
+    try (var http = HttpClient.newHttpClient()) {
+      var created =
+          postSupplier(
+              http,
+              owner,
+              """
+              {"name":"Office North","taxId":"ABC-101","contact":"Laura","phone":"8095550101"}
+              """,
+              null);
+      assertThat(created.statusCode()).as(created.body()).isEqualTo(201);
+      var id = UUID.fromString(JsonMapper.shared().readTree(created.body()).path("id").asString());
+      var path = SUPPLIERS + "/" + id;
+
+      assertPage(
+          successfulBody(get(http, SUPPLIERS, viewer, otherCompany)), 0, 20, 1, 1, id.toString());
+      assertPage(
+          successfulBody(get(http, SUPPLIERS + "?search=%20oFFICE%20", viewer)),
+          0,
+          20,
+          1,
+          1,
+          id.toString());
+      var original = successfulBody(get(http, path, viewer));
+      assertThat(original.path("contact").asString()).isEqualTo("Laura");
+      var edited =
+          successfulBody(
+              patch(
+                  http,
+                  path,
+                  owner,
+                  """
+                  {"email":"updated@example.org","phone":null}
+                  """,
+                  otherCompany));
+      assertThat(edited.path("email").asString()).isEqualTo("updated@example.org");
+      assertThat(edited.path("phone").isNull()).isTrue();
+      assertThat(edited.path("taxId")).isEqualTo(original.path("taxId"));
+      assertThat(edited.path("contact")).isEqualTo(original.path("contact"));
+
+      var inactive =
+          successfulBody(patch(http, path + "/status", owner, "{\"status\":\"INACTIVE\"}", null));
+      assertThat(successfulBody(get(http, path, viewer))).isEqualTo(inactive);
+      var page = successfulBody(get(http, SUPPLIERS + "?search=bc-10&status=inactive", viewer));
+      assertThat(page.path("totalElements").asLong()).isEqualTo(1);
+      assertThat(page.path("content").get(0).path("id").asString()).isEqualTo(id.toString());
+      assertThat(page.path("content").get(0).path("status").asString()).isEqualTo("INACTIVE");
+
+      var jdbc = new JdbcTemplate(dataSource);
+      var revision =
+          jdbc.queryForObject(
+              "SELECT revision FROM catalog.suppliers WHERE id = ?", Long.class, id);
+      assertThat(
+              successfulBody(
+                  patch(http, path + "/status", owner, "{\"status\":\"INACTIVE\"}", null)))
+          .isEqualTo(inactive);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT revision FROM catalog.suppliers WHERE id = ?", Long.class, id))
+          .isEqualTo(revision);
+      assertThat(
+              successfulBody(patch(http, path + "/status", owner, "{\"status\":\"ACTIVE\"}", null)))
+          .isEqualTo(edited);
+      assertThat(successfulBody(get(http, path, viewer))).isEqualTo(edited);
+      assertThat(get(http, path, otherReader, company).statusCode()).isEqualTo(404);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT company_id FROM catalog.suppliers WHERE id = ?", UUID.class, id))
+          .isEqualTo(company);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void pagesSuppliersInStableOrderAndEscapesLiteralFilters() throws Exception {
+    var tenant = UUID.randomUUID();
+    var reader = membershipToken(tenant, MembershipRole.OWNER, false, Scope.READ);
+    var original = new SupplierDetails("Beta 100%_!", "AZ-123", "Hidden Contact", null, null);
+    var first =
+        new Supplier(
+            UUID.fromString("00000000-0000-4000-8000-000000000001"),
+            tenant,
+            new SupplierDetails("Beta 100%_!", null, "Contact", null, null),
+            SupplierStatus.ACTIVE);
+    var second =
+        new Supplier(
+            UUID.fromString("00000000-0000-4000-8000-000000000002"),
+            tenant,
+            original,
+            SupplierStatus.ACTIVE);
+    var alpha =
+        Supplier.register(tenant, new SupplierDetails("Alpha", null, "Contact", null, null));
+    suppliers.insert(second);
+    suppliers.insert(first);
+    suppliers.insert(alpha);
+    suppliers.insert(Supplier.register(UUID.randomUUID(), original));
+
+    try (var http = HttpClient.newHttpClient()) {
+      assertPage(
+          successfulBody(get(http, SUPPLIERS + "?size=2&page=0", reader)),
+          0,
+          2,
+          3,
+          2,
+          alpha.id().toString(),
+          first.id().toString());
+      assertPage(
+          successfulBody(get(http, SUPPLIERS + "?size=2&page=1", reader)),
+          1,
+          2,
+          3,
+          2,
+          second.id().toString());
+      assertPage(
+          successfulBody(get(http, SUPPLIERS + "?search=%25_%21&size=1&page=1", reader)),
+          1,
+          1,
+          2,
+          2,
+          second.id().toString());
+      assertPage(
+          successfulBody(get(http, SUPPLIERS + "?search=Az-12&status=ACTIVE", reader)),
+          0,
+          20,
+          1,
+          1,
+          second.id().toString());
+      assertPage(
+          successfulBody(get(http, SUPPLIERS + "?search=Hidden%20Contact", reader)), 0, 20, 0, 0);
+      assertPage(successfulBody(get(http, SUPPLIERS + "?status=INACTIVE", reader)), 0, 20, 0, 0);
+      assertPage(
+          successfulBody(get(http, SUPPLIERS + "?size=2&page=2147483647", reader)),
+          Integer.MAX_VALUE,
+          2,
+          3,
+          2);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void checksCurrentSupplierPermissionsForReadsAndBothPatches() throws Exception {
+    var tenant = UUID.randomUUID();
+    var otherTenant = UUID.randomUUID();
+    var admin = membershipToken(tenant, MembershipRole.ADMIN, false);
+    var viewer = membershipToken(tenant, MembershipRole.VIEWER, false);
+    var reader = membershipToken(tenant, MembershipRole.VIEWER, false, Scope.READ);
+    var operator = membershipToken(tenant, MembershipRole.OPERATOR, false);
+    var grantedOperator = membershipToken(tenant, MembershipRole.OPERATOR, true);
+    var otherWriter = authorizedToken(otherTenant);
+    var advisor = session("ADVISOR");
+    stubFailure(advisor, 403);
+    var advisorWithRead = session("ADVISOR");
+    stubFailure(advisorWithRead, 403);
+    var advisorId = SignedJWT.parse(advisorWithRead).getJWTClaimsSet().getSubject();
+    COMPANY.stubFor(
+        WireMock.get(urlEqualTo(PATH))
+            .withHeader(USER_ASSERTION, WireMock.absent())
+            .willReturn(
+                aResponse()
+                    .withHeader("Content-Type", "application/json")
+                    .withBody(
+                        """
+                        {"userId":"%s","companyId":"%s","module":"CATALOG","scope":"READ","mode":"DELEGATED"}
+                        """
+                            .formatted(advisorId, tenant))));
+    var timeout = session("REGULAR");
+    COMPANY.stubFor(
+        WireMock.get(urlEqualTo(PATH))
+            .withHeader(USER_ASSERTION, equalTo(timeout))
+            .willReturn(aResponse().withFixedDelay(3000)));
+    var supplier =
+        Supplier.register(tenant, new SupplierDetails("Protected", null, "Laura", null, null));
+    suppliers.insert(supplier);
+    var path = SUPPLIERS + "/" + supplier.id();
+    var inactive = "{\"status\":\"INACTIVE\"}";
+
+    try (var http = HttpClient.newHttpClient()) {
+      assertThat(get(http, SUPPLIERS, null).statusCode()).isEqualTo(401);
+      assertThat(get(http, path, "invalid").statusCode()).isEqualTo(401);
+      assertThat(patch(http, path, null, "{\"name\":\"Denied\"}", null).statusCode())
+          .isEqualTo(401);
+      assertThat(patch(http, path + "/status", "invalid", inactive, null).statusCode())
+          .isEqualTo(401);
+      var allowed = successfulBody(patch(http, path, admin, "{\"name\":\"Allowed\"}", otherTenant));
+      for (String denied : List.of(viewer, operator, advisor, advisorWithRead)) {
+        assertThat(patch(http, path, denied, "{\"name\":\"Denied\"}", tenant).statusCode())
+            .isEqualTo(403);
+        assertThat(patch(http, path + "/status", denied, inactive, tenant).statusCode())
+            .isEqualTo(403);
+      }
+      assertThat(get(http, path, advisor, tenant).statusCode()).isEqualTo(403);
+      COMPANY.verify(
+          0, getRequestedFor(urlEqualTo(PATH)).withHeader(USER_ASSERTION, WireMock.absent()));
+      assertThat(patch(http, path, otherWriter, "{\"name\":\"Denied\"}", tenant).statusCode())
+          .isEqualTo(404);
+      assertThat(patch(http, path + "/status", otherWriter, inactive, tenant).statusCode())
+          .isEqualTo(404);
+      assertThat(successfulBody(get(http, path, reader))).isEqualTo(allowed);
+      var changed = successfulBody(patch(http, path + "/status", grantedOperator, inactive, null));
+      assertThat(changed.path("status").asString()).isEqualTo("INACTIVE");
+      stubFailure(grantedOperator, 403);
+      assertThat(
+              patch(http, path + "/status", grantedOperator, "{\"status\":\"ACTIVE\"}", null)
+                  .statusCode())
+          .isEqualTo(403);
+      assertThat(patch(http, path, timeout, "{\"name\":\"Denied\"}", null).statusCode())
+          .isEqualTo(503);
+      assertThat(successfulBody(get(http, path, reader))).isEqualTo(changed);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void handlesSupplierDuplicateTaxIdAndConflictingWritesInPostgres() throws Exception {
+    var tenant = UUID.randomUUID();
+    var writer = authorizedToken(tenant);
+    var first =
+        Supplier.register(tenant, new SupplierDetails("First", "Reserved", "Laura", null, null));
+    var second =
+        Supplier.register(tenant, new SupplierDetails("Second", null, "Laura", null, null));
+    suppliers.insert(first.changeStatus(SupplierStatus.INACTIVE));
+    suppliers.insert(second);
+    try (var http = HttpClient.newHttpClient()) {
+      var duplicate =
+          patch(http, SUPPLIERS + "/" + second.id(), writer, "{\"taxId\":\" Reserved \"}", null);
+      assertThat(duplicate.statusCode()).isEqualTo(409);
+      assertThat(JsonMapper.shared().readTree(duplicate.body()).path("errorCode").asString())
+          .isEqualTo("DUPLICATE_TAX_ID");
+      assertThat(suppliers.find(tenant, second.id())).contains(second);
+    }
+
+    var read = new CountDownLatch(1);
+    var committed = new CountDownLatch(1);
+    try (var executor = Executors.newSingleThreadExecutor()) {
+      var stale =
+          executor.submit(() ->
+              suppliers.update(
+                  tenant,
+                  second.id(),
+                  current -> {
+                    read.countDown();
+                    await(committed);
+                    return current.changeStatus(SupplierStatus.INACTIVE);
+                  }));
+      try {
+        await(read);
+        suppliers.update(
+            tenant,
+            second.id(),
+            current ->
+                current.updateDetails(
+                    new SupplierPatch(Map.of(SupplierPatch.Field.EMAIL, "saved@example.org"))));
+      } finally {
+        committed.countDown();
+      }
+      assertThatThrownBy(() -> stale.get(10, TimeUnit.SECONDS))
+          .hasCauseInstanceOf(SupplierAccessException.class)
+          .hasRootCauseMessage("SUPPLIER_UPDATE_CONFLICT");
+    }
+    assertThat(suppliers.find(tenant, second.id()))
+        .hasValueSatisfying(saved -> {
+          assertThat(saved.status()).isEqualTo(SupplierStatus.ACTIVE);
+          assertThat(saved.details().email()).isEqualTo("saved@example.org");
+        });
   }
 
   private int supplierCount(UUID company) {

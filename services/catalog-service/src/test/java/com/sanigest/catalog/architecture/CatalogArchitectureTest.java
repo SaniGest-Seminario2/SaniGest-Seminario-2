@@ -60,6 +60,17 @@ class CatalogArchitectureTest {
   }
 
   @Test
+  void persistenceDoesNotUseHttpDtos() {
+    noClasses()
+        .that()
+        .resideInAPackage("..catalog.infrastructure.persistence..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAPackage("..catalog.api..")
+        .check(CATALOG);
+  }
+
+  @Test
   void catalogFeaturesUseTheirOwnOperations() {
     slices()
         .matching("com.sanigest.catalog.application.usecase.(*)..")
