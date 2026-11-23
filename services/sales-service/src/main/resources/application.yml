@@ -36,6 +36,10 @@ server:
   shutdown: graceful
 
 sanigest:
+  catalog:
+    origin: ${SALES_CATALOG_ORIGIN:}
+    connect-timeout: ${SALES_CATALOG_CONNECT_TIMEOUT:500ms}
+    response-timeout: ${SALES_CATALOG_RESPONSE_TIMEOUT:2s}
   jwt:
     issuer: ${JWT_ISSUER}
     audience: ${JWT_AUDIENCE}
