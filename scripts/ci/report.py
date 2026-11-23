@@ -40,6 +40,7 @@ def test_results(module, report_dir):
     totals = dict.fromkeys(COUNTS, 0)
     durations = []
     problems = []
+    details = []
     reports = sorted((module / "target" / report_dir).glob("TEST-*.xml"))
     for path in reports:
         try:
@@ -64,13 +65,39 @@ def test_results(module, report_dir):
         for key, count in counts.items():
             totals[key] += count
         durations.append(duration)
+        suite_name = suite.get("name", path.stem.removeprefix("TEST-"))
+        rows = []
         for case in cases:
-            for problem in list(case.findall("failure")) + list(case.findall("error")):
-                test = f"{case.get('classname', suite.get('name', '?'))}.{case.get('name', '?')}"
-                reason = (problem.get("message") or problem.get("type") or "See report").strip()
-                problems.append(f"{module.name} / {test}: {reason[:180]} ({path.name})")
+            case_name = case.get("name", "?")
+            class_name = case.get("classname", suite_name)
+            result = "Passed"
+            for element, label in (("failure", "Failed"), ("error", "Error"), ("skipped", "Skipped")):
+                problem = case.find(element)
+                if problem is None:
+                    continue
+                result = label
+                if element != "skipped":
+                    reason = (problem.get("message") or problem.get("type") or "See report").strip()
+                    problems.append(f"{module.name} / {class_name}.{case_name}: {reason[:180]} ({path.name})")
+                break
+            display_name = case_name if class_name == suite_name else f"{class_name}.{case_name}"
+            rows.append(f"| {markdown(display_name)} | {result} |")
+        if rows:
+            tag = "<details open>" if counts["failures"] or counts["errors"] else "<details>"
+            executed = counts["tests"] - counts["skipped"]
+            details.extend([
+                tag,
+                f"<summary>{markdown(module.name)} / {markdown(suite_name)} ({executed} executed)</summary>",
+                "",
+                "| Test | Result |",
+                "|---|---|",
+                *rows,
+                "",
+                "</details>",
+                "",
+            ])
     seconds = sum(durations) if durations and None not in durations else None
-    return reports, len(durations), totals, seconds, problems
+    return reports, len(durations), totals, seconds, problems, details
 
 
 def missing_test_report(module, report_dir, outcome):
@@ -114,6 +141,7 @@ def main():
     args = parser.parse_args()
     lines = [f"### {markdown(args.scope)} / {PHASES[args.phase]}", ""]
     problems = []
+    suite_details = []
     if args.outcome in ("skipped", "cancelled"):
         lines += [f"Stage {args.outcome}. See the preceding steps for details.", ""]
     elif args.phase == "coverage":
@@ -146,8 +174,9 @@ def main():
             "|---|---:|---:|---:|---:|---:|---:|",
         ]
         for module in args.modules:
-            reports, valid, counts, seconds, issues = test_results(module, report_dir)
+            reports, valid, counts, seconds, issues, details = test_results(module, report_dir)
             problems.extend(issues)
+            suite_details.extend(details)
             if not reports:
                 reason = missing_test_report(module, report_dir, args.outcome)
                 problems.append(f"{module.name}: {reason}")
@@ -178,6 +207,8 @@ def main():
         if len(problems) > 10:
             lines.append(f"- {len(problems) - 10} more issues in the step log or reports.")
         lines.append("")
+    if suite_details:
+        lines += ["#### Results by suite", "", *suite_details]
     summary = "\n".join(lines) + "\n"
     try:
         destination = os.environ.get("GITHUB_STEP_SUMMARY")
