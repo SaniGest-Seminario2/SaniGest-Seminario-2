@@ -5,6 +5,113 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v1/catalog-items": {
+      "post": {
+        "operationId": "createCatalogItem",
+        "summary": "Registrar un producto o servicio en RD$",
+        "description": "Requiere CATALOG_WRITE en la membresía vigente. El servidor determina la empresa y asigna DOP y active=true.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCatalogItemRequest"
+              },
+              "examples": {
+                "product": {
+                  "value": {
+                    "name": "Silla",
+                    "type": "PRODUCT",
+                    "price": 3200
+                  }
+                },
+                "service": {
+                  "value": {
+                    "name": "Consultoría",
+                    "type": "SERVICE",
+                    "price": 15000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Producto o servicio registrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemResponse"
+                },
+                "examples": {
+                  "product": {
+                    "value": {
+                      "id": "336b72df-28c2-4509-8b1a-905314f9f0a0",
+                      "companyId": "17b83044-a674-40e3-ad16-d272ad9a5c40",
+                      "name": "Silla",
+                      "type": "PRODUCT",
+                      "price": 3200,
+                      "currency": "DOP",
+                      "active": true
+                    }
+                  },
+                  "service": {
+                    "value": {
+                      "id": "336b72df-28c2-4509-8b1a-905314f9f0a1",
+                      "companyId": "17b83044-a674-40e3-ad16-d272ad9a5c40",
+                      "name": "Consultoría",
+                      "type": "SERVICE",
+                      "price": 15000,
+                      "currency": "DOP",
+                      "active": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Sin autorización vigente de escritura en Catalog",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo verificar la autorización empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/actuator/health": {
       "get": {
         "operationId": "health",
@@ -1119,6 +1226,89 @@
   },
   "components": {
     "schemas": {
+      "CreateCatalogItemRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "type",
+          "price"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE"
+            ]
+          },
+          "price": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 999999999999.99,
+            "multipleOf": 0.01,
+            "description": "Importe BigDecimal exacto en DOP con hasta dos decimales significativos. La respuesta usa escala 2."
+          }
+        }
+      },
+      "CatalogItemResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "companyId",
+          "name",
+          "type",
+          "price",
+          "currency",
+          "active"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE"
+            ]
+          },
+          "price": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 999999999999.99,
+            "multipleOf": 0.01,
+            "description": "Importe BigDecimal exacto en DOP con hasta dos decimales significativos. La respuesta usa escala 2."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "DOP"
+            ]
+          },
+          "active": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      },
       "Health": {
         "type": "object",
         "required": [
