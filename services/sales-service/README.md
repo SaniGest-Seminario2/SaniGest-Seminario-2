@@ -149,8 +149,9 @@ la configuración local y difiere el tráfico remoto hasta la primera decisión.
 | GET /api/v1/sales | SALES_READ | S2-333 |
 | GET /api/v1/sales/{id} | SALES_READ | S2-334 |
 | POST /api/v1/sales/{id}/cancel | SALES_CANCEL | S2-334 |
+| POST /api/v1/sales/{saleId}/invoices | SALES_WRITE | S2-335 |
 
-Sales expone salud, registro, listado, detalle y cancelación.
+Sales expone salud, registro, listado, detalle, cancelación y emisión manual de facturas internas.
 Al implementar cada ruta, exigir autenticación en el filtro y en el método
 del bean Spring que sirve de entrada al caso de uso, con
 `@PreAuthorize("isAuthenticated()")`. La regla ArchUnit vigente mantiene
@@ -307,7 +308,7 @@ cancelaciones.
 
 El esquema actual de Sales permite registrar ventas y carece de operaciones
 para persistir cobros o reversiones. El detalle omite `payments`. Ambos modos
-pueden cancelarse en el modelo actual.
+pueden cancelarse cuando la venta carece de factura vigente y se cumplen las reglas de cuentas por cobrar.
 
 ### Cuenta por cobrar de una venta (S2-337)
 
@@ -414,3 +415,29 @@ Micrometer registra `sales.idempotency.resolve` y
 `conflict`, `in_progress` y `persistence_failure`. Las métricas omiten
 claves, cuerpos y credenciales. Los perfiles Maven `smoke` y `regression`
 incluyen el flujo HTTP con PostgreSQL y WireMock.
+
+### Emitir una factura interna
+
+`POST /api/v1/sales/{saleId}/invoices` requiere JWT Bearer, una membresía
+empresarial con `SALES_WRITE` y un único header `Idempotency-Key`. Se envía sin
+cuerpo. El [contrato OpenAPI de emisión](openapi-invoices.yaml) describe el
+`201`, los campos históricos y los errores de la operación.
+
+El documento `INTERNAL / NOT_FISCAL` lleva un número comercial
+`FAC-AAAA-NNN` por empresa y año de emisión en `America/Santo_Domingo`.
+No genera NCF ni es un comprobante válido para la DGII. La emisión es manual
+y no modifica las cuentas por cobrar ni registra cobros o movimientos de caja.
+
+La migración V6 agrega las facturas, sus líneas y su contador. Sales copia la
+fecha, el cliente, las líneas ordenadas y el total de la venta. Company agrega
+`companyName` al resultado interno de membresía `SALES / WRITE`, mediante el
+contrato autenticado de `common-company-access`. Despliega esa versión de
+Company antes de habilitar nuevas emisiones. Si la membresía puede verificarse
+pero su nombre empresarial falta o es inválido, una nueva emisión devuelve
+`503`. El nombre queda almacenado junto con el identificador de la empresa.
+
+Las claves se guardan con la factura confirmada y se limitan a empresa,
+usuario y operación. Un reintento autorizado de la misma venta devuelve el
+JSON original con `201`. Una clave usada con otra venta devuelve `409`.
+La emisión y la cancelación bloquean la misma fila de venta. Cancelar una
+venta con una factura vigente devuelve `409`.

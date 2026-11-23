@@ -79,7 +79,11 @@ public final class HttpCompanyAccess implements CompanyAccess {
   public Optional<MembershipContext> membership(Scope scope) {
     return resolve(null, scope)
         .map(response ->
-            new MembershipContext(response.companyId(), response.role(), response.explicitGrant()));
+            new MembershipContext(
+                response.companyId(),
+                response.role(),
+                response.explicitGrant(),
+                response.companyName()));
   }
 
   @Override

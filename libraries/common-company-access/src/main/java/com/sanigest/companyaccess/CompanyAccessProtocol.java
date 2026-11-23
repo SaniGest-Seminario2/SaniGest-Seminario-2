@@ -1,5 +1,6 @@
 package com.sanigest.companyaccess;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
 import com.sanigest.companyaccess.CompanyAccess.Module;
 import com.sanigest.companyaccess.CompanyAccess.Scope;
@@ -40,7 +41,8 @@ public final class CompanyAccessProtocol {
       Scope scope,
       String mode,
       MembershipRole role,
-      Boolean explicitGrant) {}
+      Boolean explicitGrant,
+      @JsonInclude(JsonInclude.Include.NON_NULL) String companyName) {}
 
   static UUID uuid(String value) {
     if (!AccessTokens.validSubject(value)) {

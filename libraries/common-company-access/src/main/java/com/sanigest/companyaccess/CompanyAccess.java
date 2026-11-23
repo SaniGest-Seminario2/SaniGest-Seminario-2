@@ -24,7 +24,12 @@ public interface CompanyAccess {
     VIEWER
   }
 
-  record MembershipContext(UUID companyId, MembershipRole role, boolean explicitGrant) {}
+  record MembershipContext(
+      UUID companyId, MembershipRole role, boolean explicitGrant, String companyName) {
+    public MembershipContext(UUID companyId, MembershipRole role, boolean explicitGrant) {
+      this(companyId, role, explicitGrant, null);
+    }
+  }
 
   /** Company resolves the active membership. The caller applies its operation policy. */
   Optional<MembershipContext> membership(Scope scope);

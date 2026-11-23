@@ -3,11 +3,14 @@ package com.sanigest.sales.infrastructure.configuration;
 import com.sanigest.companyaccess.AuthenticatedActor;
 import com.sanigest.sales.application.exception.SalesAccessForbidden;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
+import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
+import com.sanigest.sales.application.port.out.persistence.InvoiceRepository;
 import com.sanigest.sales.application.port.out.persistence.ReceivableRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
+import com.sanigest.sales.application.usecase.invoice.IssueInvoice;
 import com.sanigest.sales.application.usecase.receivable.GetReceivable;
 import com.sanigest.sales.application.usecase.sale.CancelSale;
 import com.sanigest.sales.application.usecase.sale.CreateSale;
@@ -37,6 +40,12 @@ class SaleUseCaseConfiguration {
   CancelSale cancelSale(SalesAuthorization authorization, SaleRepository sales) {
     return new CancelSale(
         authorization, SaleUseCaseConfiguration::actorId, sales, Clock.systemUTC());
+  }
+
+  @Bean
+  IssueInvoice issueInvoice(InvoiceCompanyAccess companyAccess, InvoiceRepository invoices) {
+    return new IssueInvoice(
+        companyAccess, SaleUseCaseConfiguration::actorId, invoices, Clock.systemUTC());
   }
 
   private static UUID actorId() {

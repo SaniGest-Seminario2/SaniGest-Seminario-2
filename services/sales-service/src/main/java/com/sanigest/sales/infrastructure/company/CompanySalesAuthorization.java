@@ -7,13 +7,14 @@ import com.sanigest.companyaccess.CompanyAccess.Scope;
 import com.sanigest.companyaccess.CompanyAccessUnavailable;
 import com.sanigest.sales.application.exception.SalesAccessForbidden;
 import com.sanigest.sales.application.exception.SalesAuthorizationUnavailable;
+import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 @Component
-final class CompanySalesAuthorization implements SalesAuthorization {
+final class CompanySalesAuthorization implements SalesAuthorization, InvoiceCompanyAccess {
   private final ObjectProvider<CompanyAccess> clients;
 
   CompanySalesAuthorization(ObjectProvider<CompanyAccess> clients) {
@@ -22,12 +23,21 @@ final class CompanySalesAuthorization implements SalesAuthorization {
 
   @Override
   public UUID requireMembership(Permission permission) {
+    return authorizedMembership(permission).companyId();
+  }
+
+  @Override
+  public CompanyContext requireInvoiceCompany() {
+    var membership = authorizedMembership(Permission.SALES_WRITE);
+    return new CompanyContext(membership.companyId(), membership.companyName());
+  }
+
+  private MembershipContext authorizedMembership(Permission permission) {
     requireActor();
     try {
       return client()
           .membership(scope(permission))
           .filter(membership -> permits(membership, permission))
-          .map(MembershipContext::companyId)
           .orElseThrow(SalesAccessForbidden::new);
     } catch (CompanyAccessUnavailable unavailable) {
       throw new SalesAuthorizationUnavailable();

@@ -29,6 +29,6 @@ class SaleLifecycleErrorHandler {
     return problem(
         HttpStatus.CONFLICT,
         "SALE_CANCELLATION_CONFLICT",
-        "The sale could not be cancelled due to a concurrent change");
+        "The sale could not be cancelled in its current state");
   }
 }

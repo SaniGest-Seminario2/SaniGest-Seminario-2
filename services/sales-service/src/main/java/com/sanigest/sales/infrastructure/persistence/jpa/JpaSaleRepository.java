@@ -92,6 +92,9 @@ class JpaSaleRepository implements SaleRepository {
           if (cancelled == sale) {
             return sale;
           }
+          if (rows.hasIssuedInvoice(companyId, saleId)) {
+            throw new SaleCancellationConflict();
+          }
           if (sale.mode() == SaleMode.CREDIT) {
             receivables
                 .lockBySale(companyId, saleId)

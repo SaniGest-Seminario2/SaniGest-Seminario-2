@@ -1,0 +1,127 @@
+openapi: 3.0.3
+info:
+  title: SaniGest Sales — Facturación interna
+  version: '1.0'
+paths:
+  /api/v1/sales/{saleId}/invoices:
+    post:
+      operationId: issueInternalInvoice
+      summary: Emite manualmente una factura interna desde una venta
+      description: |
+        Requiere membresía empresarial activa con SALES_WRITE. OWNER y ADMIN tienen
+        acceso. OPERATOR requiere concesión explícita. Este flujo usa membresía regular.
+        La solicitud debe enviarse sin cuerpo. Un reintento autenticado y autorizado con
+        la misma venta y clave devuelve el mismo HTTP 201 y documento.
+        El documento INTERNAL / NOT_FISCAL no genera NCF y no es un comprobante
+        válido para la DGII. La emisión no genera cobros, ingresos ni movimientos de caja.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: saleId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Una sola clave por empresa, usuario y operación. Reutilizarla para otra venta devuelve 409.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            pattern: '^[A-Za-z0-9._~-]{1,128}$'
+      responses:
+        '201':
+          description: Factura interna emitida o respuesta idempotente recuperada.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Invoice'}
+        '400':
+          description: UUID, clave o cuerpo inválido.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '401':
+          description: JWT Bearer ausente o inválido.
+        '403':
+          description: Permiso empresarial insuficiente.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '404':
+          description: Venta inexistente o fuera de la empresa autorizada.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '409':
+          description: Venta no elegible, factura vigente o clave usada para otra venta.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '503':
+          description: Autorización o snapshot empresarial indisponible.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  schemas:
+    Invoice:
+      type: object
+      required: [id, number, saleId, documentType, fiscalClassification, status, issuedAt, saleDate, company, client, lines, total, currency]
+      properties:
+        id: {type: string, format: uuid}
+        saleId: {type: string, format: uuid}
+        number:
+          type: string
+          pattern: '^FAC-[0-9]{4}-[0-9]{3,19}$'
+          example: FAC-2026-001
+        documentType: {type: string, enum: [INTERNAL]}
+        fiscalClassification: {type: string, enum: [NOT_FISCAL]}
+        status: {type: string, enum: [ISSUED]}
+        issuedAt: {type: string, format: date-time}
+        saleDate: {type: string, format: date}
+        company: {$ref: '#/components/schemas/Party'}
+        client: {$ref: '#/components/schemas/Party'}
+        lines:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/Line'}
+        total: {$ref: '#/components/schemas/Amount'}
+        currency: {type: string, enum: [DOP]}
+    Party:
+      type: object
+      required: [id, name]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+    Line:
+      type: object
+      required: [id, catalogItemId, itemName, unitPrice, quantity, subtotal]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador histórico de la línea de venta.
+        catalogItemId: {type: string, format: uuid}
+        itemName: {type: string}
+        itemDescription: {type: string, nullable: true}
+        unitPrice: {$ref: '#/components/schemas/Amount'}
+        quantity: {type: number, minimum: 0, exclusiveMinimum: true, multipleOf: 0.001}
+        subtotal: {$ref: '#/components/schemas/Amount'}
+    Amount:
+      type: string
+      pattern: '^[0-9]+\.[0-9]{2}$'
+      example: '3500.00'
+    Problem:
+      type: object
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
+        instance: {type: string}
+        errorCode: {type: string}
+        timestamp: {type: string, format: date-time}
+        traceId: {type: string}

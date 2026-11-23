@@ -13,7 +13,8 @@ public interface MembershipRepository {
 
   Optional<ActiveAccess> findActiveAccess(UUID userId, String permission);
 
-  record ActiveAccess(UUID companyId, CompanyRole role, boolean explicitGrant) {}
+  record ActiveAccess(
+      UUID companyId, CompanyRole role, boolean explicitGrant, String companyName) {}
 
   Optional<Membership> findByUserIdForUpdate(UUID userId);
 

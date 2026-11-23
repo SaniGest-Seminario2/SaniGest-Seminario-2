@@ -23,6 +23,17 @@ interface SaleRows extends Repository<SaleRow, UUID> {
       nativeQuery = true)
   Optional<UUID> lockSale(UUID companyId, UUID saleId);
 
+  @Query(
+      value =
+          """
+          SELECT EXISTS (
+              SELECT 1 FROM sales.internal_invoices
+              WHERE company_id = :companyId AND sale_id = :saleId AND status = 'ISSUED'
+          )
+          """,
+      nativeQuery = true)
+  boolean hasIssuedInvoice(UUID companyId, UUID saleId);
+
   @Modifying
   @Query(
       value =
