@@ -61,11 +61,21 @@ Para reconstruir desde cero:
 mvn -B clean verify
 ```
 
-Code CI compila el reactor, ejecuta las pruebas unitarias y las pruebas de
-integración del Gateway, y comprueba la cobertura. Company e Identity comparten
-el workflow de compilación y pruebas unitarias, smoke y regresión. Infrastructure
-CI valida Compose, ejecuta su smoke test y construye las imágenes de Company e
-Identity. Los reportes de pruebas y cobertura se conservan durante siete días.
+En cada PR, Code CI compila el reactor, ejecuta las pruebas unitarias y las
+pruebas de integración del Gateway, y comprueba la cobertura. Infrastructure CI
+valida Compose, ejecuta las pruebas de humo y construye las imágenes de
+aplicación. En los PR hacia `main`, las verificaciones de Company, Identity,
+Catalog y Sales se ejecutan según las rutas modificadas, incluidas sus
+dependencias compartidas.
+
+Cada push a `main`, incluidos los merges, activa Code CI, Infrastructure CI y
+las verificaciones de los cuatro servicios sin filtros de rutas. Los reportes
+de pruebas y cobertura se conservan durante siete días.
+
+En la protección de `main` en GitHub, configura `Syntax and compilation`,
+`Unit tests` y `Coverage gate` como checks obligatorios. Los workflows de
+servicio quedan fuera de esa lista porque pueden omitirse en un PR según las
+rutas modificadas.
 
 ## Formato y análisis estático Java
 
@@ -150,7 +160,7 @@ La prueba exige Docker Compose, usa puertos alternos por defecto y elimina sus
 contenedores y volúmenes al terminar. Comprueba health checks, autenticación de
 Valkey, persistencia tras reiniciar PostgreSQL y que reiniciar la cache no afecte
 los datos de negocio.
-GitHub Actions ejecuta esta prueba en cada `push` y `pull_request`.
+GitHub Actions ejecuta esta prueba en cada PR y cada push a `main`.
 
 ## Validar el arranque de Company Service
 

@@ -3,20 +3,6 @@ name: Catalog Service CI
 on:
   push:
     branches: [main]
-    paths:
-      - "services/catalog-service/**"
-      - "libraries/common-security/**"
-      - "libraries/common-company-access/**"
-      - "pom.xml"
-      - "config/**"
-      - "infrastructure/postgres/init/**"
-      - "infrastructure/docker/service.Dockerfile"
-      - "docker-compose.yml"
-      - ".env.example"
-      - "scripts/ci/**"
-      - ".github/actions/setup-maven/**"
-      - ".github/workflows/reusable-service-ci.yml"
-      - ".github/workflows/ci-catalog-service.yml"
   pull_request:
     branches: [main]
     paths:
