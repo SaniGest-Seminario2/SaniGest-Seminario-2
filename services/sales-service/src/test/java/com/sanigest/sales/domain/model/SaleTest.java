@@ -49,7 +49,8 @@ class SaleTest {
                 SaleMode.CASH,
                 SaleStatus.REGISTERED,
                 BigDecimal.ONE,
-                lines));
+                lines,
+                null));
     assertThatNullPointerException()
         .isThrownBy(() ->
             new Sale(
@@ -61,7 +62,8 @@ class SaleTest {
                 SaleMode.CASH,
                 SaleStatus.REGISTERED,
                 BigDecimal.ONE,
-                lines));
+                lines,
+                null));
     assertThatNullPointerException()
         .isThrownBy(() ->
             new Sale(
@@ -73,7 +75,8 @@ class SaleTest {
                 SaleMode.CASH,
                 SaleStatus.REGISTERED,
                 BigDecimal.ONE,
-                lines));
+                lines,
+                null));
     assertThatNullPointerException()
         .isThrownBy(() ->
             new Sale(
@@ -85,7 +88,8 @@ class SaleTest {
                 SaleMode.CASH,
                 SaleStatus.REGISTERED,
                 BigDecimal.ONE,
-                lines));
+                lines,
+                null));
     assertThatNullPointerException()
         .isThrownBy(() ->
             new Sale(
@@ -97,7 +101,8 @@ class SaleTest {
                 null,
                 SaleStatus.REGISTERED,
                 BigDecimal.ONE,
-                lines));
+                lines,
+                null));
     assertThatNullPointerException()
         .isThrownBy(() ->
             new Sale(
@@ -109,7 +114,8 @@ class SaleTest {
                 SaleMode.CASH,
                 null,
                 BigDecimal.ONE,
-                lines));
+                lines,
+                null));
     assertThatIllegalArgumentException()
         .isThrownBy(() ->
             new Sale(
@@ -121,7 +127,8 @@ class SaleTest {
                 SaleMode.CASH,
                 SaleStatus.REGISTERED,
                 BigDecimal.ONE,
-                lines));
+                lines,
+                null));
   }
 
   @Test
@@ -141,7 +148,8 @@ class SaleTest {
                 SaleMode.CASH,
                 SaleStatus.REGISTERED,
                 null,
-                lines));
+                lines,
+                null));
     List<SaleLine> overflowing =
         List.of(line(id, "50000000000000000"), line(id, "50000000000000000"));
     assertThatIllegalArgumentException().isThrownBy(() -> sale("100000000000000000", overflowing));
@@ -168,7 +176,8 @@ class SaleTest {
         SaleMode.CREDIT,
         SaleStatus.REGISTERED,
         new BigDecimal(total),
-        lines);
+        lines,
+        null);
   }
 
   private SaleLine line(UUID saleId, String price) {

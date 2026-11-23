@@ -26,6 +26,15 @@ spring:
       ddl-auto: validate
     properties:
       hibernate.default_schema: sales
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+      fail-on-trailing-tokens: true
+    datatype:
+      enum:
+        fail-on-numbers-for-enums: true
+    read:
+      strict-duplicate-detection: true
   web:
     error:
       include-stacktrace: never

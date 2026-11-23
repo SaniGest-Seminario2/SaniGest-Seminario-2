@@ -5,6 +5,7 @@ public final class CatalogResourceInvalidException extends RuntimeException {
     INVALID_REQUEST,
     NOT_FOUND_OR_NOT_VISIBLE,
     INVALID_RESPONSE,
+    NOT_ELIGIBLE,
     INACTIVE
   }
 

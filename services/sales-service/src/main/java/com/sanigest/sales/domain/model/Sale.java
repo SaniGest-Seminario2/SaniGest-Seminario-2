@@ -20,9 +20,44 @@ public record Sale(
     SaleMode mode,
     SaleStatus status,
     BigDecimal total,
-    List<SaleLine> lines) {
+    List<SaleLine> lines,
+    String code) {
 
   private static final Currency CURRENCY = Currency.getInstance("DOP");
+
+  public static Sale register(
+      UUID id,
+      UUID companyId,
+      CatalogCustomerSnapshot client,
+      LocalDate date,
+      SaleMode mode,
+      List<SaleLine> lines) {
+    var total = lines.stream().map(SaleLine::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+    return new Sale(
+        id,
+        companyId,
+        client.id(),
+        client.name(),
+        date,
+        mode,
+        SaleStatus.REGISTERED,
+        total,
+        lines,
+        null);
+  }
+
+  public Sale withCode(String assignedCode) {
+    Objects.requireNonNull(assignedCode, "code");
+    return new Sale(
+        id, companyId, clientId, clientName, saleDate, mode, status, total, lines, assignedCode);
+  }
+
+  public static LocalDate validateDate(LocalDate date) {
+    if (date.getYear() < 1 || date.getYear() > 9999) {
+      throw new IllegalArgumentException("saleDate must be in years 1 through 9999");
+    }
+    return date;
+  }
 
   public Sale {
     Objects.requireNonNull(id, "id");
@@ -32,9 +67,7 @@ public record Sale(
     Objects.requireNonNull(mode, "mode");
     Objects.requireNonNull(status, "status");
     clientName = SnapshotText.name(clientName, 250, "clientName");
-    if (saleDate.getYear() < 1 || saleDate.getYear() > 9999) {
-      throw new IllegalArgumentException("saleDate must be in years 1 through 9999");
-    }
+    validateDate(saleDate);
     total = SaleAmounts.amount(total, "total");
     lines = List.copyOf(lines);
     if (lines.isEmpty()) {

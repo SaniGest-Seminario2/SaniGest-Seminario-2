@@ -14,6 +14,25 @@ public record SaleLine(
     BigDecimal quantity,
     BigDecimal subtotal) {
 
+  public static SaleLine fromCatalog(
+      UUID id, UUID saleId, CatalogItemSnapshot item, BigDecimal quantity) {
+    var exactQuantity = validateQuantity(quantity);
+    var price = SaleAmounts.amount(item.price(), "unitPrice");
+    return new SaleLine(
+        id,
+        saleId,
+        item.id(),
+        item.name(),
+        item.description(),
+        price,
+        exactQuantity,
+        price.multiply(exactQuantity));
+  }
+
+  public static BigDecimal validateQuantity(BigDecimal quantity) {
+    return SaleAmounts.quantity(quantity);
+  }
+
   public SaleLine {
     Objects.requireNonNull(id, "id");
     Objects.requireNonNull(saleId, "saleId");

@@ -22,8 +22,17 @@ public class GetClient {
 
   @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
   public Client execute(UUID id) {
+    return execute(id, null);
+  }
+
+  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  public Client execute(UUID id, UUID expectedCompanyId) {
+    UUID companyId = company.require(CATALOG_READ);
+    if (expectedCompanyId != null && !companyId.equals(expectedCompanyId)) {
+      throw new ClientAccessException(ClientAccessException.Reason.FORBIDDEN);
+    }
     return clients
-        .find(company.require(CATALOG_READ), id)
+        .find(companyId, id)
         .orElseThrow(() -> new ClientAccessException(CLIENT_NOT_FOUND));
   }
 }

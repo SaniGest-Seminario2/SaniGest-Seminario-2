@@ -22,8 +22,17 @@ public class GetCatalogItem {
 
   @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
   public CatalogItem execute(UUID id) {
+    return execute(id, null);
+  }
+
+  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  public CatalogItem execute(UUID id, UUID expectedCompanyId) {
+    UUID companyId = company.require(CATALOG_READ);
+    if (expectedCompanyId != null && !companyId.equals(expectedCompanyId)) {
+      throw new CatalogItemAccessException(CatalogItemAccessException.Reason.FORBIDDEN);
+    }
     return items
-        .find(company.require(CATALOG_READ), id)
+        .find(companyId, id)
         .orElseThrow(() -> new CatalogItemAccessException(CATALOG_ITEM_NOT_FOUND));
   }
 }
