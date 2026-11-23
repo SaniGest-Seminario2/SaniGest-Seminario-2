@@ -7,6 +7,7 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository;
+import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.sanigest.sales.application.usecase.sale.CreateSale;
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -157,6 +158,12 @@ class SalesArchitectureTest {
         .haveSimpleName("JpaSaleRepository")
         .should()
         .implement(SaleRepository.class)
+        .check(PRODUCTION);
+    classes()
+        .that()
+        .haveSimpleName("JpaSaleQueryRepository")
+        .should()
+        .implement(SaleQueryRepository.class)
         .check(PRODUCTION);
     classes()
         .that()

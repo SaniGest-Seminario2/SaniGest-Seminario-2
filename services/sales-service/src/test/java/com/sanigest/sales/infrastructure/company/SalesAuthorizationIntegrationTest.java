@@ -264,7 +264,7 @@ class SalesAuthorizationIntegrationTest {
     assertThat(status("/actuator/health", "GET", null)).isEqualTo(200);
     String valid = token(USER_KEYS, ISSUER, AUDIENCE, Instant.now().plusSeconds(60));
     assertThat(status("/actuator/health", "GET", valid)).isEqualTo(200);
-    assertDeniedRoute("GET", "/api/v1/sales", valid);
+    assertThat(status("/api/v1/sales", "GET", null)).isEqualTo(401);
     assertThat(status("/api/v1/sales", "POST", null)).isEqualTo(401);
     assertDeniedRoute("GET", "/api/v1/sales/" + UUID.randomUUID(), valid);
     assertDeniedRoute("POST", "/api/v1/sales/" + UUID.randomUUID() + "/cancel", valid);
