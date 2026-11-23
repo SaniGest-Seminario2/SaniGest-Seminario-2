@@ -266,8 +266,11 @@ class SalesAuthorizationIntegrationTest {
     assertThat(status("/actuator/health", "GET", valid)).isEqualTo(200);
     assertThat(status("/api/v1/sales", "GET", null)).isEqualTo(401);
     assertThat(status("/api/v1/sales", "POST", null)).isEqualTo(401);
-    assertDeniedRoute("GET", "/api/v1/sales/" + UUID.randomUUID(), valid);
-    assertDeniedRoute("POST", "/api/v1/sales/" + UUID.randomUUID() + "/cancel", valid);
+    assertThat(status("/api/v1/sales/" + UUID.randomUUID(), "GET", null)).isEqualTo(401);
+    assertDeniedRoute("DELETE", "/api/v1/sales/" + UUID.randomUUID(), valid);
+    assertThat(status("/api/v1/sales/" + UUID.randomUUID() + "/cancel", "POST", null))
+        .isEqualTo(401);
+    assertDeniedRoute("GET", "/api/v1/sales/" + UUID.randomUUID() + "/cancel", valid);
     REMOTE.verify(0, getRequestedFor(urlEqualTo(PATH)));
   }
 

@@ -1,17 +1,38 @@
 package com.sanigest.sales.infrastructure.persistence.jpa;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
 interface SaleRows extends Repository<SaleRow, UUID> {
   @EntityGraph(attributePaths = "lines")
   Optional<SaleRow> findByCompanyIdAndId(UUID companyId, UUID id);
+
+  @Query(
+      value =
+          """
+          SELECT id FROM sales.sales WHERE company_id = :companyId AND id = :saleId FOR UPDATE
+          """,
+      nativeQuery = true)
+  Optional<UUID> lockSale(UUID companyId, UUID saleId);
+
+  @Modifying
+  @Query(
+      value =
+          """
+          UPDATE sales.sales
+             SET status = 'CANCELLED', cancelled_by = :actor, cancelled_at = :at, cancel_reason = :reason
+           WHERE company_id = :companyId AND id = :saleId AND status = 'REGISTERED'
+          """,
+      nativeQuery = true)
+  int recordCancellation(UUID companyId, UUID saleId, UUID actor, Instant at, String reason);
 
   String FILTER =
       """

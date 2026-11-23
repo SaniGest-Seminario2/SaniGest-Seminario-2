@@ -21,7 +21,8 @@ public record Sale(
     SaleStatus status,
     BigDecimal total,
     List<SaleLine> lines,
-    String code) {
+    String code,
+    SaleCancellation cancellation) {
 
   private static final Currency CURRENCY = Currency.getInstance("DOP");
 
@@ -43,13 +44,42 @@ public record Sale(
         SaleStatus.REGISTERED,
         total,
         lines,
+        null,
         null);
   }
 
   public Sale withCode(String assignedCode) {
     Objects.requireNonNull(assignedCode, "code");
     return new Sale(
-        id, companyId, clientId, clientName, saleDate, mode, status, total, lines, assignedCode);
+        id,
+        companyId,
+        clientId,
+        clientName,
+        saleDate,
+        mode,
+        status,
+        total,
+        lines,
+        assignedCode,
+        cancellation);
+  }
+
+  public Sale cancel(SaleCancellation details) {
+    if (status == SaleStatus.CANCELLED) {
+      return this;
+    }
+    return new Sale(
+        id,
+        companyId,
+        clientId,
+        clientName,
+        saleDate,
+        mode,
+        SaleStatus.CANCELLED,
+        total,
+        lines,
+        code,
+        Objects.requireNonNull(details, "cancellation"));
   }
 
   public static LocalDate validateDate(LocalDate date) {
@@ -66,6 +96,9 @@ public record Sale(
     Objects.requireNonNull(saleDate, "saleDate");
     Objects.requireNonNull(mode, "mode");
     Objects.requireNonNull(status, "status");
+    if (status == SaleStatus.REGISTERED && cancellation != null) {
+      throw new IllegalArgumentException("a registered sale cannot have cancellation metadata");
+    }
     clientName = SnapshotText.name(clientName, 250, "clientName");
     validateDate(saleDate);
     total = SaleAmounts.amount(total, "total");

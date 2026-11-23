@@ -1,10 +1,12 @@
 package com.sanigest.sales.api.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.enums.SaleStatus;
 import com.sanigest.sales.domain.model.Sale;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -18,11 +20,15 @@ public record SaleResponse(
     SaleMode mode,
     SaleStatus status,
     @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal total,
-    String currency) {
+    String currency,
+    @JsonInclude(JsonInclude.Include.NON_NULL) Cancellation cancellation) {
 
   public record Client(UUID id, String name) {}
 
+  public record Cancellation(UUID cancelledBy, Instant cancelledAt, String cancelReason) {}
+
   public static SaleResponse from(Sale sale) {
+    var cancellation = sale.cancellation();
     return new SaleResponse(
         sale.id(),
         sale.code(),
@@ -32,6 +38,12 @@ public record SaleResponse(
         sale.mode(),
         sale.status(),
         sale.total(),
-        sale.currency().getCurrencyCode());
+        sale.currency().getCurrencyCode(),
+        cancellation == null
+            ? null
+            : new Cancellation(
+                cancellation.cancelledBy(),
+                cancellation.cancelledAt(),
+                cancellation.cancelReason()));
   }
 }

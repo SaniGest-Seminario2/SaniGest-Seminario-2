@@ -1,13 +1,16 @@
 package com.sanigest.sales.infrastructure.persistence.jpa;
 
+import com.sanigest.sales.application.exception.SaleCancellationConflict;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.sanigest.sales.domain.model.Sale;
+import com.sanigest.sales.domain.model.SaleCancellation;
 import jakarta.persistence.EntityManager;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Repository
@@ -50,6 +53,29 @@ class JpaSaleRepository implements SaleRepository {
     Sale registered = sale.withCode(String.format(Locale.ROOT, "V-%04d-%03d", year, sequence));
     entityManager.persist(new SaleRow(registered));
     return registered;
+  }
+
+  @Override
+  @Transactional(isolation = Isolation.READ_COMMITTED)
+  public Optional<Sale> cancel(UUID companyId, UUID saleId, SaleCancellation cancellation) {
+    return rows.lockSale(companyId, saleId)
+        .flatMap(id -> findByCompanyIdAndId(companyId, id))
+        .map(sale -> {
+          Sale cancelled = sale.cancel(cancellation);
+          if (cancelled == sale) {
+            return sale;
+          }
+          if (rows.recordCancellation(
+                  companyId,
+                  saleId,
+                  cancellation.cancelledBy(),
+                  cancellation.cancelledAt(),
+                  cancellation.cancelReason())
+              != 1) {
+            throw new SaleCancellationConflict();
+          }
+          return cancelled;
+        });
   }
 
   @Override
