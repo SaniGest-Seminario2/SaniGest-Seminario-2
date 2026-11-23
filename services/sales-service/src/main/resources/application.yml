@@ -1,0 +1,57 @@
+spring:
+  application:
+    name: sales-service
+  datasource:
+    url: jdbc:postgresql://${SALES_DB_HOST}:${SALES_DB_PORT:5432}/sanigest_sales
+    username: sanigest_sales
+    password: ${SALES_DB_PASSWORD}
+    hikari:
+      connection-timeout: 5000
+      connection-init-sql: >-
+        DO $sales$
+        BEGIN
+          IF current_database() <> 'sanigest_sales' OR session_user <> 'sanigest_sales'
+             OR current_user <> 'sanigest_sales' THEN
+            RAISE EXCEPTION 'Sales requires the sanigest_sales database and role';
+          END IF;
+        END;
+        $sales$;
+  flyway:
+    locations: classpath:db/migration
+    validate-migration-naming: true
+    clean-disabled: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.default_schema: sales
+  web:
+    error:
+      include-stacktrace: never
+      include-message: never
+
+server:
+  port: ${SERVER_PORT:${SALES_SERVICE_PORT:8084}}
+  shutdown: graceful
+
+sanigest:
+  jwt:
+    issuer: ${JWT_ISSUER}
+    audience: ${JWT_AUDIENCE}
+    public-key: ${JWT_PUBLIC_KEY_LOCATION}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-components: never
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db

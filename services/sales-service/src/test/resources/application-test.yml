@@ -1,0 +1,7 @@
+SALES_SERVICE_PORT: 0
+
+sanigest:
+  jwt:
+    issuer: sanigest-test
+    audience: sanigest-api-test
+    public-key: classpath:jwt-test-public.pem

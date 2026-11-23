@@ -26,6 +26,7 @@
         <module>services/api-gateway</module>
         <module>services/identity-service</module>
         <module>services/catalog-service</module>
+        <module>services/sales-service</module>
     </modules>
 
     <properties>
