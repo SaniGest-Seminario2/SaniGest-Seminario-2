@@ -35,11 +35,11 @@ jobs:
           cache-scope: ${{ inputs.service }}
           cache-dependency-path: ${{ env.MAVEN_CACHE_PATHS }}
 
-      # Warm the same lifecycle used by smoke and regression, including packaging.
+      # Warm packaging and the JUnit runtime before the test jobs restore the cache.
       - name: Validate sources and prepare Maven verify dependencies
         run: >-
           sh scripts/ci/run-stage.sh "$SERVICE" 'Static analysis, compilation and Maven verify preparation'
-          sh scripts/ci/maven-build.sh -e -pl "services/$SERVICE" -am -DskipTests -DskipITs verify
+          sh scripts/ci/maven-build.sh -e -pl "services/$SERVICE" -am -Pci-warm-test-runtime -DskipTests -DskipITs verify
 
   unit-tests:
     # This service-specific status check is kept independently of Code CI.
