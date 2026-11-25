@@ -14,6 +14,7 @@ permissions:
 env:
   SERVICE: ${{ inputs.service }}
   MAVEN_CACHE_PATHS: |
+    .github/workflows/reusable-service-ci.yml
     pom.xml
     libraries/common-security/pom.xml
     libraries/common-company-access/pom.xml
@@ -34,11 +35,11 @@ jobs:
           cache-scope: ${{ inputs.service }}
           cache-dependency-path: ${{ env.MAVEN_CACHE_PATHS }}
 
-      # Resolve Failsafe in the same reactor, before the integration jobs restore the cache.
-      - name: Validate sources and resolve Failsafe dependencies
+      # Resolve both test plugins before the parallel jobs restore this cache.
+      - name: Validate sources and resolve Surefire and Failsafe dependencies
         run: >-
-          sh scripts/ci/run-stage.sh "$SERVICE" 'Static analysis, compilation and Failsafe dependency resolution'
-          sh scripts/ci/maven-build.sh -e -pl "services/$SERVICE" -am -DskipTests -DskipITs test-compile failsafe:integration-test
+          sh scripts/ci/run-stage.sh "$SERVICE" 'Static analysis, compilation and test plugin resolution'
+          sh scripts/ci/maven-build.sh -e -pl "services/$SERVICE" -am -DskipTests -DskipITs test failsafe:integration-test
 
   unit-tests:
     # This service-specific status check is kept independently of Code CI.
