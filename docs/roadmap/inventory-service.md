@@ -1,0 +1,21 @@
+# Inventory Service
+
+Estado pendiente. S2-460 incorpora el módulo Java 21, PostgreSQL `sanigest_inventory`, Flyway, Gateway, Compose, CI y OpenAPI. S2-465 integra ventas y recepciones. La selección empresarial de S2-454 precede a la exposición del dominio. Véanse el [contrato v0.8](../SaniGest_T1001_Contrato_Funcional_v0.8.md) y el [ADR-002](../adr/ADR-002-evolucion-arquitectonica-multiempresa-inventario-finanzas.md).
+
+## Recursos objetivo
+
+| Recurso propietario | Campos e invariantes | API objetivo |
+| --- | --- | --- |
+| Almacén | UUID y empresa inmutables, código y nombre requeridos, código único por empresa, ubicación opcional, ACTIVE por defecto. Desactivar solo sin existencias, reservas ni recepciones pendientes. | `GET/POST /api/v1/warehouses`, `GET/PATCH /api/v1/warehouses/{id}` |
+| Control de existencias | Solo PRODUCT. Configuración por empresa, artículo y almacén, seguimiento inicialmente deshabilitado hasta alta explícita. Mínimo ≥ 0 (por defecto 0), máximo opcional ≥ mínimo, ubicación opcional. Deshabilitar solo sin cantidades ni reservas pendientes. | `GET /api/v1/inventory/stock`, `GET/PUT /api/v1/inventory/stock/{itemId}/{warehouseId}` |
+| Existencia y kardex | Físico y reservado calculados, disponible = físico − reservado. Estado NOT_TRACKED al no controlar, OUT si disponible = 0, LOW si 0 < disponible ≤ mínimo, AVAILABLE en otro caso. Máximo es umbral informativo. Movimientos inmutables con cantidad, dirección, origen, ID de efecto, actor, fecha y motivo. | `GET /api/v1/inventory/summary`, `GET /api/v1/inventory/movements`, `POST /api/v1/inventory/adjustments` |
+| Reserva | UUID, operación Sales, líneas y almacenes, cantidades positivas, estado HELD/CONFIRMED/RELEASED y marcas UTC. La confirmación convierte reserva en salida; liberación devuelve disponibilidad; después de confirmar corresponde una entrada compensatoria. | Comandos internos de reserva, confirmación, liberación y reversión |
+| Recepción | Expense posee documento y recepción por línea, almacén, cantidad y fecha. Inventory registra una entrada por línea de recepción consumida, con origen inmutable. | Evento de recepción o reversión desde Expense y resultado desde Inventory |
+
+Cantidades según escala del contrato. Existencia inicial es movimiento único por artículo y almacén, opcional al habilitar control; sin cantidad inicial se parte de cero. Las correcciones se hacen por ajuste con motivo y permiso. Rechazar salidas que dejen físico por debajo de reservado. Bloquear filas afectadas en orden estable y comprobar todo el conjunto antes de registrar cambios de una reserva. Kardex y balance se escriben en la misma transacción y se pueden reconciliar por origen y reconstruir en caso de divergencia.
+
+Lecturas con permiso INVENTORY_READ propuesto y orden permitido por fecha/código/cantidad. Filtros almacén, artículo, disponibilidad, rango de fechas, tipo de movimiento y origen. Buscar por SKU/nombre mediante proyección o composición delimitada, aplicar antes de paginar y declarar frescura. Escritura separa administración de almacén, configuración y ajustes. Catalog suministra tipo/identidad de artículo, sin escribir inventario. Sales y Expense utilizan contratos internos autenticados, sin acceder a tablas de Inventory.
+
+Expense bloquea cantidades adquiridas por línea al admitir recepciones, incluyendo entradas en tránsito en el límite. Estado de recepción aplicado PENDING/PARTIAL/RECEIVED según entradas confirmadas netas en líneas físicamente recepcionables, con progreso «en procesamiento» separado. Una operación sin líneas recepcionables carece de estado de recepción. Reversión correlacionada valida el original y límites en Expense e Inventory. Si el stock ya se consumió y no admite reversión, conservar la recepción y escalar la discrepancia para resolución auditada. Reconciliar pendientes con el resultado de Inventory y reutilizar la misma identidad en reintentos. Véase la secuencia del ADR.
+
+Pruebas de S2-460/465: reconstrucción de kardex, saldo inicial único, aislamiento empresa/almacén, reserva concurrente de última unidad, expiración/compensación, recepción concurrente por línea, duplicados y reversión posterior a consumo. Probar con PostgreSQL real, contratos REST/Kafka y smoke HTTP.

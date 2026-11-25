@@ -1,8 +1,8 @@
 # JWT y autorización de empresa
 
-Gateway, Identity y Company validan localmente los JWT de acceso de Identity.
+Gateway, Identity, Company, Catalog y Sales validan localmente los JWT de acceso de Identity.
 Configurar `JWT_ISSUER`, `JWT_AUDIENCE` y `JWT_PUBLIC_KEY_LOCATION` en los
-tres procesos. La clave pública RSA usa PEM X.509 y al menos 2048 bits. Solo
+procesos que validan el JWT. La clave pública RSA usa PEM X.509 y al menos 2048 bits. Solo
 Identity recibe `JWT_PRIVATE_KEY_LOCATION` (PEM PKCS#8). Usar ubicaciones
 `file:` con archivos montados de solo lectura y permisos para el usuario del
 proceso. Compose monta los archivos indicados en `JWT_PUBLIC_KEY_FILE` y
@@ -41,7 +41,12 @@ existente y un JWT de acceso puede conservar su validez criptográfica hasta
 expirar. La cuenta desactivada pierde autorización dinámica de Company en la
 siguiente verificación, aunque el JWT siga vigente.
 
-Las rutas de empresa propia son para cuentas REGULAR. ADVISOR queda denegado
-hasta que Company disponga de persistencia y operaciones para concesiones
-vigentes por empresa, módulo y permiso. Los servicios sin aplicación ejecutable
-quedan fuera del alcance.
+Las rutas de empresa propia son para cuentas REGULAR. Company ya gestiona
+concesiones ADVISOR por empresa, módulo y alcance. Catalog y Sales usan
+`common-company-access` para consultar a Company. La resolución REGULAR
+vigente se basa en una membresía singular; la delegación usa una empresa
+explícita. Las rutas internas quedan fuera del Gateway público.
+
+[S2-454](https://devjoanvasquez-1791077375328.atlassian.net/browse/S2-454)
+evoluciona la selección por petición y la autorización por par usuario-empresa
+según el [contrato objetivo v0.8](SaniGest_T1001_Contrato_Funcional_v0.8.md).

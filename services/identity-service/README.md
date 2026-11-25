@@ -25,7 +25,7 @@ mvn -B -pl services/identity-service -am verify
 ```
 
 Consulta el [arranque local](../../README.md) y el
-[contrato funcional](../../docs/SaniGest_T1001_Contrato_Funcional_v0.7.md).
+[contrato objetivo v0.8](../../docs/SaniGest_T1001_Contrato_Funcional_v0.8.md).
 
 ## Refresh tokens (S2-386)
 
