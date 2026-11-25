@@ -1,6 +1,8 @@
 package com.sanigest.catalog.application.dto;
 
+import com.sanigest.catalog.domain.enums.SupplierPaymentTerms;
 import com.sanigest.catalog.domain.enums.SupplierStatus;
+import com.sanigest.catalog.domain.enums.SupplierSupplyType;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,5 +15,18 @@ public record SupplierPage(List<Item> content, int page, int size, long totalEle
     return Math.ceilDiv(totalElements, size);
   }
 
-  public record Item(UUID id, String name, String taxId, SupplierStatus status) {}
+  public record Item(
+      UUID id,
+      String name,
+      String taxId,
+      SupplierStatus status,
+      String contact,
+      String phone,
+      SupplierSupplyType supplyType,
+      SupplierPaymentTerms paymentTerms,
+      UUID categoryId) {
+    public Item(UUID id, String name, String taxId, SupplierStatus status) {
+      this(id, name, taxId, status, null, null, null, null, null);
+    }
+  }
 }

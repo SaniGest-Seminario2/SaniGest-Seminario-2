@@ -555,7 +555,7 @@
       "post": {
         "operationId": "createSupplier",
         "summary": "Registrar un proveedor",
-        "description": "Requiere CATALOG_WRITE en la membresía activa resuelta por Company. El alta se registra en la empresa autorizada. Los campos externos al contrato se ignoran.",
+        "description": "Requiere CATALOG_WRITE. Catalog asigna UUID, empresa autorizada y estado ACTIVE. El alta de cinco campos conserva compatibilidad con los metadatos históricos ignorados.",
         "security": [
           {
             "bearerAuth": []
@@ -647,7 +647,7 @@
       "get": {
         "operationId": "listSuppliers",
         "summary": "Listar proveedores",
-        "description": "Requiere CATALOG_READ en la membresía activa resuelta por Company. Este contrato usa contexto de membresía empresarial. Un encabezado X-Company-Id no concede acceso delegado. Los filtros se pueden combinar. Los resultados se ordenan por nombre y UUID ascendentes. Una página sin coincidencias tiene content vacío.",
+        "description": "Requiere CATALOG_READ. Los filtros se aplican antes de paginar. Nombres ascendentes por defecto, con UUID ascendente en empates. status=ACTIVE sirve como selector para compras.",
         "security": [
           {
             "bearerAuth": []
@@ -716,7 +716,7 @@
           {
             "name": "search",
             "in": "query",
-            "description": "Fragmento literal del nombre o documento fiscal, sin distinguir mayúsculas. Se recortan espacios exteriores y se omite el filtro si queda vacío.",
+            "description": "Fragmento literal de nombre, identificación fiscal o contacto, sin distinguir mayúsculas.",
             "schema": {
               "type": "string"
             }
@@ -749,6 +749,54 @@
               "format": "int32",
               "minimum": 1,
               "default": 20
+            }
+          },
+          {
+            "name": "supplyType",
+            "in": "query",
+            "description": "PRODUCT y SERVICE incluyen BOTH. BOTH coincide exactamente.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PRODUCT",
+                "SERVICE",
+                "BOTH"
+              ]
+            }
+          },
+          {
+            "name": "paymentTerms",
+            "in": "query",
+            "description": "CASH y CREDIT incluyen BOTH. BOTH coincide exactamente.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CASH",
+                "CREDIT",
+                "BOTH"
+              ]
+            }
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "description": "UUID de la categoría comercial.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Orden estable por nombre y UUID.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "name,asc",
+                "name,desc"
+              ],
+              "default": "name,asc"
             }
           }
         ]
@@ -912,7 +960,7 @@
             }
           },
           "409": {
-            "description": "Documento fiscal duplicado o actualización concurrente",
+            "description": "Identificación fiscal duplicada, revisión obsoleta o tipo incompatible con un vínculo activo.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2128,6 +2176,386 @@
           }
         }
       }
+    },
+    "/api/v1/suppliers/categories": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/CompanySelector"
+        }
+      ],
+      "get": {
+        "operationId": "listSupplierCategories",
+        "description": "CATALOG_READ. Inicializa siete categorías por empresa de forma idempotente.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Categorías empresariales.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SupplierCategory"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/SupplierError400"
+          },
+          "401": {
+            "$ref": "#/components/responses/SupplierError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/SupplierError403"
+          },
+          "503": {
+            "$ref": "#/components/responses/SupplierError503"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSupplierCategory",
+        "description": "CATALOG_WRITE. Código estable y único por empresa.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Categoría creada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierCategory"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/SupplierError400"
+          },
+          "401": {
+            "$ref": "#/components/responses/SupplierError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/SupplierError403"
+          },
+          "409": {
+            "$ref": "#/components/responses/SupplierError409"
+          },
+          "503": {
+            "$ref": "#/components/responses/SupplierError503"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierCategoryCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/suppliers/categories/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/CompanySelector"
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "description": "Identificador del recurso.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "put": {
+        "operationId": "updateSupplierCategory",
+        "description": "CATALOG_WRITE. Puede desactivar una categoría conservando su código y las referencias.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Categoría actualizada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierCategory"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/SupplierError400"
+          },
+          "401": {
+            "$ref": "#/components/responses/SupplierError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/SupplierError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/SupplierError404"
+          },
+          "503": {
+            "$ref": "#/components/responses/SupplierError503"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierCategoryUpdate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/suppliers/{id}/items": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/CompanySelector"
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "description": "Identificador del recurso.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "get": {
+        "operationId": "listSuppliedItems",
+        "description": "CATALOG_READ. Consulta paginada por proveedor.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artículos suministrados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuppliedItemPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/SupplierError400"
+          },
+          "401": {
+            "$ref": "#/components/responses/SupplierError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/SupplierError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/SupplierError404"
+          },
+          "503": {
+            "$ref": "#/components/responses/SupplierError503"
+          }
+        },
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Fragmento literal de nombre o referencia comercial.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Estado del vínculo. Por defecto incluye vínculos históricos.",
+            "schema": {
+              "$ref": "#/components/schemas/SupplierStatus"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Índice de página desde cero.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Registros por página. El máximo por defecto es 100 y se configura con sanigest.catalog.suppliers.max-page-size.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1,
+              "default": 20
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "replaceSupplierItems",
+        "description": "CATALOG_WRITE. Reemplaza el conjunto activo completo en una transacción. Envía una colección vacía para retirar todos los vínculos. Un proveedor principal ajeno al conjunto requiere replacePrimary=true. Los vínculos retirados conservan su fila para consulta histórica.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Conjunto actualizado."
+          },
+          "400": {
+            "$ref": "#/components/responses/SupplierError400"
+          },
+          "401": {
+            "$ref": "#/components/responses/SupplierError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/SupplierError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/SupplierError404"
+          },
+          "409": {
+            "$ref": "#/components/responses/SupplierError409"
+          },
+          "503": {
+            "$ref": "#/components/responses/SupplierError503"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceSupplierItemsRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/catalog-items/{id}/suppliers": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/CompanySelector"
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "description": "Identificador del recurso.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "get": {
+        "operationId": "listItemSuppliers",
+        "description": "CATALOG_READ. Consulta paginada por artículo.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proveedores asociados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemSupplierPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/SupplierError400"
+          },
+          "401": {
+            "$ref": "#/components/responses/SupplierError401"
+          },
+          "403": {
+            "$ref": "#/components/responses/SupplierError403"
+          },
+          "404": {
+            "$ref": "#/components/responses/SupplierError404"
+          },
+          "503": {
+            "$ref": "#/components/responses/SupplierError503"
+          }
+        },
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Fragmento literal de nombre o referencia comercial.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Estado del vínculo. Por defecto incluye vínculos históricos.",
+            "schema": {
+              "$ref": "#/components/schemas/SupplierStatus"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Índice de página desde cero.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Registros por página. El máximo por defecto es 100 y se configura con sanigest.catalog.suppliers.max-page-size.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1,
+              "default": 20
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -2177,6 +2605,59 @@
       },
       "CatalogItemUpdateConflict": {
         "description": "El artículo fue actualizado por otra solicitud",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "SupplierError400": {
+        "description": "Solicitud inválida.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "SupplierError401": {
+        "description": "JWT ausente o inválido."
+      },
+      "SupplierError403": {
+        "description": "Permiso insuficiente.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "SupplierError503": {
+        "description": "Autorización empresarial indisponible.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "SupplierError409": {
+        "description": "Código de categoría duplicado, vínculo incompatible o conflicto de proveedor principal.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "SupplierError404": {
+        "description": "Recurso inexistente o ajeno.",
         "content": {
           "application/problem+json": {
             "schema": {
@@ -2438,7 +2919,7 @@
             "type": "string",
             "nullable": true,
             "maxLength": 64,
-            "description": "Se eliminan los espacios en los extremos y un valor vacío se guarda como null. El documento es único por empresa cuando se informa."
+            "description": "En el alta ampliada, cédula de 11 dígitos o RNC de 9 dígitos. Se conservan los ceros iniciales y se retiran espacios y guiones. El alta histórica admite identificadores textuales."
           },
           "contact": {
             "type": "string",
@@ -2459,6 +2940,46 @@
             "format": "email",
             "maxLength": 320,
             "pattern": "^[^\\s@]+@[^\\s@.]+(?:\\.[^\\s@.]+)+$"
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true
+          },
+          "supplyType": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE",
+              "BOTH"
+            ],
+            "nullable": true
+          },
+          "paymentTerms": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "CREDIT",
+              "BOTH"
+            ],
+            "description": "Predeterminado CASH para un alta con campos comerciales. El alta histórica conserva el perfil vacío."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "creditDays": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "description": "Null indica ausencia de plazo. Cero indica vencimiento inmediato. Requiere CREDIT o BOTH.",
+            "nullable": true
+          },
+          "observations": {
+            "type": "string",
+            "maxLength": 1000,
+            "nullable": true
           }
         }
       },
@@ -2521,6 +3042,46 @@
             "enum": [
               "ACTIVE"
             ]
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true
+          },
+          "supplyType": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE",
+              "BOTH"
+            ],
+            "nullable": true
+          },
+          "paymentTerms": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "CREDIT",
+              "BOTH"
+            ],
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "creditDays": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "description": "Null indica ausencia de plazo. Cero indica vencimiento inmediato. Requiere CREDIT o BOTH.",
+            "nullable": true
+          },
+          "observations": {
+            "type": "string",
+            "maxLength": 1000,
+            "nullable": true
           }
         }
       },
@@ -2582,6 +3143,46 @@
           },
           "status": {
             "$ref": "#/components/schemas/SupplierStatus"
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true
+          },
+          "supplyType": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE",
+              "BOTH"
+            ],
+            "nullable": true
+          },
+          "paymentTerms": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "CREDIT",
+              "BOTH"
+            ],
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "creditDays": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "description": "Null indica ausencia de plazo. Cero indica vencimiento inmediato. Requiere CREDIT o BOTH.",
+            "nullable": true
+          },
+          "observations": {
+            "type": "string",
+            "maxLength": 1000,
+            "nullable": true
           }
         }
       },
@@ -2613,6 +3214,42 @@
           },
           "status": {
             "$ref": "#/components/schemas/SupplierStatus"
+          },
+          "contact": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "\\S",
+            "description": "Obligatorio. Se eliminan los espacios en los extremos."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "pattern": "^\\+?(?=(?:[^0-9]*[0-9]){7})[0-9() .-]{7,32}$"
+          },
+          "supplyType": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE",
+              "BOTH"
+            ],
+            "nullable": true
+          },
+          "paymentTerms": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "CREDIT",
+              "BOTH"
+            ],
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
           }
         }
       },
@@ -2691,8 +3328,49 @@
             "format": "email",
             "maxLength": 320,
             "pattern": "^[^\\s@]+@[^\\s@.]+(?:\\.[^\\s@.]+)+$"
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true
+          },
+          "supplyType": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE",
+              "BOTH"
+            ],
+            "nullable": true
+          },
+          "paymentTerms": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "CREDIT",
+              "BOTH"
+            ],
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "creditDays": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "description": "Null indica ausencia de plazo. Cero indica vencimiento inmediato. Requiere CREDIT o BOTH.",
+            "nullable": true
+          },
+          "observations": {
+            "type": "string",
+            "maxLength": 1000,
+            "nullable": true
           }
-        }
+        },
+        "description": "Los campos omitidos se conservan. Null limpia un campo opcional. Nombre y contacto requieren valor. Envía creditDays=null para cambiar a CASH si hay un plazo configurado."
       },
       "SupplierStatusRequest": {
         "type": "object",
@@ -3343,6 +4021,305 @@
           "version",
           "active"
         ]
+      },
+      "SupplierCategory": {
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{0,31}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "status": {
+            "$ref": "#/components/schemas/SupplierStatus"
+          }
+        }
+      },
+      "SupplierCategoryCreate": {
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{0,31}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "SupplierCategoryUpdate": {
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "status": {
+            "$ref": "#/components/schemas/SupplierStatus"
+          }
+        }
+      },
+      "SupplierItemOfferRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "catalogItemId"
+        ],
+        "properties": {
+          "catalogItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "offeredCost": {
+            "type": "string",
+            "pattern": "^[0-9]{1,15}([.][0-9]{1,4})?$",
+            "description": "Costo ofertado unitario DOP, independiente del precio de venta. Null indica costo desconocido.",
+            "nullable": true
+          },
+          "supplierReference": {
+            "type": "string",
+            "maxLength": 160,
+            "nullable": true
+          },
+          "primary": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "ReplaceSupplierItemsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/SupplierItemOfferRequest"
+            }
+          },
+          "replacePrimary": {
+            "type": "boolean",
+            "default": false,
+            "description": "Autoriza retirar la designación anterior de otro proveedor para cada artículo solicitado como principal."
+          }
+        }
+      },
+      "SuppliedItem": {
+        "type": "object",
+        "required": [
+          "catalogItemId",
+          "name",
+          "type",
+          "itemStatus",
+          "offeredCost",
+          "supplierReference",
+          "primary",
+          "status",
+          "validFrom",
+          "validUntil"
+        ],
+        "properties": {
+          "catalogItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE"
+            ]
+          },
+          "itemStatus": {
+            "$ref": "#/components/schemas/SupplierStatus"
+          },
+          "offeredCost": {
+            "type": "string",
+            "pattern": "^[0-9]{1,15}([.][0-9]{1,4})?$",
+            "description": "Costo ofertado unitario DOP, independiente del precio de venta. Null indica costo desconocido.",
+            "nullable": true
+          },
+          "supplierReference": {
+            "type": "string",
+            "maxLength": 160,
+            "nullable": true
+          },
+          "primary": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SupplierStatus"
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "validUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "SuppliedItemPage": {
+        "type": "object",
+        "required": [
+          "content",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuppliedItem"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "ItemSupplier": {
+        "type": "object",
+        "required": [
+          "supplierId",
+          "name",
+          "supplierStatus",
+          "offeredCost",
+          "supplierReference",
+          "primary",
+          "status",
+          "validFrom",
+          "validUntil"
+        ],
+        "properties": {
+          "supplierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "supplierStatus": {
+            "$ref": "#/components/schemas/SupplierStatus"
+          },
+          "offeredCost": {
+            "type": "string",
+            "pattern": "^[0-9]{1,15}([.][0-9]{1,4})?$",
+            "description": "Costo ofertado unitario DOP, independiente del precio de venta. Null indica costo desconocido.",
+            "nullable": true
+          },
+          "supplierReference": {
+            "type": "string",
+            "maxLength": 160,
+            "nullable": true
+          },
+          "primary": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SupplierStatus"
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "validUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ItemSupplierPage": {
+        "type": "object",
+        "required": [
+          "content",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemSupplier"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
       }
     },
     "securitySchemes": {

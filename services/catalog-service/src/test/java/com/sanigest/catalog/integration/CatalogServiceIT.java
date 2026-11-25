@@ -328,7 +328,9 @@ class CatalogServiceIT {
             "catalog.client_countries",
             "catalog.client_provinces",
             "catalog.client_municipalities",
-            "catalog.client_receipt_types");
+            "catalog.client_receipt_types",
+            "catalog.supplier_categories",
+            "catalog.supplier_items");
     assertThat(flyway.info().applied())
         .extracting(migration -> migration.getScript())
         .containsExactly(
@@ -341,7 +343,10 @@ class CatalogServiceIT {
             "V7__create_catalog_items.sql",
             "V8__support_catalog_item_management.sql",
             "V9__create_client_reference_catalogs.sql",
-            "V10__extend_client_commercial_profile.sql");
+            "V10__extend_client_commercial_profile.sql",
+            "V11__create_supplier_categories.sql",
+            "V12__extend_supplier_commercial_profile.sql",
+            "V13__create_supplier_item_relationships.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -1001,6 +1006,17 @@ class CatalogServiceIT {
             Flyway.configure().dataSource(source).target("8").load().migrate().migrationsExecuted)
         .isEqualTo(1);
     verifyClientProfileMigration(source, jdbc, companyId);
+    jdbc.update("UPDATE catalog.suppliers SET revision = 6 WHERE id = ?", supplierId);
+    assertThat(Flyway.configure().dataSource(source).load().migrate().migrationsExecuted)
+        .isEqualTo(3);
+    assertThat(
+            jdbc.queryForMap(
+                "SELECT supply_type, payment_terms, category_id FROM catalog.suppliers WHERE id = ?",
+                supplierId))
+        .containsEntry("supply_type", null)
+        .containsEntry("payment_terms", null)
+        .containsEntry("category_id", null);
+
     assertThat(
             jdbc.queryForMap(
                 """
@@ -1016,7 +1032,7 @@ class CatalogServiceIT {
                 "SELECT company_id, tax_id, status, revision FROM catalog.suppliers WHERE id = ?",
                 supplierId))
         .containsExactlyInAnyOrderEntriesOf(
-            Map.of("company_id", companyId, "tax_id", "123", "status", "ACTIVE", "revision", 0L));
+            Map.of("company_id", companyId, "tax_id", "123", "status", "ACTIVE", "revision", 6L));
     assertThat(
             jdbc.queryForMap(
                 """
@@ -1055,7 +1071,7 @@ class CatalogServiceIT {
         companyId,
         historicalDuplicate,
         companyId);
-    var latest = Flyway.configure().dataSource(source).load();
+    var latest = Flyway.configure().dataSource(source).target("10").load();
     assertThat(latest.migrate().migrationsExecuted).isEqualTo(2);
     assertThat(
             jdbc.queryForMap(
@@ -1124,8 +1140,8 @@ class CatalogServiceIT {
   void completesTheCommercialProfileWorkflowOverHttp() throws Exception {
     var tenant = UUID.randomUUID();
     var otherTenant = UUID.randomUUID();
-    var owner = scopedClientOwner(tenant);
-    var foreign = scopedClientOwner(otherTenant);
+    var owner = scopedCatalogOwner(tenant);
+    var foreign = scopedCatalogOwner(otherTenant);
     String path = "/api/v1/clients";
     try (var http = HttpClient.newHttpClient()) {
       String regular = verifyClientReferences(http, owner, path);
@@ -1213,10 +1229,10 @@ class CatalogServiceIT {
     var companyA = UUID.randomUUID();
     var companyB = UUID.randomUUID();
     var actor = session("REGULAR");
-    stubScopedClientMembership(actor, companyA, MembershipRole.OWNER, Scope.READ);
-    stubScopedClientMembership(actor, companyA, MembershipRole.OWNER, Scope.WRITE);
-    stubScopedClientMembership(actor, companyB, MembershipRole.VIEWER, Scope.READ);
-    stubScopedClientMembership(actor, companyB, MembershipRole.VIEWER, Scope.WRITE);
+    stubScopedCatalogMembership(actor, companyA, MembershipRole.OWNER, Scope.READ);
+    stubScopedCatalogMembership(actor, companyA, MembershipRole.OWNER, Scope.WRITE);
+    stubScopedCatalogMembership(actor, companyB, MembershipRole.VIEWER, Scope.READ);
+    stubScopedCatalogMembership(actor, companyB, MembershipRole.VIEWER, Scope.WRITE);
     try (var http = HttpClient.newHttpClient()) {
       var first = sendProfile(http, actor, companyA, "A%_", "BOTH");
       var last = sendProfile(http, actor, companyA, "B%_", "CREDIT");
@@ -1270,15 +1286,15 @@ class CatalogServiceIT {
     return JsonMapper.shared().readTree(response.body());
   }
 
-  private String scopedClientOwner(UUID tenant) throws Exception {
+  private String scopedCatalogOwner(UUID tenant) throws Exception {
     var token = session("REGULAR");
     SELECTORS.put(token, tenant);
-    stubScopedClientMembership(token, tenant, MembershipRole.OWNER, Scope.READ);
-    stubScopedClientMembership(token, tenant, MembershipRole.OWNER, Scope.WRITE);
+    stubScopedCatalogMembership(token, tenant, MembershipRole.OWNER, Scope.READ);
+    stubScopedCatalogMembership(token, tenant, MembershipRole.OWNER, Scope.WRITE);
     return token;
   }
 
-  private static void stubScopedClientMembership(
+  private static void stubScopedCatalogMembership(
       String jwt, UUID tenant, MembershipRole role, Scope scope) throws Exception {
     var subject = SignedJWT.parse(jwt).getJWTClaimsSet().getSubject();
     COMPANY.stubFor(
@@ -1838,7 +1854,12 @@ class CatalogServiceIT {
           1,
           second.id().toString());
       assertPage(
-          successfulBody(get(http, SUPPLIERS + "?search=Hidden%20Contact", reader)), 0, 20, 0, 0);
+          successfulBody(get(http, SUPPLIERS + "?search=Hidden%20Contact", reader)),
+          0,
+          20,
+          1,
+          1,
+          second.id().toString());
       assertPage(successfulBody(get(http, SUPPLIERS + "?status=INACTIVE", reader)), 0, 20, 0, 0);
       assertPage(
           successfulBody(get(http, SUPPLIERS + "?size=2&page=2147483647", reader)),
@@ -1975,6 +1996,415 @@ class CatalogServiceIT {
           assertThat(saved.status()).isEqualTo(SupplierStatus.ACTIVE);
           assertThat(saved.details().email()).isEqualTo("saved@example.org");
         });
+  }
+
+  @Test
+  @Tag("smoke")
+  void managesSupplierOffersAndTransfersPrimaryWithoutChangingSalePrice() throws Exception {
+    var company = UUID.randomUUID();
+    var owner = scopedCatalogOwner(company);
+    var otherOwner = scopedCatalogOwner(UUID.randomUUID());
+    var viewer = session("REGULAR");
+    SELECTORS.put(viewer, company);
+    stubScopedCatalogMembership(viewer, company, MembershipRole.VIEWER, Scope.READ);
+    stubScopedCatalogMembership(viewer, company, MembershipRole.VIEWER, Scope.WRITE);
+    try (var http = HttpClient.newHttpClient()) {
+      var categories = successfulBody(get(http, SUPPLIERS + "/categories", owner));
+      assertThat(categories.size()).isEqualTo(7);
+      var category = categories.get(0).path("id").asString();
+      var a = createCommercialSupplier(http, owner, "A", category);
+      var b = createCommercialSupplier(http, owner, "B", category);
+      var item = createdId(postItem(http, owner, PRODUCT_ITEM, null));
+      var foreignItem = createdId(postItem(http, otherOwner, PRODUCT_ITEM, null));
+      var linksA = SUPPLIERS + "/" + a + "/items";
+      var linksB = SUPPLIERS + "/" + b + "/items";
+      var inverse = CATALOG_ITEMS + "/" + item + "/suppliers";
+
+      assertThat(putSupplier(http, linksA, viewer, offer(item, true, false)).statusCode())
+          .isEqualTo(403);
+      assertThat(putSupplier(http, linksA, owner, offer(item, true, false)).statusCode())
+          .isEqualTo(204);
+      var forward = successfulBody(get(http, linksA, owner)).path("content").get(0);
+      assertThat(forward.path("catalogItemId").asString()).isEqualTo(item);
+      assertThat(forward.path("offeredCost").asString()).isEqualTo("25.1234");
+      assertThat(forward.path("primary").asBoolean()).isTrue();
+      assertThat(putSupplier(http, linksB, owner, offer(item, false, false)).statusCode())
+          .isEqualTo(204);
+      assertThat(
+              successfulBody(get(http, inverse + "?size=1&page=1", owner))
+                  .path("content")
+                  .get(0)
+                  .path("supplierId")
+                  .asString())
+          .isEqualTo(b);
+      assertThat(putSupplier(http, linksB, owner, offer(item, true, false)).statusCode())
+          .isEqualTo(409);
+      assertThat(putSupplier(http, linksB, owner, offer(item, true, true)).statusCode())
+          .isEqualTo(204);
+      var beforeRetry = successfulBody(get(http, inverse, owner));
+      assertThat(beforeRetry.path("content").get(0).path("primary").asBoolean()).isFalse();
+      assertThat(beforeRetry.path("content").get(1).path("primary").asBoolean()).isTrue();
+      assertThat(putSupplier(http, linksB, owner, offer(item, true, true)).statusCode())
+          .isEqualTo(204);
+      assertThat(successfulBody(get(http, inverse, owner))).isEqualTo(beforeRetry);
+
+      assertThat(
+              patch(http, SUPPLIERS + "/" + b + "/status", owner, "{\"status\":\"INACTIVE\"}", null)
+                  .statusCode())
+          .isEqualTo(200);
+      var history =
+          successfulBody(get(http, linksB + "?status=INACTIVE", owner)).path("content").get(0);
+      assertThat(history.path("primary").asBoolean()).isFalse();
+      assertThat(history.path("validUntil").isString()).isTrue();
+      assertThat(
+              patch(http, SUPPLIERS + "/" + b + "/status", owner, "{\"status\":\"ACTIVE\"}", null)
+                  .statusCode())
+          .isEqualTo(200);
+      assertThat(
+              successfulBody(get(http, linksB + "?status=ACTIVE", owner))
+                  .path("totalElements")
+                  .asLong())
+          .isZero();
+      assertThat(putSupplier(http, linksA, owner, offer(foreignItem, true, false)).statusCode())
+          .isEqualTo(404);
+      assertThat(successfulBody(get(http, linksA, owner)).path("totalElements").asLong())
+          .isEqualTo(1);
+      assertThat(get(http, inverse, otherOwner).statusCode()).isEqualTo(404);
+      assertThat(
+              new JdbcTemplate(dataSource)
+                  .queryForObject(
+                      "SELECT price FROM catalog.catalog_items WHERE id = ?",
+                      BigDecimal.class,
+                      UUID.fromString(item)))
+          .isEqualByComparingTo("3200.00");
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void roundTripsTypedProfileSearchAndTenantCategoryReferences() throws Exception {
+    var owner = scopedCatalogOwner(UUID.randomUUID());
+    var otherOwner = scopedCatalogOwner(UUID.randomUUID());
+    try (var http = HttpClient.newHttpClient()) {
+      var category =
+          successfulBody(get(http, SUPPLIERS + "/categories", owner)).get(0).path("id").asString();
+      var foreign =
+          successfulBody(get(http, SUPPLIERS + "/categories", otherOwner))
+              .get(0)
+              .path("id")
+              .asString();
+      var created =
+          postSupplier(
+              http,
+              owner,
+              """
+              {"name":"Distribución","contact":"Alex 100%%_!","taxId":"001-0000001-2",
+               "email":"ventas@example.do","phone":"8095550100","address":"Santo Domingo",
+               "supplyType":"BOTH","paymentTerms":"BOTH","creditDays":0,"categoryId":"%s",
+               "observations":"Retirar"}
+              """
+                  .formatted(category),
+              null);
+      var id = createdId(created);
+      var path = SUPPLIERS + "/" + id;
+      var detail = successfulBody(get(http, path, owner));
+      assertThat(detail.path("taxId").asString()).isEqualTo("00100000012");
+      assertThat(detail.path("creditDays").asInt()).isZero();
+      assertThat(detail.path("address").asString()).isEqualTo("Santo Domingo");
+      assertThat(
+              successfulBody(
+                      get(
+                          http,
+                          SUPPLIERS
+                              + "?search=alex%20100%25_%21"
+                              + "&supplyType=PRODUCT&paymentTerms=CREDIT&status=ACTIVE&sort=name,desc&categoryId="
+                              + category,
+                          owner))
+                  .path("content")
+                  .get(0)
+                  .path("id")
+                  .asString())
+          .isEqualTo(id);
+      assertThat(
+              patch(http, path, owner, "{\"categoryId\":\"%s\"}".formatted(foreign), null)
+                  .statusCode())
+          .isEqualTo(400);
+      assertThat(patch(http, path, owner, "{\"paymentTerms\":\"CASH\"}", null).statusCode())
+          .isEqualTo(400);
+      var edited =
+          successfulBody(
+              patch(
+                  http,
+                  path,
+                  owner,
+                  """
+                  {"categoryId":null,"paymentTerms":"CREDIT","creditDays":61,"observations":null}
+                  """,
+                  null));
+      assertThat(edited.path("creditDays").asInt()).isEqualTo(61);
+      assertThat(edited.path("categoryId").isNull()).isTrue();
+      assertThat(edited.path("observations").isNull()).isTrue();
+      assertThat(edited.path("supplyType").asString()).isEqualTo("BOTH");
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void retiresOmittedLinksAndRejectsIncompatibleReplacementAtomically() throws Exception {
+    var owner = scopedCatalogOwner(UUID.randomUUID());
+    try (var http = HttpClient.newHttpClient()) {
+      var supplier = createCommercialSupplier(http, owner, "A", null);
+      var product = createdId(postItem(http, owner, PRODUCT_ITEM, null));
+      var service = createdId(postItem(http, owner, SERVICE_ITEM, null));
+      var path = SUPPLIERS + "/" + supplier;
+      var links = path + "/items";
+      var both =
+          """
+          {"items":[{"catalogItemId":"%s","primary":true},{"catalogItemId":"%s","offeredCost":"0"}]}
+          """
+              .formatted(product, service);
+      assertThat(putSupplier(http, links, owner, both).statusCode()).isEqualTo(204);
+      assertThat(patch(http, path, owner, "{\"supplyType\":\"PRODUCT\"}", null).statusCode())
+          .isEqualTo(409);
+      var invalid = both.replace(service, UUID.randomUUID().toString());
+      assertThat(putSupplier(http, links, owner, invalid).statusCode()).isEqualTo(404);
+      assertThat(
+              successfulBody(get(http, links + "?status=ACTIVE", owner))
+                  .path("totalElements")
+                  .asInt())
+          .isEqualTo(2);
+      assertThat(
+              patch(
+                      http,
+                      CATALOG_ITEMS + "/" + product + "/status",
+                      owner,
+                      "{\"active\":false}",
+                      null)
+                  .statusCode())
+          .isEqualTo(200);
+      assertThat(putSupplier(http, links, owner, "{\"items\":[]}").statusCode()).isEqualTo(204);
+      var history = successfulBody(get(http, links + "?status=INACTIVE", owner));
+      assertThat(history.path("content").size()).isEqualTo(2);
+      assertThat(history.path("content"))
+          .allSatisfy(row -> {
+            assertThat(row.path("primary").asBoolean()).isFalse();
+            assertThat(row.path("validUntil").isString()).isTrue();
+          });
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void serializesConcurrentSupplierWritesAndPreservesUniquePrimary() throws Exception {
+    var tenant = UUID.randomUUID();
+    var owner = scopedCatalogOwner(tenant);
+    var jdbc = new JdbcTemplate(dataSource);
+    try (var http = HttpClient.newHttpClient()) {
+      var categoriesPath = SUPPLIERS + "/categories";
+      assertThat(
+              race(
+                  () -> get(http, categoriesPath, owner).statusCode(),
+                  () -> get(http, categoriesPath, owner).statusCode()))
+          .containsExactly(200, 200);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT count(*) FROM catalog.supplier_categories WHERE company_id = ?",
+                  Integer.class,
+                  tenant))
+          .isEqualTo(7);
+      String tax = "{\"name\":\"Fiscal\",\"contact\":\"Alex\",\"taxId\":\"00100000012\"}";
+      assertThat(
+              race(
+                  () -> postSupplier(http, owner, tax, null).statusCode(),
+                  () -> postSupplier(http, owner, tax, null).statusCode()))
+          .containsExactlyInAnyOrder(201, 409);
+      assertThat(supplierCount(tenant)).isEqualTo(1);
+
+      var a = createCommercialSupplier(http, owner, "A", null);
+      var b = createCommercialSupplier(http, owner, "B", null);
+      var product = createdId(postItem(http, owner, PRODUCT_ITEM, null));
+      var service = createdId(postItem(http, owner, SERVICE_ITEM, null));
+      var linksA = SUPPLIERS + "/" + a + "/items";
+      var linksB = SUPPLIERS + "/" + b + "/items";
+      var same = offer(product, false, false);
+      assertThat(
+              race(
+                  () -> putSupplier(http, linksA, owner, same).statusCode(),
+                  () -> putSupplier(http, linksA, owner, same).statusCode()))
+          .containsExactly(204, 204);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT count(*) FROM catalog.supplier_items WHERE company_id = ?",
+                  Integer.class,
+                  tenant))
+          .isEqualTo(1);
+      assertThat(
+              race(
+                  () -> putSupplier(http, linksA, owner, offer(product, true, false)).statusCode(),
+                  () -> putSupplier(http, linksB, owner, offer(product, true, false)).statusCode()))
+          .containsExactlyInAnyOrder(204, 409);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT count(*) FROM catalog.supplier_items WHERE company_id = ? AND is_primary",
+                  Integer.class,
+                  tenant))
+          .isEqualTo(1);
+      assertThat(
+              race(
+                  () -> putSupplier(http, linksA, owner, offer(service, false, false)).statusCode(),
+                  () -> putSupplier(http, linksA, owner, same).statusCode()))
+          .containsExactly(204, 204);
+      assertThat(
+              successfulBody(get(http, linksA + "?status=ACTIVE", owner))
+                  .path("totalElements")
+                  .asInt())
+          .isEqualTo(1);
+      var supplierStatus = SUPPLIERS + "/" + b + "/status";
+      var supplierRace =
+          race(
+              () -> putSupplier(http, linksB, owner, offer(product, true, true)).statusCode(),
+              () ->
+                  patch(http, supplierStatus, owner, "{\"status\":\"INACTIVE\"}", null)
+                      .statusCode());
+      assertThat(supplierRace.get(0)).isIn(204, 409);
+      assertThat(supplierRace.get(1)).isEqualTo(200);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT count(*) FROM catalog.supplier_items WHERE supplier_id = ? AND valid_until IS NULL",
+                  Integer.class,
+                  UUID.fromString(b)))
+          .isZero();
+      var itemRace =
+          race(
+              () -> putSupplier(http, linksA, owner, offer(service, true, true)).statusCode(),
+              () ->
+                  patch(
+                          http,
+                          CATALOG_ITEMS + "/" + service + "/status",
+                          owner,
+                          "{\"active\":false}",
+                          null)
+                      .statusCode());
+      assertThat(itemRace.get(0)).isIn(204, 409);
+      assertThat(itemRace.get(1)).isEqualTo(200);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT count(*) FROM catalog.supplier_items WHERE catalog_item_id = ? AND valid_until IS NULL",
+                  Integer.class,
+                  UUID.fromString(service)))
+          .isZero();
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void enforcesSupplierLinkTenantKeysAndRechecksAuthorizationForTheSameActor() throws Exception {
+    var companyA = UUID.randomUUID();
+    var companyB = UUID.randomUUID();
+    var owner = scopedCatalogOwner(companyA);
+    var foreignOwner = scopedCatalogOwner(companyB);
+    var actor = session("REGULAR");
+    stubScopedCatalogMembership(actor, companyA, MembershipRole.OWNER, Scope.READ);
+    stubScopedCatalogMembership(actor, companyA, MembershipRole.OWNER, Scope.WRITE);
+    stubScopedCatalogMembership(actor, companyB, MembershipRole.VIEWER, Scope.READ);
+    stubScopedCatalogMembership(actor, companyB, MembershipRole.VIEWER, Scope.WRITE);
+    try (var http = HttpClient.newHttpClient()) {
+      var supplier = createCommercialSupplier(http, owner, "A", null);
+      var domestic = createdId(postItem(http, owner, PRODUCT_ITEM, null));
+      var foreign = createdId(postItem(http, foreignOwner, PRODUCT_ITEM, null));
+      var links = SUPPLIERS + "/" + supplier + "/items";
+      var body = offer(domestic, true, false);
+      assertThat(putSupplier(http, links, actor, body, companyA).statusCode()).isEqualTo(204);
+      assertThat(putSupplier(http, links, actor, body, companyB).statusCode()).isEqualTo(403);
+      assertThat(get(http, links, actor, companyB).statusCode()).isEqualTo(404);
+      assertThat(get(http, links, actor, companyA).statusCode()).isEqualTo(200);
+      stubFailure(actor, 403);
+      assertThat(putSupplier(http, links, actor, body, companyA).statusCode()).isEqualTo(403);
+      stubFailure(actor, 503);
+      assertThat(get(http, links, actor, companyA).statusCode()).isEqualTo(503);
+
+      var jdbc = new JdbcTemplate(dataSource);
+      var supplierId = UUID.fromString(supplier);
+      var itemId = UUID.fromString(domestic);
+      var insert =
+          "INSERT INTO catalog.supplier_items (company_id, supplier_id, catalog_item_id, is_primary)"
+              + " VALUES (?, ?, ?, true)";
+      assertThatThrownBy(() -> jdbc.update(insert, companyA, supplierId, UUID.fromString(foreign)))
+          .isInstanceOf(DataIntegrityViolationException.class);
+      assertThatThrownBy(() -> jdbc.update(insert, companyB, supplierId, UUID.fromString(foreign)))
+          .isInstanceOf(DataIntegrityViolationException.class);
+      assertThatThrownBy(() -> jdbc.update(insert, companyA, supplierId, itemId))
+          .isInstanceOf(DataIntegrityViolationException.class);
+      var another = UUID.fromString(createCommercialSupplier(http, owner, "Another", null));
+      assertThatThrownBy(() -> jdbc.update(insert, companyA, another, itemId))
+          .isInstanceOf(DataIntegrityViolationException.class);
+      assertThat(successfulBody(get(http, links, owner)).path("totalElements").asInt())
+          .isEqualTo(1);
+    }
+  }
+
+  private static List<Integer> race(
+      java.util.concurrent.Callable<Integer> first, java.util.concurrent.Callable<Integer> second)
+      throws Exception {
+    var gate = new java.util.concurrent.CyclicBarrier(2);
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      var a =
+          executor.submit(() -> {
+            gate.await(10, TimeUnit.SECONDS);
+            return first.call();
+          });
+      var b =
+          executor.submit(() -> {
+            gate.await(10, TimeUnit.SECONDS);
+            return second.call();
+          });
+      return List.of(a.get(20, TimeUnit.SECONDS), b.get(20, TimeUnit.SECONDS));
+    }
+  }
+
+  private String createCommercialSupplier(
+      HttpClient http, String token, String name, String category) throws Exception {
+    var body =
+        JsonMapper.shared()
+            .createObjectNode()
+            .put("name", name)
+            .put("contact", "Alex")
+            .put("supplyType", "BOTH");
+    if (category != null) {
+      body.put("categoryId", category);
+    }
+    return createdId(postSupplier(http, token, body.toString(), null));
+  }
+
+  private static String createdId(HttpResponse<String> response) {
+    assertThat(response.statusCode()).as(response.body()).isEqualTo(201);
+    return JsonMapper.shared().readTree(response.body()).path("id").asString();
+  }
+
+  private static String offer(String item, boolean primary, boolean replace) {
+    return """
+    {"replacePrimary":%s,"items":[{"catalogItemId":"%s","offeredCost":"25.1234",
+     "supplierReference":"REF-1","primary":%s}]}
+    """
+        .formatted(replace, item, primary);
+  }
+
+  private HttpResponse<String> putSupplier(HttpClient http, String path, String token, String json)
+      throws Exception {
+    return putSupplier(http, path, token, json, SELECTORS.get(token));
+  }
+
+  private HttpResponse<String> putSupplier(
+      HttpClient http, String path, String token, String json, UUID company) throws Exception {
+    var request =
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
+            .timeout(java.time.Duration.ofSeconds(10))
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer " + token)
+            .header("X-Company-Id", company.toString())
+            .PUT(HttpRequest.BodyPublishers.ofString(json))
+            .build();
+    return http.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
   private int supplierCount(UUID company) {

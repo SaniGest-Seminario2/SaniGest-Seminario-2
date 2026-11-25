@@ -30,6 +30,8 @@ import com.sanigest.catalog.application.port.out.persistence.CatalogItemReposito
 import com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientReferenceRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
+import com.sanigest.catalog.application.port.out.persistence.SupplierCategoryRepository;
+import com.sanigest.catalog.application.port.out.persistence.SupplierItemRepository;
 import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
 import com.sanigest.catalog.application.usecase.catalogitem.CatalogItemCompany;
 import com.sanigest.catalog.application.usecase.catalogitem.ChangeCatalogItemStatus;
@@ -49,7 +51,10 @@ import com.sanigest.catalog.application.usecase.client.UpdateClient;
 import com.sanigest.catalog.application.usecase.supplier.ChangeSupplierStatus;
 import com.sanigest.catalog.application.usecase.supplier.CreateSupplier;
 import com.sanigest.catalog.application.usecase.supplier.GetSupplier;
+import com.sanigest.catalog.application.usecase.supplier.ListSupplierLinks;
 import com.sanigest.catalog.application.usecase.supplier.ListSuppliers;
+import com.sanigest.catalog.application.usecase.supplier.ReplaceSupplierItems;
+import com.sanigest.catalog.application.usecase.supplier.SupplierCategories;
 import com.sanigest.catalog.application.usecase.supplier.SupplierCompany;
 import com.sanigest.catalog.application.usecase.supplier.UpdateSupplier;
 import com.sanigest.catalog.domain.enums.ClientStatus;
@@ -99,7 +104,10 @@ import org.springframework.test.web.servlet.ResultActions;
   ListSuppliers.class,
   SupplierCompany.class,
   UpdateSupplier.class,
-  ChangeSupplierStatus.class
+  ChangeSupplierStatus.class,
+  SupplierCategories.class,
+  ReplaceSupplierItems.class,
+  ListSupplierLinks.class
 })
 class CatalogWebPolicyTest {
   @Autowired MockMvc mvc;
@@ -109,6 +117,8 @@ class CatalogWebPolicyTest {
   @MockitoBean ClientReferenceRepository clientReferences;
   @MockitoBean CatalogItemRepository items;
   @MockitoBean SupplierRepository suppliers;
+  @MockitoBean SupplierCategoryRepository supplierCategories;
+  @MockitoBean SupplierItemRepository supplierItems;
   @MockitoBean CatalogAuthorization authorization;
 
   @Test

@@ -21,6 +21,15 @@ public record Supplier(UUID id, UUID companyId, SupplierDetails details, Supplie
   }
 
   public static Supplier register(UUID companyId, SupplierDetails details) {
-    return new Supplier(UUID.randomUUID(), companyId, details, SupplierStatus.ACTIVE);
+    var normalized =
+        new SupplierDetails(
+            details.name(),
+            SupplierProfile.normalizeTaxId(
+                details.taxId(), !details.profile().equals(SupplierProfile.EMPTY)),
+            details.contact(),
+            details.phone(),
+            details.email(),
+            details.profile());
+    return new Supplier(UUID.randomUUID(), companyId, normalized, SupplierStatus.ACTIVE);
   }
 }

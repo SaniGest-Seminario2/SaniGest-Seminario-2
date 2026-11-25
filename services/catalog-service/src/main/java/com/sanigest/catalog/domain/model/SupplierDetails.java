@@ -4,7 +4,12 @@ import com.sanigest.catalog.domain.exception.InvalidSupplierDetails;
 import java.util.regex.Pattern;
 
 public record SupplierDetails(
-    String name, String taxId, String contact, String phone, String email) {
+    String name,
+    String taxId,
+    String contact,
+    String phone,
+    String email,
+    SupplierProfile profile) {
   public static final int NAME_LIMIT = 160;
   public static final int CONTACT_LIMIT = 160;
   public static final int TAX_ID_LIMIT = 64;
@@ -16,7 +21,12 @@ public record SupplierDetails(
   private static final Pattern PHONE = Pattern.compile(PHONE_FORMAT);
   private static final Pattern EMAIL = Pattern.compile(EMAIL_FORMAT);
 
+  public SupplierDetails(String name, String taxId, String contact, String phone, String email) {
+    this(name, taxId, contact, phone, email, SupplierProfile.EMPTY);
+  }
+
   public SupplierDetails {
+    java.util.Objects.requireNonNull(profile);
     name = requiredText(name, NAME_LIMIT, "name");
     contact = requiredText(contact, CONTACT_LIMIT, "contact");
     if (taxId != null) {
