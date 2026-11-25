@@ -14,24 +14,25 @@ public record CatalogItem(
     CatalogItemType type,
     BigDecimal price,
     boolean active,
-    String description) {
+    String description,
+    CatalogItemProfile profile) {
   public static final int NAME_LIMIT = 200;
   public static final int DESCRIPTION_LIMIT = 1000;
-  public static final int PRICE_PRECISION = 14;
-  public static final int PRICE_SCALE = 2;
+  public static final int PRICE_PRECISION = 19;
+  public static final int PRICE_SCALE = 4;
   public static final String CURRENCY = "DOP";
 
-  private static final BigDecimal PRICE_LIMIT = BigDecimal.TEN.pow(PRICE_PRECISION - PRICE_SCALE);
-
   public CatalogItem {
-    if (id == null || companyId == null || type == null) {
-      throw new InvalidCatalogItem("Item ID, company and type are required");
+    if (id == null || companyId == null || type == null || profile == null) {
+      throw new InvalidCatalogItem("Item ID, company, type and profile are required");
     }
     if (name == null || name.isBlank() || name.length() > NAME_LIMIT || name.indexOf('\0') >= 0) {
       throw new InvalidCatalogItem("Invalid item name");
     }
     name = name.strip();
-    price = normalizedPrice(price);
+    price = CatalogPricing.unitAmount(price);
+    price =
+        price.setScale(Math.max(2, price.stripTrailingZeros().scale()), RoundingMode.UNNECESSARY);
     if (description != null
         && (description.length() > DESCRIPTION_LIMIT || description.indexOf(0) >= 0)) {
       throw new InvalidCatalogItem("Invalid item description");
@@ -48,6 +49,17 @@ public record CatalogItem(
     this(id, companyId, name, type, price, active, null);
   }
 
+  public CatalogItem(
+      UUID id,
+      UUID companyId,
+      String name,
+      CatalogItemType type,
+      BigDecimal price,
+      boolean active,
+      String description) {
+    this(id, companyId, name, type, price, active, description, CatalogItemProfile.LEGACY);
+  }
+
   public CatalogItem apply(CatalogItemPatch patch) {
     return new CatalogItem(
         id,
@@ -56,13 +68,14 @@ public record CatalogItem(
         type,
         patch.price().orElse(price),
         active,
-        patch.description().orElse(Optional.ofNullable(description)).orElse(null));
+        patch.description().orElse(Optional.ofNullable(description)).orElse(null),
+        patch.applyTo(profile));
   }
 
   public CatalogItem withActive(boolean newActive) {
     return newActive == active
         ? this
-        : new CatalogItem(id, companyId, name, type, price, newActive, description);
+        : new CatalogItem(id, companyId, name, type, price, newActive, description, profile);
   }
 
   public static CatalogItem register(
@@ -72,15 +85,5 @@ public record CatalogItem(
 
   public String currency() {
     return CURRENCY;
-  }
-
-  private static BigDecimal normalizedPrice(BigDecimal price) {
-    if (price == null || price.signum() < 0 || price.compareTo(PRICE_LIMIT) >= 0) {
-      throw new InvalidCatalogItem("Price is required and must be within the supported range");
-    }
-    if (price.stripTrailingZeros().scale() > PRICE_SCALE) {
-      throw new InvalidCatalogItem("Price has more than two significant decimal places");
-    }
-    return price.setScale(PRICE_SCALE, RoundingMode.UNNECESSARY);
   }
 }

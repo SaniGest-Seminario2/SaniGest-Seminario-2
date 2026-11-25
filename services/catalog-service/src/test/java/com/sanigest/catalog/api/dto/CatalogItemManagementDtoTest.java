@@ -24,6 +24,23 @@ class CatalogItemManagementDtoTest {
     assertThat(patch.price()).contains(new BigDecimal("3200.50"));
   }
 
+  @Test
+  void decodesTypedCommercialFieldsAndExplicitClears() {
+    var patch =
+        mapper
+            .readValue(
+                """
+                {"barcode":null,"estimatedCost":"0.0000","availableForPurchase":false,"price":"11.2100"}
+                """,
+                CatalogItemPatchRequest.class)
+            .patch();
+    assertThat(patch.barcode().orElseThrow()).isEmpty();
+    assertThat(patch.estimatedCost().orElseThrow()).contains(new BigDecimal("0.0000"));
+    assertThat(patch.availableForPurchase()).contains(false);
+    assertThat(patch.price()).contains(new BigDecimal("11.2100"));
+    assertThat(patch.categoryId()).isEmpty();
+  }
+
   @ParameterizedTest
   @ValueSource(
       strings = {
@@ -32,13 +49,17 @@ class CatalogItemManagementDtoTest {
         "{\"name\":null}",
         "{\"description\":1}",
         "{\"price\":null}",
-        "{\"price\":\"3.00\"}",
+        "{\"price\":\"invalid\"}",
         "{\"name\":\"A\",\"name\":\"B\"}",
         "{\"type\":\"SERVICE\"}",
         "{\"companyId\":\"company\"}",
         "{\"id\":\"item\"}",
         "{\"currency\":\"USD\"}",
         "{\"revision\":1}",
+        "{\"categoryId\":\"1-1-1-1-1\"}",
+        "{\"availableForPurchase\":null}",
+        "{\"grossMargin\":\"0.00\"}",
+        "{\"barcode\":\"0001\",\"barcode\":null}",
         "{\"active\":false}"
       })
   void rejectsInvalidOrReservedPatchFields(String json) {

@@ -21,7 +21,7 @@ Rutas relativas a `/api/v1`, salvo la ruta interna indicada. **I** implementado,
 | Proveedores | Administrar categorías | GET/POST /suppliers/categories; PUT /suppliers/categories/{id} | Catalog | Company | — | S2-458 | I |
 | Ficha proveedor | Relacionar artículos y costo | GET/PUT /suppliers/{id}/items; GET /catalog-items/{id}/suppliers | Catalog | Company | — | S2-458 | I |
 | Ficha proveedor | Saldo y pagos | GET /suppliers/{id}/payable-summary; GET /payables?supplierId=… | Expense | Company, Catalog | — | S2-346, S2-348, S2-458 | P |
-| Productos y servicios | Buscar, crear, editar, estado, precios e ITBIS | GET/POST /catalog-items; GET/PATCH /catalog-items/{id}; PATCH /catalog-items/{id}/status | Catalog | Company, Inventory para ficha | — | S2-417, S2-459 | E |
+| Productos y servicios | Buscar, crear, editar, estado, precios e ITBIS | GET/POST /catalog-items; GET/PATCH /catalog-items/{id}; PATCH /catalog-items/{id}/status; GET /catalog-items/{categories,units,tax-classifications,summary}; GET /catalog-items/{id}/history | Catalog | Company; Inventory para stock (S2-460); Sales para activación de cuatro decimales (S2-461) | — | S2-417, S2-459 | I |
 | Inventario | Almacenes, disponibilidad, kardex, ajuste | /warehouses; /inventory/{stock,summary,movements,adjustments} | Inventory | Company, Catalog | Resultados de recepción | S2-460, S2-465 | P |
 | Ventas | Crear, listar, detalle y cancelar | GET/POST /sales; GET /sales/{id}; POST /sales/{id}/cancel | Sales | Company, Catalog, Inventory | Venta registrada/anulada | S2-332 a S2-334, S2-461, S2-463, S2-465 | E |
 | Facturación | Emitir desde venta | POST /sales/{saleId}/invoices | Sales | Company | Factura interna emitida | S2-335, S2-420, S2-462 | E |

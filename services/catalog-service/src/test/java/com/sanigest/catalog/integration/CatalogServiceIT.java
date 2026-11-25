@@ -26,6 +26,7 @@ import com.sanigest.catalog.application.exception.CatalogItemAccessException;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.SupplierAccessException;
+import com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository;
 import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
@@ -164,6 +165,7 @@ class CatalogServiceIT {
 
   @Autowired CreateCatalogItem createCatalogItem;
   @Autowired CatalogItemRepository items;
+  @Autowired CatalogItemCommercialRepository itemCommercial;
   @Autowired ListCatalogItems listCatalogItems;
   @Autowired GetCatalogItem getCatalogItem;
   @Autowired UpdateCatalogItem updateCatalogItem;
@@ -330,7 +332,12 @@ class CatalogServiceIT {
             "catalog.client_municipalities",
             "catalog.client_receipt_types",
             "catalog.supplier_categories",
-            "catalog.supplier_items");
+            "catalog.supplier_items",
+            "catalog.catalog_item_categories",
+            "catalog.units_of_measure",
+            "catalog.tax_classifications",
+            "catalog.tax_rate_versions",
+            "catalog.catalog_item_history");
     assertThat(flyway.info().applied())
         .extracting(migration -> migration.getScript())
         .containsExactly(
@@ -346,7 +353,10 @@ class CatalogServiceIT {
             "V10__extend_client_commercial_profile.sql",
             "V11__create_supplier_categories.sql",
             "V12__extend_supplier_commercial_profile.sql",
-            "V13__create_supplier_item_relationships.sql");
+            "V13__create_supplier_item_relationships.sql",
+            "V14__create_catalog_item_reference_data.sql",
+            "V15__extend_catalog_item_commercial_profile.sql",
+            "V16__create_catalog_item_history.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -1006,9 +1016,10 @@ class CatalogServiceIT {
             Flyway.configure().dataSource(source).target("8").load().migrate().migrationsExecuted)
         .isEqualTo(1);
     verifyClientProfileMigration(source, jdbc, companyId);
-    jdbc.update("UPDATE catalog.suppliers SET revision = 6 WHERE id = ?", supplierId);
-    assertThat(Flyway.configure().dataSource(source).load().migrate().migrationsExecuted)
+    assertThat(
+            Flyway.configure().dataSource(source).target("13").load().migrate().migrationsExecuted)
         .isEqualTo(3);
+    verifyCommercialItemMigration(source, jdbc, companyId, supplierId, itemId);
     assertThat(
             jdbc.queryForMap(
                 "SELECT supply_type, payment_terms, category_id FROM catalog.suppliers WHERE id = ?",
@@ -1025,8 +1036,8 @@ class CatalogServiceIT {
                 itemId))
         .containsEntry("company_id", companyId)
         .containsEntry("description", null)
-        .containsEntry("price", new BigDecimal("3200.50"))
-        .containsEntry("revision", 0L);
+        .containsEntry("price", new BigDecimal("3200.5000"))
+        .containsEntry("revision", 8L);
     assertThat(
             jdbc.queryForMap(
                 "SELECT company_id, tax_id, status, revision FROM catalog.suppliers WHERE id = ?",
@@ -1055,6 +1066,36 @@ class CatalogServiceIT {
     assertThatThrownBy(
             () -> jdbc.update("UPDATE catalog.clients SET status = 'DELETED' WHERE id = ?", id))
         .isInstanceOf(DataIntegrityViolationException.class);
+  }
+
+  private static void verifyCommercialItemMigration(
+      DataSource source, JdbcTemplate jdbc, UUID companyId, UUID supplierId, UUID itemId) {
+    jdbc.update("UPDATE catalog.suppliers SET revision = 6 WHERE id = ?", supplierId);
+    jdbc.update("UPDATE catalog.catalog_items SET revision = 8 WHERE id = ?", itemId);
+    jdbc.update(
+        """
+        INSERT INTO catalog.supplier_items (company_id, supplier_id, catalog_item_id, is_primary)
+        VALUES (?, ?, ?, TRUE)
+        """,
+        companyId,
+        supplierId,
+        itemId);
+    assertThat(Flyway.configure().dataSource(source).load().migrate().migrationsExecuted)
+        .isEqualTo(3);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT is_primary FROM catalog.supplier_items WHERE catalog_item_id = ?",
+                Boolean.class,
+                itemId))
+        .isTrue();
+    assertThat(
+            jdbc.queryForMap(
+                """
+                SELECT sku, estimated_cost, tax_classification_code, available_for_purchase
+                FROM catalog.catalog_items WHERE id = ?
+                """,
+                itemId))
+        .allSatisfy((key, value) -> assertThat(value).isNull());
   }
 
   private static void verifyClientProfileMigration(
@@ -2520,7 +2561,7 @@ class CatalogServiceIT {
     for (var invalid :
         List.of(
             List.of("Chair", "PRODUCT", "-0.01", "DOP"),
-            List.of("Chair", "PRODUCT", "1000000000000", "DOP"),
+            List.of("Chair", "PRODUCT", "1000000000000000", "DOP"),
             List.of("Chair", "PRODUCT", "NaN", "DOP"),
             List.of("Chair", "OTHER", "0", "DOP"),
             List.of("Chair", "SERVICE", "0", "USD"),
@@ -2849,6 +2890,272 @@ class CatalogServiceIT {
         .isInstanceOf(AccessDeniedException.class);
   }
 
+  @Test
+  @Tag("smoke")
+  void managesCommercialItemsThroughHttp() throws Exception {
+    var owner = scopedCatalogOwner(UUID.randomUUID());
+    var outsider = scopedCatalogOwner(UUID.randomUUID());
+    try (var http = HttpClient.newHttpClient()) {
+      var category =
+          successfulBody(get(http, CATALOG_ITEMS + "/categories", owner))
+              .get(0)
+              .path("id")
+              .asString();
+      assertThat(successfulBody(get(http, CATALOG_ITEMS + "/units", owner)).size()).isEqualTo(7);
+      var tax = successfulBody(get(http, CATALOG_ITEMS + "/tax-classifications", owner));
+      assertThat(tax)
+          .anySatisfy(entry -> assertThat(entry.path("code").asString()).isEqualTo("ITBIS_18"));
+
+      var body = commercialItem(category);
+      var created = postItem(http, owner, body, null);
+      var id = createdId(created);
+      assertThat(
+              postItem(
+                      http,
+                      owner,
+                      body.replace("PRODUCT", "SERVICE")
+                          .replace("mon-01", "SVC-01")
+                          .replace("000123", "000124"),
+                      null)
+                  .statusCode())
+          .isEqualTo(201);
+      var path = CATALOG_ITEMS + "/" + id;
+      var filtered =
+          successfulBody(
+              get(
+                  http,
+                  CATALOG_ITEMS + "?search=mon-01&availableForPurchase=true&categoryId=" + category,
+                  owner));
+      assertThat(filtered.path("totalElements").asInt()).isEqualTo(1);
+      assertThat(filtered.path("content").get(0).path("id").asString()).isEqualTo(id);
+      var detail = successfulBody(get(http, path, owner));
+      assertThat(detail.path("barcode").asString()).isEqualTo("000123");
+      assertThat(detail.path("estimatedCost").asString()).isEqualTo("1000.0001");
+      assertThat(detail.path("taxRate").asString()).isEqualTo("0.180000");
+      assertThat(detail.path("finalPrice").asString()).isEqualTo("1770.00");
+      assertThat(detail.path("grossMargin").asString()).isEqualTo("33.33");
+
+      var update = "{\"price\":\"1600.0000\",\"estimatedCost\":\"1100.0001\"}";
+      assertThat(patch(http, path, owner, update, null).statusCode()).isEqualTo(200);
+      assertThat(patch(http, path, owner, update, null).statusCode()).isEqualTo(200);
+      var history = successfulBody(get(http, path + "/history", owner));
+      assertThat(history.path("totalElements").asInt()).isEqualTo(2);
+      assertThat(history.path("content").get(0).path("actorId").isNull()).isFalse();
+      assertThat(history.path("content").get(0).path("operation").asString()).isEqualTo("UPDATE");
+
+      var supplier = createCommercialSupplier(http, owner, "Proveedor comercial", null);
+      var links = SUPPLIERS + "/" + supplier + "/items";
+      assertThat(putSupplier(http, links, owner, offer(id, true, false)).statusCode())
+          .isEqualTo(204);
+      assertThat(successfulBody(get(http, path, owner)).path("primarySupplierId").asString())
+          .isEqualTo(supplier);
+      var unavailable =
+          successfulBody(
+              patch(http, path, owner, "{\"availableForPurchase\":false,\"barcode\":null}", null));
+      assertThat(unavailable.path("eligibleForPurchase").asBoolean()).isFalse();
+      assertThat(unavailable.path("primarySupplierId").isNull()).isTrue();
+      assertThat(unavailable.path("barcode").isNull()).isTrue();
+      assertThat(
+              successfulBody(get(http, path + "/suppliers", owner)).path("totalElements").asInt())
+          .isEqualTo(1);
+      assertThat(putSupplier(http, links, owner, offer(id, true, false)).statusCode())
+          .isEqualTo(409);
+      assertThat(
+              successfulBody(patch(http, path + "/status", owner, "{\"active\":false}", null))
+                  .path("eligibleForSale")
+                  .asBoolean())
+          .isFalse();
+      assertThat(successfulBody(get(http, CATALOG_ITEMS + "/summary", owner)).path("total").asInt())
+          .isEqualTo(2);
+      assertThat(
+              successfulBody(get(http, CATALOG_ITEMS + "/summary", outsider)).path("total").asInt())
+          .isZero();
+      assertThat(get(http, path + "/history", outsider).statusCode()).isEqualTo(404);
+      assertThat(postItem(http, outsider, body, null).statusCode()).isEqualTo(404);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void concurrentCommercialCodesAndCategoryInitializationRemainUnique() throws Exception {
+    var tenant = UUID.randomUUID();
+    var owner = scopedCatalogOwner(tenant);
+    var outsider = scopedCatalogOwner(UUID.randomUUID());
+    try (var http = HttpClient.newHttpClient()) {
+      var path = CATALOG_ITEMS + "/categories";
+      assertThat(
+              race(
+                  () -> get(http, path, owner).statusCode(),
+                  () -> get(http, path, owner).statusCode()))
+          .containsExactly(200, 200);
+      var categories = successfulBody(get(http, path, owner));
+      assertThat(categories.size()).isEqualTo(5);
+      var id = categories.get(0).path("id").asString();
+      var body = commercialItem(id);
+      assertThat(
+              race(
+                  () -> postItem(http, owner, body, null).statusCode(),
+                  () -> postItem(http, owner, body.replace("000123", "000124"), null).statusCode()))
+          .containsExactlyInAnyOrder(201, 409);
+      var barcodeOnly = body.replace("\"sku\":\" mon-01 \",", "");
+      assertThat(
+              race(
+                  () ->
+                      postItem(http, owner, barcodeOnly.replace("000123", "001555"), null)
+                          .statusCode(),
+                  () ->
+                      postItem(http, owner, barcodeOnly.replace("000123", "001555"), null)
+                          .statusCode()))
+          .containsExactlyInAnyOrder(201, 409);
+      var otherCategory = successfulBody(get(http, path, outsider)).get(0).path("id").asString();
+      assertThat(postItem(http, outsider, commercialItem(otherCategory), null).statusCode())
+          .isEqualTo(201);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void preservesExactCommercialAmountsInPostgres() {
+    var profile =
+        new com.sanigest.catalog.domain.model.CatalogItemProfile(
+            " exact ",
+            "0001",
+            null,
+            "UNIT",
+            new BigDecimal("999999999999999.9999"),
+            "ITBIS_16",
+            true,
+            false);
+    var item =
+        new CatalogItem(
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            "Precisión",
+            CatalogItemType.SERVICE,
+            new BigDecimal("11.2345"),
+            true,
+            null,
+            profile);
+    items.insert(item);
+    assertThat(items.find(item.companyId(), item.id())).contains(item);
+  }
+
+  @Test
+  @Tag("regression")
+  void resolvesRateVersionsWithExclusiveEndDatesAndRejectsOverlap() {
+    var jdbc = new JdbcTemplate(dataSource);
+    var code = "VERSION_TEST";
+    jdbc.update("INSERT INTO catalog.tax_classifications VALUES (?, 'Version test')", code);
+    jdbc.update(
+        """
+        INSERT INTO catalog.tax_rate_versions VALUES
+          (?, DATE '2026-01-01', DATE '2026-05-01', 0.180000),
+          (?, DATE '2026-05-01', DATE '2026-08-01', 0.160000),
+          (?, DATE '2027-01-01', NULL, 0.140000)
+        """,
+        code,
+        code,
+        code);
+    assertThat(rateOn(code, "2025-12-31")).isNull();
+    assertThat(rateOn(code, "2026-01-01")).isEqualTo(new BigDecimal("0.180000"));
+    assertThat(rateOn(code, "2026-04-30")).isEqualTo(new BigDecimal("0.180000"));
+    assertThat(rateOn(code, "2026-05-01")).isEqualTo(new BigDecimal("0.160000"));
+    assertThat(rateOn(code, "2026-08-01")).isNull();
+    assertThat(rateOn(code, "2027-01-01")).isEqualTo(new BigDecimal("0.140000"));
+    assertThatThrownBy(() ->
+            jdbc.update(
+                """
+                INSERT INTO catalog.tax_rate_versions VALUES (?, DATE '2026-02-01', NULL, 0.120000)
+                """,
+                code))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    assertThatThrownBy(() ->
+            jdbc.update(
+                """
+                UPDATE catalog.tax_rate_versions SET rate = 0.130000
+                WHERE classification_code = ? AND effective_from = DATE '2026-01-01'
+                """,
+                code))
+        .isInstanceOf(DataIntegrityViolationException.class);
+  }
+
+  private BigDecimal rateOn(String code, String date) {
+    return itemCommercial.taxes(java.time.LocalDate.parse(date)).stream()
+        .filter(tax -> tax.code().equals(code))
+        .findFirst()
+        .orElseThrow()
+        .rate();
+  }
+
+  @Test
+  @Tag("regression")
+  void rollsBackTheCommercialChangeWhenItsHistoryInsertFails() {
+    var item =
+        CatalogItem.register(
+            UUID.randomUUID(), "Rollback", CatalogItemType.PRODUCT, BigDecimal.TEN);
+    items.insert(item);
+    var jdbc = new JdbcTemplate(dataSource);
+    var transaction = new TransactionTemplate(transactions);
+    assertThatThrownBy(() ->
+            transaction.executeWithoutResult(status -> {
+              jdbc.execute(
+                  """
+                  ALTER TABLE catalog.catalog_item_history ADD CONSTRAINT test_audit_rejection
+                  CHECK (catalog_item_id <> '%s' OR operation <> 'UPDATE')
+                  """
+                      .formatted(item.id()));
+              items.update(
+                  item.companyId(),
+                  item.id(),
+                  current ->
+                      current.apply(
+                          new CatalogItemPatch(
+                              Optional.empty(), Optional.empty(), Optional.of(BigDecimal.ONE))));
+            }))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    assertThat(items.find(item.companyId(), item.id())).contains(item);
+    assertThat(itemRevision(item.id())).isZero();
+    assertThat(itemCommercial.history(item.companyId(), item.id(), 0, 20).totalElements())
+        .isEqualTo(1);
+  }
+
+  @Test
+  @Tag("regression")
+  void purchasingChangeAndPrimaryDesignationStayConsistentWhenConcurrent() throws Exception {
+    var owner = scopedCatalogOwner(UUID.randomUUID());
+    try (var http = HttpClient.newHttpClient()) {
+      var category =
+          successfulBody(get(http, CATALOG_ITEMS + "/categories", owner))
+              .get(0)
+              .path("id")
+              .asString();
+      var id = createdId(postItem(http, owner, commercialItem(category), null));
+      var supplier = createCommercialSupplier(http, owner, "Concurrent supplier", null);
+      var itemPath = CATALOG_ITEMS + "/" + id;
+      var supplierPath = SUPPLIERS + "/" + supplier + "/items";
+      var results =
+          race(
+              () -> putSupplier(http, supplierPath, owner, offer(id, true, false)).statusCode(),
+              () ->
+                  patch(http, itemPath, owner, "{\"availableForPurchase\":false}", null)
+                      .statusCode());
+      assertThat(results.getFirst()).isIn(204, 409);
+      assertThat(results.getLast()).isEqualTo(200);
+      var item = successfulBody(get(http, itemPath, owner));
+      assertThat(item.path("eligibleForPurchase").asBoolean()).isFalse();
+      assertThat(item.path("primarySupplierId").isNull()).isTrue();
+    }
+  }
+
+  private static String commercialItem(String categoryId) {
+    return """
+    {"name":"Monitor","type":"PRODUCT","sku":" mon-01 ","barcode":"000123",
+     "categoryId":"%s","unitCode":"UNIT","estimatedCost":"1000.0001","price":"1500.0000",
+     "taxClassificationCode":"ITBIS_18","availableForPurchase":true}
+    """
+        .formatted(categoryId);
+  }
+
   private long itemRevision(UUID id) {
     return new JdbcTemplate(dataSource)
         .queryForObject("SELECT revision FROM catalog.catalog_items WHERE id = ?", Long.class, id);
@@ -2908,7 +3215,7 @@ class CatalogServiceIT {
                 "type",
                 type,
                 "price",
-                new BigDecimal(price),
+                new BigDecimal(price).setScale(4),
                 "currency",
                 "DOP",
                 "active",

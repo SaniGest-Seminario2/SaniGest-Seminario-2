@@ -17,6 +17,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.sanigest.catalog.application.dto.CatalogItemCommercialData;
+import com.sanigest.catalog.application.dto.CatalogItemHistory;
+import com.sanigest.catalog.application.dto.CatalogItemPage;
+import com.sanigest.catalog.application.dto.CatalogItemReferences.Tax;
+import com.sanigest.catalog.application.dto.CatalogItemReferences.Unit;
+import com.sanigest.catalog.application.dto.CatalogItemSearchCriteria;
+import com.sanigest.catalog.application.dto.CatalogItemSummary;
 import com.sanigest.catalog.application.dto.ClientReferences.Option;
 import com.sanigest.catalog.application.dto.SupplierPage;
 import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
@@ -26,6 +33,7 @@ import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.SupplierAccessException;
 import com.sanigest.catalog.application.exception.SupplierCreationException;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository;
 import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientReferenceRepository;
@@ -33,7 +41,10 @@ import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
 import com.sanigest.catalog.application.port.out.persistence.SupplierCategoryRepository;
 import com.sanigest.catalog.application.port.out.persistence.SupplierItemRepository;
 import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
+import com.sanigest.catalog.application.usecase.catalogitem.CatalogBusinessDate;
+import com.sanigest.catalog.application.usecase.catalogitem.CatalogItemCommercialQueries;
 import com.sanigest.catalog.application.usecase.catalogitem.CatalogItemCompany;
+import com.sanigest.catalog.application.usecase.catalogitem.CatalogItemWritePolicy;
 import com.sanigest.catalog.application.usecase.catalogitem.ChangeCatalogItemStatus;
 import com.sanigest.catalog.application.usecase.catalogitem.CreateCatalogItem;
 import com.sanigest.catalog.application.usecase.catalogitem.GetCatalogItem;
@@ -57,14 +68,21 @@ import com.sanigest.catalog.application.usecase.supplier.ReplaceSupplierItems;
 import com.sanigest.catalog.application.usecase.supplier.SupplierCategories;
 import com.sanigest.catalog.application.usecase.supplier.SupplierCompany;
 import com.sanigest.catalog.application.usecase.supplier.UpdateSupplier;
+import com.sanigest.catalog.domain.enums.CatalogItemType;
 import com.sanigest.catalog.domain.enums.ClientStatus;
+import com.sanigest.catalog.domain.model.CatalogItem;
+import com.sanigest.catalog.domain.model.CatalogItemCategory;
+import com.sanigest.catalog.domain.model.CatalogItemProfile;
 import com.sanigest.catalog.domain.model.Client;
 import com.sanigest.catalog.domain.model.ClientCategory;
 import com.sanigest.catalog.domain.model.ClientDetails;
 import com.sanigest.catalog.domain.model.Supplier;
 import com.sanigest.catalog.domain.model.SupplierDetails;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
@@ -84,6 +102,10 @@ import org.springframework.test.web.servlet.ResultActions;
 @WebMvcTest
 @Import({
   SecurityConfiguration.class,
+  CatalogItemCommercialQueries.class,
+  CatalogItemWritePolicy.class,
+  CatalogBusinessDate.class,
+  CatalogWebPolicyTest.ClockConfiguration.class,
   CatalogItemCompany.class,
   ChangeCatalogItemStatus.class,
   GetCatalogItem.class,
@@ -110,7 +132,16 @@ import org.springframework.test.web.servlet.ResultActions;
   ListSupplierLinks.class
 })
 class CatalogWebPolicyTest {
+  @org.springframework.boot.test.context.TestConfiguration
+  static class ClockConfiguration {
+    @org.springframework.context.annotation.Bean
+    java.time.Clock testCatalogClock() {
+      return java.time.Clock.systemUTC();
+    }
+  }
+
   @Autowired MockMvc mvc;
+  @MockitoBean CatalogItemCommercialRepository itemCommercial;
   @MockitoBean JwtDecoder decoder;
   @MockitoBean ClientRepository clients;
   @MockitoBean ClientCategoryRepository clientCategories;
@@ -120,6 +151,183 @@ class CatalogWebPolicyTest {
   @MockitoBean SupplierCategoryRepository supplierCategories;
   @MockitoBean SupplierItemRepository supplierItems;
   @MockitoBean CatalogAuthorization authorization;
+
+  @Test
+  void createsAndReadsExpandedItemsThroughTheirPublishedContract() throws Exception {
+    var tenant = UUID.randomUUID();
+    var category = UUID.randomUUID();
+    var base = "/api/v1/catalog-items";
+    var profile =
+        new CatalogItemProfile(
+            "MON-01", "00123", category, "UNIT", new BigDecimal("8.1234"), "ITBIS_18", true, false);
+    var item =
+        new CatalogItem(
+            UUID.randomUUID(),
+            tenant,
+            "Monitor",
+            CatalogItemType.PRODUCT,
+            new BigDecimal("10.00"),
+            true,
+            null,
+            profile);
+    given(authorization.membership(CATALOG_READ)).willReturn(Optional.of(tenant));
+    given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.of(tenant));
+    given(itemCommercial.lockCategory(tenant, category, false))
+        .willReturn(new CatalogItemCategory(category, tenant, "TECHNOLOGY", "Tecnología", true));
+    given(itemCommercial.activeUnit("UNIT")).willReturn(true);
+    given(itemCommercial.currentTax(eq("ITBIS_18"), any())).willReturn(true);
+    given(itemCommercial.details(eq(tenant), any(), any()))
+        .willReturn(
+            Map.of(
+                item.id(),
+                new CatalogItemCommercialData(
+                    "Tecnología",
+                    null,
+                    new BigDecimal("0.180000"),
+                    LocalDate.of(2026, 1, 1),
+                    null)));
+    given(items.find(tenant, item.id())).willReturn(Optional.of(item));
+    given(items.search(eq(tenant), any(CatalogItemSearchCriteria.class), eq(0), eq(20)))
+        .willReturn(new CatalogItemPage(List.of(item), 0, 20, 1));
+    given(items.update(eq(tenant), eq(item.id()), any())).willReturn(item, item.withActive(false));
+    validToken();
+
+    var request =
+        """
+        {"name":"Monitor","type":"PRODUCT","price":"10.0000","description":"LCD",
+         "sku":" mon-01 ","barcode":"00123","categoryId":"%s","unitCode":"UNIT",
+         "estimatedCost":"8.1234","taxClassificationCode":"ITBIS_18",
+         "availableForSale":true,"availableForPurchase":false}
+        """
+            .formatted(category);
+    mvc.perform(
+            post(base)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(request))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.sku").value("MON-01"))
+        .andExpect(jsonPath("$.barcode").value("00123"))
+        .andExpect(jsonPath("$.price").value(10.0));
+    mvc.perform(
+            get(base + "/{id}", item.id())
+                .param("expectedCompanyId", tenant.toString())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.finalPrice").value("11.80"))
+        .andExpect(jsonPath("$.grossProfit").value("1.8766"));
+    mvc.perform(
+            get(base)
+                .param("categoryId", category.toString())
+                .param("availableForSale", "true")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].categoryName").value("Tecnología"));
+    mvc.perform(
+            patch(base + "/{id}", item.id())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sku\":\"MON-01\"}"))
+        .andExpect(status().isOk());
+    mvc.perform(
+            patch(base + "/{id}/status", item.id())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"active\":false}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.eligibleForSale").value(false));
+  }
+
+  @Test
+  void publishesCommercialReferencesAndAuditsThroughCatalogPermissions() throws Exception {
+    var tenant = UUID.randomUUID();
+    var base = "/api/v1/catalog-items";
+    var id = UUID.randomUUID();
+    var category = new CatalogItemCategory(id, tenant, "TECHNOLOGY", "Tecnología", true);
+    var item = CatalogItem.register(tenant, "Monitor", CatalogItemType.PRODUCT, BigDecimal.TEN);
+    given(authorization.membership(CATALOG_READ)).willReturn(Optional.of(tenant));
+    given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.of(tenant));
+    given(itemCommercial.categories(tenant)).willReturn(List.of(category));
+    given(itemCommercial.lockCategory(tenant, id, true)).willReturn(category);
+    given(itemCommercial.units()).willReturn(List.of(new Unit("UNIT", "Unidad", true, false)));
+    given(itemCommercial.taxes(any()))
+        .willReturn(
+            List.of(
+                new Tax(
+                    "ITBIS_18",
+                    "ITBIS 18%",
+                    new BigDecimal("0.180000"),
+                    LocalDate.of(2026, 1, 1),
+                    null)));
+    given(itemCommercial.summary(tenant)).willReturn(new CatalogItemSummary(1, 1, 0, 1, 0));
+    given(items.find(tenant, item.id())).willReturn(Optional.of(item));
+    given(itemCommercial.history(tenant, item.id(), 0, 20))
+        .willReturn(
+            new CatalogItemHistory(
+                List.of(new CatalogItemHistory.Entry(1, id, "CREATE", Instant.EPOCH, null, "{}")),
+                0,
+                20,
+                1));
+    validToken();
+
+    mvc.perform(get(base + "/categories").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value(id.toString()));
+    mvc.perform(
+            post(base + "/categories")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"CUSTOM\",\"name\":\"Local\"}"))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.active").value(true));
+    mvc.perform(
+            put(base + "/categories/{id}", id)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Nuevo\",\"active\":false}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.active").value(false));
+    mvc.perform(get(base + "/units").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].divisible").value(false));
+    mvc.perform(
+            get(base + "/tax-classifications").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].rate").value("0.180000"));
+    mvc.perform(get(base + "/summary").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.products").value(1));
+    mvc.perform(
+            get(base + "/{id}/history", item.id())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].operation").value("CREATE"));
+    mvc.perform(
+            get(base + "/{id}/history", UUID.randomUUID())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void authorizesCommercialReferenceWritesIndependentlyOfReads() throws Exception {
+    var tenant = UUID.randomUUID();
+    given(authorization.membership(CATALOG_READ)).willReturn(Optional.of(tenant));
+    given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.empty());
+    validToken();
+
+    mvc.perform(
+            get("/api/v1/catalog-items/categories")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk());
+    mvc.perform(
+            post("/api/v1/catalog-items/categories")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"CUSTOM\",\"name\":\"Local\"}"))
+        .andExpect(status().isForbidden());
+    mvc.perform(get("/api/v1/catalog-items/{id}/history", UUID.randomUUID()))
+        .andExpect(status().isUnauthorized());
+  }
 
   @Test
   void publishesTheOpenApiContractAsJson() throws Exception {

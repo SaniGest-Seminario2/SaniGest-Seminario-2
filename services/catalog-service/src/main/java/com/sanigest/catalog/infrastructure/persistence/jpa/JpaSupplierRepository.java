@@ -30,9 +30,13 @@ class JpaSupplierRepository implements SupplierRepository {
 
   private final SupplierCategoryRepository categories;
 
-  JpaSupplierRepository(SupplierRows rows, SupplierCategoryRepository categories) {
+  private final CatalogHistoryActor historyActor;
+
+  JpaSupplierRepository(
+      SupplierRows rows, SupplierCategoryRepository categories, CatalogHistoryActor historyActor) {
     this.categories = categories;
     this.rows = rows;
+    this.historyActor = historyActor;
   }
 
   @Override
@@ -79,6 +83,7 @@ class JpaSupplierRepository implements SupplierRepository {
       throw new SupplierAccessException(SupplierAccessException.Reason.DUPLICATE_TAX_ID);
     }
     try {
+      historyActor.bind();
       if (rows.update(companyId, id, row.revision(), updated.details(), updated.status()) != 1) {
         throw new SupplierAccessException(SUPPLIER_UPDATE_CONFLICT);
       }

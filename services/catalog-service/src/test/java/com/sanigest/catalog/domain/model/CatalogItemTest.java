@@ -29,7 +29,9 @@ class CatalogItemTest {
     "15000,15000.00",
     "15000.00,15000.00",
     "3200.00,3200.00",
-    "999999999999.99,999999999999.99"
+    "999999999999.99,999999999999.99",
+    "1.2345,1.2345",
+    "999999999999999.9999,999999999999999.9999"
   })
   void registersProductsWithExactPrices(String input, String expected) {
     var item = CatalogItem.register(company, "  Chair  ", PRODUCT, new BigDecimal(input));
@@ -52,7 +54,7 @@ class CatalogItemTest {
 
   @ParameterizedTest
   @NullSource
-  @ValueSource(strings = {"-0.01", "10.999", "1000000000000", "1e-2147483647", "1e2147483647"})
+  @ValueSource(strings = {"-0.01", "10.99999", "1000000000000000", "1e-2147483647", "1e2147483647"})
   void rejectsInvalidPrices(String price) {
     assertThatThrownBy(() ->
             CatalogItem.register(
@@ -121,7 +123,7 @@ class CatalogItemTest {
   @Test
   void appliesTheSameInvariantsToEdits() {
     var item = CatalogItem.register(UUID.randomUUID(), "Silla", PRODUCT, BigDecimal.ONE);
-    for (var invalid : java.util.List.of("-1", "10.999", "1000000000000")) {
+    for (var invalid : java.util.List.of("-1", "10.99999", "1000000000000000")) {
       assertThatThrownBy(() ->
               item.apply(
                   new CatalogItemPatch(

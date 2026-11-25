@@ -74,9 +74,13 @@ class ServiceRoutes {
                         "/api/v1/suppliers",
                         "/api/v1/suppliers/{id}",
                         "/api/v1/suppliers/{id}/status",
+                        "/api/v1/suppliers/{id}/items",
                         "/api/v1/catalog-items",
                         "/api/v1/catalog-items/{id}",
-                        "/api/v1/catalog-items/{id}/status")
+                        "/api/v1/catalog-items/{id}/status",
+                        "/api/v1/catalog-items/{id}/suppliers",
+                        "/api/v1/catalog-items/{id}/history",
+                        "/api/v1/catalog-items/categories/{id}")
                     .uri(destination(environment, "CATALOG_SERVICE_URL")))
         .build();
   }

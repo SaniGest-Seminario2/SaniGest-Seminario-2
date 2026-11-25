@@ -3,6 +3,7 @@ package com.sanigest.catalog.application.usecase.catalogitem;
 import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
 
 import com.sanigest.catalog.application.dto.CatalogItemPage;
+import com.sanigest.catalog.application.dto.CatalogItemSearchCriteria;
 import com.sanigest.catalog.application.exception.InvalidCatalogItemQuery;
 import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
 import com.sanigest.catalog.domain.enums.CatalogItemType;
@@ -34,6 +35,30 @@ public class ListCatalogItems {
     }
     return items.search(companyId, parseType(type), term, parseActive(active), page, size);
   }
+
+  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  public CatalogItemPage execute(
+      String type, String search, String active, CommercialFilters filters, int page, int size) {
+    var companyId = company.require(CATALOG_READ);
+    if (page < 0 || size < 1 || size > MAX_SIZE || (search != null && search.indexOf(0) >= 0)) {
+      throw new InvalidCatalogItemQuery();
+    }
+    var term = search == null || search.isBlank() ? null : search.strip();
+    return items.search(
+        companyId,
+        new CatalogItemSearchCriteria(
+            parseType(type),
+            term,
+            parseActive(active),
+            filters.categoryId(),
+            parseActive(filters.availableForSale()),
+            parseActive(filters.availableForPurchase())),
+        page,
+        size);
+  }
+
+  public record CommercialFilters(
+      java.util.UUID categoryId, String availableForSale, String availableForPurchase) {}
 
   private static CatalogItemType parseType(String type) {
     if (type == null) {

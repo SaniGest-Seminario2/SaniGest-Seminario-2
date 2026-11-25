@@ -1,6 +1,7 @@
 package com.sanigest.catalog.application.port.out.persistence;
 
 import com.sanigest.catalog.application.dto.CatalogItemPage;
+import com.sanigest.catalog.application.dto.CatalogItemSearchCriteria;
 import com.sanigest.catalog.domain.enums.CatalogItemType;
 import com.sanigest.catalog.domain.model.CatalogItem;
 import java.util.Optional;
@@ -12,6 +13,8 @@ public interface CatalogItemRepository {
 
   CatalogItemPage search(
       UUID companyId, CatalogItemType type, String search, Boolean active, int page, int size);
+
+  CatalogItemPage search(UUID companyId, CatalogItemSearchCriteria criteria, int page, int size);
 
   Optional<CatalogItem> find(UUID companyId, UUID id);
 

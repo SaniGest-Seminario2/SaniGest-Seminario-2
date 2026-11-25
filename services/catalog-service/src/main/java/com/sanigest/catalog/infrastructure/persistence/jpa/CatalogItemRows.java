@@ -1,6 +1,7 @@
 package com.sanigest.catalog.infrastructure.persistence.jpa;
 
-import java.math.BigDecimal;
+import com.sanigest.catalog.application.dto.CatalogItemSearchCriteria;
+import com.sanigest.catalog.domain.model.CatalogItem;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,29 +16,41 @@ interface CatalogItemRows extends Repository<CatalogItemRow, UUID> {
       FROM catalog.catalog_items
       WHERE company_id = :companyId
         AND (:type = '' OR type = :type)
-        AND (:ignoreActive = true OR active = :active)
-        AND (:pattern = '' OR lower(name) LIKE lower(:pattern) ESCAPE '!')
+        AND (CAST(:#{#criteria.active()} AS boolean) IS NULL OR active = :#{#criteria.active()})
+        AND (CAST(:#{#criteria.categoryId()} AS uuid) IS NULL OR category_id = :#{#criteria.categoryId()})
+        AND (CAST(:#{#criteria.availableForSale()} AS boolean) IS NULL
+          OR available_for_sale = :#{#criteria.availableForSale()})
+        AND (CAST(:#{#criteria.availableForPurchase()} AS boolean) IS NULL
+          OR available_for_purchase = :#{#criteria.availableForPurchase()})
+        AND (:pattern = '' OR name ILIKE :pattern ESCAPE '!'
+            OR sku ILIKE :pattern ESCAPE '!' OR barcode ILIKE :pattern ESCAPE '!')
       """;
 
-  <S extends CatalogItemRow> S save(S row);
+  <S extends CatalogItemRow> S saveAndFlush(S row);
 
   Optional<CatalogItemRow> findByCompanyIdAndId(UUID companyId, UUID id);
 
   @Modifying(clearAutomatically = true)
   @Query(
       """
-      UPDATE CatalogItemRow SET name = :name, description = :description, price = :price,
-        active = :active, revision = revision + 1
+      UPDATE CatalogItemRow SET name = :#{#item.name()},
+        description = :#{#item.description()}, price = :#{#item.price()},
+        active = :#{#item.active()},
+        sku = :#{#item.profile().sku()},
+        barcode = :#{#item.profile().barcode()},
+        categoryId = :#{#item.profile().categoryId()},
+        unitCode = :#{#item.profile().unitCode()},
+        estimatedCost = :#{#item.profile().estimatedCost()},
+        taxClassificationCode = :#{#item.profile().taxClassificationCode()},
+        availableForSale = :#{#item.profile().availableForSale()},
+        availableForPurchase = :#{#item.profile().availableForPurchase()}, revision = revision + 1
       WHERE companyId = :companyId AND id = :id AND revision = :revision
       """)
   int update(
       @Param("companyId") UUID companyId,
       @Param("id") UUID id,
       @Param("revision") long revision,
-      @Param("name") String name,
-      @Param("description") String description,
-      @Param("price") BigDecimal price,
-      @Param("active") boolean active);
+      @Param("item") CatalogItem item);
 
   @Query(
       value =
@@ -52,8 +65,7 @@ interface CatalogItemRows extends Repository<CatalogItemRow, UUID> {
       @Param("companyId") UUID companyId,
       @Param("type") String type,
       @Param("pattern") String pattern,
-      @Param("ignoreActive") boolean ignoreActive,
-      @Param("active") boolean active,
+      @Param("criteria") CatalogItemSearchCriteria criteria,
       @Param("size") int size,
       @Param("offset") long offset);
 
@@ -62,6 +74,5 @@ interface CatalogItemRows extends Repository<CatalogItemRow, UUID> {
       @Param("companyId") UUID companyId,
       @Param("type") String type,
       @Param("pattern") String pattern,
-      @Param("ignoreActive") boolean ignoreActive,
-      @Param("active") boolean active);
+      @Param("criteria") CatalogItemSearchCriteria criteria);
 }
