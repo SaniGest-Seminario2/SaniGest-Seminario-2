@@ -1,8 +1,11 @@
 package com.sanigest.catalog.infrastructure.persistence.jpa;
 
+import com.sanigest.catalog.domain.enums.SupplierPaymentTerms;
 import com.sanigest.catalog.domain.enums.SupplierStatus;
+import com.sanigest.catalog.domain.enums.SupplierSupplyType;
 import com.sanigest.catalog.domain.model.Supplier;
 import com.sanigest.catalog.domain.model.SupplierDetails;
+import com.sanigest.catalog.domain.model.SupplierProfile;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -39,6 +42,20 @@ class SupplierRow implements Persistable<UUID> {
   @Column(nullable = false, length = 16)
   private SupplierStatus status;
 
+  private String address;
+
+  @Enumerated(EnumType.STRING)
+  private SupplierSupplyType supplyType;
+
+  @Enumerated(EnumType.STRING)
+  private SupplierPaymentTerms paymentTerms;
+
+  private UUID categoryId;
+
+  private Integer creditDays;
+
+  private String observations;
+
   @Column(nullable = false)
   private long revision;
 
@@ -53,12 +70,28 @@ class SupplierRow implements Persistable<UUID> {
     contact = details.contact();
     phone = details.phone();
     email = details.email();
+    address = details.profile().address();
+    supplyType = details.profile().supplyType();
+    paymentTerms = details.profile().paymentTerms();
+    categoryId = details.profile().categoryId();
+    creditDays = details.profile().creditDays();
+    observations = details.profile().observations();
     status = supplier.status();
   }
 
   Supplier toDomain() {
     return new Supplier(
-        id, companyId, new SupplierDetails(name, taxId, contact, phone, email), status);
+        id,
+        companyId,
+        new SupplierDetails(
+            name,
+            taxId,
+            contact,
+            phone,
+            email,
+            new SupplierProfile(
+                address, supplyType, paymentTerms, categoryId, creditDays, observations)),
+        status);
   }
 
   long revision() {

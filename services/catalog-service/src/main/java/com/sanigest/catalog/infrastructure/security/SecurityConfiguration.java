@@ -47,7 +47,9 @@ class SecurityConfiguration {
                     "/api/v1/suppliers",
                     "/api/v1/suppliers/{id}",
                     "/api/v1/catalog-items",
-                    "/api/v1/catalog-items/{id}")
+                    "/api/v1/catalog-items/{id}",
+                    "/api/v1/suppliers/{id}/items",
+                    "/api/v1/catalog-items/{id}/suppliers")
                 .authenticated()
                 .requestMatchers(
                     HttpMethod.PATCH,
@@ -58,11 +60,16 @@ class SecurityConfiguration {
                     "/api/v1/catalog-items/{id}",
                     "/api/v1/catalog-items/{id}/status")
                 .authenticated()
-                .requestMatchers(HttpMethod.PUT, "/api/v1/clients/categories/{id}")
+                .requestMatchers(
+                    HttpMethod.PUT,
+                    "/api/v1/clients/categories/{id}",
+                    "/api/v1/suppliers/categories/{id}",
+                    "/api/v1/suppliers/{id}/items")
                 .authenticated()
                 .requestMatchers(
                     HttpMethod.POST,
                     "/api/v1/clients/categories",
+                    "/api/v1/suppliers/categories",
                     "/api/v1/clients",
                     "/api/v1/suppliers",
                     "/api/v1/catalog-items")

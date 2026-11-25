@@ -2,6 +2,7 @@ package com.sanigest.catalog.api.error;
 
 import com.sanigest.catalog.application.exception.InvalidSupplierQueryException;
 import com.sanigest.catalog.application.exception.SupplierAccessException;
+import com.sanigest.catalog.application.exception.SupplierCommercialException;
 import com.sanigest.catalog.application.exception.SupplierCreationException;
 import com.sanigest.catalog.domain.exception.InvalidSupplierPatch;
 import org.springframework.http.HttpStatus;
@@ -40,6 +41,30 @@ class SupplierErrorHandler {
           CatalogProblems.problem(
               HttpStatus.FORBIDDEN, code, "Supplier creation is not authorized");
       case DUPLICATE_TAX_ID -> duplicateTaxId(code);
+    };
+  }
+
+  @ExceptionHandler(SupplierCommercialException.class)
+  ProblemDetail commercial(SupplierCommercialException failure) {
+    var reason = failure.reason();
+    return switch (reason) {
+      case DUPLICATE_SUPPLIER_CATEGORY ->
+          CatalogProblems.problem(
+              HttpStatus.CONFLICT, reason.name(), "Supplier category code already exists");
+      case SUPPLIER_CATEGORY_NOT_FOUND ->
+          CatalogProblems.problem(
+              HttpStatus.NOT_FOUND, reason.name(), "Supplier category not found");
+      case INVALID_SUPPLIER_CATEGORY ->
+          CatalogProblems.problem(
+              HttpStatus.BAD_REQUEST, reason.name(), "Supplier category is unavailable");
+      case INCOMPATIBLE_SUPPLIER_ITEM ->
+          CatalogProblems.problem(
+              HttpStatus.CONFLICT,
+              reason.name(),
+              "Supplier and item are not eligible for this relationship");
+      case PRIMARY_SUPPLIER_CONFLICT ->
+          CatalogProblems.problem(
+              HttpStatus.CONFLICT, reason.name(), "This item already has a primary supplier");
     };
   }
 

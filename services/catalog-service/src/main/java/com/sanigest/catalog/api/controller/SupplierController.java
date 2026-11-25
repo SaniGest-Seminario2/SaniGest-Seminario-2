@@ -5,16 +5,19 @@ import com.sanigest.catalog.api.dto.SupplierDetailResponse;
 import com.sanigest.catalog.api.dto.SupplierPageResponse;
 import com.sanigest.catalog.api.dto.SupplierPatchRequest;
 import com.sanigest.catalog.api.dto.SupplierResponse;
+import com.sanigest.catalog.application.dto.SupplierSearchCriteria;
 import com.sanigest.catalog.application.exception.InvalidSupplierQueryException;
 import com.sanigest.catalog.application.usecase.supplier.ChangeSupplierStatus;
 import com.sanigest.catalog.application.usecase.supplier.CreateSupplier;
 import com.sanigest.catalog.application.usecase.supplier.GetSupplier;
 import com.sanigest.catalog.application.usecase.supplier.ListSuppliers;
 import com.sanigest.catalog.application.usecase.supplier.UpdateSupplier;
-import jakarta.validation.Valid;
+import com.sanigest.catalog.domain.enums.SupplierPaymentTerms;
+import com.sanigest.catalog.domain.enums.SupplierSupplyType;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -78,14 +81,39 @@ class SupplierController {
   SupplierPageResponse list(
       @RequestParam(required = false) String search,
       @RequestParam(required = false) String status,
+      @ModelAttribute CommercialFilters filters,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = ListSuppliers.DEFAULT_SIZE) int size) {
-    return SupplierPageResponse.from(listSuppliers.execute(search, status, page, size));
+    if (filters.equals(new CommercialFilters(null, null, null, null))) {
+      return SupplierPageResponse.from(listSuppliers.execute(search, status, page, size));
+    }
+    return SupplierPageResponse.from(
+        listSuppliers.execute(filters.criteria(search, status), page, size));
+  }
+
+  record CommercialFilters(
+      SupplierSupplyType supplyType,
+      SupplierPaymentTerms paymentTerms,
+      UUID categoryId,
+      String sort) {
+    SupplierSearchCriteria criteria(String search, String status) {
+      if (sort != null && !sort.equals("name,asc") && !sort.equals("name,desc")) {
+        throw new InvalidSupplierQueryException();
+      }
+      return new SupplierSearchCriteria(
+          search,
+          ListSuppliers.parseStatus(status),
+          supplyType,
+          paymentTerms,
+          categoryId,
+          "name,desc".equals(sort));
+    }
   }
 
   @PostMapping("/api/v1/suppliers")
   @ResponseStatus(HttpStatus.CREATED)
-  SupplierResponse create(@Valid @RequestBody CreateSupplierRequest request) {
-    return SupplierResponse.from(createSupplier.execute(request.toDetails()));
+  SupplierResponse create(@RequestBody JsonNode body) {
+    return SupplierResponse.from(
+        createSupplier.execute(CreateSupplierRequest.parse(body).details()));
   }
 }

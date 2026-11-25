@@ -5,12 +5,16 @@ import static com.sanigest.catalog.application.exception.SupplierAccessException
 import static com.sanigest.catalog.application.exception.SupplierCreationException.Reason.DUPLICATE_TAX_ID;
 
 import com.sanigest.catalog.application.dto.SupplierPage;
+import com.sanigest.catalog.application.dto.SupplierSearchCriteria;
 import com.sanigest.catalog.application.exception.SupplierAccessException;
+import com.sanigest.catalog.application.exception.SupplierCommercialException;
 import com.sanigest.catalog.application.exception.SupplierCreationException;
+import com.sanigest.catalog.application.port.out.persistence.SupplierCategoryRepository;
 import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
 import com.sanigest.catalog.domain.enums.SupplierStatus;
 import com.sanigest.catalog.domain.model.Supplier;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
@@ -24,13 +28,20 @@ import org.springframework.transaction.annotation.Transactional;
 class JpaSupplierRepository implements SupplierRepository {
   private final SupplierRows rows;
 
-  JpaSupplierRepository(SupplierRows rows) {
+  private final SupplierCategoryRepository categories;
+
+  JpaSupplierRepository(SupplierRows rows, SupplierCategoryRepository categories) {
+    this.categories = categories;
     this.rows = rows;
   }
 
   @Override
   @Transactional
   public void insert(Supplier supplier) {
+    requireCategory(supplier.companyId(), supplier.details().profile().categoryId());
+    if (hasDomesticDuplicate(supplier)) {
+      throw new SupplierCreationException(DUPLICATE_TAX_ID);
+    }
     try {
       rows.saveAndFlush(new SupplierRow(supplier));
     } catch (DataIntegrityViolationException failure) {
@@ -59,9 +70,27 @@ class JpaSupplierRepository implements SupplierRepository {
       return current;
     }
 
+    if (!Objects.equals(
+        current.details().profile().categoryId(), updated.details().profile().categoryId())) {
+      requireCategory(companyId, updated.details().profile().categoryId());
+    }
+    if (!Objects.equals(current.details().taxId(), updated.details().taxId())
+        && hasDomesticDuplicate(updated)) {
+      throw new SupplierAccessException(SupplierAccessException.Reason.DUPLICATE_TAX_ID);
+    }
     try {
       if (rows.update(companyId, id, row.revision(), updated.details(), updated.status()) != 1) {
         throw new SupplierAccessException(SUPPLIER_UPDATE_CONFLICT);
+      }
+      if (current.details().profile().supplyType() != updated.details().profile().supplyType()
+          && rows.hasIncompatibleItems(
+              companyId,
+              id,
+              updated.details().profile().supplyType() == null
+                  ? ""
+                  : updated.details().profile().supplyType().name())) {
+        throw new SupplierCommercialException(
+            SupplierCommercialException.Reason.INCOMPATIBLE_SUPPLIER_ITEM);
       }
       return updated;
     } catch (DataIntegrityViolationException failure) {
@@ -70,6 +99,24 @@ class JpaSupplierRepository implements SupplierRepository {
       }
       throw failure;
     }
+  }
+
+  private void requireCategory(UUID companyId, UUID categoryId) {
+    if (categoryId != null
+        && categories
+            .lockForAssignment(companyId, categoryId)
+            .filter(category -> category.status() == SupplierStatus.ACTIVE)
+            .isEmpty()) {
+      throw new SupplierCommercialException(
+          SupplierCommercialException.Reason.INVALID_SUPPLIER_CATEGORY);
+    }
+  }
+
+  private boolean hasDomesticDuplicate(Supplier supplier) {
+    var taxId = supplier.details().taxId();
+    return taxId != null
+        && taxId.matches("[0-9]{9}|[0-9]{11}")
+        && rows.hasDomesticDuplicate(supplier.companyId(), supplier.id(), taxId);
   }
 
   private static boolean isDuplicateTaxId(DataIntegrityViolationException failure) {
@@ -87,24 +134,43 @@ class JpaSupplierRepository implements SupplierRepository {
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public SupplierPage search(
       UUID companyId, String search, SupplierStatus status, int page, int size) {
-    var pattern =
-        search == null
-            ? ""
-            : "%" + search.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
-    var state = status == null ? "" : status.name();
+    return search(
+        companyId, new SupplierSearchCriteria(search, status, null, null, null, false), page, size);
+  }
+
+  @Override
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+  public SupplierPage search(UUID companyId, SupplierSearchCriteria filter, int page, int size) {
+    var query =
+        new SupplierRows.SearchFilter(
+            LikePattern.literalContains(filter.search()),
+            enumName(filter.status()),
+            enumName(filter.supplyType()),
+            enumName(filter.paymentTerms()),
+            filter.categoryId(),
+            filter.descending());
     long offset = (long) page * size;
-    long total = rows.countMatching(companyId, pattern, state);
+    long total = rows.countMatching(companyId, query);
     List<SupplierPage.Item> content =
         offset >= total
             ? List.of()
-            : rows.search(companyId, pattern, state, size, offset).stream()
+            : rows.search(companyId, query, size, offset).stream()
                 .map(row ->
                     new SupplierPage.Item(
                         row.getId(),
                         row.getName(),
                         row.getTaxId(),
-                        SupplierStatus.valueOf(row.getStatus())))
+                        SupplierStatus.valueOf(row.getStatus()),
+                        row.getContact(),
+                        row.getPhone(),
+                        row.getSupplyType(),
+                        row.getPaymentTerms(),
+                        row.getCategoryId()))
                 .toList();
     return new SupplierPage(content, page, size, total);
+  }
+
+  private static String enumName(Enum<?> value) {
+    return value == null ? "" : value.name();
   }
 }

@@ -17,8 +17,9 @@ Rutas relativas a `/api/v1`, salvo la ruta interna indicada. **I** implementado,
 | Clientes | Listar, filtrar, crear, editar, estado y seleccionar activos | GET/POST /clients; GET/PATCH /clients/{id}; PATCH /clients/{id}/status | Catalog | Company | — | S2-319, S2-320, S2-321, S2-456 | I |
 | Clientes | Consultar referencias y gestionar categorías | GET/POST /clients/categories; PUT /clients/categories/{id}; GET /clients/reference-data/{countries,provinces,municipalities,receipt-types} | Catalog | Company | — | S2-456 | I |
 | Ficha cliente | Métricas, facturas, cobros y estado de cuenta | GET /clients/{id}/{financial-summary,statement} | Sales | Company, Catalog | — | S2-457 | P |
-| Proveedores | Listar, crear, editar, estado | GET/POST /suppliers; GET/PATCH /suppliers/{id}; PATCH /suppliers/{id}/status | Catalog | Company | — | S2-419, S2-458 | E |
-| Ficha proveedor | Relacionar artículos y costo | GET/PUT /suppliers/{id}/items; GET /catalog-items/{id}/suppliers | Catalog | Company | — | S2-458 | P |
+| Proveedores | Listar, crear, editar, estado | GET/POST /suppliers; GET/PATCH /suppliers/{id}; PATCH /suppliers/{id}/status | Catalog | Company | — | S2-419, S2-458 | I |
+| Proveedores | Administrar categorías | GET/POST /suppliers/categories; PUT /suppliers/categories/{id} | Catalog | Company | — | S2-458 | I |
+| Ficha proveedor | Relacionar artículos y costo | GET/PUT /suppliers/{id}/items; GET /catalog-items/{id}/suppliers | Catalog | Company | — | S2-458 | I |
 | Ficha proveedor | Saldo y pagos | GET /suppliers/{id}/payable-summary; GET /payables?supplierId=… | Expense | Company, Catalog | — | S2-346, S2-348, S2-458 | P |
 | Productos y servicios | Buscar, crear, editar, estado, precios e ITBIS | GET/POST /catalog-items; GET/PATCH /catalog-items/{id}; PATCH /catalog-items/{id}/status | Catalog | Company, Inventory para ficha | — | S2-417, S2-459 | E |
 | Inventario | Almacenes, disponibilidad, kardex, ajuste | /warehouses; /inventory/{stock,summary,movements,adjustments} | Inventory | Company, Catalog | Resultados de recepción | S2-460, S2-465 | P |
@@ -40,7 +41,7 @@ Rutas relativas a `/api/v1`, salvo la ruta interna indicada. **I** implementado,
 | Reportes | Indicadores y tendencias al corte | /reports/{summary,monthly-activity,receivables-payables,operations} | Finance | Company, Sales, Expense | Proyecciones y efectos efectivos | S2-355, S2-356, S2-387, S2-468 | P |
 | Analítica predictiva | Evaluar demanda, anomalías y tendencias | Spike, sin API MVP | Por evaluar | Datos autorizados y baseline | Por evaluar | S2-470 | F |
 
-Los listados vigentes de clientes y proveedores admiten search, status, page y size. Artículos admite search, type, active, page y size. En Sales, el GET vigente de ventas admite search, status, from, to, page y size. El filtro de elegibilidad de factura de v0.7 sigue siendo propuesta. La venta actual usa precio del catálogo y cantidades, y su cuenta por cobrar nace en CREDIT. La cobertura de CASH, filtros ampliados y cobros se aplica según el contrato objetivo, preservando histórico y DTO publicados.
+Los listados de clientes y proveedores admiten search, status, page, size, categoryId, paymentTerms y sort. Clientes admite clientType y proveedores supplyType. Artículos admite search, type, active, page y size. En Sales, el GET vigente de ventas admite search, status, from, to, page y size. El filtro de elegibilidad de factura de v0.7 sigue siendo propuesta. La venta actual usa precio del catálogo y cantidades, y su cuenta por cobrar nace en CREDIT. La cobertura de CASH, filtros ampliados y cobros se aplica según el contrato objetivo, preservando histórico y DTO publicados.
 
 ## Secuencia y verificación en Jira
 

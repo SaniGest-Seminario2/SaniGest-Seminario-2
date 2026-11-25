@@ -1,0 +1,70 @@
+package com.sanigest.catalog.api.dto;
+
+import com.sanigest.catalog.application.usecase.supplier.ReplaceSupplierItems;
+import com.sanigest.catalog.domain.exception.InvalidSupplierPatch;
+import com.sanigest.catalog.domain.model.SupplierItemOffer;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import tools.jackson.databind.JsonNode;
+
+public record SupplierItemsRequest(List<SupplierItemOffer> items, boolean replacePrimary) {
+  private static final Set<String> REQUEST_FIELDS = Set.of("items", "replacePrimary");
+  private static final Set<String> OFFER_FIELDS =
+      Set.of("catalogItemId", "offeredCost", "supplierReference", "primary");
+
+  public static SupplierItemsRequest parse(JsonNode body) {
+    if (!body.isObject() || !REQUEST_FIELDS.containsAll(body.propertyNames())) {
+      throw new InvalidSupplierPatch();
+    }
+    var entries = body.path("items");
+    if (!entries.isArray() || entries.size() > ReplaceSupplierItems.MAX_ITEMS) {
+      throw new InvalidSupplierPatch();
+    }
+    var items = new ArrayList<SupplierItemOffer>(entries.size());
+    for (var entry : entries) {
+      items.add(offer(entry));
+    }
+    return new SupplierItemsRequest(List.copyOf(items), flag(body.get("replacePrimary")));
+  }
+
+  private static SupplierItemOffer offer(JsonNode entry) {
+    if (!entry.isObject() || !OFFER_FIELDS.containsAll(entry.propertyNames())) {
+      throw new InvalidSupplierPatch();
+    }
+    try {
+      var cost = text(entry.get("offeredCost"));
+      if (cost != null && !cost.matches("[0-9]{1,15}([.][0-9]{1,4})?")) {
+        throw new InvalidSupplierPatch();
+      }
+      return new SupplierItemOffer(
+          SupplierPatchRequest.uuid(entry.path("catalogItemId")),
+          cost == null ? null : new BigDecimal(cost),
+          text(entry.get("supplierReference")),
+          flag(entry.get("primary")));
+    } catch (IllegalArgumentException invalid) {
+      throw new InvalidSupplierPatch();
+    }
+  }
+
+  private static String text(JsonNode node) {
+    if (node == null || node.isNull()) {
+      return null;
+    }
+    if (!node.isString()) {
+      throw new InvalidSupplierPatch();
+    }
+    return node.asString();
+  }
+
+  private static boolean flag(JsonNode node) {
+    if (node == null) {
+      return false;
+    }
+    if (!node.isBoolean()) {
+      throw new InvalidSupplierPatch();
+    }
+    return node.booleanValue();
+  }
+}
