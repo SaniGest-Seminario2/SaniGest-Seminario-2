@@ -220,23 +220,74 @@ Todas las rutas requieren JWT, `X-Company-Id` y el permiso vigente
 inválida (`400`). Proveedores y artículos ajenos producen `404`. La escritura
 conserva la revisión optimista de proveedor y artículo.
 
-S2-459 integrará la elegibilidad de compras y podrá derivar el proveedor
-principal del vínculo. Expense utilizará el selector y la ficha comercial al
-validar compras, y será propietario de obligaciones, saldos, pagos y costos
-históricos de adquisición. Catalog almacena los costos ofertados por separado
-del precio de venta.
+Expense utilizará la ficha comercial al validar compras y será propietario de
+obligaciones, saldos, pagos y costos históricos de adquisición. Catalog conserva
+el costo ofertado separado del costo estimado y del precio de venta.
 
-### Consulta y gestión de productos y servicios
+### Productos y servicios (S2-459)
 
-El [contrato OpenAPI](src/main/resources/catalog-openapi.json) describe los filtros,
-los cuerpos de edición y los errores. Company verifica la membresía en cada solicitud.
-Las rutas de S2-325 usan la empresa de esa membresía y no reciben un contexto delegado
-para ADVISOR. Un artículo inactivo sigue disponible en el detalle y puede reactivarse.
+Todas las rutas del [contrato OpenAPI](src/main/resources/catalog-openapi.json)
+requieren JWT, empresa seleccionada en `X-Company-Id` y autorización dinámica.
+Estas operaciones usan la membresía empresarial de Catalog. El acceso delegado de ADVISOR sigue la política de cada ruta.
 
-Catalog conserva el precio vigente en DOP. Al registrar una venta, Sales debe guardar
-en cada línea un snapshot del nombre, la descripción y el precio unitario efectivo
-con su moneda. Las lecturas y cálculos históricos de Sales deben usar ese snapshot,
-de modo que las ediciones posteriores del catálogo no cambien ventas registradas.
+| Ruta bajo `/api/v1/catalog-items` | Capacidad |
+| --- | --- |
+| `GET /`, `POST /` | Listar y crear PRODUCT o SERVICE. |
+| `GET /{id}`, `PATCH /{id}`, `PATCH /{id}/status` | Consultar y editar la ficha, activar o desactivar. |
+| `GET /categories`, `POST /categories`, `PUT /categories/{id}` | Gestionar categorías propias de la empresa. |
+| `GET /units`, `GET /tax-classifications` | Consultar referencias globales con CATALOG_READ. |
+| `GET /summary` | Contar productos, servicios, activos e inactivos de toda la empresa. |
+| `GET /{id}/history` | Consultar cambios en orden descendente, paginados. |
+
+- SKU y código de barras admiten 64 caracteres. Ambos recortan espacios exteriores.
+  El SKU se convierte a mayúsculas y el código de barras conserva texto y ceros
+  iniciales. La unicidad empresarial incluye artículos inactivos.
+- Las altas con campos ampliados o precio en cadena requieren clasificación
+  vigente. La forma histórica con nombre, tipo y precio numérico conserva su
+  comportamiento. PATCH conserva lo omitido y permite limpiar campos opcionales
+  con null. El tipo permanece estable.
+- Las cinco categorías iniciales se crean idempotentemente por empresa.
+  Las categorías inactivas conservan sus artículos y se excluyen de nuevas
+  asignaciones. El filtro `categoryId` puede combinarse con tipo, estado,
+  disponibilidad y búsqueda literal por nombre, SKU o código de barras.
+- UNIT, BOX y PACK son indivisibles. LB, KG, L y M admiten fracciones.
+  Catalog publica esa propiedad para la validación futura de cantidades.
+- ITBIS_18, ITBIS_16 y EXEMPT tienen versiones con inicio inclusivo y fin
+  exclusivo. Las tasas se resuelven por fecha comercial en America/Santo_Domingo.
+  Las versiones iniciales de referencia se definieron desde el 1 de enero de 2026.
+  El mantenimiento de tasas se realiza mediante migraciones administradas.
+  Un artículo sin tasa vigente devuelve ITBIS y precio final nulos.
+- Se redondean a dos decimales con HALF_UP el ITBIS unitario y la suma de precio
+  neto e ITBIS unitario. El beneficio es precio neto menos costo estimado,
+  con cuatro decimales. El margen es beneficio dividido entre precio neto por
+  cien, con dos decimales. Costo desconocido implica beneficio y margen nulos,
+  y precio cero implica margen nulo. Sales calculará importes por línea en S2-461.
+- Las altas ampliadas venden por defecto y requieren activar compras
+  explícitamente. Un artículo activo es elegible para cada operación cuando
+  su flag correspondiente es true. Compras desconocidas se representan como
+  null en artículos históricos y altas históricas. Los vínculos de S2-458
+  conservan su compatibilidad con esa forma histórica. Deshabilitar compras
+  retira el proveedor principal en la misma transacción y mantiene consultable
+  el vínculo. Volver a habilitarlas requiere una nueva designación explícita.
+- El historial registra creaciones, cambios efectivos, estado y designaciones
+  de proveedor con el actor autenticado. Una sustitución de proveedor registra
+  el retiro y la nueva designación. Las operaciones idempotentes conservan la
+  revisión y el historial. Las escrituras de mantenimiento sin JWT pueden tener
+  actor nulo. Los artículos previos a V16 empiezan a generar historial al editarse.
+
+**Transición de precios.** PostgreSQL conserva precio y costo unitario en
+`NUMERIC(19,4)`. Los campos decimales nuevos se devuelven como cadenas y
+`price` conserva el número JSON. Con
+`sanigest.catalog.extended-prices-enabled=false` (valor seguro predeterminado),
+las escrituras de precio respetan el rango histórico de `NUMERIC(14,2)` y
+hasta dos decimales significativos. Los costos admiten cuatro decimales.
+Activar la opción requiere desplegar primero S2-461, verificar el contrato
+de cuatro decimales con Sales y coordinar la promoción entre servicios.
+Sales actual rechaza precios fuera de su rango o escala y artículos
+explícitamente no vendibles. Los snapshots confirmados conservan el precio
+y los demás datos de la venta registrada.
+
+Inventory (S2-460) proveerá las existencias físicas, almacenes y kardex.
 
 ## Verificación
 

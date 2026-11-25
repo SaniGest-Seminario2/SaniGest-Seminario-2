@@ -72,6 +72,13 @@ class ServiceRoutingIT {
                 Map.entry("/api/v1/clients/reference-data/provinces", "catalog"),
                 Map.entry("/api/v1/suppliers/123", "catalog"),
                 Map.entry("/api/v1/catalog-items", "catalog"),
+                Map.entry("/api/v1/catalog-items/units", "catalog"),
+                Map.entry("/api/v1/catalog-items/tax-classifications", "catalog"),
+                Map.entry("/api/v1/catalog-items/categories", "catalog"),
+                Map.entry("/api/v1/catalog-items/categories/123", "catalog"),
+                Map.entry("/api/v1/catalog-items/123/history", "catalog"),
+                Map.entry("/api/v1/catalog-items/123/suppliers", "catalog"),
+                Map.entry("/api/v1/suppliers/123/items", "catalog"),
                 Map.entry("/api/v1/sales", "sales"),
                 Map.entry("/api/v1/receivables/123", "sales"))
             .entrySet()) {

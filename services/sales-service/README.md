@@ -183,6 +183,13 @@ declarativa de Spring y `RestClient`.
 | `GET /api/v1/clients/{id}` | UUID, nombre y estado `ACTIVE`. |
 | `GET /api/v1/catalog-items/{id}` | UUID, nombre, tipo `PRODUCT` o `SERVICE`, descripción nullable, precio exacto con escala 2, moneda `DOP` y estado activo. |
 
+Catalog añade `availableForSale`. Sales rechaza un valor explícito `false` y
+conserva la compatibilidad histórica cuando el campo está ausente. El precio
+neto sigue siendo un número JSON y se valida con el rango y escala históricos
+antes de crear el snapshot. S2-461 coordinará el consumo de cuatro decimales,
+las tasas vigentes y el redondeo definitivo por línea.
+
+
 Los DTO de transporte son privados de la integración. El cliente valida
 identificadores, estructura, estados e importes antes de construir el snapshot.
 S2-332 consumirá estos valores para registrar la venta y persistir el importe y

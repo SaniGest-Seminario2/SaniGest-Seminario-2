@@ -4,7 +4,9 @@ import static com.sanigest.catalog.application.exception.CatalogItemAccessExcept
 import static com.sanigest.catalog.application.exception.CatalogItemAccessException.Reason.CATALOG_ITEM_UPDATE_CONFLICT;
 
 import com.sanigest.catalog.application.dto.CatalogItemPage;
+import com.sanigest.catalog.application.dto.CatalogItemSearchCriteria;
 import com.sanigest.catalog.application.exception.CatalogItemAccessException;
+import com.sanigest.catalog.application.exception.DuplicateCatalogItemCode;
 import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
 import com.sanigest.catalog.domain.enums.CatalogItemType;
 import com.sanigest.catalog.domain.model.CatalogItem;
@@ -12,6 +14,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,14 +24,22 @@ import org.springframework.transaction.annotation.Transactional;
 class JpaCatalogItemRepository implements CatalogItemRepository {
   private final CatalogItemRows rows;
 
-  JpaCatalogItemRepository(CatalogItemRows rows) {
+  private final CatalogHistoryActor historyActor;
+
+  JpaCatalogItemRepository(CatalogItemRows rows, CatalogHistoryActor historyActor) {
     this.rows = rows;
+    this.historyActor = historyActor;
   }
 
   @Override
   @Transactional
   public void insert(CatalogItem item) {
-    rows.save(new CatalogItemRow(item));
+    historyActor.bind();
+    try {
+      rows.saveAndFlush(new CatalogItemRow(item));
+    } catch (DataIntegrityViolationException failure) {
+      throw translate(failure);
+    }
   }
 
   @Override
@@ -48,39 +60,60 @@ class JpaCatalogItemRepository implements CatalogItemRepository {
       return current;
     }
 
-    int affected =
-        rows.update(
-            companyId,
-            id,
-            row.revision(),
-            updated.name(),
-            updated.description(),
-            updated.price(),
-            updated.active());
+    historyActor.bind();
+    int affected;
+    try {
+      affected = rows.update(companyId, id, row.revision(), updated);
+    } catch (DataIntegrityViolationException failure) {
+      throw translate(failure);
+    }
     if (affected != 1) {
       throw new CatalogItemAccessException(CATALOG_ITEM_UPDATE_CONFLICT);
     }
     return updated;
   }
 
+  private static RuntimeException translate(DataIntegrityViolationException failure) {
+    for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+      if (cause instanceof ConstraintViolationException violation) {
+        if ("uq_catalog_items_sku".equals(violation.getConstraintName())) {
+          return new DuplicateCatalogItemCode("DUPLICATE_SKU");
+        }
+        if ("uq_catalog_items_barcode".equals(violation.getConstraintName())) {
+          return new DuplicateCatalogItemCode("DUPLICATE_BARCODE");
+        }
+      }
+    }
+    return failure;
+  }
+
   @Override
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public CatalogItemPage search(
       UUID companyId, CatalogItemType type, String search, Boolean active, int page, int size) {
+    return search(
+        companyId,
+        new CatalogItemSearchCriteria(type, search, active, null, null, null),
+        page,
+        size);
+  }
+
+  @Override
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+  public CatalogItemPage search(
+      UUID companyId, CatalogItemSearchCriteria criteria, int page, int size) {
+    var search = criteria.search();
     var pattern =
         search == null
             ? ""
             : "%" + search.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
-    var itemType = type == null ? "" : type.name();
-    boolean requestedActive = Boolean.TRUE.equals(active);
+    var itemType = criteria.type() == null ? "" : criteria.type().name();
     long offset = (long) page * size;
-    long total = rows.countMatching(companyId, itemType, pattern, active == null, requestedActive);
+    long total = rows.countMatching(companyId, itemType, pattern, criteria);
     List<CatalogItem> content =
         offset >= total
             ? List.of()
-            : rows
-                .search(companyId, itemType, pattern, active == null, requestedActive, size, offset)
-                .stream()
+            : rows.search(companyId, itemType, pattern, criteria, size, offset).stream()
                 .map(CatalogItemRow::toDomain)
                 .toList();
     return new CatalogItemPage(content, page, size, total);

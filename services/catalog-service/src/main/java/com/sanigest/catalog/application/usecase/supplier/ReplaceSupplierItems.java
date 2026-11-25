@@ -65,6 +65,7 @@ public class ReplaceSupplierItems {
     }
     if (supplier.status() != SupplierStatus.ACTIVE
         || !item.active()
+        || Boolean.FALSE.equals(item.availableForPurchase())
         || !supplier.profile().supplies(item.type())) {
       throw new SupplierCommercialException(INCOMPATIBLE_SUPPLIER_ITEM);
     }

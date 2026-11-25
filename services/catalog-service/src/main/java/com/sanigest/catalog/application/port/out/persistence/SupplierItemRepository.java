@@ -27,5 +27,9 @@ public interface SupplierItemRepository {
 
   record LockedSupplier(SupplierStatus status, SupplierProfile profile) {}
 
-  record LockedItem(CatalogItemType type, boolean active) {}
+  record LockedItem(CatalogItemType type, boolean active, Boolean availableForPurchase) {
+    public LockedItem(CatalogItemType type, boolean active) {
+      this(type, active, null);
+    }
+  }
 }

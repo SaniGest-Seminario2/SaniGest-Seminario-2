@@ -34,12 +34,16 @@ class JdbcSupplierItems implements SupplierItemRepository {
   private static final String ITEM_KEY = "company_id = :company AND catalog_item_id = :item";
   private final JdbcClient jdbc;
 
-  JdbcSupplierItems(JdbcClient jdbc) {
+  private final CatalogHistoryActor historyActor;
+
+  JdbcSupplierItems(JdbcClient jdbc, CatalogHistoryActor historyActor) {
     this.jdbc = jdbc;
+    this.historyActor = historyActor;
   }
 
   @Override
   public LockedSupplier lockSupplier(UUID companyId, UUID supplierId) {
+    historyActor.bind();
     return jdbc.sql(
             """
             SELECT status, supply_type FROM catalog.suppliers
@@ -68,7 +72,7 @@ class JdbcSupplierItems implements SupplierItemRepository {
     return jdbc
         .sql(
             """
-            SELECT id, type, active FROM catalog.catalog_items
+            SELECT id, type, active, available_for_purchase FROM catalog.catalog_items
             WHERE company_id = :company AND (id IN (:requested) OR id IN (
                 SELECT catalog_item_id FROM catalog.supplier_items
                 WHERE company_id = :company AND supplier_id = :supplier AND valid_until IS NULL))
@@ -83,7 +87,9 @@ class JdbcSupplierItems implements SupplierItemRepository {
             Map.entry(
                 row.getObject("id", UUID.class),
                 new LockedItem(
-                    CatalogItemType.valueOf(row.getString("type")), row.getBoolean("active"))))
+                    CatalogItemType.valueOf(row.getString("type")),
+                    row.getBoolean("active"),
+                    row.getObject("available_for_purchase", Boolean.class))))
         .list()
         .stream()
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

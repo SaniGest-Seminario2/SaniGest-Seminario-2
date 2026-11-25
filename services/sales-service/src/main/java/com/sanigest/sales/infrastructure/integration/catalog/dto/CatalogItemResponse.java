@@ -11,4 +11,5 @@ public record CatalogItemResponse(
     @JsonProperty(required = true) String description,
     BigDecimal price,
     String currency,
-    Boolean active) {}
+    Boolean active,
+    Boolean availableForSale) {}

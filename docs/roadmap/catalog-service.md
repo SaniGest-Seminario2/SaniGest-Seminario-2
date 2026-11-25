@@ -8,6 +8,9 @@ S2-456 amplía la ficha comercial de clientes con tipo, contacto, ubicación,
 preferencia de comprobante, condición comercial, categoría y límite de crédito.
 Catalog publica los catálogos de referencia y el listado de activos. S2-458
 amplía la ficha de proveedores, sus categorías y las ofertas por artículo.
-S2-459 incorporará la disponibilidad comercial de los artículos y podrá
-derivar el proveedor principal de ese vínculo. Inventory proveerá existencias,
-Sales la ficha financiera de cliente (S2-457) y Expense el saldo de proveedor.
+S2-459 amplía el perfil de productos y servicios con referencias persistentes,
+precios, costos, disponibilidad, cálculo unitario de ITBIS e historial comercial.
+El proveedor principal se deriva del vínculo de S2-458. La activación de
+precios de venta con cuatro decimales se coordina con S2-461. Inventory (S2-460)
+proveerá existencias, Sales la ficha financiera de cliente (S2-457) y Expense
+el saldo de proveedor.

@@ -20,9 +20,17 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class CreateCatalogItemTest {
+  private final CatalogItemWritePolicy policy =
+      new CatalogItemWritePolicy(
+          mock(
+              com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository
+                  .class),
+          new CatalogBusinessDate(java.time.Clock.systemUTC()),
+          false);
   private final CatalogAuthorization authorization = mock(CatalogAuthorization.class);
   private final CatalogItemRepository items = mock(CatalogItemRepository.class);
-  private final CreateCatalogItem create = new CreateCatalogItem(Optional.of(authorization), items);
+  private final CreateCatalogItem create =
+      new CreateCatalogItem(Optional.of(authorization), items, policy);
 
   @Test
   void persistsTheItemForTheCompanyResolvedWithWritePermission() {
@@ -47,7 +55,7 @@ class CreateCatalogItemTest {
 
   @Test
   void failsClosedWhenAuthorizationIsDisabledOrUnavailable() {
-    var disabled = new CreateCatalogItem(Optional.empty(), items);
+    var disabled = new CreateCatalogItem(Optional.empty(), items, policy);
     assertThatThrownBy(() -> disabled.execute("Consulting", SERVICE, BigDecimal.ONE))
         .isInstanceOf(CatalogAuthorizationUnavailable.class);
 

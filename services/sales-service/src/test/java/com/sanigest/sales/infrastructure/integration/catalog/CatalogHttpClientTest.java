@@ -135,6 +135,25 @@ class CatalogHttpClientTest {
   }
 
   @Test
+  void acceptsAnExpandedSellableItemAndRejectsAnExplicitlyUnsellableOne() {
+    var sellable =
+        ITEM_JSON.replace(
+            "\"active\":true",
+            "\"active\":true,\"availableForSale\":true,\"estimatedCost\":\"10.0001\"");
+    CATALOG.stubFor(get(urlPathEqualTo(ITEM)).willReturn(okJson(sellable)));
+    assertThat(client.getItem(ID, TENANT).price()).isEqualByComparingTo("3200.10");
+
+    CATALOG.stubFor(
+        get(urlPathEqualTo(ITEM))
+            .willReturn(
+                okJson(
+                    sellable.replace("\"availableForSale\":true", "\"availableForSale\":false"))));
+    assertThatThrownBy(() -> client.getItem(ID, TENANT))
+        .isInstanceOf(CatalogResourceInvalidException.class)
+        .hasMessage("Catalog: INACTIVE");
+  }
+
+  @Test
   void rejectsInvalidCustomerPayloads() {
     for (String json :
         List.of(

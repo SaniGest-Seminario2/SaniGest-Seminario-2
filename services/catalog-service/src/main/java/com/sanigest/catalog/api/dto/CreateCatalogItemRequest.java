@@ -1,6 +1,7 @@
 package com.sanigest.catalog.api.dto;
 
 import com.sanigest.catalog.domain.enums.CatalogItemType;
+import com.sanigest.catalog.domain.model.CatalogItemProfile;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
@@ -8,4 +9,12 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 
 @JsonDeserialize(using = CreateCatalogItemDeserializer.class)
 public record CreateCatalogItemRequest(
-    @NotBlank String name, @NotNull CatalogItemType type, @NotNull BigDecimal price) {}
+    @NotBlank String name,
+    @NotNull CatalogItemType type,
+    @NotNull BigDecimal price,
+    String description,
+    CatalogItemProfile profile) {
+  public CreateCatalogItemRequest(String name, CatalogItemType type, BigDecimal price) {
+    this(name, type, price, null, CatalogItemProfile.LEGACY);
+  }
+}

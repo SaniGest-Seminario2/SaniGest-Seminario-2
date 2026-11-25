@@ -133,7 +133,14 @@
             "$ref": "#/components/responses/CatalogItemNotFound"
           },
           "409": {
-            "$ref": "#/components/responses/CatalogItemUpdateConflict"
+            "description": "Código comercial duplicado o conflicto de revisión.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "503": {
             "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
@@ -244,7 +251,7 @@
           {
             "name": "search",
             "in": "query",
-            "description": "Fragmento literal del nombre sin distinguir mayúsculas. Se recortan los espacios exteriores.",
+            "description": "Coincidencia parcial por nombre, SKU o código de barras, sin distinguir mayúsculas.",
             "schema": {
               "type": "string",
               "example": "silla"
@@ -277,6 +284,28 @@
               "minimum": 1,
               "maximum": 100,
               "default": 20
+            }
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "availableForSale",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "availableForPurchase",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -400,6 +429,16 @@
           },
           "503": {
             "description": "No se pudo verificar la autorización empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Código comercial duplicado o conflicto de revisión.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2556,6 +2595,354 @@
           }
         ]
       }
+    },
+    "/api/v1/catalog-items/categories": {
+      "get": {
+        "operationId": "listCatalogItemCategories",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogItemCategory"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidCatalogItemRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/CatalogItemUnauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/CatalogItemForbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCatalogItemCategory",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemCategory"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidCatalogItemRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/CatalogItemUnauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/CatalogItemForbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
+          },
+          "409": {
+            "$ref": "#/components/responses/CatalogCategoryConflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCatalogItemCategory"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/catalog-items/categories/{id}": {
+      "put": {
+        "operationId": "updateCatalogItemCategory",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemCategory"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidCatalogItemRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/CatalogItemUnauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/CatalogItemForbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
+          },
+          "404": {
+            "$ref": "#/components/responses/CatalogItemNotFound"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCatalogItemCategory"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/catalog-items/units": {
+      "get": {
+        "operationId": "listCatalogUnits",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogUnit"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidCatalogItemRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/CatalogItemUnauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/CatalogItemForbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/catalog-items/tax-classifications": {
+      "get": {
+        "operationId": "listCatalogTaxClassifications",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogTaxClassification"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidCatalogItemRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/CatalogItemUnauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/CatalogItemForbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/catalog-items/summary": {
+      "get": {
+        "operationId": "getCatalogItemSummary",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conteos de todos los artículos de la empresa, incluidos los inactivos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidCatalogItemRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/CatalogItemUnauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/CatalogItemForbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/catalog-items/{id}/history": {
+      "get": {
+        "operationId": "getCatalogItemHistory",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Índice de página desde cero",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Tamaño de página",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemHistory"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidCatalogItemRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/CatalogItemUnauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/CatalogItemForbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
+          },
+          "404": {
+            "$ref": "#/components/responses/CatalogItemNotFound"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2665,6 +3052,9 @@
             }
           }
         }
+      },
+      "CatalogCategoryConflict": {
+        "description": "Código de categoría duplicado"
       }
     },
     "schemas": {
@@ -2701,9 +3091,9 @@
           "price": {
             "type": "number",
             "minimum": 0,
-            "maximum": 999999999999.99,
-            "multipleOf": 0.01,
-            "description": "Precio exacto en DOP, con hasta dos decimales significativos."
+            "maximum": 999999999999999.9999,
+            "multipleOf": 0.0001,
+            "description": "Precio unitario neto en DOP como número JSON. La transición limita nuevas escrituras a dos decimales significativos y al rango NUMERIC(14,2)."
           },
           "currency": {
             "type": "string",
@@ -2712,16 +3102,105 @@
             ]
           },
           "active": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
+            "type": "boolean"
           },
           "description": {
             "type": "string",
-            "nullable": true,
             "maxLength": 1000,
-            "example": "Silla de oficina"
+            "nullable": true
+          },
+          "sku": {
+            "type": "string",
+            "maxLength": 64,
+            "nullable": true,
+            "description": "Se recorta y convierte a mayúsculas. Único por empresa, incluso para inactivos."
+          },
+          "barcode": {
+            "type": "string",
+            "maxLength": 64,
+            "nullable": true,
+            "description": "Texto sensible a mayúsculas para unicidad. Conserva ceros iniciales."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "unitCode": {
+            "type": "string",
+            "maxLength": 32,
+            "nullable": true
+          },
+          "estimatedCost": {
+            "type": "string",
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "example": "1000.0001",
+            "nullable": true
+          },
+          "taxClassificationCode": {
+            "type": "string",
+            "maxLength": 32,
+            "nullable": true,
+            "description": "Código global. Null representa clasificación desconocida."
+          },
+          "availableForSale": {
+            "type": "boolean",
+            "default": true
+          },
+          "availableForPurchase": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Null indica que el artículo histórico carece de configuración de compras."
+          },
+          "categoryName": {
+            "type": "string",
+            "nullable": true
+          },
+          "primarySupplierId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "eligibleForSale": {
+            "type": "boolean"
+          },
+          "eligibleForPurchase": {
+            "type": "boolean"
+          },
+          "taxRate": {
+            "type": "string",
+            "nullable": true,
+            "description": "Tasa vigente en la fecha comercial (America/Santo_Domingo), con seis decimales."
+          },
+          "taxEffectiveFrom": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "taxEffectiveUntil": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "unitTaxAmount": {
+            "type": "string",
+            "nullable": true,
+            "description": "Precio neto multiplicado por la tasa y redondeado HALF_UP a dos decimales."
+          },
+          "finalPrice": {
+            "type": "string",
+            "nullable": true,
+            "description": "Precio neto más el ITBIS unitario, redondeado HALF_UP a dos decimales."
+          },
+          "grossProfit": {
+            "type": "string",
+            "nullable": true,
+            "description": "Precio neto menos costo estimado, con cuatro decimales."
+          },
+          "grossMargin": {
+            "type": "string",
+            "nullable": true,
+            "description": "Porcentaje sobre precio neto con dos decimales. Null si falta costo o el precio es cero."
           }
         }
       },
@@ -2776,18 +3255,79 @@
           },
           "description": {
             "type": "string",
-            "nullable": true,
             "maxLength": 1000,
-            "example": "Silla de oficina"
+            "nullable": true
           },
           "price": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 999999999999.99,
-            "multipleOf": 0.01,
-            "description": "Precio exacto en DOP, con hasta dos decimales significativos."
+            "oneOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 999999999999999.9999,
+                "multipleOf": 0.0001
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+                "example": "1000.0001"
+              }
+            ],
+            "description": "Precio unitario neto. Admite JSON numérico y cadena decimal. El límite seguro predeterminado de Sales es NUMERIC(14,2)."
+          },
+          "sku": {
+            "type": "string",
+            "maxLength": 64,
+            "nullable": true,
+            "description": "Se recorta y convierte a mayúsculas. Único por empresa, incluso para inactivos."
+          },
+          "barcode": {
+            "type": "string",
+            "maxLength": 64,
+            "nullable": true,
+            "description": "Texto sensible a mayúsculas para unicidad. Conserva ceros iniciales."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "unitCode": {
+            "type": "string",
+            "maxLength": 32,
+            "nullable": true
+          },
+          "estimatedCost": {
+            "oneOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 999999999999999.9999,
+                "multipleOf": 0.0001
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+                "example": "1000.0001"
+              }
+            ],
+            "nullable": true
+          },
+          "taxClassificationCode": {
+            "type": "string",
+            "maxLength": 32,
+            "nullable": true,
+            "description": "Código global. Null representa clasificación desconocida."
+          },
+          "availableForSale": {
+            "type": "boolean",
+            "default": true
+          },
+          "availableForPurchase": {
+            "type": "boolean",
+            "default": false
           }
-        }
+        },
+        "description": "Omitir conserva. En campos opcionales, null elimina el valor. El tipo, la moneda y el estado quedan fuera de esta operación."
       },
       "CatalogItemStatusRequest": {
         "type": "object",
@@ -2823,13 +3363,79 @@
             ]
           },
           "price": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 999999999999.99,
-            "multipleOf": 0.01,
-            "description": "Importe BigDecimal exacto en DOP con hasta dos decimales significativos. La respuesta usa escala 2."
+            "oneOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 999999999999999.9999,
+                "multipleOf": 0.0001
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+                "example": "1000.0001"
+              }
+            ],
+            "description": "Precio unitario neto. Admite JSON numérico y cadena decimal. El límite seguro predeterminado de Sales es NUMERIC(14,2)."
+          },
+          "sku": {
+            "type": "string",
+            "maxLength": 64,
+            "nullable": true,
+            "description": "Se recorta y convierte a mayúsculas. Único por empresa, incluso para inactivos."
+          },
+          "barcode": {
+            "type": "string",
+            "maxLength": 64,
+            "nullable": true,
+            "description": "Texto sensible a mayúsculas para unicidad. Conserva ceros iniciales."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "unitCode": {
+            "type": "string",
+            "maxLength": 32,
+            "nullable": true
+          },
+          "estimatedCost": {
+            "oneOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 999999999999999.9999,
+                "multipleOf": 0.0001
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+                "example": "1000.0001"
+              }
+            ],
+            "nullable": true
+          },
+          "taxClassificationCode": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "Obligatorio en altas ampliadas."
+          },
+          "availableForSale": {
+            "type": "boolean",
+            "default": true
+          },
+          "availableForPurchase": {
+            "type": "boolean",
+            "default": false
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "nullable": true
           }
-        }
+        },
+        "description": "La forma histórica {name, type, price numérico} sigue vigente. Las altas ampliadas requieren clasificación tributaria vigente."
       },
       "CatalogItemResponse": {
         "type": "object",
@@ -2866,9 +3472,9 @@
           "price": {
             "type": "number",
             "minimum": 0,
-            "maximum": 999999999999.99,
-            "multipleOf": 0.01,
-            "description": "Importe BigDecimal exacto en DOP con hasta dos decimales significativos. La respuesta usa escala 2."
+            "maximum": 999999999999999.9999,
+            "multipleOf": 0.0001,
+            "description": "Precio unitario neto en DOP como número JSON. La transición limita nuevas escrituras a dos decimales significativos y al rango NUMERIC(14,2)."
           },
           "currency": {
             "type": "string",
@@ -2877,10 +3483,105 @@
             ]
           },
           "active": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "nullable": true
+          },
+          "sku": {
+            "type": "string",
+            "maxLength": 64,
+            "nullable": true,
+            "description": "Se recorta y convierte a mayúsculas. Único por empresa, incluso para inactivos."
+          },
+          "barcode": {
+            "type": "string",
+            "maxLength": 64,
+            "nullable": true,
+            "description": "Texto sensible a mayúsculas para unicidad. Conserva ceros iniciales."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "unitCode": {
+            "type": "string",
+            "maxLength": 32,
+            "nullable": true
+          },
+          "estimatedCost": {
+            "type": "string",
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "example": "1000.0001",
+            "nullable": true
+          },
+          "taxClassificationCode": {
+            "type": "string",
+            "maxLength": 32,
+            "nullable": true,
+            "description": "Código global. Null representa clasificación desconocida."
+          },
+          "availableForSale": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "default": true
+          },
+          "availableForPurchase": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Null indica que el artículo histórico carece de configuración de compras."
+          },
+          "categoryName": {
+            "type": "string",
+            "nullable": true
+          },
+          "primarySupplierId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "eligibleForSale": {
+            "type": "boolean"
+          },
+          "eligibleForPurchase": {
+            "type": "boolean"
+          },
+          "taxRate": {
+            "type": "string",
+            "nullable": true,
+            "description": "Tasa vigente en la fecha comercial (America/Santo_Domingo), con seis decimales."
+          },
+          "taxEffectiveFrom": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "taxEffectiveUntil": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "unitTaxAmount": {
+            "type": "string",
+            "nullable": true,
+            "description": "Precio neto multiplicado por la tasa y redondeado HALF_UP a dos decimales."
+          },
+          "finalPrice": {
+            "type": "string",
+            "nullable": true,
+            "description": "Precio neto más el ITBIS unitario, redondeado HALF_UP a dos decimales."
+          },
+          "grossProfit": {
+            "type": "string",
+            "nullable": true,
+            "description": "Precio neto menos costo estimado, con cuatro decimales."
+          },
+          "grossMargin": {
+            "type": "string",
+            "nullable": true,
+            "description": "Porcentaje sobre precio neto con dos decimales. Null si falta costo o el precio es cero."
           }
         }
       },
@@ -4318,6 +5019,189 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "CatalogItemCategory": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[A-Z][A-Z0-9_]{0,31}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateCatalogItemCategory": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[A-Z][A-Z0-9_]{0,31}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "UpdateCatalogItemCategory": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "active"
+        ]
+      },
+      "CatalogUnit": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "name": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "divisible": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CatalogTaxClassification": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "name": {
+            "type": "string"
+          },
+          "rate": {
+            "type": "string",
+            "nullable": true,
+            "description": "Tasa vigente como fracción decimal"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "effectiveUntil": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        }
+      },
+      "CatalogItemSummary": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "products": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "services": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "active": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "inactive": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "CatalogItemHistory": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                },
+                "actorId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "nullable": true
+                },
+                "operation": {
+                  "type": "string"
+                },
+                "occurredAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "previousValues": {
+                  "type": "object",
+                  "nullable": true
+                },
+                "newValues": {
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
           }
         }
       }

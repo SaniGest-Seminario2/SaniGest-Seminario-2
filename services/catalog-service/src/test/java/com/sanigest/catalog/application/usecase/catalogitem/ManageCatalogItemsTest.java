@@ -31,6 +31,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 class ManageCatalogItemsTest {
+  private final CatalogItemWritePolicy policy =
+      new CatalogItemWritePolicy(
+          mock(
+              com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository
+                  .class),
+          new CatalogBusinessDate(java.time.Clock.systemUTC()),
+          false);
   private final CatalogAuthorization authorization = mock(CatalogAuthorization.class);
   private final CatalogItemRepository repository = mock(CatalogItemRepository.class);
   private final CatalogItemCompany company = new CatalogItemCompany(Optional.of(authorization));
@@ -93,7 +100,7 @@ class ManageCatalogItemsTest {
           return change.apply(item);
         });
     var patch = new CatalogItemPatch(Optional.of("Otra silla"), Optional.empty(), Optional.empty());
-    assertThat(new UpdateCatalogItem(company, repository).execute(item.id(), patch).name())
+    assertThat(new UpdateCatalogItem(company, repository, policy).execute(item.id(), patch).name())
         .isEqualTo("Otra silla");
     var status = new ChangeCatalogItemStatus(company, repository);
     assertThat(status.execute(item.id(), true)).isSameAs(item);
@@ -113,7 +120,8 @@ class ManageCatalogItemsTest {
     when(repository.update(eq(tenant), eq(item.id()), any()))
         .thenThrow(new CatalogItemAccessException(CATALOG_ITEM_UPDATE_CONFLICT));
     var patch = new CatalogItemPatch(Optional.of("Otra silla"), Optional.empty(), Optional.empty());
-    assertThatThrownBy(() -> new UpdateCatalogItem(company, repository).execute(item.id(), patch))
+    assertThatThrownBy(
+            () -> new UpdateCatalogItem(company, repository, policy).execute(item.id(), patch))
         .isInstanceOf(CatalogItemAccessException.class)
         .hasMessage(CATALOG_ITEM_UPDATE_CONFLICT.name());
   }
@@ -126,7 +134,8 @@ class ManageCatalogItemsTest {
         .isInstanceOf(CatalogItemAccessException.class);
     assertThatThrownBy(() -> new GetCatalogItem(company, repository).execute(item.id()))
         .isInstanceOf(CatalogItemAccessException.class);
-    assertThatThrownBy(() -> new UpdateCatalogItem(company, repository).execute(item.id(), patch))
+    assertThatThrownBy(
+            () -> new UpdateCatalogItem(company, repository, policy).execute(item.id(), patch))
         .isInstanceOf(CatalogItemAccessException.class);
     assertThatThrownBy(
             () -> new ChangeCatalogItemStatus(company, repository).execute(item.id(), false))

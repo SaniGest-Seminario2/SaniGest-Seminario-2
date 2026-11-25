@@ -68,15 +68,8 @@ final class CatalogHttpClient implements CatalogClient {
       throw new CatalogResourceInvalidException(INVALID_RESPONSE);
     }
     var type = requiredEnum(Type.class, response.type());
-    var price = response.price();
-    if (price == null || price.signum() < 0 || price.compareTo(PRICE_LIMIT) >= 0) {
-      throw new CatalogResourceInvalidException(INVALID_RESPONSE);
-    }
-    var normalizedPrice = price.stripTrailingZeros();
-    if (normalizedPrice.scale() > 2) {
-      throw new CatalogResourceInvalidException(INVALID_RESPONSE);
-    }
-    if (!response.active()) {
+    var normalizedPrice = compatiblePrice(response.price());
+    if (!response.active() || Boolean.FALSE.equals(response.availableForSale())) {
       throw new CatalogResourceInvalidException(INACTIVE);
     }
     return new CatalogItemSnapshot(
@@ -84,9 +77,20 @@ final class CatalogHttpClient implements CatalogClient {
         response.name(),
         type,
         response.description(),
-        normalizedPrice.setScale(2),
+        normalizedPrice,
         response.currency(),
         response.active());
+  }
+
+  private static BigDecimal compatiblePrice(BigDecimal price) {
+    if (price == null || price.signum() < 0 || price.compareTo(PRICE_LIMIT) >= 0) {
+      throw new CatalogResourceInvalidException(INVALID_RESPONSE);
+    }
+    var normalizedPrice = price.stripTrailingZeros();
+    if (normalizedPrice.scale() > 2) {
+      throw new CatalogResourceInvalidException(INVALID_RESPONSE);
+    }
+    return normalizedPrice.setScale(2);
   }
 
   private <T> T fetch(

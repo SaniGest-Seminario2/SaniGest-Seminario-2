@@ -4,6 +4,7 @@ import static com.sanigest.catalog.api.error.CatalogProblems.problem;
 
 import com.sanigest.catalog.application.exception.CatalogItemAccessException;
 import com.sanigest.catalog.application.exception.CatalogItemCreationForbidden;
+import com.sanigest.catalog.application.exception.DuplicateCatalogItemCode;
 import com.sanigest.catalog.application.exception.InvalidCatalogItemQuery;
 import com.sanigest.catalog.domain.exception.InvalidCatalogItem;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,11 @@ class CatalogItemErrorHandler {
   @ExceptionHandler({InvalidCatalogItem.class, InvalidCatalogItemQuery.class})
   ProblemDetail invalidItem() {
     return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The catalog item is invalid");
+  }
+
+  @ExceptionHandler(DuplicateCatalogItemCode.class)
+  ProblemDetail duplicate(DuplicateCatalogItemCode failure) {
+    return problem(HttpStatus.CONFLICT, failure.code(), "The commercial code is already in use");
   }
 
   @ExceptionHandler(CatalogItemCreationForbidden.class)
