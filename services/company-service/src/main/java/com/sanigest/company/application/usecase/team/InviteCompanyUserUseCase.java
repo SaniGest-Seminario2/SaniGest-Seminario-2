@@ -1,17 +1,13 @@
 package com.sanigest.company.application.usecase.team;
 
 import com.sanigest.company.application.dto.CreatedInvitation;
-import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.exception.CompanyConflictException;
-import com.sanigest.company.application.exception.CompanyNotFoundException;
 import com.sanigest.company.application.port.out.integration.InvitationDelivery;
-import com.sanigest.company.application.port.out.persistence.CompanyRepository;
 import com.sanigest.company.application.port.out.persistence.InvitationRepository;
-import com.sanigest.company.application.port.out.persistence.MembershipRepository;
-import com.sanigest.company.application.usecase.access.OperationalCompanySelection;
+import com.sanigest.company.application.usecase.audit.CompanyAuditRecorder;
+import com.sanigest.company.domain.enums.AuditOperation;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.InvitationStatus;
-import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.company.domain.model.Invitation;
 import java.time.Clock;
 import java.time.Duration;
@@ -30,29 +26,29 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class InviteCompanyUserUseCase {
   private static final Logger LOGGER = LoggerFactory.getLogger(InviteCompanyUserUseCase.class);
 
-  private final MembershipRepository memberships;
-  private final CompanyRepository companies;
+  private final CompanyMembershipPolicy policy;
   private final InvitationRepository invitations;
   private final Duration ttl;
   private final Clock clock;
   private final Optional<InvitationDelivery> delivery;
+  private final CompanyAuditRecorder audit;
 
   public InviteCompanyUserUseCase(
-      MembershipRepository memberships,
-      CompanyRepository companies,
+      CompanyMembershipPolicy policy,
       InvitationRepository invitations,
       @Value("${sanigest.invitations.ttl:PT72H}") Duration ttl,
       Clock clock,
-      Optional<InvitationDelivery> delivery) {
+      Optional<InvitationDelivery> delivery,
+      CompanyAuditRecorder audit) {
     if (ttl.compareTo(Duration.ofSeconds(1)) < 0) {
       throw new IllegalArgumentException("Invitation TTL must be at least one second");
     }
-    this.memberships = memberships;
-    this.companies = companies;
+    this.policy = policy;
     this.invitations = invitations;
     this.ttl = ttl;
     this.clock = clock;
     this.delivery = delivery;
+    this.audit = audit;
   }
 
   @Transactional
@@ -63,7 +59,18 @@ public class InviteCompanyUserUseCase {
   @Transactional
   public CreatedInvitation invite(
       UUID actor, UUID requestedCompany, String email, CompanyRole role, boolean replace) {
-    UUID companyId = authorizedCompany(actor, requestedCompany);
+    return invite(actor, requestedCompany, email, role, replace, null);
+  }
+
+  @Transactional
+  public CreatedInvitation invite(
+      UUID actor,
+      UUID requestedCompany,
+      String email,
+      CompanyRole role,
+      boolean replace,
+      String name) {
+    UUID companyId = policy.requireAdministrator(actor, requestedCompany, true);
     String recipient = Invitation.normalizeEmail(email);
     var prior = invitations.findPendingForUpdate(companyId, recipient);
     Instant now = clock.instant();
@@ -75,7 +82,8 @@ public class InviteCompanyUserUseCase {
             role,
             InvitationStatus.PENDING,
             now,
-            now.plus(ttl));
+            now.plus(ttl),
+            name);
     prior.ifPresent(existing -> {
       if (existing.statusAt(now) == InvitationStatus.EXPIRED) {
         invitations.closePending(existing.id(), InvitationStatus.EXPIRED);
@@ -87,6 +95,12 @@ public class InviteCompanyUserUseCase {
     });
     String token = InvitationToken.generate();
     invitations.insert(invitation, InvitationToken.hash(token));
+    boolean replaced =
+        prior.filter(existing -> existing.statusAt(now) == InvitationStatus.PENDING).isPresent();
+    audit.invitationChanged(
+        companyId,
+        actor,
+        replaced ? AuditOperation.INVITATION_REPLACED : AuditOperation.INVITATION_CREATED);
     delivery.ifPresent(adapter ->
         TransactionSynchronizationManager.registerSynchronization(
             new TransactionSynchronization() {
@@ -101,21 +115,5 @@ public class InviteCompanyUserUseCase {
             }));
     return new CreatedInvitation(
         invitation.id(), role, InvitationStatus.PENDING, invitation.expiresAt());
-  }
-
-  private UUID authorizedCompany(UUID actor, UUID requestedCompany) {
-    var membership =
-        OperationalCompanySelection.lockMembership(memberships, actor, requestedCompany)
-            .orElseThrow(CompanyNotFoundException::new);
-    if (membership.status() != MembershipStatus.ACTIVE
-        || (membership.role() != CompanyRole.OWNER && membership.role() != CompanyRole.ADMIN)) {
-      throw new CompanyAccessDeniedException();
-    }
-    var company =
-        companies.findById(membership.companyId()).orElseThrow(CompanyNotFoundException::new);
-    if (!"ACTIVE".equals(company.status())) {
-      throw new CompanyAccessDeniedException();
-    }
-    return company.id();
   }
 }

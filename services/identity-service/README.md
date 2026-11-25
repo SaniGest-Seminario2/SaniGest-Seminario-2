@@ -111,3 +111,33 @@ persistencia. En Compose, inyecta ambas variables en el contenedor Identity
 y monta el PEM público de solo lectura. El despliegue fuera de esos perfiles
 requiere habilitar la persistencia de Identity y aprovisionar credenciales
 técnicas. Company conserva la decisión de concesión empresarial.
+
+## Directorio interno de miembros (S2-455)
+
+`POST /internal/v1/member-directory` recibe
+`{"userIds":["<UUID>"]}` con entre 1 y 100 identificadores y devuelve un array
+de `{userId,name,email,emailVerified}` con las cuentas encontradas. La
+proyección JPA consulta los IDs en una sola operación. Company obtiene los
+IDs de sus membresías autorizadas o del sujeto de la sesión autenticada al
+aceptar una invitación. Los resultados se envían con `Cache-Control: no-store`.
+El endpoint está fuera del Gateway y se registra con perfiles `local` y
+`test`, igual que la persistencia de usuarios vigente.
+
+La assertion RS256 requiere sujeto `company-service`, tipo
+`sanigest-service+jwt`, audiencia exacta `sanigest-identity-member-directory`,
+scope `identity:member-directory:read`, emisor configurado y ventana máxima
+de dos minutos. Company emite assertions de 60 segundos. Configura en Identity
+`IDENTITY_MEMBER_DIRECTORY_ISSUER` y
+`IDENTITY_MEMBER_DIRECTORY_PUBLIC_KEY_LOCATION=file:/ruta/clave-publica.pem`.
+La clave debe ser específica de este contrato y distinta de las de sesiones y
+elegibilidad de asesores. Los JWT de usuario reciben 403. Una credencial
+técnica inválida recibe 401.
+
+Identity aún no persiste evidencia de control del correo. El directorio
+devuelve `emailVerified: false` para todas las cuentas registradas y el emisor
+de JWT conserva los claims existentes. Para habilitar la aceptación real se
+requiere un flujo de verificación que vincule evidencia persistida a la
+dirección de correo actual. También se requiere entrega segura de la
+invitación. El contrato v0.8 exige evidencia del flujo de Identity, por lo
+que la posesión del enlace se mantiene como una alternativa que requeriría
+una decisión arquitectónica aprobada.

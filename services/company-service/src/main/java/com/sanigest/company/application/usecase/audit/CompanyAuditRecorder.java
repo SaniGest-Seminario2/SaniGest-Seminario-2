@@ -72,6 +72,24 @@ public class CompanyAuditRecorder {
             permission));
   }
 
+  @Transactional(propagation = Propagation.MANDATORY)
+  public void invitationChanged(UUID company, UUID actor, AuditOperation operation) {
+    repository.append(
+        new CompanyAuditEvent(
+            UUID.randomUUID(),
+            company,
+            actor,
+            null,
+            operation,
+            clock.instant(),
+            AuditResult.SUCCESS,
+            null,
+            null,
+            null,
+            null,
+            null));
+  }
+
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void rejected(UUID companyId, UUID actorId, UUID targetId, AuditOperation operation) {
     repository.append(

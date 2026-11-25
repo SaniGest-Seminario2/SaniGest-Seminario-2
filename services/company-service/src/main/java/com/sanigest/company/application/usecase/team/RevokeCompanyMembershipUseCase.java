@@ -4,6 +4,7 @@ import com.sanigest.company.application.port.out.persistence.MembershipRepositor
 import com.sanigest.company.application.usecase.audit.CompanyAuditRecorder;
 import com.sanigest.company.domain.enums.AuditOperation;
 import com.sanigest.company.domain.enums.MembershipStatus;
+import java.time.Clock;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -15,14 +16,17 @@ public class RevokeCompanyMembershipUseCase {
   private final MembershipRepository memberships;
 
   private final CompanyAuditRecorder audit;
+  private final Clock clock;
 
   RevokeCompanyMembershipUseCase(
       CompanyMembershipPolicy policy,
       MembershipRepository memberships,
-      CompanyAuditRecorder audit) {
+      CompanyAuditRecorder audit,
+      Clock clock) {
     this.policy = policy;
     this.memberships = memberships;
     this.audit = audit;
+    this.clock = clock;
   }
 
   @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -40,7 +44,7 @@ public class RevokeCompanyMembershipUseCase {
         AuditOperation.MEMBER_REVOKED,
         target -> {
           policy.requireOtherOwner(target);
-          memberships.revoke(target);
+          memberships.revoke(target, clock.instant());
           audit.succeeded(
               actorId,
               target,

@@ -28,6 +28,18 @@ public class CompanyMembershipPolicy {
     this.audit = audit;
   }
 
+  UUID requireAdministrator(UUID actorId, UUID requestedCompany, boolean write) {
+    var company =
+        OperationalCompanySelection.profile(memberships, actorId, requestedCompany)
+            .orElseThrow(CompanyNotFoundException::new)
+            .company();
+    if (write) {
+      memberships.lockMembershipChanges(company.companyId());
+    }
+    requireAdministrator(actorId, company.companyId(), company.status());
+    return company.companyId();
+  }
+
   <T> T changeMembership(
       UUID actorId,
       UUID requestedCompany,
@@ -60,18 +72,10 @@ public class CompanyMembershipPolicy {
   private Membership authorize(
       UUID companyId, UUID actorId, UUID targetId, boolean assigningOwner, String companyStatus) {
 
-    // Read the actor after acquiring the lock so a queued request sees current permissions.
-    var actor =
-        memberships
-            .findByCompanyIdAndUserId(companyId, actorId)
-            .orElseThrow(CompanyAccessDeniedException::new);
-    if (actor.status() != MembershipStatus.ACTIVE
-        || (actor.role() != CompanyRole.OWNER && actor.role() != CompanyRole.ADMIN)
-        || (assigningOwner && actor.role() != CompanyRole.OWNER)
-        || !"ACTIVE".equals(companyStatus)) {
+    var actor = requireAdministrator(actorId, companyId, companyStatus);
+    if (assigningOwner && actor.role() != CompanyRole.OWNER) {
       throw new CompanyAccessDeniedException();
     }
-
     var target =
         memberships
             .findByCompanyIdAndUserId(companyId, targetId)
@@ -81,6 +85,20 @@ public class CompanyMembershipPolicy {
       throw new CompanyAccessDeniedException();
     }
     return target;
+  }
+
+  private Membership requireAdministrator(UUID actorId, UUID companyId, String companyStatus) {
+    var actor =
+        memberships
+            .findByCompanyIdAndUserId(companyId, actorId)
+            .orElseThrow(CompanyAccessDeniedException::new);
+    if (actor.status() != MembershipStatus.ACTIVE
+        || (actor.role() != CompanyRole.OWNER && actor.role() != CompanyRole.ADMIN)
+        || !"ACTIVE".equals(companyStatus)) {
+      throw new CompanyAccessDeniedException();
+    }
+
+    return actor;
   }
 
   void requireOtherOwner(Membership target) {

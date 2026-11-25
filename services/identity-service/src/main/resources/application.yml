@@ -15,6 +15,9 @@ server:
   shutdown: graceful
 
 sanigest:
+  member-directory:
+    issuer: ${IDENTITY_MEMBER_DIRECTORY_ISSUER:}
+    public-key-location: ${IDENTITY_MEMBER_DIRECTORY_PUBLIC_KEY_LOCATION:}
   advisor-eligibility:
     issuer: ${IDENTITY_ADVISOR_ELIGIBILITY_ISSUER:}
     public-key-location: ${IDENTITY_ADVISOR_ELIGIBILITY_PUBLIC_KEY_LOCATION:}

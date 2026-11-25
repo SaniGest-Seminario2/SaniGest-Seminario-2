@@ -29,4 +29,35 @@ class OpenApiControllerTest {
     assertThat(paths.has(AdvisorAccessController.PATH)).isTrue();
     assertThat(paths.has(AdvisorCompaniesController.PATH)).isTrue();
   }
+
+  @Test
+  void describesTheOptInPagePendingInvitationsAndMembershipStatus() {
+    var document = new ObjectMapper().valueToTree(controller.apiDocs());
+    var paths = document.path("paths");
+    String company = "/api/v1/companies/{companyId}";
+    var list = paths.path(company + "/users").path("get");
+    assertThat(list.path("description").asString()).contains("view=page", "OWNER", "ADMIN");
+    assertThat(
+            list.path("responses")
+                .path("200")
+                .path("content")
+                .path("application/json")
+                .path("schema")
+                .path("oneOf")
+                .size())
+        .isEqualTo(2);
+    assertThat(
+            paths
+                .path(company + "/invitations")
+                .path("post")
+                .path("requestBody")
+                .path("content")
+                .path("application/json")
+                .path("schema")
+                .path("properties")
+                .has("name"))
+        .isTrue();
+    assertThat(paths.path(company + "/invitations/{invitationId}").has("delete")).isTrue();
+    assertThat(paths.path(company + "/members/{userId}/status").has("patch")).isTrue();
+  }
 }

@@ -11,7 +11,14 @@ spring:
     gateway:
       server:
         webflux:
+          httpserver:
+            wiretap: false
+          metrics:
+            tags:
+              path:
+                enabled: false
           httpclient:
+            wiretap: false
             connect-timeout: 500
             response-timeout: 2s
           globalcors:

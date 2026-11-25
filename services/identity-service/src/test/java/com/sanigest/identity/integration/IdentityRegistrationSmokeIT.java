@@ -40,6 +40,10 @@ import tools.jackson.databind.json.JsonMapper;
 class IdentityRegistrationSmokeIT {
 
   private static final CompanyServiceTestTokens COMPANY = new CompanyServiceTestTokens();
+  private static final CompanyServiceTestTokens DIRECTORY = new CompanyServiceTestTokens();
+  private static final String DIRECTORY_ISSUER = "sanigest-company-directory-test";
+  private static final String DIRECTORY_AUDIENCE = "sanigest-identity-member-directory";
+  private static final String DIRECTORY_SCOPE = "identity:member-directory:read";
   private static final String DB_PASSWORD = TestCredentials.random();
   private static final String VALID_PASSWORD = TestCredentials.random();
   private static final String ANOTHER_PASSWORD = TestCredentials.random();
@@ -61,6 +65,7 @@ class IdentityRegistrationSmokeIT {
   @DynamicPropertySource
   static void databaseProperties(DynamicPropertyRegistry registry) {
     COMPANY.configure(registry);
+    DIRECTORY.configure(registry, "sanigest.member-directory", DIRECTORY_ISSUER);
     registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
     registry.add("spring.datasource.username", POSTGRES::getUsername);
     registry.add("spring.datasource.password", POSTGRES::getPassword);
@@ -233,6 +238,70 @@ class IdentityRegistrationSmokeIT {
 
     jdbcTemplate.update("UPDATE users SET status = 'DISABLED' WHERE id = ?", advisorId);
     assertEligibility(advisorId, false);
+  }
+
+  @Test
+  @Tag("smoke")
+  void directoryReturnsOnlyRegisteredIdsAndKeepsEmailUnverified() throws Exception {
+    var json = JsonMapper.builder().build();
+    String email = "directory@example.com";
+    var registered = register(registerPayload(email, VALID_PASSWORD, "Registered Name"));
+    assertThat(registered.status()).isEqualTo(201);
+    String id = json.readTree(registered.body()).path("userId").asString();
+    assertThat(
+            register(registerPayload("other-directory@example.com", VALID_PASSWORD, "Other"))
+                .status())
+        .isEqualTo(201);
+    String body =
+        json.writeValueAsString(
+            java.util.Map.of("userIds", List.of(id, UUID.randomUUID().toString())));
+    var response = directory(body, directoryAssertion(DIRECTORY_SCOPE));
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
+    var payload = json.readTree(response.body());
+    assertThat(payload.size()).isEqualTo(1);
+    assertThat(payload.get(0))
+        .isEqualTo(
+            json.valueToTree(
+                java.util.Map.of(
+                    "userId",
+                    id,
+                    "name",
+                    "Registered Name",
+                    "email",
+                    email,
+                    "emailVerified",
+                    false)));
+    String userToken =
+        json.readTree(sendLogin(email, VALID_PASSWORD).body()).path("accessToken").asString();
+    assertThat(directory(body, userToken).statusCode()).isEqualTo(403);
+    assertThat(directory(body, COMPANY.validToken()).statusCode()).isEqualTo(401);
+    assertThat(directory(body, directoryAssertion("wrong:scope")).statusCode()).isEqualTo(403);
+    String oversized =
+        json.writeValueAsString(
+            java.util.Map.of("userIds", java.util.Collections.nCopies(101, id)));
+    assertThat(directory(oversized, directoryAssertion(DIRECTORY_SCOPE)).statusCode())
+        .isEqualTo(400);
+  }
+
+  private static String directoryAssertion(String scope) {
+    return DIRECTORY.issue(
+        CompanyServiceTestTokens.claims()
+            .issuer(DIRECTORY_ISSUER)
+            .audience(List.of(DIRECTORY_AUDIENCE))
+            .claim("scope", scope),
+        CompanyServiceTestTokens.TYPE);
+  }
+
+  private HttpResponse<String> directory(String body, String token) throws Exception {
+    return httpClient.send(
+        HttpRequest.newBuilder(
+                URI.create("http://127.0.0.1:" + port + "/internal/v1/member-directory"))
+            .header("Authorization", "Bearer " + token)
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .build(),
+        HttpResponse.BodyHandlers.ofString());
   }
 
   private void assertEligibility(UUID userId, boolean eligible) throws Exception {

@@ -3,7 +3,9 @@ package com.sanigest.company.application.port.out.persistence;
 import com.sanigest.company.application.dto.AuthorizedCompany;
 import com.sanigest.company.application.dto.CompanyMembership;
 import com.sanigest.company.domain.enums.CompanyRole;
+import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.company.domain.model.Membership;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,9 +47,28 @@ public interface MembershipRepository {
 
   void updateRole(Membership membership, CompanyRole role);
 
-  void revoke(Membership membership);
+  void revoke(Membership membership, Instant now);
+
+  boolean revokedBefore(UUID companyId, UUID userId, Instant invitationCreatedAt);
 
   boolean existsByUserId(UUID userId);
+
+  boolean existsByUserIdOutsideCompany(UUID userId, UUID companyId);
+
+  void reinstate(Membership membership);
+
+  void updateStatus(Membership membership, MembershipStatus status);
+
+  List<Membership> findBatch(
+      UUID companyId,
+      CompanyRole role,
+      MembershipStatus status,
+      boolean descending,
+      UUID after,
+      int limit,
+      long offset);
+
+  long count(UUID companyId, CompanyRole role, MembershipStatus status);
 
   void insert(Membership membership);
 }

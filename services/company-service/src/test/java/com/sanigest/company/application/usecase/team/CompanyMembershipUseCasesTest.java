@@ -37,7 +37,7 @@ class CompanyMembershipUseCasesTest {
   private final ChangeCompanyMemberRoleUseCase change =
       new ChangeCompanyMemberRoleUseCase(policy, memberships, audit);
   private final RevokeCompanyMembershipUseCase revoke =
-      new RevokeCompanyMembershipUseCase(policy, memberships, audit);
+      new RevokeCompanyMembershipUseCase(policy, memberships, audit, java.time.Clock.systemUTC());
 
   @ParameterizedTest
   @CsvSource({"OWNER, OWNER", "OWNER, ADMIN", "ADMIN, ADMIN", "ADMIN, OPERATOR"})
@@ -66,7 +66,7 @@ class CompanyMembershipUseCasesTest {
     assertThatThrownBy(() -> revoke.revoke(actor, target))
         .isInstanceOf(CompanyAccessDeniedException.class);
     verify(memberships, never()).updateRole(any(), any());
-    verify(memberships, never()).revoke(any());
+    verify(memberships, never()).revoke(any(), any());
   }
 
   @Test
@@ -81,7 +81,7 @@ class CompanyMembershipUseCasesTest {
     assertThatThrownBy(() -> revoke.revoke(actor, target))
         .isInstanceOf(CompanyAccessDeniedException.class);
     verify(memberships, never()).updateRole(any(), any());
-    verify(memberships, never()).revoke(any());
+    verify(memberships, never()).revoke(any(), any());
   }
 
   @Test
@@ -92,7 +92,7 @@ class CompanyMembershipUseCasesTest {
     assertThatThrownBy(() -> change.change(actor, actor, CompanyRole.ADMIN))
         .isInstanceOf(LastOwnerException.class);
     verify(memberships, never()).updateRole(any(), any());
-    verify(memberships, never()).revoke(any());
+    verify(memberships, never()).revoke(any(), any());
 
     when(memberships.hasOtherActiveOwner(company, actor)).thenReturn(true);
     assertThat(change.change(actor, actor, CompanyRole.ADMIN).role()).isEqualTo(CompanyRole.ADMIN);
@@ -108,7 +108,7 @@ class CompanyMembershipUseCasesTest {
     assertThatThrownBy(() -> change.change(actor, target, CompanyRole.VIEWER))
         .isInstanceOf(MemberNotFoundException.class);
     revoke.revoke(actor, target);
-    verify(memberships).revoke(suspended);
+    verify(memberships).revoke(org.mockito.ArgumentMatchers.eq(suspended), any());
 
     member(target, CompanyRole.OPERATOR, MembershipStatus.REVOKED);
     assertThatThrownBy(() -> revoke.revoke(actor, target))
@@ -131,7 +131,46 @@ class CompanyMembershipUseCasesTest {
         .rejected(company, actor, actor, AuditOperation.MEMBER_REVOKED);
 
     assertThatThrownBy(() -> revoke.revoke(actor, actor)).isInstanceOf(LastOwnerException.class);
-    verify(memberships, never()).revoke(any());
+    verify(memberships, never()).revoke(any(), any());
+  }
+
+  @Test
+  void suspendsAndReactivatesMembersWithoutChangingTheirRole() {
+    actor(CompanyRole.ADMIN, MembershipStatus.ACTIVE);
+    var changeStatus = new ChangeCompanyMemberStatusUseCase(policy, memberships, audit);
+    var active = member(target, CompanyRole.OPERATOR, MembershipStatus.ACTIVE);
+    var result = changeStatus.change(actor, null, target, MembershipStatus.SUSPENDED);
+    assertThat(result.status()).isEqualTo(MembershipStatus.SUSPENDED);
+    assertThat(result.role()).isEqualTo(CompanyRole.OPERATOR);
+    verify(memberships).updateStatus(active, MembershipStatus.SUSPENDED);
+    verify(audit)
+        .succeeded(
+            actor,
+            active,
+            AuditOperation.MEMBER_SUSPENDED,
+            CompanyRole.OPERATOR,
+            CompanyRole.OPERATOR,
+            MembershipStatus.ACTIVE,
+            MembershipStatus.SUSPENDED);
+
+    var suspended = member(target, CompanyRole.OPERATOR, MembershipStatus.SUSPENDED);
+    assertThat(changeStatus.change(actor, null, target, MembershipStatus.ACTIVE).status())
+        .isEqualTo(MembershipStatus.ACTIVE);
+    verify(memberships).updateStatus(suspended, MembershipStatus.ACTIVE);
+  }
+
+  @Test
+  void preventsSuspensionOfLastOwnerAndReactivationOfRevokedMembership() {
+    actor(CompanyRole.OWNER, MembershipStatus.ACTIVE);
+    var changeStatus = new ChangeCompanyMemberStatusUseCase(policy, memberships, audit);
+    assertThatThrownBy(() -> changeStatus.change(actor, null, actor, MembershipStatus.SUSPENDED))
+        .isInstanceOf(LastOwnerException.class);
+    member(target, CompanyRole.ADMIN, MembershipStatus.REVOKED);
+    assertThatThrownBy(() -> changeStatus.change(actor, null, target, MembershipStatus.ACTIVE))
+        .isInstanceOf(MemberNotFoundException.class);
+    assertThatThrownBy(() -> changeStatus.change(actor, null, target, MembershipStatus.REVOKED))
+        .isInstanceOf(IllegalArgumentException.class);
+    verify(memberships, never()).updateStatus(any(), any());
   }
 
   private void actor(CompanyRole role, MembershipStatus status) {
