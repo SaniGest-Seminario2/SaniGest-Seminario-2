@@ -5,6 +5,7 @@ import static com.sanigest.catalog.api.error.CatalogProblems.problem;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.ClientListingForbiddenException;
+import com.sanigest.catalog.application.exception.DuplicateClientCategory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -12,6 +13,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 class ClientErrorHandler {
+  @ExceptionHandler(DuplicateClientCategory.class)
+  ProblemDetail duplicateCategory() {
+    return problem(
+        HttpStatus.CONFLICT,
+        "DUPLICATE_CLIENT_CATEGORY",
+        "A category with that code already exists");
+  }
+
   @ExceptionHandler(ClientListingForbiddenException.class)
   ProblemDetail listingForbidden(ClientListingForbiddenException failure) {
     return problem(HttpStatus.FORBIDDEN, "FORBIDDEN", failure.getMessage());

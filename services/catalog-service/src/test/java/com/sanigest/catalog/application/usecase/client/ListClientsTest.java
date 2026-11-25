@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.sanigest.catalog.application.dto.ClientPage;
+import com.sanigest.catalog.application.dto.ClientSearchCriteria;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.InvalidClientQueryException;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
@@ -44,14 +45,19 @@ class ListClientsTest {
     var items =
         match
             ? List.of(
-                new ClientPage.Item(UUID.randomUUID(), "Clínica", "101001", "ACTIVE"),
-                new ClientPage.Item(UUID.randomUUID(), "Clínica", "101002", "ACTIVE"))
+                new ClientPage.Item(
+                    UUID.randomUUID(), "Clínica", "101001", "ACTIVE", null, null, null, null, null),
+                new ClientPage.Item(
+                    UUID.randomUUID(), "Clínica", "101002", "ACTIVE", null, null, null, null, null))
             : List.<ClientPage.Item>of();
     var result = new ClientPage(items, 0, 20, items.size());
     when(authorization.membership(CATALOG_READ)).thenReturn(Optional.of(company));
-    when(repository.search(company, term, state, 0, 20)).thenReturn(result);
+    when(repository.search(
+            company, new ClientSearchCriteria(term, state, null, null, null, false), 0, 20))
+        .thenReturn(result);
 
-    var page = useCase.execute(search, status, 0, 20);
+    var page =
+        useCase.execute(new ClientSearchCriteria(search, status, null, null, null, false), 0, 20);
     assertThat(page).isSameAs(result);
     assertThat(page.content()).containsExactlyElementsOf(items);
     assertThat(page.totalPages()).isEqualTo(match ? 1 : 0);
@@ -66,7 +72,9 @@ class ListClientsTest {
     "0, 20, DELETED"
   })
   void rejectsInvalidQueries(int page, int size, String status) {
-    assertThatThrownBy(() -> useCase.execute(null, status, page, size))
+    assertThatThrownBy(() ->
+            useCase.execute(
+                new ClientSearchCriteria(null, status, null, null, null, false), page, size))
         .isInstanceOf(InvalidClientQueryException.class);
     verifyNoInteractions(authorization, repository);
   }
@@ -75,7 +83,8 @@ class ListClientsTest {
   void deniesReadWhenCompanyDoesNotAuthorizeIt() {
     when(authorization.membership(CATALOG_READ)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> useCase.execute(null, null, 0, 20))
+    assertThatThrownBy(() ->
+            useCase.execute(new ClientSearchCriteria(null, null, null, null, null, false), 0, 20))
         .isInstanceOf(AccessDeniedException.class);
     verifyNoInteractions(repository);
   }
@@ -85,7 +94,9 @@ class ListClientsTest {
     var unavailable = new ClientCreationException(AUTHORIZATION_UNAVAILABLE);
     when(authorization.membership(CATALOG_READ)).thenThrow(unavailable);
 
-    assertThatThrownBy(() -> useCase.execute(null, null, 0, 20)).isSameAs(unavailable);
+    assertThatThrownBy(() ->
+            useCase.execute(new ClientSearchCriteria(null, null, null, null, null, false), 0, 20))
+        .isSameAs(unavailable);
     verifyNoInteractions(repository);
   }
 }

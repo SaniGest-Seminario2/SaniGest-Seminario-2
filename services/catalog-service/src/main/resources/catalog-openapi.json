@@ -1046,7 +1046,7 @@
       "post": {
         "operationId": "createClient",
         "summary": "Registrar un cliente",
-        "description": "Requiere CATALOG_WRITE en la membresía activa resuelta por Company. El cliente se registra en la empresa autorizada.",
+        "description": "Requiere CATALOG_WRITE en la membresía activa resuelta por Company. El cliente se registra en la empresa autorizada. El perfil ampliado requiere clientType y aplica valores predeterminados para país, modalidad y categoría.",
         "security": [
           {
             "bearerAuth": []
@@ -1058,6 +1058,29 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateClientRequest"
+              },
+              "examples": {
+                "natural": {
+                  "value": {
+                    "name": "Ana Pérez",
+                    "clientType": "NATURAL",
+                    "taxId": "001-0000001-2"
+                  }
+                },
+                "legal": {
+                  "value": {
+                    "name": "Distribuidora Central SRL",
+                    "clientType": "LEGAL",
+                    "taxId": "012345678",
+                    "email": "administracion@example.com",
+                    "countryCode": "DO",
+                    "provinceCode": "010000",
+                    "municipalityCode": "010100",
+                    "preferredReceiptType": "FISCAL_CREDIT",
+                    "paymentTerms": "BOTH",
+                    "creditLimit": "50000.25"
+                  }
+                }
               }
             }
           }
@@ -1068,7 +1091,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ClientCreated"
+                  "$ref": "#/components/schemas/ClientDetail"
                 }
               }
             }
@@ -1121,7 +1144,7 @@
       "get": {
         "operationId": "listClients",
         "summary": "Listar y buscar clientes",
-        "description": "Requiere CATALOG_READ en la membresía activa resuelta por Company. El orden es name ASC, id ASC. Una página fuera de rango devuelve content vacío y conserva los totales de la búsqueda.",
+        "description": "Requiere CATALOG_READ. Úsalo con status=ACTIVE para el selector. Los filtros se aplican antes de paginar; si la página queda fuera de rango, se conservan los totales. El UUID es el desempate ascendente.",
         "security": [
           {
             "bearerAuth": []
@@ -1131,7 +1154,7 @@
           {
             "name": "search",
             "in": "query",
-            "description": "Fragmento literal del nombre o documento fiscal, sin distinguir mayúsculas. Se recortan espacios exteriores y se omite el filtro si queda vacío.",
+            "description": "Fragmento literal de nombre, documento, correo o teléfono principal o alternativo, sin distinguir mayúsculas.",
             "schema": {
               "type": "string"
             }
@@ -1142,6 +1165,50 @@
             "description": "ACTIVE o INACTIVE, sin distinguir mayúsculas. Se recortan espacios exteriores y se omite el filtro si queda vacío.",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "clientType",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "NATURAL",
+                "LEGAL"
+              ]
+            }
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "paymentTerms",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CASH",
+                "CREDIT",
+                "BOTH"
+              ]
+            },
+            "description": "CASH y CREDIT incluyen BOTH. BOTH exige coincidencia exacta."
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "name,asc",
+                "name,desc"
+              ],
+              "default": "name,asc"
             }
           },
           {
@@ -1181,7 +1248,12 @@
                       "id": "a37149a5-d44b-4467-8805-09a8df3718ca",
                       "name": "Clínica Ejemplo",
                       "taxId": "101001001",
-                      "status": "ACTIVE"
+                      "status": "ACTIVE",
+                      "phone": "8095550100",
+                      "clientType": "LEGAL",
+                      "paymentTerms": "CASH",
+                      "categoryId": "955b9b1d-9c90-4404-a72c-ab1de57995dc",
+                      "categoryName": "Regular"
                     }
                   ],
                   "page": 0,
@@ -1336,8 +1408,8 @@
       },
       "patch": {
         "operationId": "updateClient",
-        "summary": "Editar datos del cliente",
-        "description": "Requiere CATALOG_WRITE en la membresía activa resuelta por Company. Los campos omitidos conservan su valor. null limpia taxId, email, phone y address. name debe ser un texto no vacío. Se rechazan objetos vacíos y campos fuera del esquema.",
+        "summary": "Editar parcialmente la ficha comercial",
+        "description": "Requiere CATALOG_WRITE. Omitir conserva; null limpia campos opcionales. El nombre, el tipo, país, condición y categoría del perfil ampliado requieren valor. Para completar un registro legado, enviar clientType, countryCode, paymentTerms y categoryId juntos. Se valida el resultado completo. Estado por ruta independiente.",
         "security": [
           {
             "bearerAuth": []
@@ -1526,6 +1598,526 @@
           },
           "503": {
             "description": "No se pudo verificar la autorización empresarial",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clients/categories": {
+      "get": {
+        "operationId": "listClientCategories",
+        "summary": "Consultar categorías activas e inactivas",
+        "description": "Requiere CATALOG_READ en la membresía vigente.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consultar categorías activas e inactivas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientCategory"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud o referencia inválida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización empresarial indisponible",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createClientCategory",
+        "summary": "Registrar categoría activa",
+        "description": "Requiere CATALOG_WRITE en la membresía vigente.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Registrar categoría activa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientCategory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud o referencia inválida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización empresarial indisponible",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Código duplicado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientCategoryCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clients/categories/{id}": {
+      "put": {
+        "operationId": "updateClientCategory",
+        "summary": "Cambiar nombre o estado de categoría",
+        "description": "Requiere CATALOG_WRITE en la membresía vigente.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cambiar nombre o estado de categoría",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientCategory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud o referencia inválida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización empresarial indisponible",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Categoría inexistente o ajena",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientCategoryUpdate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clients/reference-data/countries": {
+      "get": {
+        "operationId": "listClientCountries",
+        "summary": "Consultar países de referencia",
+        "description": "Requiere CATALOG_READ en la membresía vigente.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consultar países de referencia",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientReferenceOption"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud o referencia inválida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización empresarial indisponible",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clients/reference-data/provinces": {
+      "get": {
+        "operationId": "listClientProvinces",
+        "summary": "Consultar provincias de un país",
+        "description": "Requiere CATALOG_READ en la membresía vigente.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          },
+          {
+            "name": "countryCode",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "DO"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consultar provincias de un país",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientReferenceOption"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud o referencia inválida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización empresarial indisponible",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clients/reference-data/municipalities": {
+      "get": {
+        "operationId": "listClientMunicipalities",
+        "summary": "Consultar municipios de una provincia",
+        "description": "Requiere CATALOG_READ en la membresía vigente.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          },
+          {
+            "name": "countryCode",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "DO"
+            }
+          },
+          {
+            "name": "provinceCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consultar municipios de una provincia",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientReferenceOption"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud o referencia inválida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización empresarial indisponible",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clients/reference-data/receipt-types": {
+      "get": {
+        "operationId": "listClientReceiptTypes",
+        "summary": "Consultar preferencias de comprobante",
+        "description": "Requiere CATALOG_READ en la membresía vigente.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanySelector"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consultar preferencias de comprobante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientReceiptType"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud o referencia inválida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido"
+          },
+          "403": {
+            "description": "Permiso insuficiente",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización empresarial indisponible",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2115,67 +2707,14 @@
         }
       },
       "CreateClientRequest": {
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 160
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CreateExpandedClientRequest"
           },
-          "taxId": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 64,
-            "description": "Se elimina el espacio en blanco ASCII en los extremos. Un resultado vacío se guarda como null. Se conservan letras y separadores."
-          },
-          "email": {
-            "type": "string",
-            "nullable": true,
-            "format": "email",
-            "maxLength": 320
-          },
-          "phone": {
-            "type": "string",
-            "nullable": true,
-            "pattern": "^[0-9+() .-]{7,32}$"
-          },
-          "address": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 255
+          {
+            "$ref": "#/components/schemas/CreateLegacyClientRequest"
           }
-        }
-      },
-      "ClientCreated": {
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "taxId",
-          "status"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "taxId": {
-            "type": "string",
-            "nullable": true
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "ACTIVE"
-            ]
-          }
-        }
+        ]
       },
       "Problem": {
         "type": "object",
@@ -2210,7 +2749,12 @@
           "id",
           "name",
           "taxId",
-          "status"
+          "status",
+          "phone",
+          "clientType",
+          "paymentTerms",
+          "categoryId",
+          "categoryName"
         ],
         "properties": {
           "id": {
@@ -2230,6 +2774,40 @@
               "ACTIVE",
               "INACTIVE"
             ]
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9+() .-]{7,32}$"
+          },
+          "clientType": {
+            "type": "string",
+            "enum": [
+              "NATURAL",
+              "LEGAL",
+              null
+            ],
+            "nullable": true
+          },
+          "paymentTerms": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "CREDIT",
+              "BOTH",
+              null
+            ],
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID de categoría activa de la empresa al seleccionarla.",
+            "nullable": true
+          },
+          "categoryName": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -2285,7 +2863,7 @@
             "type": "string",
             "nullable": true,
             "maxLength": 64,
-            "description": "Se elimina el espacio en blanco ASCII en los extremos. Un resultado vacío se guarda como null. Se conservan letras y separadores."
+            "description": "Texto con ceros iniciales. Espacios externos y valor vacío se normalizan. Para DO, se quitan espacios internos y guiones y se requieren 11 dígitos para NATURAL o 9 para LEGAL. La validación es de formato. El contrato anterior conserva el formato histórico."
           },
           "email": {
             "type": "string",
@@ -2302,6 +2880,65 @@
             "type": "string",
             "nullable": true,
             "maxLength": 255
+          },
+          "clientType": {
+            "type": "string",
+            "enum": [
+              "NATURAL",
+              "LEGAL"
+            ]
+          },
+          "alternatePhone": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9+() .-]{7,32}$"
+          },
+          "countryCode": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "description": "Código ISO 3166-1 alfa-2."
+          },
+          "provinceCode": {
+            "type": "string",
+            "maxLength": 8,
+            "nullable": true,
+            "description": "Código de provincia del país seleccionado."
+          },
+          "municipalityCode": {
+            "type": "string",
+            "maxLength": 8,
+            "nullable": true,
+            "description": "Código de municipio de la provincia seleccionada."
+          },
+          "preferredReceiptType": {
+            "type": "string",
+            "maxLength": 32,
+            "nullable": true,
+            "description": "Preferencia del catálogo, independiente de la elegibilidad fiscal."
+          },
+          "paymentTerms": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "CREDIT",
+              "BOTH"
+            ]
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID de categoría activa de la empresa al seleccionarla."
+          },
+          "creditLimit": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}([.][0-9]{1,2})?$",
+            "nullable": true,
+            "description": "Límite configurado DOP NUMERIC(19,2). null indica ausencia de configuración. 0.00 es un límite explícito."
+          },
+          "observations": {
+            "type": "string",
+            "maxLength": 1000,
+            "nullable": true
           }
         }
       },
@@ -2330,7 +2967,17 @@
           "email",
           "phone",
           "address",
-          "status"
+          "status",
+          "clientType",
+          "alternatePhone",
+          "countryCode",
+          "provinceCode",
+          "municipalityCode",
+          "preferredReceiptType",
+          "paymentTerms",
+          "categoryId",
+          "creditLimit",
+          "observations"
         ],
         "properties": {
           "id": {
@@ -2346,7 +2993,7 @@
             "type": "string",
             "nullable": true,
             "maxLength": 64,
-            "description": "Se elimina el espacio en blanco ASCII en los extremos. Un resultado vacío se guarda como null. Se conservan letras y separadores."
+            "description": "Texto con ceros iniciales. Espacios externos y valor vacío se normalizan. Para DO, se quitan espacios internos y guiones y se requieren 11 dígitos para NATURAL o 9 para LEGAL. La validación es de formato. El contrato anterior conserva el formato histórico."
           },
           "email": {
             "type": "string",
@@ -2370,8 +3017,332 @@
               "ACTIVE",
               "INACTIVE"
             ]
+          },
+          "clientType": {
+            "type": "string",
+            "enum": [
+              "NATURAL",
+              "LEGAL",
+              null
+            ],
+            "nullable": true
+          },
+          "alternatePhone": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9+() .-]{7,32}$"
+          },
+          "countryCode": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "description": "Código ISO 3166-1 alfa-2.",
+            "nullable": true
+          },
+          "provinceCode": {
+            "type": "string",
+            "maxLength": 8,
+            "nullable": true,
+            "description": "Código de provincia del país seleccionado."
+          },
+          "municipalityCode": {
+            "type": "string",
+            "maxLength": 8,
+            "nullable": true,
+            "description": "Código de municipio de la provincia seleccionada."
+          },
+          "preferredReceiptType": {
+            "type": "string",
+            "maxLength": 32,
+            "nullable": true,
+            "description": "Preferencia del catálogo, independiente de la elegibilidad fiscal."
+          },
+          "paymentTerms": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "CREDIT",
+              "BOTH",
+              null
+            ],
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID de categoría activa de la empresa al seleccionarla.",
+            "nullable": true
+          },
+          "creditLimit": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}([.][0-9]{1,2})?$",
+            "nullable": true,
+            "description": "Límite configurado DOP NUMERIC(19,2). null indica ausencia de configuración. 0.00 es un límite explícito."
+          },
+          "observations": {
+            "type": "string",
+            "maxLength": 1000,
+            "nullable": true
           }
         }
+      },
+      "CreateLegacyClientRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "taxId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "description": "Texto con ceros iniciales. Espacios externos y valor vacío se normalizan. Para DO, se quitan espacios internos y guiones y se requieren 11 dígitos para NATURAL o 9 para LEGAL. La validación es de formato. El contrato anterior conserva el formato histórico."
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "format": "email",
+            "maxLength": 320
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9+() .-]{7,32}$"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "id": {
+            "description": "Campo legado ignorado. El servidor asigna el contexto y el estado.",
+            "deprecated": true
+          },
+          "userId": {
+            "description": "Campo legado ignorado. El servidor asigna el contexto y el estado.",
+            "deprecated": true
+          },
+          "companyId": {
+            "description": "Campo legado ignorado. El servidor asigna el contexto y el estado.",
+            "deprecated": true
+          },
+          "status": {
+            "description": "Campo legado ignorado. El servidor asigna el contexto y el estado.",
+            "deprecated": true
+          }
+        },
+        "description": "Transición para consumidores del contrato anterior de cinco campos. Sin campos ampliados.",
+        "additionalProperties": false
+      },
+      "CreateExpandedClientRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "clientType"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "taxId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "description": "Texto con ceros iniciales. Espacios externos y valor vacío se normalizan. Para DO, se quitan espacios internos y guiones y se requieren 11 dígitos para NATURAL o 9 para LEGAL. La validación es de formato. El contrato anterior conserva el formato histórico."
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "format": "email",
+            "maxLength": 320
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9+() .-]{7,32}$"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "clientType": {
+            "type": "string",
+            "enum": [
+              "NATURAL",
+              "LEGAL"
+            ]
+          },
+          "alternatePhone": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9+() .-]{7,32}$"
+          },
+          "countryCode": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "description": "Código ISO 3166-1 alfa-2.",
+            "default": "DO"
+          },
+          "provinceCode": {
+            "type": "string",
+            "maxLength": 8,
+            "nullable": true,
+            "description": "Código de provincia del país seleccionado."
+          },
+          "municipalityCode": {
+            "type": "string",
+            "maxLength": 8,
+            "nullable": true,
+            "description": "Código de municipio de la provincia seleccionada."
+          },
+          "preferredReceiptType": {
+            "type": "string",
+            "maxLength": 32,
+            "nullable": true,
+            "description": "Preferencia del catálogo, independiente de la elegibilidad fiscal."
+          },
+          "paymentTerms": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "CREDIT",
+              "BOTH"
+            ],
+            "default": "CASH"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID de categoría activa de la empresa al seleccionarla. El servidor utiliza REGULAR si se omite."
+          },
+          "creditLimit": {
+            "type": "string",
+            "pattern": "^[0-9]{1,17}([.][0-9]{1,2})?$",
+            "nullable": true,
+            "description": "Límite configurado DOP NUMERIC(19,2). null indica ausencia de configuración. 0.00 es un límite explícito."
+          },
+          "observations": {
+            "type": "string",
+            "maxLength": 1000,
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClientCategory": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{0,31}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "status"
+        ]
+      },
+      "ClientCategoryCreate": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{0,31}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "ClientCategoryUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "status"
+        ]
+      },
+      "ClientReferenceOption": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "ClientReceiptType": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "version",
+          "active"
+        ]
       }
     },
     "securitySchemes": {

@@ -1,18 +1,57 @@
 package com.sanigest.catalog.api.dto;
 
+import com.sanigest.catalog.domain.exception.InvalidClientPatch;
 import com.sanigest.catalog.domain.model.ClientDetails;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import com.sanigest.catalog.domain.model.ClientPatch.Value;
+import com.sanigest.catalog.domain.model.ClientProfile;
+import jakarta.validation.Validator;
+import tools.jackson.databind.JsonNode;
 
-public record CreateClientRequest(
-    @NotBlank @Size(max = 160) String name,
-    @Size(max = 64) String taxId,
-    @Email @Size(max = 320) String email,
-    @Pattern(regexp = "[0-9+() .-]{7,32}") String phone,
-    @Size(max = 255) String address) {
-  public ClientDetails toDetails() {
-    return new ClientDetails(name, taxId, email, phone, address);
+public record CreateClientRequest(ClientDetails details) {
+  public static CreateClientRequest from(JsonNode body, Validator validator) {
+    var fields = ClientPatchRequest.creation(body);
+    fields.validateFields(validator);
+    String name = value(fields.name());
+    if (name == null || name.isBlank()) {
+      throw new InvalidClientPatch();
+    }
+    ClientProfile profile = null;
+    if (fields.hasProfileFields()) {
+      if (value(fields.clientType()) == null
+          || explicitNull(fields.countryCode())
+          || explicitNull(fields.paymentTerms())
+          || explicitNull(fields.categoryId())) {
+        throw new InvalidClientPatch();
+      }
+      // Defaults are applied by the use case after resolving the authorized company.
+      profile =
+          new ClientProfile(
+              value(fields.clientType()),
+              value(fields.alternatePhone()),
+              fields.countryCode() == null ? "DO" : value(fields.countryCode()),
+              value(fields.provinceCode()),
+              value(fields.municipalityCode()),
+              value(fields.preferredReceiptType()),
+              value(fields.paymentTerms()),
+              value(fields.categoryId()),
+              value(fields.creditLimit()),
+              value(fields.observations()));
+    }
+    return new CreateClientRequest(
+        new ClientDetails(
+            name,
+            value(fields.taxId()),
+            value(fields.email()),
+            value(fields.phone()),
+            value(fields.address()),
+            profile));
+  }
+
+  private static boolean explicitNull(Value<?> field) {
+    return field != null && field.value() == null;
+  }
+
+  private static <T> T value(Value<T> field) {
+    return field == null ? null : field.value();
   }
 }

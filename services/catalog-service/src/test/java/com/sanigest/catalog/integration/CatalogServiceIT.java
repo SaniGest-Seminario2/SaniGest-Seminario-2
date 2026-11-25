@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.matching.MatchResult;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -19,11 +20,14 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sanigest.catalog.CatalogServiceApplication;
+import com.sanigest.catalog.api.dto.ClientPatchRequest;
+import com.sanigest.catalog.application.dto.ClientSearchCriteria;
 import com.sanigest.catalog.application.exception.CatalogItemAccessException;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.SupplierAccessException;
 import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
+import com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
 import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
 import com.sanigest.catalog.application.usecase.catalogitem.ChangeCatalogItemStatus;
@@ -45,8 +49,6 @@ import com.sanigest.catalog.domain.model.CatalogItem;
 import com.sanigest.catalog.domain.model.CatalogItemPatch;
 import com.sanigest.catalog.domain.model.Client;
 import com.sanigest.catalog.domain.model.ClientDetails;
-import com.sanigest.catalog.domain.model.ClientPatch;
-import com.sanigest.catalog.domain.model.ClientPatch.Field;
 import com.sanigest.catalog.domain.model.Supplier;
 import com.sanigest.catalog.domain.model.SupplierDetails;
 import com.sanigest.catalog.domain.model.SupplierPatch;
@@ -182,6 +184,8 @@ class CatalogServiceIT {
   @Autowired EntityManagerFactory entityManagerFactory;
   @Autowired Flyway flyway;
   @Autowired Environment environment;
+
+  @Autowired ClientCategoryRepository clientCategories;
 
   @DynamicPropertySource
   static void configure(DynamicPropertyRegistry registry) {
@@ -319,7 +323,12 @@ class CatalogServiceIT {
             "public.flyway_schema_history",
             "catalog.clients",
             "catalog.suppliers",
-            "catalog.catalog_items");
+            "catalog.catalog_items",
+            "catalog.client_categories",
+            "catalog.client_countries",
+            "catalog.client_provinces",
+            "catalog.client_municipalities",
+            "catalog.client_receipt_types");
     assertThat(flyway.info().applied())
         .extracting(migration -> migration.getScript())
         .containsExactly(
@@ -330,7 +339,9 @@ class CatalogServiceIT {
             "V5__create_suppliers.sql",
             "V6__support_supplier_management.sql",
             "V7__create_catalog_items.sql",
-            "V8__support_catalog_item_management.sql");
+            "V8__support_catalog_item_management.sql",
+            "V9__create_client_reference_catalogs.sql",
+            "V10__extend_client_commercial_profile.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -390,13 +401,10 @@ class CatalogServiceIT {
       var mapper = JsonMapper.shared();
       var body = mapper.readTree(response.body());
       var id = UUID.fromString(body.path("id").asString());
-      assertThat(body)
-          .isEqualTo(
-              mapper.readTree(
-                  """
-                  {"id":"%s","name":"Client","taxId":"%s","status":"ACTIVE"}
-                  """
-                      .formatted(id, taxId)));
+      assertThat(body.path("name").asString()).isEqualTo("Client");
+      assertThat(body.path("taxId").asString()).isEqualTo(taxId);
+      assertThat(body.path("status").asString()).isEqualTo("ACTIVE");
+      assertThat(body.path("clientType").isNull()).isTrue();
       var row =
           new JdbcTemplate(dataSource)
               .queryForMap(
@@ -598,7 +606,16 @@ class CatalogServiceIT {
       assertThat(statistics.getPrepareStatementCount() - before).isEqualTo(2);
       assertPage(first, 0, 2, 3, 2, ids.toArray(String[]::new));
       assertThat(first.path("content").get(0).propertyNames())
-          .containsExactlyInAnyOrder("id", "name", "taxId", "status");
+          .contains(
+              "id",
+              "name",
+              "taxId",
+              "status",
+              "phone",
+              "clientType",
+              "paymentTerms",
+              "categoryId",
+              "categoryName");
       assertPage(listPage(http, readerA, "?size=2&page=1", null), 1, 2, 3, 2, last);
       assertPage(
           listPage(http, readerA, "?size=2&page=2147483647", null), Integer.MAX_VALUE, 2, 3, 2);
@@ -703,7 +720,9 @@ class CatalogServiceIT {
   @Test
   @Tag("regression")
   void rejectsDirectListingWithoutAuthenticatedContext() {
-    assertThatThrownBy(() -> listClients.execute(null, null, 0, 20))
+    assertThatThrownBy(() ->
+            listClients.execute(
+                new ClientSearchCriteria(null, null, null, null, null, false), 0, 20))
         .isInstanceOf(AccessDeniedException.class);
     COMPANY.verify(0, getRequestedFor(urlEqualTo(PATH)));
   }
@@ -846,6 +865,46 @@ class CatalogServiceIT {
 
   @Test
   @Tag("regression")
+  void categoryInitializationIsTransactionalAndIdempotentAcrossConnections() throws Exception {
+    var company = UUID.randomUUID();
+    var transaction = new TransactionTemplate(transactions);
+    transaction.executeWithoutResult(status -> {
+      clientCategories.initialize(company);
+      assertThat(clientCategories.list(company)).hasSize(4);
+      status.setRollbackOnly();
+    });
+    assertThat(clientCategories.list(company)).isEmpty();
+
+    var inserted = new CountDownLatch(1);
+    var secondConnection = new CountDownLatch(1);
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var first =
+          pool.submit(() ->
+              transaction.executeWithoutResult(status -> {
+                clientCategories.initialize(company);
+                inserted.countDown();
+                await(secondConnection);
+              }));
+      var second =
+          pool.submit(() ->
+              transaction.executeWithoutResult(status -> {
+                await(inserted);
+                secondConnection.countDown();
+                clientCategories.initialize(company);
+              }));
+      first.get(10, TimeUnit.SECONDS);
+      second.get(10, TimeUnit.SECONDS);
+    }
+    var categories = clientCategories.list(company);
+    assertThat(categories)
+        .extracting(category -> category.code())
+        .containsExactlyInAnyOrder("REGULAR", "FREQUENT", "WHOLESALE", "CORPORATE");
+    transaction.executeWithoutResult(status -> clientCategories.initialize(company));
+    assertThat(clientCategories.list(company)).containsExactlyElementsOf(categories);
+  }
+
+  @Test
+  @Tag("regression")
   void rejectsAStaleConcurrentUpdateWithoutLosingTheCommittedChange() throws Exception {
     var original =
         Client.register(
@@ -870,7 +929,9 @@ class CatalogServiceIT {
             original.companyId(),
             original.id(),
             current ->
-                current.updateDetails(new ClientPatch(Map.of(Field.EMAIL, "saved@example.org"))));
+                current.updateDetails(
+                    ClientPatchRequest.details(
+                        JsonMapper.shared().valueToTree(Map.of("email", "saved@example.org")))));
       } finally {
         committed.countDown();
       }
@@ -936,8 +997,10 @@ class CatalogServiceIT {
         """,
         itemId,
         companyId);
-    var latest = Flyway.configure().dataSource(source).load();
-    assertThat(latest.migrate().migrationsExecuted).isEqualTo(1);
+    assertThat(
+            Flyway.configure().dataSource(source).target("8").load().migrate().migrationsExecuted)
+        .isEqualTo(1);
+    verifyClientProfileMigration(source, jdbc, companyId);
     assertThat(
             jdbc.queryForMap(
                 """
@@ -948,7 +1011,6 @@ class CatalogServiceIT {
         .containsEntry("description", null)
         .containsEntry("price", new BigDecimal("3200.50"))
         .containsEntry("revision", 0L);
-    latest.validate();
     assertThat(
             jdbc.queryForMap(
                 "SELECT company_id, tax_id, status, revision FROM catalog.suppliers WHERE id = ?",
@@ -979,6 +1041,49 @@ class CatalogServiceIT {
         .isInstanceOf(DataIntegrityViolationException.class);
   }
 
+  private static void verifyClientProfileMigration(
+      DriverManagerDataSource source, JdbcTemplate jdbc, UUID companyId) {
+    var historical = UUID.randomUUID();
+    var historicalDuplicate = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO catalog.clients (id, company_id, name, tax_id, status, revision)
+        VALUES (?, ?, 'Con separadores', '001-0000001-2', 'INACTIVE', 7),
+               (?, ?, 'Sin separadores', '00100000012', 'ACTIVE', 3)
+        """,
+        historical,
+        companyId,
+        historicalDuplicate,
+        companyId);
+    var latest = Flyway.configure().dataSource(source).load();
+    assertThat(latest.migrate().migrationsExecuted).isEqualTo(2);
+    assertThat(
+            jdbc.queryForMap(
+                """
+                SELECT tax_id, tax_id_key, revision, status, client_type, payment_terms, category_id,
+                       country_code, credit_limit FROM catalog.clients WHERE id = ?
+                """,
+                historical))
+        .containsEntry("tax_id", "001-0000001-2")
+        .containsEntry("tax_id_key", "00100000012")
+        .containsEntry("revision", 7L)
+        .containsEntry("status", "INACTIVE")
+        .containsEntry("client_type", null)
+        .containsEntry("payment_terms", null)
+        .containsEntry("category_id", null)
+        .containsEntry("country_code", null)
+        .containsEntry("credit_limit", null);
+    assertThat(
+            jdbc.queryForObject(
+                """
+                SELECT count(*) FROM catalog.clients WHERE company_id = ? AND tax_id_key = '00100000012'
+                """,
+                Long.class,
+                companyId))
+        .isEqualTo(2L);
+    latest.validate();
+  }
+
   @Test
   @Tag("regression")
   void readsThePersistedEditAndStatusFromAFreshApplicationContext() {
@@ -992,7 +1097,10 @@ class CatalogServiceIT {
             original.id(),
             current ->
                 current
-                    .updateDetails(new ClientPatch(Map.of(Field.EMAIL, "persisted@example.org")))
+                    .updateDetails(
+                        ClientPatchRequest.details(
+                            JsonMapper.shared()
+                                .valueToTree(Map.of("email", "persisted@example.org"))))
                     .changeStatus(ClientStatus.INACTIVE));
 
     try (var context =
@@ -1009,6 +1117,267 @@ class CatalogServiceIT {
       assertThat(context.getBean(ClientRepository.class).find(original.companyId(), original.id()))
           .contains(stored);
     }
+  }
+
+  @Test
+  @Tag("smoke")
+  void completesTheCommercialProfileWorkflowOverHttp() throws Exception {
+    var tenant = UUID.randomUUID();
+    var otherTenant = UUID.randomUUID();
+    var owner = scopedClientOwner(tenant);
+    var foreign = scopedClientOwner(otherTenant);
+    String path = "/api/v1/clients";
+    try (var http = HttpClient.newHttpClient()) {
+      String regular = verifyClientReferences(http, owner, path);
+      var natural =
+          createProfile(
+              http,
+              owner,
+              """
+              {"name":"Ana Pérez","clientType":"NATURAL","taxId":"001-0000001-2"}
+              """);
+      assertThat(natural.path("categoryId").asString()).isEqualTo(regular);
+      assertThat(natural.path("countryCode").asString()).isEqualTo("DO");
+      assertThat(natural.path("paymentTerms").asString()).isEqualTo("CASH");
+      assertThat(natural.path("taxId").asString()).isEqualTo("00100000012");
+      assertThat(natural.path("creditLimit").isNull()).isTrue();
+
+      var legal =
+          createProfile(
+              http,
+              owner,
+              """
+              {"name":"Central SRL","clientType":"LEGAL","taxId":"012-345678",
+               "email":"VENTAS@example.org","phone":"8095550100","alternatePhone":"8295550100",
+               "address":"Avenida principal","countryCode":"DO","provinceCode":"010000",
+               "municipalityCode":"010100","preferredReceiptType":"FISCAL_CREDIT",
+               "paymentTerms":"BOTH","categoryId":"%s","creditLimit":"50000.25","observations":"Central"}
+              """
+                  .formatted(regular));
+      var id = legal.path("id").asString();
+      var detailPath = path + "/" + id;
+      var detailResponse = get(http, detailPath + "?expectedCompanyId=" + tenant, owner);
+      assertThat(detailResponse.headers().firstValue("X-Catalog-Company-Id"))
+          .contains(tenant.toString());
+      assertThat(successfulBody(detailResponse)).isEqualTo(legal);
+      assertThat(
+              get(http, detailPath + "?expectedCompanyId=" + UUID.randomUUID(), owner).statusCode())
+          .isEqualTo(403);
+
+      var result =
+          listPage(
+              http,
+              owner,
+              "?search=ventas&status=ACTIVE&clientType=LEGAL&paymentTerms=CREDIT&categoryId="
+                  + regular,
+              tenant);
+      assertPage(result, 0, 20, 1, 1, id);
+      assertThat(result.path("content").get(0).path("categoryName").asString())
+          .isEqualTo("Regular");
+      for (var search : List.of("012345678", "8295550100", "8095550100", "CENTRAL")) {
+        assertPage(listPage(http, owner, "?search=" + search, tenant), 0, 20, 1, 1, id);
+      }
+
+      var edited =
+          successfulBody(
+              patch(
+                  http,
+                  detailPath,
+                  owner,
+                  """
+                  {"phone":"8495550123","alternatePhone":null,"paymentTerms":"CREDIT","creditLimit":"0.00"}
+                  """,
+                  null));
+      assertThat(edited.path("phone").asString()).isEqualTo("8495550123");
+      assertThat(edited.path("alternatePhone").isNull()).isTrue();
+      assertThat(edited.path("creditLimit").asString()).isEqualTo("0.00");
+      assertThat(edited.path("paymentTerms").asString()).isEqualTo("CREDIT");
+      assertThat(edited.path("email")).isEqualTo(legal.path("email"));
+      assertThat(successfulBody(get(http, detailPath, owner))).isEqualTo(edited);
+
+      successfulBody(patch(http, detailPath + "/status", owner, "{\"status\":\"INACTIVE\"}", null));
+      assertPage(listPage(http, owner, "?status=ACTIVE&search=central", tenant), 0, 20, 0, 0);
+      assertThat(successfulBody(get(http, detailPath, owner)).path("categoryId").asString())
+          .isEqualTo(regular);
+      successfulBody(patch(http, detailPath + "/status", owner, "{\"status\":\"ACTIVE\"}", null));
+      assertPage(listPage(http, owner, "?status=ACTIVE&search=central", tenant), 0, 20, 1, 1, id);
+      assertThat(get(http, detailPath, foreign).statusCode()).isEqualTo(404);
+      assertPage(listPage(http, foreign, "", null), 0, 20, 0, 0);
+      verifyClientProfileRejections(http, owner, foreign, regular, detailPath);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void filtersBeforePagingAndRechecksEachCompanyForTheSameActor() throws Exception {
+    var companyA = UUID.randomUUID();
+    var companyB = UUID.randomUUID();
+    var actor = session("REGULAR");
+    stubScopedClientMembership(actor, companyA, MembershipRole.OWNER, Scope.READ);
+    stubScopedClientMembership(actor, companyA, MembershipRole.OWNER, Scope.WRITE);
+    stubScopedClientMembership(actor, companyB, MembershipRole.VIEWER, Scope.READ);
+    stubScopedClientMembership(actor, companyB, MembershipRole.VIEWER, Scope.WRITE);
+    try (var http = HttpClient.newHttpClient()) {
+      var first = sendProfile(http, actor, companyA, "A%_", "BOTH");
+      var last = sendProfile(http, actor, companyA, "B%_", "CREDIT");
+      sendProfile(http, actor, companyA, "C%_", "CASH");
+      sendProfile(http, actor, companyA, "D", "CREDIT");
+      var category = first.path("categoryId").asString();
+      String query =
+          "?search=%25%5F&status=ACTIVE&clientType=LEGAL&paymentTerms=CREDIT&size=1&categoryId="
+              + category
+              + "&sort=name,desc&page=";
+      String firstId = first.path("id").asString();
+      String lastId = last.path("id").asString();
+      assertPage(listPage(http, actor, query + 0, companyA), 0, 1, 2, 2, lastId);
+      assertPage(listPage(http, actor, query + 1, companyA), 1, 1, 2, 2, firstId);
+      assertPage(listPage(http, actor, query + 2, companyA), 2, 1, 2, 2);
+      assertPage(listPage(http, actor, query + 0, companyB), 0, 1, 0, 0);
+
+      var detailPath = "/api/v1/clients/" + firstId;
+      assertThat(get(http, detailPath, actor, companyB).statusCode()).isEqualTo(404);
+      assertThat(patch(http, detailPath, actor, "{\"name\":\"Denied\"}", companyB).statusCode())
+          .isEqualTo(403);
+      assertThat(
+              patch(http, detailPath + "/status", actor, "{\"status\":\"INACTIVE\"}", companyB)
+                  .statusCode())
+          .isEqualTo(403);
+      var categoriesA = successfulBody(get(http, "/api/v1/clients/categories", actor, companyA));
+      var categoriesB = successfulBody(get(http, "/api/v1/clients/categories", actor, companyB));
+      assertThat(categoriesA.valueStream().map(cat -> cat.path("id").asString()))
+          .doesNotContainAnyElementsOf(
+              categoriesB.valueStream().map(cat -> cat.path("id").asString()).toList());
+      stubFailure(actor, 403);
+      assertThat(get(http, detailPath, actor, companyA).statusCode()).isEqualTo(403);
+      stubFailure(actor, 503);
+      assertThat(get(http, detailPath, actor, companyA).statusCode()).isEqualTo(503);
+    }
+  }
+
+  private JsonNode sendProfile(
+      HttpClient http, String actor, UUID company, String name, String terms) throws Exception {
+    var response =
+        http.send(
+            clientRequest(
+                actor,
+                """
+                {"name":"%s","clientType":"LEGAL","paymentTerms":"%s"}
+                """
+                    .formatted(name, terms),
+                company),
+            HttpResponse.BodyHandlers.ofString());
+    assertThat(response.statusCode()).as(response.body()).isEqualTo(201);
+    return JsonMapper.shared().readTree(response.body());
+  }
+
+  private String scopedClientOwner(UUID tenant) throws Exception {
+    var token = session("REGULAR");
+    SELECTORS.put(token, tenant);
+    stubScopedClientMembership(token, tenant, MembershipRole.OWNER, Scope.READ);
+    stubScopedClientMembership(token, tenant, MembershipRole.OWNER, Scope.WRITE);
+    return token;
+  }
+
+  private static void stubScopedClientMembership(
+      String jwt, UUID tenant, MembershipRole role, Scope scope) throws Exception {
+    var subject = SignedJWT.parse(jwt).getJWTClaimsSet().getSubject();
+    COMPANY.stubFor(
+        WireMock.get(urlEqualTo(PATH))
+            .withHeader(USER_ASSERTION, equalTo(jwt))
+            .andMatching(
+                request -> matchesAccessContext(request.getHeader("Authorization"), tenant, scope))
+            .willReturn(
+                aResponse()
+                    .withHeader("Content-Type", "application/json")
+                    .withBody(
+                        """
+                        {"userId":"%s","companyId":"%s","module":"CATALOG","scope":"%s",
+                         "mode":"MEMBERSHIP","role":"%s","explicitGrant":false}
+                        """
+                            .formatted(subject, tenant, scope, role))));
+  }
+
+  private static MatchResult matchesAccessContext(String authorization, UUID tenant, Scope scope) {
+    if (authorization == null || !authorization.startsWith("Bearer ")) {
+      return MatchResult.noMatch();
+    }
+    try {
+      var claims = SignedJWT.parse(authorization.substring(7)).getJWTClaimsSet();
+      return MatchResult.of(
+          tenant.toString().equals(claims.getStringClaim("company_id"))
+              && scope.name().equals(claims.getStringClaim("scope")));
+    } catch (java.text.ParseException invalid) {
+      return MatchResult.noMatch();
+    }
+  }
+
+  private String verifyClientReferences(HttpClient http, String owner, String path)
+      throws Exception {
+    var categories = successfulBody(get(http, path + "/categories", owner));
+    assertThat(categories.size()).isEqualTo(4);
+    String regular =
+        categories
+            .valueStream()
+            .filter(node -> node.path("code").asString().equals("REGULAR"))
+            .findFirst()
+            .orElseThrow()
+            .path("id")
+            .asString();
+    var references = path + "/reference-data";
+    assertThat(successfulBody(get(http, references + "/countries", owner)).size()).isGreaterThan(1);
+    assertThat(successfulBody(get(http, references + "/provinces", owner)).size()).isEqualTo(32);
+    assertThat(
+            successfulBody(get(http, references + "/municipalities?provinceCode=010000", owner))
+                .get(0)
+                .path("code")
+                .asString())
+        .isEqualTo("010100");
+    assertThat(successfulBody(get(http, references + "/receipt-types", owner)).size()).isEqualTo(4);
+    return regular;
+  }
+
+  private void verifyClientProfileRejections(
+      HttpClient http, String owner, String foreign, String regular, String detailPath)
+      throws Exception {
+    assertThat(
+            postStatus(
+                http,
+                foreign,
+                """
+                {"name":"Foreign","clientType":"LEGAL","categoryId":"%s"}
+                """
+                    .formatted(regular)))
+        .isEqualTo(400);
+    assertThat(
+            postStatus(
+                http,
+                owner,
+                """
+                {"name":"Duplicado","clientType":"LEGAL","taxId":"012 345678"}
+                """))
+        .isEqualTo(409);
+    createProfile(
+        http,
+        foreign,
+        """
+        {"name":"Otra empresa","clientType":"LEGAL","taxId":"012345678"}
+        """);
+    assertThat(patch(http, detailPath, owner, "{\"clientType\":\"NATURAL\"}", null).statusCode())
+        .isEqualTo(400);
+    assertThat(patch(http, detailPath, owner, "{\"provinceCode\":\"020000\"}", null).statusCode())
+        .isEqualTo(400);
+    assertThat(
+            patch(http, detailPath, owner, "{\"preferredReceiptType\":\"UNKNOWN\"}", null)
+                .statusCode())
+        .isEqualTo(400);
+  }
+
+  private JsonNode createProfile(HttpClient http, String token, String payload)
+      throws IOException, InterruptedException {
+    var response =
+        http.send(clientRequest(token, payload, null), HttpResponse.BodyHandlers.ofString());
+    assertThat(response.statusCode()).as(response.body()).isEqualTo(201);
+    return JsonMapper.shared().readTree(response.body());
   }
 
   private static void await(CountDownLatch latch) {

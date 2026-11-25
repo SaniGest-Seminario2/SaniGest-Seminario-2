@@ -1,14 +1,18 @@
 package com.sanigest.catalog.infrastructure.persistence.jpa;
 
+import com.sanigest.catalog.domain.enums.ClientPaymentTerms;
 import com.sanigest.catalog.domain.enums.ClientStatus;
+import com.sanigest.catalog.domain.enums.ClientType;
 import com.sanigest.catalog.domain.model.Client;
 import com.sanigest.catalog.domain.model.ClientDetails;
+import com.sanigest.catalog.domain.model.ClientProfile;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.util.UUID;
 import org.springframework.data.domain.Persistable;
 
@@ -42,10 +46,63 @@ class ClientRow implements Persistable<UUID> {
   @Column(nullable = false)
   private long revision;
 
+  @Enumerated(EnumType.STRING)
+  @Column(length = 16)
+  private ClientType clientType;
+
+  @Column(length = 32)
+  private String alternatePhone;
+
+  @Column(length = 2)
+  private String countryCode;
+
+  @Column(length = 8)
+  private String provinceCode;
+
+  @Column(length = 8)
+  private String municipalityCode;
+
+  @Column(length = 32)
+  private String preferredReceiptType;
+
+  @Enumerated(EnumType.STRING)
+  @Column(length = 16)
+  private ClientPaymentTerms paymentTerms;
+
+  private UUID categoryId;
+
+  @Column(precision = 19, scale = 2)
+  private BigDecimal creditLimit;
+
+  @Column(length = 1000)
+  private String observations;
+
+  @Column(insertable = false, nullable = false)
+  private boolean enforceTaxKey;
+
   protected ClientRow() {}
 
   Client toDomain() {
-    return new Client(id, companyId, new ClientDetails(name, taxId, email, phone, address), status);
+    var profile =
+        clientType == null
+            ? null
+            : new ClientProfile(
+                clientType,
+                alternatePhone,
+                countryCode,
+                provinceCode,
+                municipalityCode,
+                preferredReceiptType,
+                paymentTerms,
+                categoryId,
+                creditLimit,
+                observations);
+    return new Client(
+        id, companyId, new ClientDetails(name, taxId, email, phone, address, profile), status);
+  }
+
+  boolean enforcesTaxKey() {
+    return enforceTaxKey;
   }
 
   long revision() {
@@ -61,6 +118,19 @@ class ClientRow implements Persistable<UUID> {
     phone = client.details().phone();
     address = client.details().address();
     status = client.status();
+    var profile = client.details().profile();
+    if (profile != null) {
+      clientType = profile.clientType();
+      alternatePhone = profile.alternatePhone();
+      countryCode = profile.countryCode();
+      provinceCode = profile.provinceCode();
+      municipalityCode = profile.municipalityCode();
+      preferredReceiptType = profile.preferredReceiptType();
+      paymentTerms = profile.paymentTerms();
+      categoryId = profile.categoryId();
+      creditLimit = profile.creditLimit();
+      observations = profile.observations();
+    }
   }
 
   @Override

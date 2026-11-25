@@ -43,6 +43,7 @@ class SecurityConfiguration {
                     HttpMethod.GET,
                     "/api/v1/clients",
                     "/api/v1/clients/{id}",
+                    "/api/v1/clients/reference-data/{resource}",
                     "/api/v1/suppliers",
                     "/api/v1/suppliers/{id}",
                     "/api/v1/catalog-items",
@@ -57,8 +58,11 @@ class SecurityConfiguration {
                     "/api/v1/catalog-items/{id}",
                     "/api/v1/catalog-items/{id}/status")
                 .authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/v1/clients/categories/{id}")
+                .authenticated()
                 .requestMatchers(
                     HttpMethod.POST,
+                    "/api/v1/clients/categories",
                     "/api/v1/clients",
                     "/api/v1/suppliers",
                     "/api/v1/catalog-items")

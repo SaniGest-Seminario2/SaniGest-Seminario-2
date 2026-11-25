@@ -14,7 +14,8 @@ Rutas relativas a `/api/v1`, salvo la ruta interna indicada. **I** implementado,
 | Equipo | Listar miembros con búsqueda, filtros y paginación | GET /companies/{companyId}/users?view=page, array compatible sin view | Company | Identity, directorio interno | — | S2-311, S2-454, S2-455 | I |
 | Equipo | Cambiar rol, suspender, reactivar o revocar | PATCH /companies/{companyId}/members/{userId}/{role,status}; DELETE /companies/{companyId}/members/{userId} | Company | Identity | — | S2-312, S2-454, S2-455 | I |
 | Acceso delegado | Listar y administrar concesión | GET /advisor/companies; GET/PUT/DELETE /companies/{companyId}/advisor-access | Company | Identity | — | S2-454 | I |
-| Clientes | Listar, crear, editar, estado | GET/POST /clients; GET/PATCH /clients/{id}; PATCH /clients/{id}/status | Catalog | Company | — | S2-318, S2-418, S2-456 | E |
+| Clientes | Listar, filtrar, crear, editar, estado y seleccionar activos | GET/POST /clients; GET/PATCH /clients/{id}; PATCH /clients/{id}/status | Catalog | Company | — | S2-319, S2-320, S2-321, S2-456 | I |
+| Clientes | Consultar referencias y gestionar categorías | GET/POST /clients/categories; PUT /clients/categories/{id}; GET /clients/reference-data/{countries,provinces,municipalities,receipt-types} | Catalog | Company | — | S2-456 | I |
 | Ficha cliente | Métricas, facturas, cobros y estado de cuenta | GET /clients/{id}/{financial-summary,statement} | Sales | Company, Catalog | — | S2-457 | P |
 | Proveedores | Listar, crear, editar, estado | GET/POST /suppliers; GET/PATCH /suppliers/{id}; PATCH /suppliers/{id}/status | Catalog | Company | — | S2-419, S2-458 | E |
 | Ficha proveedor | Relacionar artículos y costo | GET/PUT /suppliers/{id}/items; GET /catalog-items/{id}/suppliers | Catalog | Company | — | S2-458 | P |

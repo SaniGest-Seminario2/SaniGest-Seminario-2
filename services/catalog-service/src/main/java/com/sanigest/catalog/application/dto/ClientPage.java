@@ -12,5 +12,14 @@ public record ClientPage(List<Item> content, int page, int size, long totalEleme
     return Math.ceilDiv(totalElements, size);
   }
 
-  public record Item(UUID id, String name, String taxId, String status) {}
+  public record Item(
+      UUID id,
+      String name,
+      String taxId,
+      String status,
+      String phone,
+      String clientType,
+      String paymentTerms,
+      UUID categoryId,
+      String categoryName) {}
 }
