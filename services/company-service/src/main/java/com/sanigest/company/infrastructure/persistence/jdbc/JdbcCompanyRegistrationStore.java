@@ -5,8 +5,6 @@ import com.sanigest.company.application.exception.CompanyConflictException;
 import com.sanigest.company.application.port.out.persistence.CompanyRegistrationStore;
 import com.sanigest.company.application.port.out.persistence.CompanyRepository;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
-import com.sanigest.company.domain.enums.CompanyRole;
-import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.company.domain.model.Company;
 import com.sanigest.company.domain.model.Membership;
 import java.util.Optional;
@@ -30,6 +28,11 @@ class JdbcCompanyRegistrationStore implements CompanyRegistrationStore {
   }
 
   @Override
+  public void lockMembershipCreation(UUID userId) {
+    memberships.lockMembershipCreation(userId);
+  }
+
+  @Override
   public Optional<CompanyRegistration> find(UUID userId, String key) {
     return DataAccessUtils.optionalResult(
         jdbc.query(
@@ -44,11 +47,7 @@ class JdbcCompanyRegistrationStore implements CompanyRegistrationStore {
 
   @Override
   public boolean lockActiveMembership(UUID userId, UUID companyId) {
-    return memberships
-        .findByUserIdForUpdate(userId)
-        .filter(member -> companyId.equals(member.companyId()))
-        .filter(member -> member.status() == MembershipStatus.ACTIVE)
-        .isPresent();
+    return memberships.lockActiveMembership(companyId, userId);
   }
 
   @Override
@@ -62,7 +61,7 @@ class JdbcCompanyRegistrationStore implements CompanyRegistrationStore {
   }
 
   @Override
-  public void insert(UUID userId, String key, CompanyRegistration registration, Company company) {
+  public void insert(String key, String requestHash, Company company, Membership owner) {
     try {
       jdbc.update(
           """
@@ -78,18 +77,16 @@ class JdbcCompanyRegistrationStore implements CompanyRegistrationStore {
           company.location(),
           company.currency(),
           company.status());
-      memberships.insert(
-          new Membership(
-              UUID.randomUUID(), company.id(), userId, CompanyRole.OWNER, MembershipStatus.ACTIVE));
+      memberships.insert(owner);
       jdbc.update(
           """
           INSERT INTO company_registration_idempotency
             (user_id, idempotency_key, request_hash, company_id) VALUES (?, ?, ?, ?)
           """,
-          userId,
+          owner.userId(),
           key,
-          registration.hash(),
-          registration.companyId());
+          requestHash,
+          company.id());
     } catch (DataIntegrityViolationException e) {
       throw new CompanyConflictException("Company registration conflicts with existing data", e);
     }

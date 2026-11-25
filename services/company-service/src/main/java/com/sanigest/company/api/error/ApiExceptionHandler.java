@@ -5,6 +5,7 @@ import com.sanigest.company.application.exception.AuthorizationUnavailableExcept
 import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.exception.CompanyConflictException;
 import com.sanigest.company.application.exception.CompanyNotFoundException;
+import com.sanigest.company.application.exception.CompanySelectionRequiredException;
 import com.sanigest.company.application.exception.InvitationNotFoundException;
 import com.sanigest.company.application.exception.LastOwnerException;
 import com.sanigest.company.application.exception.MemberNotFoundException;
@@ -39,6 +40,13 @@ class ApiExceptionHandler {
   ProblemDetail conflict(HttpServletRequest request) {
     return problem(
         request, HttpStatus.CONFLICT, "The company operation conflicts with an existing resource");
+  }
+
+  @ExceptionHandler(CompanySelectionRequiredException.class)
+  ProblemDetail companySelectionRequired(HttpServletRequest request) {
+    var problem = problem(request, HttpStatus.CONFLICT, "Select a company for this operation");
+    problem.setProperty("code", "COMPANY_SELECTION_REQUIRED");
+    return problem;
   }
 
   @ExceptionHandler(CompanyNotFoundException.class)

@@ -5,8 +5,9 @@ Rutas relativas a `/api/v1`, salvo la ruta interna indicada. **I** implementado,
 | Pantalla | Acción | Recurso API | Propietario | Dependencias | Evento objetivo | Jira | Estado |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Acceso y perfil | Registrar, iniciar, renovar, cerrar, consultar | POST /auth/{register,login,refresh,logout}; GET /auth/me | Identity | Gateway | — | S2-386, S2-416 | I |
-| Onboarding | Crear empresa y OWNER | POST /companies | Company | Identity | — | S2-308, S2-453 | E |
-| Selector | Listar y seleccionar empresas | GET /companies; X-Company-Id por petición | Company | Identity, Gateway | — | S2-453, S2-454 | P |
+| Onboarding | Crear empresa y OWNER (alta múltiple activable en Company) | POST /companies | Company | Identity | — | S2-308, S2-453 | E |
+| Selector | Listar empresas operativas de la cuenta REGULAR | GET /companies | Company | Identity | — | S2-453 | E |
+| Selector | Seleccionar empresa por petición | X-Company-Id por petición | Company | Identity, Gateway | — | S2-454 | P |
 | Contexto | Autorizar ruta de negocio | GET /internal/v1/company-access | Company | Identity, common-company-access | — | S2-317, S2-330, S2-454 | E |
 | Empresa | Perfil y auditoría | GET/PATCH /companies/me; GET /companies/me/audit-log → /companies/{companyId} y /audit-log | Company | Identity | — | S2-309, S2-454 | E |
 | Equipo | Invitar, aceptar, listar | POST /companies/me/invitations, POST /invitations/{token}/accept, GET /companies/me/users → contexto explícito en administración | Company | Identity | — | S2-311, S2-312, S2-454, S2-455 | E |

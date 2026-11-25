@@ -1,31 +1,45 @@
 package com.sanigest.company.application.usecase.profile;
 
-import com.sanigest.company.application.dto.CompanyRegistration;
 import com.sanigest.company.application.dto.CreateCompanyCommand;
 import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.exception.CompanyConflictException;
 import com.sanigest.company.application.port.out.persistence.CompanyRegistrationStore;
+import com.sanigest.company.domain.enums.CompanyRole;
+import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.company.domain.model.Company;
+import com.sanigest.company.domain.model.Membership;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CreateCompanyUseCase {
   private final CompanyRegistrationStore registrations;
 
-  public CreateCompanyUseCase(CompanyRegistrationStore registrations) {
+  private final boolean multipleMembershipsEnabled;
+
+  public CreateCompanyUseCase(
+      CompanyRegistrationStore registrations,
+      @Value("${sanigest.company.multiple-memberships-enabled:false}")
+          boolean multipleMembershipsEnabled) {
     this.registrations = registrations;
+    this.multipleMembershipsEnabled = multipleMembershipsEnabled;
   }
 
-  @Transactional
+  @Transactional(isolation = Isolation.READ_COMMITTED)
   public Company create(UUID userId, String key, CreateCompanyCommand command) {
-    if (key == null || key.isBlank() || key.length() > 128) {
+    if (key == null
+        || key.isBlank()
+        || key.length() > 128
+        || key.chars().anyMatch(Character::isISOControl)) {
       throw new IllegalArgumentException("Invalid idempotency key");
     }
     String hash = hash(command);
+    registrations.lockMembershipCreation(userId);
     var prior = registrations.find(userId, key);
     if (prior.isPresent()) {
       var registration = prior.get();
@@ -37,7 +51,7 @@ public class CreateCompanyUseCase {
       }
       return registrations.loadCompany(registration.companyId());
     }
-    if (registrations.hasMembership(userId)) {
+    if (!multipleMembershipsEnabled && registrations.hasMembership(userId)) {
       throw new CompanyConflictException("User already belongs to a company");
     }
 
@@ -52,7 +66,10 @@ public class CreateCompanyUseCase {
             command.location(),
             "DOP",
             "ACTIVE");
-    registrations.insert(userId, key, new CompanyRegistration(hash, company.id()), company);
+    var owner =
+        new Membership(
+            UUID.randomUUID(), company.id(), userId, CompanyRole.OWNER, MembershipStatus.ACTIVE);
+    registrations.insert(key, hash, company, owner);
     return registrations.loadCompany(company.id());
   }
 

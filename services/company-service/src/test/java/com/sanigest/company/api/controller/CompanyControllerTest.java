@@ -11,7 +11,9 @@ import static org.mockito.Mockito.when;
 import com.sanigest.company.api.dto.CompanyProfileResponse;
 import com.sanigest.company.api.dto.CompanyRequest;
 import com.sanigest.company.api.dto.CompanyResponse;
+import com.sanigest.company.api.dto.CompanySummaryResponse;
 import com.sanigest.company.application.account.AccountType;
+import com.sanigest.company.application.dto.AuthorizedCompany;
 import com.sanigest.company.application.dto.CompanyProfile;
 import com.sanigest.company.application.dto.CreateCompanyCommand;
 import com.sanigest.company.application.exception.AuthorizationUnavailableException;
@@ -20,7 +22,11 @@ import com.sanigest.company.application.port.out.integration.CurrentAccount;
 import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.profile.CreateCompanyUseCase;
 import com.sanigest.company.application.usecase.profile.GetMyCompanyUseCase;
+import com.sanigest.company.application.usecase.profile.ListMyCompaniesUseCase;
 import com.sanigest.company.application.usecase.profile.UpdateMyCompanyUseCase;
+import com.sanigest.company.domain.enums.CompanyRole;
+import com.sanigest.company.domain.enums.MembershipStatus;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -41,6 +47,7 @@ class CompanyControllerTest {
             mock(CreateCompanyUseCase.class),
             profiles,
             mock(UpdateMyCompanyUseCase.class),
+            mock(ListMyCompaniesUseCase.class),
             new RequireRegularAccount(token -> AccountType.REGULAR));
     var jwt = Jwt.withTokenValue("test").header("alg", "RS256").subject(userId.toString()).build();
 
@@ -85,10 +92,48 @@ class CompanyControllerTest {
                 useCase,
                 mock(GetMyCompanyUseCase.class),
                 mock(UpdateMyCompanyUseCase.class),
+                mock(ListMyCompaniesUseCase.class),
                 new RequireRegularAccount(token -> AccountType.REGULAR))
             .create(jwt, "key", request);
     assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     assertThat(result.getBody()).isEqualTo(response);
+  }
+
+  @Test
+  void mapsAuthorizedCompaniesAndEmptyLists() {
+    var list = mock(ListMyCompaniesUseCase.class);
+    var userId = UUID.randomUUID();
+    var companyId = UUID.randomUUID();
+    var jwt = Jwt.withTokenValue("test").header("alg", "RS256").subject(userId.toString()).build();
+    var controller =
+        new CompanyController(
+            mock(CreateCompanyUseCase.class),
+            mock(GetMyCompanyUseCase.class),
+            mock(UpdateMyCompanyUseCase.class),
+            list,
+            new RequireRegularAccount(token -> AccountType.REGULAR));
+
+    when(list.list(userId)).thenReturn(List.of());
+    assertThat(controller.list(jwt)).isEmpty();
+    when(list.list(userId))
+        .thenReturn(
+            List.of(
+                new AuthorizedCompany(
+                    companyId,
+                    "Clinic SRL",
+                    "Clinic",
+                    CompanyRole.VIEWER,
+                    MembershipStatus.ACTIVE,
+                    "ACTIVE")));
+    assertThat(controller.list(jwt))
+        .containsExactly(
+            new CompanySummaryResponse(
+                companyId,
+                "Clinic SRL",
+                "Clinic",
+                CompanyRole.VIEWER,
+                MembershipStatus.ACTIVE,
+                "ACTIVE"));
   }
 
   @Test
@@ -98,6 +143,7 @@ class CompanyControllerTest {
             mock(CreateCompanyUseCase.class),
             mock(GetMyCompanyUseCase.class),
             mock(UpdateMyCompanyUseCase.class),
+            mock(ListMyCompaniesUseCase.class),
             new RequireRegularAccount(mock(CurrentAccount.class)));
     var jwt = Jwt.withTokenValue("test").header("alg", "RS256").subject("invalid").build();
     assertThatThrownBy(() -> controller.create(jwt, "key", null))
@@ -110,9 +156,10 @@ class CompanyControllerTest {
     var create = mock(CreateCompanyUseCase.class);
     var read = mock(GetMyCompanyUseCase.class);
     var update = mock(UpdateMyCompanyUseCase.class);
+    var list = mock(ListMyCompaniesUseCase.class);
     var accounts = mock(CurrentAccount.class);
     var controller =
-        new CompanyController(create, read, update, new RequireRegularAccount(accounts));
+        new CompanyController(create, read, update, list, new RequireRegularAccount(accounts));
     var jwt =
         Jwt.withTokenValue("test")
             .header("alg", "RS256")
@@ -125,9 +172,12 @@ class CompanyControllerTest {
         .isInstanceOf(CompanyAccessDeniedException.class);
     assertThatThrownBy(() -> controller.create(jwt, "key", null))
         .isInstanceOf(CompanyAccessDeniedException.class);
+    assertThatThrownBy(() -> controller.list(jwt)).isInstanceOf(CompanyAccessDeniedException.class);
     when(accounts.resolve("test")).thenThrow(new AuthorizationUnavailableException());
     assertThatThrownBy(() -> controller.me(jwt))
         .isInstanceOf(AuthorizationUnavailableException.class);
-    verifyNoInteractions(create, read, update);
+    assertThatThrownBy(() -> controller.list(jwt))
+        .isInstanceOf(AuthorizationUnavailableException.class);
+    verifyNoInteractions(create, read, update, list);
   }
 }

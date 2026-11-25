@@ -35,6 +35,89 @@ mvn -B -pl services/company-service -am verify
 Consulta el [arranque local](../../README.md) y el
 [contrato objetivo v0.8](../../docs/SaniGest_T1001_Contrato_Funcional_v0.8.md).
 
+## Alta y listado de empresas (S2-453)
+
+En ambas operaciones se requiere un JWT de usuario y una cuenta `REGULAR`
+activa confirmada por Identity. El sujeto del JWT identifica al usuario.
+Una cuenta nueva puede consultar sus empresas antes de crear la primera.
+
+```http
+POST /api/v1/companies
+Authorization: Bearer <access-token>
+Idempotency-Key: registro-001
+Content-Type: application/json
+
+{"companyName":"Distribuidora La Económica SRL","businessName":"Distribuidora La Económica","rnc":"123456789","email":"administracion@example.com","phone":"8095550100","location":"Santo Domingo Este"}
+```
+
+El alta devuelve **201** con `companyId`, los datos de la empresa, moneda
+`DOP` y estado `ACTIVE`. Company asigna una membresía `OWNER` activa al
+usuario autenticado. Los campos históricos `ownerId` y `userId` siguen
+participando en el hash de idempotencia. La identidad y los valores asignados
+por el servidor se determinan en Company.
+
+```http
+GET /api/v1/companies
+Authorization: Bearer <access-token>
+```
+
+Respuesta **200**, ordenada por razón social y UUID, con `[]` si el usuario
+carece de empresas operativas. La consulta incluye solo membresías y empresas
+activas y obtiene el rol de cada membresía. Ambas rutas funcionan sin selector.
+
+```json
+[
+  {
+    "companyId": "e3fc1fd0-42ea-4a0d-9c14-6cbd44592b42",
+    "companyName": "Distribuidora La Económica SRL",
+    "businessName": "Distribuidora La Económica",
+    "role": "OWNER",
+    "membershipStatus": "ACTIVE",
+    "status": "ACTIVE"
+  }
+]
+```
+
+La clave de idempotencia tiene de 1 a 128 caracteres, sin caracteres de control
+y con al menos un carácter distinto de espacio en blanco. Su alcance es el
+usuario. Un reintento idéntico devuelve la empresa original si la membresía
+y la empresa siguen activas. Un cuerpo diferente con la misma clave o un RNC
+duplicado devuelve **409**. Si Identity no puede confirmar la autorización,
+la operación devuelve **503**.
+
+PostgreSQL serializa operaciones de alta por usuario con un bloqueo de
+transacción. Así, cada reintento lee un registro confirmado y la regla de
+compatibilidad cubre altas con distintas claves y aceptaciones de invitación
+concurrentes. Empresa, membresía y clave se confirman juntas. El reintento
+bloquea la membresía de la empresa original por el par empresa–usuario.
+Flyway V10 elimina la restricción global de usuario. Conserva la unicidad
+empresa–usuario, el índice de usuario y todos los registros existentes.
+
+### Activación coordinada
+
+`COMPANY_MULTIPLE_MEMBERSHIPS_ENABLED` vale `false` por defecto. En ese modo
+el alta adicional devuelve **409** y el listado está disponible. Para aplicar
+V10, detén las escrituras de alta y aceptación en réplicas anteriores a
+S2-453 y restablécelas cuando todas las réplicas usen el bloqueo compartido.
+Tras desplegar la selección explícita y la validación por empresa de S2-454 en
+Gateway, Company y los consumidores de autorización, configura esta variable
+en `true` en todas las réplicas de Company. Para comprobar el flujo en un
+entorno desechable con Identity y Company, activa la variable y ejecuta:
+
+```bash
+mvn -B -pl services/company-service -am -Psmoke \
+  -Dsmoke.identity.url=http://localhost:8081 \
+  -Dsmoke.company.url=http://localhost:8082 \
+  -Dsmoke.company.multi=true verify
+```
+
+Los consumidores de `/companies/me` y sus subrutas pueden seguir operando
+si hay una sola empresa activa autorizada. Si hay varias, reciben **409**
+con `COMPANY_SELECTION_REQUIRED`. La autorización interna singular devuelve
+**403** ante ambigüedad. S2-454 añade la selección por petición y S2-455
+amplía la aceptación de invitaciones. Desactivar la variable detiene altas
+adicionales y conserva las membresías ya confirmadas.
+
 ## Architecture rules
 
 [CompanyArchitectureTest](src/test/java/com/sanigest/company/architecture/CompanyArchitectureTest.java)
