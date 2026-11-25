@@ -6,6 +6,8 @@ import com.sanigest.identity.domain.model.EmailAddress;
 import com.sanigest.identity.domain.model.User;
 import com.sanigest.identity.infrastructure.persistence.entity.UserJpaEntity;
 import com.sanigest.identity.infrastructure.persistence.repository.SpringDataUserRepository;
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,6 +38,11 @@ class JpaUserRepositoryAdapter implements UserRepository {
   @Override
   public Optional<User> findById(UUID id) {
     return repository.findById(id).map(JpaUserRepositoryAdapter::toDomain);
+  }
+
+  @Override
+  public List<MemberIdentity> findMemberIdentities(Collection<UUID> ids) {
+    return repository.findMemberIdentities(ids);
   }
 
   @Override

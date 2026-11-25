@@ -40,6 +40,14 @@ class UpstreamFailureFilter implements GlobalFilter, Ordered {
               || error instanceof PrematureCloseException) {
             return problem(exchange, error, HttpStatus.SERVICE_UNAVAILABLE, "UPSTREAM_UNAVAILABLE");
           }
+          if (exchange
+              .getRequest()
+              .getPath()
+              .pathWithinApplication()
+              .value()
+              .startsWith("/api/v1/invitations/")) {
+            return problem(exchange, error, HttpStatus.BAD_GATEWAY, "UPSTREAM_FAILURE");
+          }
           return Mono.error(error);
         });
   }

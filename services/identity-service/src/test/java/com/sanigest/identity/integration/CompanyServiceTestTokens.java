@@ -48,8 +48,12 @@ final class CompanyServiceTestTokens {
   }
 
   void configure(DynamicPropertyRegistry registry) {
-    registry.add("sanigest.advisor-eligibility.issuer", () -> ISSUER);
-    registry.add("sanigest.advisor-eligibility.public-key-location", () -> publicKeyFile.toUri());
+    configure(registry, "sanigest.advisor-eligibility", ISSUER);
+  }
+
+  void configure(DynamicPropertyRegistry registry, String property, String issuer) {
+    registry.add(property + ".issuer", () -> issuer);
+    registry.add(property + ".public-key-location", () -> publicKeyFile.toUri());
   }
 
   String validToken() {

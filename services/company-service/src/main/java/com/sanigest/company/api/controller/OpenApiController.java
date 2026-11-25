@@ -17,6 +17,8 @@ public class OpenApiController {
         "paths", CompanyContextOpenApi.paths(),
         "components",
             Map.of(
+                "schemas",
+                CompanyTeamOpenApi.schemas(),
                 "securitySchemes",
                 Map.of(
                     "bearerAuth",

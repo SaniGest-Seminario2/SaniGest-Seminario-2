@@ -13,6 +13,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.port.out.integration.InvitationDelivery;
+import com.sanigest.company.application.port.out.integration.MemberIdentityDirectory.Identity;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
 import com.sanigest.company.application.usecase.advisor.CheckAdvisorPermissionUseCase;
 import com.sanigest.company.application.usecase.advisor.RevokeAdvisorAccessUseCase;
@@ -55,6 +56,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -103,7 +106,10 @@ class CompanyProfileIT {
   private static final KeyPair SALES_KEYS = serviceKeys();
   private static final Path SALES_PUBLIC_KEY = accessPublicKey(SALES_KEYS);
   private static final KeyPair SERVICE_KEYS = serviceKeys();
-  private static final Path SERVICE_KEY_FILE = serviceKeyFile();
+  private static final Path SERVICE_KEY_FILE = serviceKeyFile(SERVICE_KEYS);
+  private static final KeyPair DIRECTORY_KEYS = serviceKeys();
+  private static final Path DIRECTORY_KEY_FILE = serviceKeyFile(DIRECTORY_KEYS);
+  private static final String DIRECTORY_ISSUER = "sanigest-company-directory-test";
   private static final ConcurrentHashMap<UUID, String> ADVISOR_ACCOUNTS = new ConcurrentHashMap<>();
   private static final ConcurrentHashMap<UUID, BlockEligibility> BLOCKED_ELIGIBILITY =
       new ConcurrentHashMap<>();
@@ -115,6 +121,13 @@ class CompanyProfileIT {
       Executors.newVirtualThreadPerTaskExecutor();
   private static final HttpServer IDENTITY = identity();
   private static final ConcurrentHashMap<String, String> DELIVERIES = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<UUID, Integer> DIRECTORY_FAILURES =
+      new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<UUID, BlockEligibility> BLOCKED_DIRECTORY =
+      new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<UUID, Identity> MEMBER_IDENTITIES =
+      new ConcurrentHashMap<>();
 
   @TestConfiguration
   static class DeliveryConfiguration {
@@ -135,6 +148,10 @@ class CompanyProfileIT {
   static void datasource(DynamicPropertyRegistry properties) {
     properties.add(
         "sanigest.identity-url", () -> "http://127.0.0.1:" + IDENTITY.getAddress().getPort());
+    properties.add("sanigest.member-directory.issuer", () -> DIRECTORY_ISSUER);
+    properties.add(
+        "sanigest.member-directory.private-key-location",
+        () -> DIRECTORY_KEY_FILE.toUri().toString());
     properties.add("sanigest.advisor-eligibility.issuer", () -> SERVICE_ISSUER);
     properties.add("sanigest.company-access.callers.catalog.issuer", () -> CATALOG_ISSUER);
     properties.add("sanigest.company-access.callers.sales.issuer", () -> SALES_ISSUER);
@@ -157,6 +174,7 @@ class CompanyProfileIT {
     IDENTITY.stop(0);
     IDENTITY_THREADS.close();
     Files.deleteIfExists(SERVICE_KEY_FILE);
+    Files.deleteIfExists(DIRECTORY_KEY_FILE);
     Files.deleteIfExists(CATALOG_PUBLIC_KEY);
     Files.deleteIfExists(SALES_PUBLIC_KEY);
   }
@@ -182,6 +200,7 @@ class CompanyProfileIT {
             }
           });
       server.createContext("/internal/v1/accounts/", CompanyProfileIT::eligibility);
+      server.createContext("/internal/v1/member-directory", CompanyProfileIT::memberDirectory);
       server.setExecutor(IDENTITY_THREADS);
       server.start();
       return server;
@@ -883,10 +902,10 @@ class CompanyProfileIT {
     }
   }
 
-  private static Path serviceKeyFile() {
+  private static Path serviceKeyFile(KeyPair keyPair) {
     try {
       Path file = Files.createTempFile("company-eligibility-test-", ".pem");
-      String key = Base64.getMimeEncoder().encodeToString(SERVICE_KEYS.getPrivate().getEncoded());
+      String key = Base64.getMimeEncoder().encodeToString(keyPair.getPrivate().getEncoded());
       Files.writeString(
           file, "-----BEGIN PRIVATE KEY-----\n" + key + "\n-----END PRIVATE KEY-----\n");
       return file;
@@ -938,7 +957,72 @@ class CompanyProfileIT {
     }
   }
 
+  private static void memberDirectory(HttpExchange exchange) throws IOException {
+    try (exchange) {
+      if (!validServiceToken(
+          exchange.getRequestHeaders().getFirst("Authorization"),
+          DIRECTORY_KEYS,
+          DIRECTORY_ISSUER,
+          "member-directory")) {
+        exchange.sendResponseHeaders(403, -1);
+        return;
+      }
+      var json = new ObjectMapper();
+      var ids = json.readTree(exchange.getRequestBody()).path("userIds");
+      if (!"POST".equals(exchange.getRequestMethod()) || !ids.isArray() || ids.size() > 100) {
+        exchange.sendResponseHeaders(400, -1);
+        return;
+      }
+      var result = json.createArrayNode();
+      for (var value : ids) {
+        var id = UUID.fromString(value.asString());
+        var delay = BLOCKED_DIRECTORY.get(id);
+        if (delay != null) {
+          delay.entered().countDown();
+          if (!delay.release().await(5, TimeUnit.SECONDS)) {
+            return;
+          }
+        }
+        Integer failure = DIRECTORY_FAILURES.get(id);
+        if (failure != null) {
+          if (failure == 200) {
+            byte[] malformed = "{not-json".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, malformed.length);
+            exchange.getResponseBody().write(malformed);
+          } else {
+            exchange.sendResponseHeaders(failure, -1);
+          }
+          return;
+        }
+        var identity = MEMBER_IDENTITIES.get(id);
+        if (identity != null) {
+          result
+              .addObject()
+              .put("userId", id.toString())
+              .put("name", identity.name())
+              .put("email", identity.email())
+              .put("emailVerified", identity.emailVerified());
+        }
+      }
+      exchange.getResponseHeaders().set("Content-Type", "application/json");
+      byte[] bytes = json.writeValueAsBytes(result);
+      exchange.sendResponseHeaders(200, bytes.length);
+      exchange.getResponseBody().write(bytes);
+    } catch (ParseException | JOSEException failure) {
+      throw new IOException(failure);
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      throw new IOException(interrupted);
+    }
+  }
+
   private static boolean validServiceToken(String authorization)
+      throws ParseException, JOSEException {
+    return validServiceToken(authorization, SERVICE_KEYS, SERVICE_ISSUER, "advisor-eligibility");
+  }
+
+  private static boolean validServiceToken(
+      String authorization, KeyPair keys, String issuer, String protocol)
       throws ParseException, JOSEException {
     if (authorization == null || !authorization.startsWith("Bearer ")) {
       return false;
@@ -947,11 +1031,11 @@ class CompanyProfileIT {
     var claims = jwt.getJWTClaimsSet();
     return JWSAlgorithm.RS256.equals(jwt.getHeader().getAlgorithm())
         && "sanigest-service+jwt".equals(String.valueOf(jwt.getHeader().getType()))
-        && jwt.verify(new RSASSAVerifier((RSAPublicKey) SERVICE_KEYS.getPublic()))
-        && SERVICE_ISSUER.equals(claims.getIssuer())
+        && jwt.verify(new RSASSAVerifier((RSAPublicKey) keys.getPublic()))
+        && issuer.equals(claims.getIssuer())
         && "company-service".equals(claims.getSubject())
-        && List.of("sanigest-identity-advisor-eligibility").equals(claims.getAudience())
-        && "identity:advisor-eligibility:read".equals(claims.getStringClaim("scope"))
+        && List.of("sanigest-identity-" + protocol).equals(claims.getAudience())
+        && ("identity:" + protocol + ":read").equals(claims.getStringClaim("scope"))
         && validLifetime(claims);
   }
 
@@ -1169,20 +1253,20 @@ class CompanyProfileIT {
     var actor = UUID.randomUUID();
     var jwt = token(actor);
     var first = registrationRequest(jwt, "same", "Concurrent Same", null);
-    var identical = raceRegistrations(first, first);
+    var identical = raceRequests(first, first);
     var original = companyId(identical.getFirst());
     assertThat(companyId(identical.getLast())).isEqualTo(original);
     assertThat(registrationCount(actor)).isEqualTo(1);
     assertThat(membershipCount(actor)).isEqualTo(1);
 
     var different =
-        raceRegistrations(
+        raceRequests(
             registrationRequest(jwt, "different", "Concurrent Left", null),
             registrationRequest(jwt, "different", "Concurrent Right", null));
     assertThat(different).extracting(HttpResponse::statusCode).containsExactlyInAnyOrder(201, 409);
 
     var independent =
-        raceRegistrations(
+        raceRequests(
             registrationRequest(jwt, "left", "Concurrent A", null),
             registrationRequest(jwt, "right", "Concurrent B", null));
     assertThat(companyId(independent.getFirst())).isNotEqualTo(companyId(independent.getLast()));
@@ -1239,20 +1323,20 @@ class CompanyProfileIT {
         actor);
   }
 
-  private List<HttpResponse<String>> raceRegistrations(HttpRequest first, HttpRequest second)
+  private List<HttpResponse<String>> raceRequests(HttpRequest first, HttpRequest second)
       throws Exception {
     var ready = new CountDownLatch(2);
     var start = new CountDownLatch(1);
     try (var executor = Executors.newFixedThreadPool(2)) {
-      var left = executor.submit(() -> sendRegistration(first, ready, start));
-      var right = executor.submit(() -> sendRegistration(second, ready, start));
+      var left = executor.submit(() -> sendAtBarrier(first, ready, start));
+      var right = executor.submit(() -> sendAtBarrier(second, ready, start));
       assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
       start.countDown();
       return List.of(left.get(15, TimeUnit.SECONDS), right.get(15, TimeUnit.SECONDS));
     }
   }
 
-  private HttpResponse<String> sendRegistration(
+  private HttpResponse<String> sendAtBarrier(
       HttpRequest request, CountDownLatch ready, CountDownLatch start) throws Exception {
     ready.countDown();
     assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
@@ -1398,7 +1482,7 @@ class CompanyProfileIT {
 
   @Test
   @Tag("smoke")
-  void invitationSmokeCreatesMembershipAndNeverListsAcrossCompanies(CapturedOutput output)
+  void controlledInvitationSmokeCreatesMembershipAndNeverListsAcrossCompanies(CapturedOutput output)
       throws Exception {
     UUID owner = UUID.randomUUID();
     UUID outsider = UUID.randomUUID();
@@ -1410,11 +1494,28 @@ class CompanyProfileIT {
     UUID company = createCompany(owner, ownerJwt, "Inviting clinic", "123456791");
     UUID otherCompany = createCompany(outsider, outsiderJwt, "Other clinic", "123456792");
 
-    var created = invite(ownerJwt, email, "VIEWER", false);
+    var request =
+        request(ME + "/invitations")
+            .header("Authorization", "Bearer " + ownerJwt)
+            .header("Content-Type", "application/json")
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    """
+                    {"name":"  Invited Name  ","email":"%s","role":"VIEWER"}
+                    """
+                        .formatted(email)))
+            .build();
+    var created = http.send(request, HttpResponse.BodyHandlers.ofString());
     assertThat(created.statusCode()).isEqualTo(201);
     String invitationToken = DELIVERIES.remove(email);
     assertThat(invitationToken).matches("[A-Za-z0-9_-]{43}");
     assertThat(created.body()).contains("VIEWER", "PENDING").doesNotContain(invitationToken);
+    assertThat(http.send(request, HttpResponse.BodyHandlers.ofString()).statusCode())
+        .isEqualTo(409);
+    assertThat(get(ME + "/invitations", ownerJwt).body())
+        .contains("Invited Name", email)
+        .doesNotContain(invitationToken, "token_hash");
+    assertThat(get(ME + "/invitations", outsiderJwt).body()).isEqualTo("[]");
     assertThat(
             jdbc.queryForMap(
                 "SELECT company_id, token_hash, status FROM company_invitations WHERE email = ?",
@@ -1561,12 +1662,8 @@ class CompanyProfileIT {
     assertThat(invite(ownerJwt, email, "OPERATOR", false).statusCode()).isEqualTo(201);
     String invitationToken = DELIVERIES.remove(email);
     var request = acceptRequest(invitationToken, guestJwt);
-    var first = http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
-    var second = http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
-    assertThat(
-            List.of(
-                first.get(10, TimeUnit.SECONDS).statusCode(),
-                second.get(10, TimeUnit.SECONDS).statusCode()))
+    assertThat(raceRequests(request, request))
+        .extracting(HttpResponse::statusCode)
         .containsExactlyInAnyOrder(200, 409);
     assertThat(membershipCount(guest)).isEqualTo(1);
     assertThat(
@@ -1578,27 +1675,285 @@ class CompanyProfileIT {
   }
 
   @Test
-  void existingOwnerCannotAcceptAnInvitationFromAnotherCompany() throws Exception {
+  void duplicateInvitesAreSerializedOnlyWithinTheSameCompany() throws Exception {
+    UUID owner = UUID.randomUUID();
+    String jwt = token(owner);
+    UUID first = createCompany(owner, jwt, "First Team", "123456830");
+    UUID second = companyId(register(jwt, "second-team", "Second Team", "123456831"));
+    String email = UUID.randomUUID() + "@example.com";
+    var one = inviteRequest(COMPANIES + "/" + first, jwt, email, "OPERATOR", false);
+    assertThat(raceRequests(one, one))
+        .extracting(HttpResponse::statusCode)
+        .containsExactlyInAnyOrder(201, 409);
+    String sharedEmail = UUID.randomUUID() + "@example.com";
+    assertThat(
+            raceRequests(
+                inviteRequest(COMPANIES + "/" + first, jwt, sharedEmail, "OPERATOR", false),
+                inviteRequest(COMPANIES + "/" + second, jwt, sharedEmail, "VIEWER", false)))
+        .extracting(HttpResponse::statusCode)
+        .containsExactly(201, 201);
+    assertThat(
+            jdbc.queryForList(
+                "SELECT company_id FROM company_invitations WHERE email = ?",
+                UUID.class,
+                sharedEmail))
+        .containsExactlyInAnyOrder(first, second);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void acceptingAnInvitationSerializesWithRevocationOrReplacement(boolean replace)
+      throws Exception {
+    UUID owner = UUID.randomUUID();
+    UUID guest = UUID.randomUUID();
+    String ownerJwt = token(owner);
+    String email = guest + "@example.com";
+    String guestJwt = verifiedToken(guest, email, true);
+    UUID company =
+        createCompany(owner, ownerJwt, "Racing Team", replace ? "123456833" : "123456832");
+    var invitation = invite(ownerJwt, email, "VIEWER", false);
+    UUID id =
+        UUID.fromString(
+            new ObjectMapper().readTree(invitation.body()).path("invitationId").asString());
+    var token = DELIVERIES.remove(email);
+    var admin =
+        replace
+            ? inviteRequest(ME, ownerJwt, email, "OPERATOR", true)
+            : request(ME + "/invitations/" + id)
+                .header("Authorization", "Bearer " + ownerJwt)
+                .DELETE()
+                .build();
+    var results = raceRequests(acceptRequest(token, guestJwt), admin);
+    boolean accepted = results.getFirst().statusCode() == 200;
+    assertThat(results.getFirst().statusCode()).isIn(200, 409);
+    assertThat(results.getLast().statusCode()).isEqualTo(replace ? 201 : (accepted ? 409 : 204));
+    assertThat(membershipCount(guest)).isEqualTo(accepted ? 1 : 0);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT status FROM company_invitations WHERE company_id = ? AND id = ?",
+                String.class,
+                company,
+                id))
+        .isEqualTo(accepted ? "ACCEPTED" : "REVOKED");
+  }
+
+  @Test
+  void failureToPersistActivationAuditRollsBackMembershipAndInvitation() throws Exception {
+    UUID owner = UUID.randomUUID();
+    UUID guest = UUID.randomUUID();
+    String ownerJwt = token(owner);
+    String email = guest + "@example.com";
+    String guestJwt = verifiedToken(guest, email, true);
+    createCompany(owner, ownerJwt, "Audit rollback Team", "123456834");
+    assertThat(invite(ownerJwt, email, "VIEWER", false).statusCode()).isEqualTo(201);
+    var token = DELIVERIES.remove(email);
+    jdbc.execute(
+        "ALTER TABLE company_audit_log ADD CONSTRAINT test_audit_failure CHECK (actor_id <> '"
+            + guest
+            + "')");
+    try {
+      var rejected = accept(token, guestJwt);
+      assertThat(rejected.statusCode()).isBetween(500, 599);
+      assertThat(rejected.body()).doesNotContain(token, "test_audit_failure");
+      assertThat(membershipCount(guest)).isZero();
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT status FROM company_invitations WHERE token_hash = ?",
+                  String.class,
+                  sha256(token)))
+          .isEqualTo("PENDING");
+    } finally {
+      jdbc.execute("ALTER TABLE company_audit_log DROP CONSTRAINT test_audit_failure");
+    }
+    assertThat(accept(token, guestJwt).statusCode()).isEqualTo(200);
+  }
+
+  @Test
+  void existingOwnerCanAcceptAnInvitationFromAnotherCompany() throws Exception {
     UUID inviter = UUID.randomUUID();
     UUID guest = UUID.randomUUID();
     String email = guest + "@example.com";
     String inviterJwt = token(inviter);
     String guestJwt = verifiedToken(guest, email, true);
-    createCompany(inviter, inviterJwt, "Inviter clinic", "123456796");
+    UUID inviterCompany = createCompany(inviter, inviterJwt, "Inviter clinic", "123456796");
     UUID guestCompany = createCompany(guest, guestJwt, "Guest clinic", "123456797");
     assertThat(invite(inviterJwt, email, "OPERATOR", false).statusCode()).isEqualTo(201);
     String invitationToken = DELIVERIES.remove(email);
-    assertThat(accept(invitationToken, guestJwt).statusCode()).isEqualTo(409);
+    assertThat(accept(invitationToken, guestJwt).statusCode()).isEqualTo(200);
+    assertThat(
+            jdbc.queryForList(
+                "SELECT company_id FROM company_memberships WHERE user_id = ?", UUID.class, guest))
+        .containsExactlyInAnyOrder(guestCompany, inviterCompany);
     assertThat(
             jdbc.queryForObject(
-                "SELECT company_id FROM company_memberships WHERE user_id = ?", UUID.class, guest))
-        .isEqualTo(guestCompany);
+                "SELECT role FROM company_memberships WHERE user_id = ? AND company_id = ?",
+                String.class,
+                guest,
+                guestCompany))
+        .isEqualTo("OWNER");
+    assertThat(
+            get(
+                    COMPANIES
+                        + "/"
+                        + inviterCompany
+                        + "/users?view=page&search=mar%C3%ADa&role=OPERATOR&size=1",
+                    inviterJwt)
+                .body())
+        .contains(email, "María Rodríguez", "\"totalElements\":1");
+    assertThat(get(COMPANIES + "/" + inviterCompany + "/users?view=page", guestJwt).statusCode())
+        .isEqualTo(403);
     assertThat(
             jdbc.queryForObject(
                 "SELECT status FROM company_invitations WHERE token_hash = ?",
                 String.class,
                 sha256(invitationToken)))
-        .isEqualTo("PENDING");
+        .isEqualTo("ACCEPTED");
+  }
+
+  @Test
+  void searchCountsMatchesBeyondTheFirstBatchAndPreservesUuidOrder() throws Exception {
+    UUID owner = UUID.randomUUID();
+    String jwt = token(owner);
+    UUID company = createCompany(owner, jwt, "Ordered Team", "123456835");
+    String companyPath = COMPANIES + "/" + company;
+    List<Object[]> rows = new java.util.ArrayList<>();
+    for (int index = 1; index <= 105; index++) {
+      UUID user = UUID.randomUUID();
+      String status = index == 105 ? "SUSPENDED" : "ACTIVE";
+      String role = index == 104 ? "VIEWER" : "OPERATOR";
+      rows.add(
+          new Object[] {
+            new UUID(company.getMostSignificantBits(), index), company, user, role, status
+          });
+      String name = index >= 102 ? "María " + index : "Other " + index;
+      MEMBER_IDENTITIES.put(user, new Identity(name, "person" + index + "@example.com", false));
+    }
+    jdbc.batchUpdate(
+        """
+        INSERT INTO company_memberships (id, company_id, user_id, role, status) VALUES (?, ?, ?, ?, ?)
+        """,
+        rows);
+
+    String query =
+        companyPath + "/users?view=page&search=MAR%C3%8DA&status=ACTIVE&role=OPERATOR&size=1";
+    var json = new ObjectMapper();
+    var first = json.readTree(get(query, jwt).body());
+    var last = json.readTree(get(query + "&page=1", jwt).body());
+    var outside = json.readTree(get(query + "&page=2", jwt).body());
+    var descending = json.readTree(get(query + "&sort=membershipId,desc", jwt).body());
+    assertThat(first.path("totalElements").asInt()).isEqualTo(2);
+    assertThat(first.path("totalPages").asInt()).isEqualTo(2);
+    assertThat(first.path("content").get(0).path("name").asString()).isEqualTo("María 102");
+    assertThat(last.path("content").get(0).path("name").asString()).isEqualTo("María 103");
+    assertThat(descending.path("content")).isEqualTo(last.path("content"));
+    assertThat(outside.path("content").size()).isZero();
+    assertThat(outside.path("totalElements").asInt()).isEqualTo(2);
+    assertThat(get(companyPath + "/users?view=page&search=PERSON105&status=SUSPENDED", jwt).body())
+        .contains("person105@example.com", "SUSPENDED");
+    assertThat(get(companyPath + "/users?view=page&search=unmatched&role=OPERATOR", jwt).body())
+        .contains("\"content\":[]", "\"totalElements\":0");
+    assertThat(get(companyPath + "/users?view=page&size=101", jwt).statusCode()).isEqualTo(400);
+    assertThat(get(companyPath + "/users?view=page&sort=email,desc", jwt).statusCode())
+        .isEqualTo(400);
+    assertThat(get(companyPath + "/users?view=page&status=INACTIVE", jwt).statusCode())
+        .isEqualTo(400);
+    assertThat(get(companyPath + "/users?view=page&role=OWNER", jwt).statusCode()).isEqualTo(503);
+  }
+
+  @Test
+  void identityDirectoryErrorsAndTimeoutDoNotProducePartialPages() throws Exception {
+    UUID owner = UUID.randomUUID();
+    String jwt = token(owner);
+    UUID company = createCompany(owner, jwt, "Directory Error Team", "123456838");
+    String path = COMPANIES + "/" + company + "/users?view=page";
+    for (int error : List.of(200, 403, 503)) {
+      DIRECTORY_FAILURES.put(owner, error);
+      assertThat(get(path, jwt).statusCode()).isEqualTo(503);
+    }
+    DIRECTORY_FAILURES.remove(owner);
+
+    var delay = new BlockEligibility(new CountDownLatch(1), new CountDownLatch(1));
+    BLOCKED_DIRECTORY.put(owner, delay);
+    var request = request(path).header("Authorization", "Bearer " + jwt).GET().build();
+    try {
+      var pending = http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+      assertThat(delay.entered().await(3, TimeUnit.SECONDS)).isTrue();
+      assertThat(pending.get(4, TimeUnit.SECONDS).statusCode()).isEqualTo(503);
+    } finally {
+      delay.release().countDown();
+      BLOCKED_DIRECTORY.remove(owner);
+    }
+  }
+
+  @Test
+  @Tag("smoke")
+  void controlledTeamFlowPreservesIndependentRolesAndReinstatesOnlyWithNewInvitation()
+      throws Exception {
+    UUID owner = UUID.randomUUID();
+    UUID guest = UUID.randomUUID();
+    String jwt = token(owner);
+    String email = guest + "@example.com";
+    String guestJwt = verifiedToken(guest, email, true);
+    String first = COMPANIES + "/" + createCompany(owner, jwt, "Primary Team", "123456836");
+    String second =
+        COMPANIES + "/" + companyId(register(jwt, "secondary-team", "Secondary Team", "123456837"));
+    var firstInvite = inviteRequest(first, jwt, email, "OPERATOR", false);
+    var secondInvite = inviteRequest(second, jwt, email, "VIEWER", false);
+    assertThat(http.send(firstInvite, HttpResponse.BodyHandlers.ofString()).statusCode())
+        .isEqualTo(201);
+    String firstToken = DELIVERIES.remove(email);
+    var activated = accept(firstToken, guestJwt);
+    assertThat(activated.statusCode()).isEqualTo(200);
+    var json = new ObjectMapper();
+    String id = json.readTree(activated.body()).path("membershipId").asString();
+    assertThat(http.send(secondInvite, HttpResponse.BodyHandlers.ofString()).statusCode())
+        .isEqualTo(201);
+    assertThat(accept(DELIVERIES.remove(email), guestJwt).body()).contains("VIEWER");
+    assertThat(accept(firstToken, guestJwt).statusCode()).isEqualTo(409);
+    assertThat(get(second + "/users?view=page", guestJwt).statusCode()).isEqualTo(403);
+
+    String status = first + "/members/" + guest + "/status";
+    assertThat(
+            patch(first + "/members/" + owner + "/status", jwt, "{\"status\":\"SUSPENDED\"}")
+                .statusCode())
+        .isEqualTo(409);
+    assertThat(patch(status, jwt, "{\"status\":\"SUSPENDED\"}").body()).contains("SUSPENDED");
+    assertThat(get(first + "/users", guestJwt).statusCode()).isEqualTo(403);
+    assertThat(patch(status, jwt, "{\"status\":\"ACTIVE\"}").body()).contains("ACTIVE");
+    assertThat(get(first + "/users", guestJwt).statusCode()).isEqualTo(200);
+
+    var grant = UUID.randomUUID();
+    UUID firstCompany = UUID.fromString(first.substring(first.lastIndexOf('/') + 1));
+    jdbc.update(
+        "INSERT INTO company_permissions (id, company_id, permission) VALUES (?, ?, 'CATALOG_READ')",
+        grant,
+        firstCompany);
+    jdbc.update("INSERT INTO membership_permissions VALUES (?, ?)", UUID.fromString(id), grant);
+    assertThat(http.send(firstInvite, HttpResponse.BodyHandlers.ofString()).statusCode())
+        .isEqualTo(201);
+    var stale = DELIVERIES.remove(email);
+    var revoke =
+        request(first + "/members/" + guest)
+            .header("Authorization", "Bearer " + jwt)
+            .DELETE()
+            .build();
+    assertThat(http.send(revoke, HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(204);
+    assertThat(get(first + "/users", guestJwt).statusCode()).isEqualTo(403);
+    assertThat(get(second + "/users", guestJwt).statusCode()).isEqualTo(200);
+    assertThat(accept(stale, guestJwt).statusCode()).isEqualTo(409);
+    var fresh = inviteRequest(first, jwt, email, "VIEWER", true);
+    assertThat(http.send(fresh, HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(201);
+    var reinstated = accept(DELIVERIES.remove(email), guestJwt);
+    assertThat(reinstated.statusCode()).isEqualTo(200);
+    assertThat(reinstated.body()).contains(id, "VIEWER", "ACTIVE");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM membership_permissions WHERE membership_id = ?",
+                Integer.class,
+                UUID.fromString(id)))
+        .isZero();
+    assertThat(get(first + "/audit-log", jwt).body())
+        .contains("MEMBER_SUSPENDED", "MEMBER_REVOKED", "MEMBER_ACTIVATED");
   }
 
   @Test
@@ -1899,20 +2254,24 @@ class CompanyProfileIT {
 
   private HttpResponse<String> invite(String jwt, String email, String role, boolean replace)
       throws Exception {
-    var request = request(ME + "/invitations").header("Content-Type", "application/json");
+    return http.send(
+        inviteRequest(ME, jwt, email, role, replace), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private HttpRequest inviteRequest(
+      String companyPath, String jwt, String email, String role, boolean replace) {
+    var request = request(companyPath + "/invitations").header("Content-Type", "application/json");
     if (jwt != null) {
       request.header("Authorization", "Bearer " + jwt);
     }
-    return http.send(
-        request
-            .POST(
-                HttpRequest.BodyPublishers.ofString(
-                    """
-                    {"email":"%s","role":"%s","replace":%s}
-                    """
-                        .formatted(email, role, replace)))
-            .build(),
-        HttpResponse.BodyHandlers.ofString());
+    return request
+        .POST(
+            HttpRequest.BodyPublishers.ofString(
+                """
+                {"email":"%s","role":"%s","replace":%s}
+                """
+                    .formatted(email, role, replace)))
+        .build();
   }
 
   private HttpResponse<String> accept(String invitationToken, String jwt) throws Exception {
@@ -1934,8 +2293,8 @@ class CompanyProfileIT {
 
   private String verifiedToken(UUID userId, String email, boolean emailVerified)
       throws JOSEException {
-    return token(
-        userId.toString(), Instant.now().plusSeconds(300), signingKey, email, emailVerified);
+    MEMBER_IDENTITIES.put(userId, new Identity("María Rodríguez", email, emailVerified));
+    return token(userId);
   }
 
   private static String sha256(String token) throws Exception {

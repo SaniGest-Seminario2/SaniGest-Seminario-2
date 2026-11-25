@@ -13,9 +13,33 @@ public record Invitation(
     CompanyRole role,
     InvitationStatus status,
     Instant createdAt,
-    Instant expiresAt) {
+    Instant expiresAt,
+    String name) {
+
+  public Invitation(
+      UUID id,
+      UUID companyId,
+      String email,
+      CompanyRole role,
+      InvitationStatus status,
+      Instant createdAt,
+      Instant expiresAt) {
+    this(id, companyId, email, role, status, createdAt, expiresAt, null);
+  }
+
+  public static String normalizeName(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    String normalized = value.strip();
+    if (normalized.length() > 160 || normalized.chars().anyMatch(Character::isISOControl)) {
+      throw new IllegalArgumentException("Invalid invitation name");
+    }
+    return normalized;
+  }
 
   public Invitation {
+    name = normalizeName(name);
     email = normalizeEmail(email);
     if (id == null
         || companyId == null

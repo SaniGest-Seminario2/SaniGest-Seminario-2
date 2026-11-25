@@ -35,7 +35,7 @@ class CompanyPostgresMigrationIT {
             .locations("classpath:db/migration", "classpath:db/postgresql")
             .load();
 
-    assertThat(flyway.migrate().migrationsExecuted).isEqualTo(10);
+    assertThat(flyway.migrate().migrationsExecuted).isEqualTo(12);
     assertThat(flyway.migrate().migrationsExecuted).isZero();
     try (var connection =
             DriverManager.getConnection(
@@ -97,6 +97,25 @@ class CompanyPostgresMigrationIT {
         original);
 
     assertThat(config.target("10").load().migrate().migrationsExecuted).isEqualTo(1);
+    UUID invitation = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO company_invitations
+          (id, company_id, email, role, token_hash, status, pending_slot, created_at, expires_at)
+        VALUES (?, ?, 'guest@example.com', 'VIEWER', ?, 'PENDING', 1,
+            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '1 hour')
+        """,
+        invitation,
+        original,
+        "b".repeat(64));
+    assertThat(config.target("12").load().migrate().migrationsExecuted).isEqualTo(2);
+    assertThat(
+            jdbc.queryForMap(
+                "SELECT recipient_name, email, status FROM company_invitations WHERE id = ?",
+                invitation))
+        .containsEntry("recipient_name", null)
+        .containsEntry("email", "guest@example.com")
+        .containsEntry("status", "PENDING");
     jdbc.update(
         "INSERT INTO company_memberships (id, company_id, user_id, role) VALUES (?, ?, ?, 'VIEWER')",
         UUID.randomUUID(),

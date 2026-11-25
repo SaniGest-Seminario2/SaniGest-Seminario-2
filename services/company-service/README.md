@@ -230,3 +230,78 @@ misma transacción, con el destinatario en `targetUserId` y el par en
 `advisorPermission`. Si un OWNER intenta conceder acceso a un destinatario que
 Identity no puede confirmar como elegible mediante una respuesta negativa, la
 auditoría registra el intento rechazado sin identificar al destinatario.
+
+## Equipo empresarial (S2-455)
+
+Todas las rutas de equipo bajo `/api/v1/companies/{companyId}` tienen una
+variante compatible bajo `/api/v1/companies/me`. Con un path explícito,
+`X-Company-Id`, si se envía, debe coincidir. Identity confirma que la cuenta
+autenticada es REGULAR y está activa antes de resolver el contexto.
+
+| Método y subruta | Contrato |
+| --- | --- |
+| POST `/invitations` | Crea una invitación. Recibe email, rol OPERATOR o VIEWER, nombre opcional de hasta 160 caracteres y `replace` (por defecto false). Devuelve 201 con metadatos. |
+| GET `/invitations?page=0&size=20` | Array de invitaciones pendientes vigentes con nombre, email, rol, estado y fechas. Acceso de OWNER y ADMIN. |
+| DELETE `/invitations/{invitationId}` | Revoca una invitación pendiente de la empresa y devuelve 204. |
+| GET `/users` | Conserva el array histórico de identificadores, rol y estado para lectores autorizados. |
+| GET `/users?view=page` | Página de administración con `content`, `page`, `size`, `totalElements` y `totalPages`. Cada fila incluye ID de membresía, ID de usuario, nombre, email, rol y estado. |
+| PATCH `/members/{userId}/role` | Cambia el rol según la política vigente. |
+| PATCH `/members/{userId}/status` | Recibe `{"status":"SUSPENDED"}` o `{"status":"ACTIVE"}` para suspender o reactivar. |
+| DELETE `/members/{userId}` | Revoca el acceso de la membresía seleccionada con 204. |
+
+La página enriquecida requiere OWNER o ADMIN activos de la empresa. Admite
+`search` (subcadena de nombre o email, hasta 160 caracteres, sin distinguir
+mayúsculas y distinguiendo acentos), `status=ACTIVE|SUSPENDED|REVOKED`,
+`role=OWNER|ADMIN|OPERATOR|VIEWER`, `page` desde 0, `size` de 1 a 100
+(20 por defecto) y `sort=membershipId,asc|membershipId,desc`. El UUID de la
+membresía define un orden total. Company aplica rol y estado en SQL. Sin texto
+hace un conteo y pagina en SQL antes de enriquecer. Con texto recorre el conjunto
+filtrado por cursor UUID en lotes de hasta 100, consulta Identity una vez por
+lote, calcula el total de coincidencias y conserva solo la página pedida.
+La consulta mantiene una instantánea de membresías y lee datos de Identity
+vigentes en cada lote. La actualización concurrente de datos personales entre
+lotes puede cambiar los resultados. Una respuesta de Identity incompleta o
+indisponible devuelve 503. Los estados suspendido y revocado se exponen por
+separado. Las invitaciones pendientes se consultan mediante `/invitations`.
+
+La aceptación usa `POST /api/v1/invitations/{token}/accept` con la empresa
+obtenida de la invitación persistida. Company exige que Identity confirme que
+el correo actual está verificado y que coincida con el de la invitación.
+El nombre de la invitación solo se conserva en Company. Una cuenta que ya
+pertenece a otra empresa puede aceptar si el modo multiempresa está activado.
+Una membresía activa o suspendida no admite otra alta. Una revocada puede
+reincorporarse con una invitación emitida después de la revocación. Se conserva
+el ID histórico, se eliminan concesiones explícitas y se aplica el rol de la
+nueva invitación. La protección del último OWNER activo se aplica también a
+suspensiones. Aceptación, membresía y auditoría se confirman en la misma
+transacción. Para aceptar, Company toma el bloqueo por usuario, seguido por
+el bloqueo de cambios de la empresa y el de la fila de invitación. Creación,
+reemplazo y revocación de invitaciones comparten el bloqueo de empresa.
+
+### Directorio interno y entrega
+
+Configura `MEMBER_DIRECTORY_ISSUER` y
+`MEMBER_DIRECTORY_PRIVATE_KEY_LOCATION=file:/ruta/clave-pkcs8.pem` en Company,
+y la clave pública separada en Identity. Usa el origen directo de Identity
+por HTTPS en un despliegue remoto. El [contrato interno](../identity-service/README.md#directorio-interno-de-miembros-s2-455)
+describe credenciales, tamaño de lote y verificación.
+
+`InvitationDelivery` recibe el token de 32 bytes después del commit. La base
+guarda SHA-256 y el TTL por defecto es PT72H. `replace=true` revoca la
+invitación pendiente anterior y genera un token nuevo en la misma transacción.
+El token se consume una vez. Las invitaciones expiradas, revocadas y consumidas
+devuelven 409 al destinatario verificado. El 201 confirma la creación de la
+invitación. Falta integrar un proveedor de entrega autorizado que construya
+el enlace HTTPS y lo envíe directamente al buzón destinatario. El adaptador de
+captura vive en pruebas. Para el despliegue, configura el proxy, logs de
+acceso y trazas para omitir o anonimizar la ruta de aceptación antes de
+exportarla. Usa la plantilla de ruta en métricas y excluye cuerpos y cabeceras
+de autenticación de la telemetría.
+
+La verificación de correo en Identity sigue pendiente. Una sesión de login o
+la posesión del token de invitación no sustituye esa evidencia de Identity.
+Hasta disponer del flujo de verificación, Identity devuelve
+`emailVerified: false` y Company deniega la aceptación con 403. El smoke
+controlado de Company usa evidencia de prueba y el smoke de Identity comprueba
+el contrato con registro real. El smoke público de aceptación completa queda
+pendiente de verificación y entrega.

@@ -30,7 +30,9 @@ final class CompanyContextOpenApi {
                         true,
                         "schema",
                         Map.of("type", "string"))),
-            "post", operation("Aceptar invitación por token", "200", false)));
+            "post",
+                CompanyTeamOpenApi.accepted(
+                    operation("Aceptar invitación con cuenta REGULAR activa", "200", false))));
     for (String base : List.of(COMPANIES + "/me", COMPANIES + "/{companyId}")) {
       boolean legacy = base.endsWith("/me");
       put(
@@ -44,12 +46,29 @@ final class CompanyContextOpenApi {
           paths,
           base + "/users",
           legacy,
-          Map.of("get", operation("Listar miembros", "200", legacy)));
+          Map.of("get", CompanyTeamOpenApi.members(operation("Listar miembros", "200", legacy))));
       put(
           paths,
           base + "/invitations",
           legacy,
-          Map.of("post", operation("Invitar a la empresa", "201", legacy)));
+          Map.of(
+              "post", CompanyTeamOpenApi.invite(operation("Invitar a la empresa", "201", legacy)),
+              "get",
+                  CompanyTeamOpenApi.pending(
+                      operation("Listar invitaciones pendientes", "200", legacy))));
+      put(
+          paths,
+          base + "/invitations/{invitationId}",
+          legacy,
+          Map.of("delete", operation("Revocar invitación pendiente", "204", legacy)));
+      put(
+          paths,
+          base + "/members/{userId}/status",
+          legacy,
+          Map.of(
+              "patch",
+              CompanyTeamOpenApi.status(
+                  operation("Suspender o reactivar membresía", "200", legacy))));
       put(
           paths,
           base + "/members/{userId}/role",
@@ -93,6 +112,9 @@ final class CompanyContextOpenApi {
     if (path.contains("{userId}")) {
       parameters.add(pathParameter("userId"));
     }
+    if (path.contains("{invitationId}")) {
+      parameters.add(pathParameter("invitationId"));
+    }
     var item = new LinkedHashMap<>(operations);
     item.put("parameters", parameters);
     paths.put(path, item);
@@ -118,11 +140,13 @@ final class CompanyContextOpenApi {
                 Map.of("description", "Recurso ausente o invisible."),
                 "503",
                 Map.of("description", "Autorización indisponible.")));
-    if (legacy) {
-      responses.put(
-          "409",
-          Map.of("description", "COMPANY_SELECTION_REQUIRED si hay varias empresas activas."));
-    }
+    responses.put(
+        "409",
+        Map.of(
+            "description",
+            legacy
+                ? "Conflicto de estado o COMPANY_SELECTION_REQUIRED si hay varias empresas activas."
+                : "Conflicto de estado, invitación cerrada o último OWNER activo."));
     return Map.of(
         "summary",
         summary,

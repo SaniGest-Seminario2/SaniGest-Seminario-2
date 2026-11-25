@@ -12,6 +12,9 @@ import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.company.domain.model.Membership;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -201,14 +204,29 @@ class JdbcMembershipRepository implements MembershipRepository {
   }
 
   @Override
-  public void revoke(Membership membership) {
+  public void revoke(Membership membership, Instant now) {
     jdbc.update(
         """
-        UPDATE company_memberships SET status = 'REVOKED', updated_at = CURRENT_TIMESTAMP
+        UPDATE company_memberships SET status = 'REVOKED', updated_at = ?
         WHERE company_id = ? AND id = ?
         """,
+        now.atOffset(ZoneOffset.UTC),
         membership.companyId(),
         membership.id());
+  }
+
+  @Override
+  public boolean revokedBefore(UUID companyId, UUID userId, Instant invitationCreatedAt) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            """
+            SELECT EXISTS (SELECT 1 FROM company_memberships
+              WHERE company_id = ? AND user_id = ? AND status = 'REVOKED' AND updated_at < ?)
+            """,
+            Boolean.class,
+            companyId,
+            userId,
+            invitationCreatedAt.atOffset(ZoneOffset.UTC)));
   }
 
   @Override
@@ -218,6 +236,85 @@ class JdbcMembershipRepository implements MembershipRepository {
             "SELECT EXISTS (SELECT 1 FROM company_memberships WHERE user_id = ?)",
             Boolean.class,
             userId));
+  }
+
+  @Override
+  public boolean existsByUserIdOutsideCompany(UUID userId, UUID companyId) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM company_memberships WHERE user_id = ? AND company_id <> ?)",
+            Boolean.class,
+            userId,
+            companyId));
+  }
+
+  @Override
+  public void reinstate(Membership membership) {
+    jdbc.update("DELETE FROM membership_permissions WHERE membership_id = ?", membership.id());
+    updateRole(membership, membership.role());
+    updateStatus(membership, MembershipStatus.ACTIVE);
+  }
+
+  @Override
+  public void updateStatus(Membership membership, MembershipStatus status) {
+    jdbc.update(
+        """
+        UPDATE company_memberships SET status = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE company_id = ? AND id = ?
+        """,
+        status.name(),
+        membership.companyId(),
+        membership.id());
+  }
+
+  @Override
+  public List<Membership> findBatch(
+      UUID companyId,
+      CompanyRole role,
+      MembershipStatus status,
+      boolean descending,
+      UUID after,
+      int limit,
+      long offset) {
+    var args = new ArrayList<>();
+    String filter = filter(args, companyId, role, status);
+    if (after != null) {
+      filter += descending ? " AND id < ?" : " AND id > ?";
+      args.add(after);
+    }
+    args.add(limit);
+    args.add(offset);
+    return jdbc.query(
+        "SELECT id, company_id, user_id, role, status FROM company_memberships"
+            + filter
+            + (descending ? " ORDER BY id DESC" : " ORDER BY id ASC")
+            + " LIMIT ? OFFSET ?",
+        JdbcMembershipRepository::membership,
+        args.toArray());
+  }
+
+  @Override
+  public long count(UUID companyId, CompanyRole role, MembershipStatus status) {
+    var args = new ArrayList<>();
+    String filter = filter(args, companyId, role, status);
+    return java.util.Objects.requireNonNull(
+        jdbc.queryForObject(
+            "SELECT count(*) FROM company_memberships" + filter, Long.class, args.toArray()));
+  }
+
+  private static String filter(
+      List<Object> args, UUID companyId, CompanyRole role, MembershipStatus status) {
+    args.add(companyId);
+    String filter = " WHERE company_id = ?";
+    if (role != null) {
+      filter += " AND role = ?";
+      args.add(role.name());
+    }
+    if (status != null) {
+      filter += " AND status = ?";
+      args.add(status.name());
+    }
+    return filter;
   }
 
   @Override

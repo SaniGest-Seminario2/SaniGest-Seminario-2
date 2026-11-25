@@ -9,8 +9,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.sanigest.company.application.dto.CompanyMembership;
+import com.sanigest.company.application.dto.CompanyProfile;
 import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.exception.CompanyConflictException;
+import com.sanigest.company.application.port.out.integration.MemberIdentityDirectory;
+import com.sanigest.company.application.port.out.integration.MemberIdentityDirectory.Identity;
 import com.sanigest.company.application.port.out.persistence.CompanyRepository;
 import com.sanigest.company.application.port.out.persistence.InvitationRepository;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
@@ -25,6 +29,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -44,12 +50,19 @@ class CompanyInvitationUseCasesTest {
   private final CompanyRepository companies = mock(CompanyRepository.class);
   private final InvitationRepository invitations = mock(InvitationRepository.class);
   private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+  private final CompanyAuditRecorder audit = mock(CompanyAuditRecorder.class);
+  private final MemberIdentityDirectory directory = mock(MemberIdentityDirectory.class);
   private final InviteCompanyUserUseCase invite =
       new InviteCompanyUserUseCase(
-          members, companies, invitations, Duration.ofHours(4), clock, Optional.empty());
+          new CompanyMembershipPolicy(members, audit),
+          invitations,
+          Duration.ofHours(4),
+          clock,
+          Optional.empty(),
+          audit);
   private final AcceptCompanyInvitationUseCase accept =
       new AcceptCompanyInvitationUseCase(
-          invitations, members, companies, clock, mock(CompanyAuditRecorder.class));
+          invitations, members, companies, clock, audit, directory, false);
   private final String token = InvitationToken.generate();
 
   @ParameterizedTest
@@ -58,7 +71,8 @@ class CompanyInvitationUseCasesTest {
       names = {"OPERATOR", "VIEWER"})
   void createsPendingInvitationWithNormalizedRecipientAndConfiguredExpiry(CompanyRole role) {
     authorize(CompanyRole.ADMIN, MembershipStatus.ACTIVE);
-    var result = invite.invite(owner, " Guest@Example.com ", role, false);
+    var result =
+        invite.invite(owner, null, " Guest@Example.com ", role, false, "  María Rodríguez  ");
     var saved = ArgumentCaptor.forClass(Invitation.class);
     verify(invitations)
         .insert(saved.capture(), org.mockito.ArgumentMatchers.matches("[a-f0-9]{64}"));
@@ -71,7 +85,8 @@ class CompanyInvitationUseCasesTest {
                 role,
                 InvitationStatus.PENDING,
                 NOW,
-                NOW.plusSeconds(14400)));
+                NOW.plusSeconds(14400),
+                "María Rodríguez"));
   }
 
   @Test
@@ -146,8 +161,8 @@ class CompanyInvitationUseCasesTest {
   @Test
   void acceptsForVerifiedRecipientAndInsertsMembershipBeforeConsumingToken() {
     var pending = stored(InvitationStatus.PENDING, NOW.plusSeconds(60));
-    when(companies.findByIdForUpdate(companyId)).thenReturn(Optional.of(company));
-    var member = accept.accept(guest, "Guest@Example.com", token);
+    when(companies.findById(companyId)).thenReturn(Optional.of(company));
+    var member = accept.accept(guest, token);
     assertThat(member)
         .isEqualTo(
             new Membership(member.id(), companyId, guest, pending.role(), MembershipStatus.ACTIVE));
@@ -158,20 +173,21 @@ class CompanyInvitationUseCasesTest {
 
   @Test
   void rejectsUnverifiedOrDifferentRecipientBeforeMembershipAccess() {
-    assertThatThrownBy(() -> accept.accept(guest, null, token))
+    assertThatThrownBy(() -> accept.accept(guest, token))
         .isInstanceOf(CompanyAccessDeniedException.class);
     verifyNoInteractions(invitations);
     stored(InvitationStatus.PENDING, NOW.plusSeconds(60));
-    assertThatThrownBy(() -> accept.accept(guest, "other@example.com", token))
+    identity("other@example.com", true);
+    assertThatThrownBy(() -> accept.accept(guest, token))
         .isInstanceOf(CompanyAccessDeniedException.class);
-    verifyNoInteractions(members);
+    verify(members, org.mockito.Mockito.never()).insert(any());
   }
 
   @Test
   void rejectsExistingMembershipInAnotherCompanyWithoutConsumingToken() {
     stored(InvitationStatus.PENDING, NOW.plusSeconds(60));
-    when(members.existsByUserId(guest)).thenReturn(true);
-    assertThatThrownBy(() -> accept.accept(guest, EMAIL, token))
+    when(members.existsByUserIdOutsideCompany(guest, companyId)).thenReturn(true);
+    assertThatThrownBy(() -> accept.accept(guest, token))
         .isInstanceOf(CompanyConflictException.class);
     verify(invitations, org.mockito.Mockito.never())
         .closePending(any(), eq(InvitationStatus.ACCEPTED));
@@ -182,13 +198,67 @@ class CompanyInvitationUseCasesTest {
   @EnumSource(InvitationStatus.class)
   void rejectsExpiredRevokedOrPreviouslyConsumedTokens(InvitationStatus status) {
     stored(status, NOW);
-    assertThatThrownBy(() -> accept.accept(guest, EMAIL, token))
+    assertThatThrownBy(() -> accept.accept(guest, token))
         .isInstanceOf(CompanyConflictException.class);
-    verifyNoInteractions(members, companies);
+    verifyNoInteractions(companies);
+    verify(members, org.mockito.Mockito.never()).insert(any());
+  }
+
+  @Test
+  void acceptsInAnotherCompanyWhenEnabled() {
+    stored(InvitationStatus.PENDING, NOW.plusSeconds(60));
+    when(companies.findById(companyId)).thenReturn(Optional.of(company));
+    var enabled =
+        new AcceptCompanyInvitationUseCase(
+            invitations, members, companies, clock, audit, directory, true);
+    assertThat(enabled.accept(guest, token).companyId()).isEqualTo(companyId);
+    verify(members, org.mockito.Mockito.never()).existsByUserIdOutsideCompany(any(), any());
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = MembershipStatus.class,
+      names = {"ACTIVE", "SUSPENDED"})
+  void deniesExistingActiveOrSuspendedMembers(MembershipStatus status) {
+    stored(InvitationStatus.PENDING, NOW.plusSeconds(60));
+    when(members.findByCompanyIdAndUserId(companyId, guest))
+        .thenReturn(
+            Optional.of(
+                new Membership(UUID.randomUUID(), companyId, guest, CompanyRole.OWNER, status)));
+    assertThatThrownBy(() -> accept.accept(guest, token))
+        .isInstanceOf(CompanyConflictException.class);
+    verify(members, org.mockito.Mockito.never()).insert(any());
+  }
+
+  @Test
+  void reinstatesRevokedMemberWithSameIdAndInvitedRole() {
+    stored(InvitationStatus.PENDING, NOW.plusSeconds(60));
+    UUID original = UUID.randomUUID();
+    when(members.revokedBefore(eq(companyId), eq(guest), any())).thenReturn(true);
+    when(members.findByCompanyIdAndUserId(companyId, guest))
+        .thenReturn(
+            Optional.of(
+                new Membership(
+                    original, companyId, guest, CompanyRole.OWNER, MembershipStatus.REVOKED)));
+    when(companies.findById(companyId)).thenReturn(Optional.of(company));
+    var result = accept.accept(guest, token);
+    assertThat(result)
+        .isEqualTo(
+            new Membership(
+                original, companyId, guest, CompanyRole.VIEWER, MembershipStatus.ACTIVE));
+    verify(members).reinstate(result);
+  }
+
+  private void identity(String email, boolean verified) {
+    when(directory.lookup(List.of(guest)))
+        .thenReturn(Map.of(guest, new Identity("Guest", email, verified)));
   }
 
   private Invitation stored(InvitationStatus status, Instant expiresAt) {
     var invitation = invitation(status, expiresAt);
+    identity(EMAIL, true);
+    when(invitations.findCompanyByTokenHash(InvitationToken.hash(token)))
+        .thenReturn(Optional.of(companyId));
     when(invitations.findByTokenHashForUpdate(InvitationToken.hash(token)))
         .thenReturn(Optional.of(invitation));
     return invitation;
@@ -206,7 +276,10 @@ class CompanyInvitationUseCasesTest {
   }
 
   private void authorize(CompanyRole role, MembershipStatus status) {
-    when(members.findByUserIdForUpdate(owner))
+    var profile = new CompanyProfile(companyId, "Clinic", "Clinic", null, null, "DOP", "ACTIVE");
+    when(members.findCompanyByUserId(owner))
+        .thenReturn(Optional.of(new CompanyMembership(status, profile)));
+    when(members.findByCompanyIdAndUserId(companyId, owner))
         .thenReturn(Optional.of(new Membership(UUID.randomUUID(), companyId, owner, role, status)));
     when(companies.findById(companyId)).thenReturn(Optional.of(company));
   }

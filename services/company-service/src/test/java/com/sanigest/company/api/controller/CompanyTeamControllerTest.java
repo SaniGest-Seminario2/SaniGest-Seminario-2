@@ -18,10 +18,12 @@ import com.sanigest.company.application.dto.CompanyProfile;
 import com.sanigest.company.application.dto.CreatedInvitation;
 import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.port.out.integration.CurrentAccount;
+import com.sanigest.company.application.port.out.integration.MemberIdentityDirectory;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
 import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.profile.GetMyCompanyUseCase;
 import com.sanigest.company.application.usecase.team.AcceptCompanyInvitationUseCase;
+import com.sanigest.company.application.usecase.team.CompanyMembershipPolicy;
 import com.sanigest.company.application.usecase.team.InviteCompanyUserUseCase;
 import com.sanigest.company.application.usecase.team.ListMyCompanyUsersUseCase;
 import com.sanigest.company.domain.enums.CompanyRole;
@@ -49,7 +51,11 @@ class CompanyTeamControllerTest {
           new RequireRegularAccount(accounts),
           invite,
           accept,
-          new ListMyCompanyUsersUseCase(new GetMyCompanyUseCase(memberships), memberships));
+          new ListMyCompanyUsersUseCase(
+              new GetMyCompanyUseCase(memberships),
+              memberships,
+              mock(CompanyMembershipPolicy.class),
+              mock(MemberIdentityDirectory.class)));
 
   @Test
   void createsInvitationForAuthenticatedUserAndReturnsUncacheableMetadata() {
@@ -60,11 +66,11 @@ class CompanyTeamControllerTest {
             CompanyRole.OPERATOR,
             InvitationStatus.PENDING,
             Instant.parse("2026-11-22T00:00:00Z"));
-    when(invite.invite(user, null, EMAIL, CompanyRole.OPERATOR, true)).thenReturn(created);
+    when(invite.invite(user, null, EMAIL, CompanyRole.OPERATOR, true, "María")).thenReturn(created);
 
     var response =
         controller.invite(
-            jwt(true), null, request(), new InvitationRequest(EMAIL, "OPERATOR", true));
+            jwt(true), null, request(), new InvitationRequest(EMAIL, "OPERATOR", true, "María"));
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     assertThat(response.getBody())
@@ -75,15 +81,12 @@ class CompanyTeamControllerTest {
   }
 
   @Test
-  void acceptsOnlyTheEmailAssertedVerifiedByTheJwtIssuer() {
+  void passesOnlyAuthenticatedSubjectAndTokenToAcceptance() {
     when(accounts.resolve("access-token")).thenReturn(AccountType.REGULAR);
-    when(accept.accept(user, null, "invite-token")).thenThrow(new CompanyAccessDeniedException());
     var member = member();
-    when(accept.accept(user, EMAIL, "invite-token")).thenReturn(member);
+    when(accept.accept(user, "invite-token")).thenReturn(member);
 
-    assertThatThrownBy(() -> controller.accept(jwt("true"), "invite-token"))
-        .isInstanceOf(CompanyAccessDeniedException.class);
-    var response = controller.accept(jwt(true), "invite-token");
+    var response = controller.accept(jwt(false), "invite-token");
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody())
         .isEqualTo(

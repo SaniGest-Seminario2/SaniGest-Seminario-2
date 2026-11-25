@@ -8,4 +8,11 @@ import jakarta.validation.constraints.Size;
 public record InvitationRequest(
     @NotBlank @Email @Size(max = 320) String email,
     @NotBlank @Pattern(regexp = "OPERATOR|VIEWER") String role,
-    boolean replace) {}
+    Boolean replace,
+    @Size(max = 160) String name) {
+  public InvitationRequest {
+    email = email == null ? null : email.strip();
+    name = name == null ? null : name.strip();
+    replace = Boolean.TRUE.equals(replace);
+  }
+}

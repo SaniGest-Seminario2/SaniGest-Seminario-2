@@ -10,8 +10,9 @@ Rutas relativas a `/api/v1`, salvo la ruta interna indicada. **I** implementado,
 | Selector | Seleccionar empresa por petición | X-Company-Id por petición | Company | Identity, Gateway | — | S2-454 | I |
 | Contexto | Autorizar ruta de negocio | GET /internal/v2/company-access | Company | Identity, common-company-access | — | S2-317, S2-330, S2-454 | I |
 | Empresa | Perfil y auditoría | GET/PATCH /companies/{companyId}; GET /companies/{companyId}/audit-log; compatibilidad /companies/me | Company | Identity | — | S2-309, S2-454 | I |
-| Equipo | Invitar, aceptar, listar | POST /companies/{companyId}/invitations; POST /invitations/{token}/accept; GET /companies/{companyId}/users | Company | Identity | — | S2-311, S2-312, S2-454, S2-455 | E |
-| Equipo | Cambiar rol o revocar | PATCH /companies/{companyId}/members/{userId}/role; DELETE /companies/{companyId}/members/{userId} | Company | Identity | — | S2-454, S2-455 | E |
+| Equipo | Crear, listar y revocar invitaciones pendientes, aceptar con correo verificado | POST/GET /companies/{companyId}/invitations; DELETE /companies/{companyId}/invitations/{invitationId}; POST /invitations/{token}/accept | Company | Identity | Verificación real de correo y entrega productiva pendientes | S2-311, S2-454, S2-455 | E |
+| Equipo | Listar miembros con búsqueda, filtros y paginación | GET /companies/{companyId}/users?view=page, array compatible sin view | Company | Identity, directorio interno | — | S2-311, S2-454, S2-455 | I |
+| Equipo | Cambiar rol, suspender, reactivar o revocar | PATCH /companies/{companyId}/members/{userId}/{role,status}; DELETE /companies/{companyId}/members/{userId} | Company | Identity | — | S2-312, S2-454, S2-455 | I |
 | Acceso delegado | Listar y administrar concesión | GET /advisor/companies; GET/PUT/DELETE /companies/{companyId}/advisor-access | Company | Identity | — | S2-454 | I |
 | Clientes | Listar, crear, editar, estado | GET/POST /clients; GET/PATCH /clients/{id}; PATCH /clients/{id}/status | Catalog | Company | — | S2-318, S2-418, S2-456 | E |
 | Ficha cliente | Métricas, facturas, cobros y estado de cuenta | GET /clients/{id}/{financial-summary,statement} | Sales | Company, Catalog | — | S2-457 | P |

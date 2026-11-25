@@ -21,7 +21,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-import org.springframework.web.servlet.HandlerMapping;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
@@ -99,8 +98,7 @@ class ApiExceptionHandler {
     String trace = MDC.get("traceId");
     problem.setProperty(
         "traceId", TraceIds.normalize(trace == null ? request.getHeader("X-Trace-Id") : trace));
-    if (CompanyRoutes.ACCEPT_INVITATION.equals(
-        request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE))) {
+    if (CompanyRoutes.isInvitationPath(request.getRequestURI())) {
       problem.setInstance(URI.create("/api/v1/invitations"));
     }
     return problem;
