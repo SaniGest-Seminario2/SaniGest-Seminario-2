@@ -69,6 +69,8 @@ class ServiceRoutes {
                         "/api/v1/clients",
                         "/api/v1/clients/{id}",
                         "/api/v1/clients/{id}/status",
+                        "/api/v1/clients/categories/{id}",
+                        "/api/v1/clients/reference-data/{resource}",
                         "/api/v1/suppliers",
                         "/api/v1/suppliers/{id}",
                         "/api/v1/suppliers/{id}/status",

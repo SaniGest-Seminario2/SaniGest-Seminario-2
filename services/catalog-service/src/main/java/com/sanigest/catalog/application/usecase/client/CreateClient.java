@@ -9,24 +9,29 @@ import com.sanigest.catalog.domain.model.Client;
 import com.sanigest.catalog.domain.model.ClientDetails;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CreateClient {
   private final ClientCompany company;
   private final ClientRepository clients;
+  private final ClientProfileRules profiles;
 
-  public CreateClient(ClientCompany company, ClientRepository clients) {
+  public CreateClient(
+      ClientCompany company, ClientRepository clients, ClientProfileRules profiles) {
     this.company = company;
     this.clients = clients;
+    this.profiles = profiles;
   }
 
+  @Transactional
   @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
   public Client execute(ClientDetails details) {
     var companyId =
         company
             .membership(CatalogAuthorization.Permission.CATALOG_WRITE)
             .orElseThrow(() -> new ClientCreationException(FORBIDDEN));
-    var client = Client.register(companyId, details);
+    var client = Client.register(companyId, profiles.prepareCreation(companyId, details));
     clients.insert(client);
     return client;
   }

@@ -66,27 +66,13 @@ El Resource Server valida la firma RS256, emisor, audiencia, vigencia y el UUID
 de identidad mediante `common-security`. Las operaciones de clientes requieren
 autorización empresarial para el permiso correspondiente.
 
-### Alta de clientes
+### Ficha comercial de clientes (S2-456)
 
-`POST /api/v1/clients` requiere un JWT de acceso en `Authorization: Bearer <token>`.
-El cuerpo acepta `name` obligatorio y `taxId`, `email`, `phone` y `address`
-opcionales. La respuesta exitosa es `201` con `id`, `name`, `taxId` y
-`status: ACTIVE`. Los identificadores y el estado se asignan en el servidor.
-El identificador fiscal conserva mayúsculas, minúsculas y separadores. Catalog
-elimina el espacio en blanco ASCII de los extremos y guarda un valor vacío como
-`null`. PostgreSQL garantiza unicidad por empresa para los valores presentes.
-
-El cuerpo y los encabezados del solicitante no seleccionan la empresa.
-Catalog obtiene el actor de `sub` y requiere una decisión vigente de Company
-para ese actor y la operación de alta. Catalog devuelve `400` por datos
-inválidos, `401` por JWT ausente o inválido, `403` ante una denegación de
-Company y `409` por duplicados en la empresa autorizada.
-
-Spring Method Security exige un JWT autenticado al invocar el caso de uso
-`CreateClient`. El caso de uso aplica `CATALOG_WRITE` y usa la empresa que
-devuelve esa misma decisión para persistir el cliente. Cada ejecución consulta
-Company una vez, sin cachear autorizaciones. Una instalación sin el adaptador
-habilitado o con Company indisponible responde `503` y evita la escritura.
+Cada operación requiere JWT y `X-Company-Id`. Catalog consulta a Company para
+resolver el permiso vigente y aplica la empresa autorizada a las lecturas,
+conteos y escrituras. Si Company está indisponible, devuelve `503`. La
+política de acceso delegado de ADVISOR conserva su alcance. Las rutas de
+clientes y sus referencias requieren autorización por membresía.
 
 | Membresía activa | `CATALOG_READ` | `CATALOG_WRITE` |
 | --- | --- | --- |
@@ -94,57 +80,79 @@ habilitado o con Company indisponible responde `503` y evita la escritura.
 | OPERATOR | Permitido | Requiere concesión explícita |
 | VIEWER | Permitido | Denegado |
 
-La política `CatalogAuthorization` distingue el acceso por membresía del
-acceso delegado. Las operaciones que admitan ADVISOR deben proporcionar la
-empresa solicitada y exigir en Company una concesión vigente para `CATALOG`
-y el alcance exacto. Una concesión READ autoriza únicamente lectura. El alta
-de S2-319 se limita a membresías activas y conserva su contrato HTTP.
+`POST /api/v1/clients` devuelve `201` con la ficha. El servidor asigna UUID,
+empresa y estado `ACTIVE`. El alta ampliada requiere `name` y `clientType`.
+v0.8 usa `NATURAL` para nombre completo y `LEGAL` para razón social. Jira
+propuso `PERSON` y `LEGAL_ENTITY`. Por defecto se asignan `DO`, `CASH` y la
+categoría empresarial `REGULAR`.
 
-Para futuras operaciones sobre registros existentes, cada consulta debe usar
-la empresa resuelta por la autorización como parte del filtro de persistencia,
-incluida la búsqueda por identificador. Un registro fuera de esa empresa se
-trata como invisible conforme al contrato de la operación.
+El alta anterior sigue disponible en la misma ruta con `name`, `taxId`,
+`email`, `phone` y `address`. En esa variante se ignoran los metadatos
+legados `id`, `companyId`, `status` y `userId`. Cualquier campo ampliado
+activa la validación del alta ampliada. Altas antiguas y filas anteriores a V10
+conservan el perfil en `null`. Para completarlo mediante PATCH, envía juntos
+`clientType`, `countryCode`, `paymentTerms` y `categoryId`.
 
-La configuración y el contrato interno están en
-[common-company-access](../../libraries/common-company-access/README.md).
+El `taxId` es texto. Catalog recorta espacios exteriores y guarda vacío como
+`null`. Para DO, elimina espacios y guiones entre dígitos y valida el
+formato de 11 dígitos para cédula (NATURAL) o 9 para RNC (LEGAL). Se
+conservan ceros iniciales. Para otros países se conserva el identificador
+textual. Los documentos históricos conservan su formato, incluso cuando
+dos filas coinciden tras quitar separadores. La comprobación por clave
+canónica impide asignar de nuevo una identificación numérica nacional que
+colisiona con esas filas dentro de la empresa.
 
-### Consulta de clientes
+`creditLimit` es una cadena decimal en DOP, respaldada por `BigDecimal` y
+`NUMERIC(19,2)`. Admite hasta 17 dígitos enteros y dos decimales.
+`null` indica ausencia de un límite configurado y `"0.00"` indica un límite
+explícito de cero. Sales es propietario del crédito disponible y los saldos.
 
-`GET /api/v1/clients?search=clinica&status=ACTIVE&page=0&size=20` requiere
-`CATALOG_READ` en la membresía activa. La consulta usa la empresa devuelta por
-Company. Este endpoint no admite un contexto de empresa para ADVISOR.
+#### Listado, detalle y edición
 
-`search` busca un fragmento literal del nombre o del documento fiscal sin
-distinguir mayúsculas. `status` admite `ACTIVE` e `INACTIVE` sin distinguir
-mayúsculas. Ambos filtros se combinan y se omiten individualmente si quedan
-vacíos al recortar espacios exteriores.
+- `GET /api/v1/clients` busca fragmentos literales de nombre, documento,
+  correo y teléfonos sin distinguir mayúsculas. Combina `status`,
+  `clientType`, `categoryId` y `paymentTerms` antes de paginar. `CASH` y
+  `CREDIT` incluyen `BOTH`. Filtrar por `BOTH` exige coincidencia exacta.
+  `status=ACTIVE` sirve como selector de ventas.
+- `page` comienza en cero. `size` tiene valor predeterminado 20 y un máximo
+  configurable de 100 por defecto. `sort` admite `name,asc` y `name,desc`,
+  con UUID ascendente para desempates. Las páginas fuera de rango conservan
+  los totales del filtro y devuelven `content` vacío.
+- `GET /api/v1/clients/{id}` incluye clientes inactivos. Sales conserva el
+  contrato de ID, nombre y estado. Si envía `expectedCompanyId`, Catalog
+  valida la coincidencia y confirma con `X-Catalog-Company-Id`.
+- `PATCH /api/v1/clients/{id}` conserva campos omitidos y limpia campos
+  opcionales con `null`. Valida el resultado de tipo/documento y de
+  país/provincia/municipio. Nombre, tipo, país, modalidad y categoría
+  de una ficha ampliada requieren valor.
+- `PATCH /api/v1/clients/{id}/status` cambia el estado entre `ACTIVE` e
+  `INACTIVE`. Repetir el estado conserva la revisión. Una baja conserva
+  UUID y vínculos históricos. Sales sigue validando el estado al vender.
 
-La página empieza en 0 y el tamaño predeterminado es 20. Se aceptan tamaños
-desde 1 hasta 100 por defecto. El máximo se configura mediante
-`sanigest.catalog.clients.max-page-size` y debe permitir el tamaño predeterminado.
-La respuesta incluye `content`, `page`, `size`, `totalElements` y `totalPages`.
-El orden es por nombre y UUID ascendentes. Una página fuera de rango conserva
-los totales y devuelve `content` vacío. Los parámetros inválidos producen
-`400` y la indisponibilidad de Company produce `503`.
+Referencias inválidas, inactivas al asignarlas o de otra empresa producen
+`400`. Un cliente inexistente o ajeno produce `404`. Un documento fiscal
+duplicado o una revisión obsoleta produce `409`.
 
-### Detalle, edición y estado de clientes
+#### Categorías y referencias
 
-- `GET /api/v1/clients/{id}` devuelve el detalle con `CATALOG_READ`.
-- `PATCH /api/v1/clients/{id}` admite `name`, `taxId`, `email`, `phone` y `address`
-  con `CATALOG_WRITE`. Omite los campos que quieras conservar. Envía `null` para
-  limpiar un campo opcional. El nombre debe contener texto.
-- `PATCH /api/v1/clients/{id}/status` acepta `{"status":"INACTIVE"}` o
-  `{"status":"ACTIVE"}` con `CATALOG_WRITE`. Repetir el estado vigente devuelve
-  el cliente sin incrementar su revisión.
-
-Las tres rutas resuelven la membresía con Company y devuelven `404` para UUID
-inexistentes o ajenos a esa empresa. Los PATCH devuelven `200` con el detalle
-actualizado o `409` ante una escritura concurrente. El documento fiscal de un
-cliente inactivo sigue reservado dentro de su empresa.
-
-Los clientes inactivos conservan su UUID y aparecen en el detalle y en el
-listado según el filtro de estado. Sales debe impedir seleccionar clientes
-`INACTIVE` para nuevas ventas y conservar las referencias históricas.
+- `GET /api/v1/clients/categories` devuelve ID, código, nombre y estado.
+  Las categorías `REGULAR`, `FREQUENT`, `WHOLESALE` y `CORPORATE` se
+  inicializan localmente de forma idempotente por empresa.
+- `POST /api/v1/clients/categories` crea una categoría activa por código y
+  nombre. `PUT /api/v1/clients/categories/{id}` actualiza nombre y estado.
+  Los códigos son estables y únicos por empresa. `REGULAR` admite cambios
+  de nombre y permanece activa para el alta predeterminada. Desactivar
+  otra categoría conserva los vínculos históricos.
+- `GET /api/v1/clients/reference-data/{countries,provinces,municipalities,receipt-types}`
+  publica códigos y etiquetas. Provincias recibe `countryCode` y
+  municipios recibe además `provinceCode`. Países usa ISO 3166-1. La
+  cobertura administrativa de esta versión se limita a las 32 demarcaciones
+  de primer nivel y 158 municipios del corte dominicano versionado en V9.
+  [ONE, División Territorial 2021](https://www.one.gob.do/media/zsrmjfzp/divisi%C3%B3n-territorial-2021.pdf)
+- `CONSUMPTION`, `FISCAL_CREDIT`, `SPECIAL_REGIMES` y `GOVERNMENT` son
+  preferencias habituales. La elegibilidad fiscal y la emisión se
+  gestionan con los documentos comerciales.
+  [DGII, guía de comprobantes fiscales](https://dgii.gov.do/publicacionesOficiales/bibliotecaVirtual/contribuyentes/facturacion/Documents/Comprobantes%20Fiscales/1-Guia%205-Comprobantes%20Fiscales.pdf)
 
 ### Consulta y gestión de productos y servicios
 

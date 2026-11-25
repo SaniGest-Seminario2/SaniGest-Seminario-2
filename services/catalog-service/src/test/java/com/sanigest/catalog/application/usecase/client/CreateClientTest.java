@@ -19,6 +19,13 @@ import org.junit.jupiter.api.Test;
 
 class CreateClientTest {
   private final UUID companyId = UUID.randomUUID();
+  private final ClientProfileRules profiles =
+      new ClientProfileRules(
+          mock(
+              com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository.class),
+          mock(
+              com.sanigest.catalog.application.port.out.persistence.ClientReferenceRepository
+                  .class));
   private final ClientRepository clients = mock(ClientRepository.class);
 
   @Test
@@ -72,7 +79,8 @@ class CreateClientTest {
   @Test
   void failsClosedWhenTheAuthorityIsUnavailable() {
     var unavailable = ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
-    assertRejected(new CreateClient(new ClientCompany(Optional.empty()), clients), unavailable);
+    assertRejected(
+        new CreateClient(new ClientCompany(Optional.empty()), clients, profiles), unavailable);
     assertRejected(
         useCase(permission -> {
           throw new ClientCreationException(unavailable);
@@ -84,7 +92,7 @@ class CreateClientTest {
     var authorization = mock(CatalogAuthorization.class);
     when(authorization.membership(CatalogAuthorization.Permission.CATALOG_WRITE))
         .thenAnswer(invocation -> resolve.apply(invocation.getArgument(0)));
-    return new CreateClient(new ClientCompany(Optional.of(authorization)), clients);
+    return new CreateClient(new ClientCompany(Optional.of(authorization)), clients, profiles);
   }
 
   private void assertRejected(CreateClient useCase, ClientCreationException.Reason reason) {

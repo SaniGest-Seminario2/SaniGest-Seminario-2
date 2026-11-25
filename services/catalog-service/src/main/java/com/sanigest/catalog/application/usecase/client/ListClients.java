@@ -3,6 +3,7 @@ package com.sanigest.catalog.application.usecase.client;
 import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
 
 import com.sanigest.catalog.application.dto.ClientPage;
+import com.sanigest.catalog.application.dto.ClientSearchCriteria;
 import com.sanigest.catalog.application.exception.ClientListingForbiddenException;
 import com.sanigest.catalog.application.exception.InvalidClientQueryException;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
@@ -33,15 +34,15 @@ public class ListClients {
   }
 
   @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
-  public ClientPage execute(String search, String status, int page, int size) {
+  public ClientPage execute(ClientSearchCriteria criteria, int page, int size) {
     if (page < 0 || size < 1 || size > maxSize) {
       throw new InvalidClientQueryException();
     }
-    var term = optionalFilter(search);
+    var term = optionalFilter(criteria.search());
     if (term != null && term.indexOf(0) >= 0) {
       throw new InvalidClientQueryException();
     }
-    var state = optionalFilter(status);
+    var state = optionalFilter(criteria.status());
     if (state != null) {
       try {
         state = ClientStatus.valueOf(state.toUpperCase(Locale.ROOT)).name();
@@ -51,7 +52,17 @@ public class ListClients {
     }
     var companyId =
         company.membership(CATALOG_READ).orElseThrow(ClientListingForbiddenException::new);
-    return clients.search(companyId, term, state, page, size);
+    return clients.search(
+        companyId,
+        new ClientSearchCriteria(
+            term,
+            state,
+            criteria.clientType(),
+            criteria.categoryId(),
+            criteria.paymentTerms(),
+            criteria.descending()),
+        page,
+        size);
   }
 
   private static String optionalFilter(String value) {

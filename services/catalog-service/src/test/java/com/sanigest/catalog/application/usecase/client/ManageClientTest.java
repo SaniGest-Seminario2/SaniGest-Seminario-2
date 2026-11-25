@@ -16,26 +16,31 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.sanigest.catalog.api.dto.ClientPatchRequest;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository;
+import com.sanigest.catalog.application.port.out.persistence.ClientReferenceRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
 import com.sanigest.catalog.domain.exception.InvalidClientPatch;
 import com.sanigest.catalog.domain.model.Client;
 import com.sanigest.catalog.domain.model.ClientDetails;
 import com.sanigest.catalog.domain.model.ClientPatch;
-import com.sanigest.catalog.domain.model.ClientPatch.Field;
 import jakarta.validation.Validation;
-import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 class ManageClientTest {
   private final CatalogAuthorization authorization = mock(CatalogAuthorization.class);
   private final ClientRepository clients = mock(ClientRepository.class);
+  private final ClientProfileRules profiles =
+      new ClientProfileRules(
+          mock(ClientCategoryRepository.class), mock(ClientReferenceRepository.class));
   private final ClientCompany company = new ClientCompany(Optional.of(authorization));
   private final UUID companyId = UUID.randomUUID();
   private final Client client =
@@ -64,9 +69,8 @@ class ManageClientTest {
   void appliesPartialChangesAndDistinguishesNullFromOmission() {
     allowWrite();
     try (var factory = Validation.buildDefaultValidatorFactory()) {
-      var update = new UpdateClient(company, clients, factory.getValidator());
-      var emailOnly =
-          update.execute(client.id(), new ClientPatch(Map.of(Field.EMAIL, "new@example.com")));
+      var update = new UpdateClient(company, clients, factory.getValidator(), profiles);
+      var emailOnly = update.execute(client.id(), patch(Map.of("email", "new@example.com")));
       assertThat(emailOnly)
           .isEqualTo(
               new Client(
@@ -75,12 +79,12 @@ class ManageClientTest {
                   new ClientDetails("Acme", "123", "new@example.com", "809-555-1234", "SD"),
                   ACTIVE));
 
-      var values = new EnumMap<Field, String>(Field.class);
-      values.put(Field.NAME, "  New  ");
-      values.put(Field.TAX_ID, "\t456-7 ");
-      values.put(Field.EMAIL, null);
-      values.put(Field.ADDRESS, null);
-      assertThat(update.execute(client.id(), new ClientPatch(values)))
+      var values = new java.util.HashMap<String, String>();
+      values.put("name", "  New  ");
+      values.put("taxId", "\t456-7 ");
+      values.put("email", null);
+      values.put("address", null);
+      assertThat(update.execute(client.id(), patch(values)))
           .isEqualTo(
               new Client(
                   client.id(),
@@ -94,28 +98,27 @@ class ManageClientTest {
   void rejectsInvalidEditsBeforeTouchingPersistence() {
     when(authorization.membership(CATALOG_WRITE)).thenReturn(Optional.of(companyId));
     try (var factory = Validation.buildDefaultValidatorFactory()) {
-      var update = new UpdateClient(company, clients, factory.getValidator());
+      var update = new UpdateClient(company, clients, factory.getValidator(), profiles);
       var invalid =
           Map.of(
-              Field.NAME,
+              "name",
               "  ",
-              Field.EMAIL,
+              "email",
               "invalid",
-              Field.PHONE,
+              "phone",
               "abc",
-              Field.TAX_ID,
+              "taxId",
               "a".repeat(65),
-              Field.ADDRESS,
+              "address",
               "a".repeat(256));
       invalid.forEach((field, value) ->
-          assertThatThrownBy(
-                  () -> update.execute(client.id(), new ClientPatch(Map.of(field, value))))
+          assertThatThrownBy(() -> update.execute(client.id(), patch(Map.of(field, value))))
               .isInstanceOf(InvalidClientPatch.class));
-      var nullName = new EnumMap<Field, String>(Field.class);
-      nullName.put(Field.NAME, null);
-      assertThatThrownBy(() -> update.execute(client.id(), new ClientPatch(nullName)))
+      var nullName = new java.util.HashMap<String, String>();
+      nullName.put("name", null);
+      assertThatThrownBy(() -> update.execute(client.id(), patch(nullName)))
           .isInstanceOf(InvalidClientPatch.class);
-      assertThatThrownBy(() -> new ClientPatch(Map.of())).isInstanceOf(InvalidClientPatch.class);
+      assertThatThrownBy(() -> patch(Map.of())).isInstanceOf(InvalidClientPatch.class);
       verifyNoInteractions(clients);
     }
   }
@@ -126,9 +129,8 @@ class ManageClientTest {
     when(clients.update(eq(companyId), eq(client.id()), any()))
         .thenThrow(new ClientCreationException(DUPLICATE_TAX_ID));
     try (var factory = Validation.buildDefaultValidatorFactory()) {
-      var update = new UpdateClient(company, clients, factory.getValidator());
-      assertThatThrownBy(
-              () -> update.execute(client.id(), new ClientPatch(Map.of(Field.TAX_ID, "456"))))
+      var update = new UpdateClient(company, clients, factory.getValidator(), profiles);
+      assertThatThrownBy(() -> update.execute(client.id(), patch(Map.of("taxId", "456"))))
           .isInstanceOfSatisfying(
               ClientCreationException.class,
               failure -> assertThat(failure.reason()).isEqualTo(DUPLICATE_TAX_ID));
@@ -161,6 +163,10 @@ class ManageClientTest {
             ClientCreationException.class,
             failure -> assertThat(failure.reason()).isEqualTo(AUTHORIZATION_UNAVAILABLE));
     verifyNoInteractions(clients);
+  }
+
+  private static ClientPatch patch(Map<String, String> values) {
+    return ClientPatchRequest.details(JsonMapper.shared().valueToTree(values));
   }
 
   private void allowWrite() {

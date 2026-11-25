@@ -60,25 +60,20 @@ class ServiceRoutingIT {
   void routesEveryPrefixToItsConfiguredBackend() throws Exception {
     String token = GatewayTestTokens.validToken();
     for (var entry :
-        Map.of(
-                "/api/v1/auth/login",
-                "identity",
-                "/api/v1/users",
-                "identity",
-                "/api/v1/companies",
-                "company",
-                "/api/v1/advisor/companies",
-                "company",
-                "/api/v1/clients",
-                "catalog",
-                "/api/v1/suppliers/123",
-                "catalog",
-                "/api/v1/catalog-items",
-                "catalog",
-                "/api/v1/sales",
-                "sales",
-                "/api/v1/receivables/123",
-                "sales")
+        Map.ofEntries(
+                Map.entry("/api/v1/auth/login", "identity"),
+                Map.entry("/api/v1/users", "identity"),
+                Map.entry("/api/v1/companies", "company"),
+                Map.entry("/api/v1/advisor/companies", "company"),
+                Map.entry("/api/v1/clients", "catalog"),
+                Map.entry("/api/v1/clients/categories", "catalog"),
+                Map.entry(
+                    "/api/v1/clients/categories/955b9b1d-9c90-4404-a72c-ab1de57995dc", "catalog"),
+                Map.entry("/api/v1/clients/reference-data/provinces", "catalog"),
+                Map.entry("/api/v1/suppliers/123", "catalog"),
+                Map.entry("/api/v1/catalog-items", "catalog"),
+                Map.entry("/api/v1/sales", "sales"),
+                Map.entry("/api/v1/receivables/123", "sales"))
             .entrySet()) {
       var response =
           send(

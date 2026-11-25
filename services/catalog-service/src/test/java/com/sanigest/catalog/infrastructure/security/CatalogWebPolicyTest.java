@@ -13,9 +13,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.sanigest.catalog.application.dto.ClientReferences.Option;
 import com.sanigest.catalog.application.dto.SupplierPage;
 import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
 import com.sanigest.catalog.application.exception.CatalogItemAccessException;
@@ -25,6 +27,8 @@ import com.sanigest.catalog.application.exception.SupplierAccessException;
 import com.sanigest.catalog.application.exception.SupplierCreationException;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
 import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
+import com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository;
+import com.sanigest.catalog.application.port.out.persistence.ClientReferenceRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
 import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
 import com.sanigest.catalog.application.usecase.catalogitem.CatalogItemCompany;
@@ -34,7 +38,10 @@ import com.sanigest.catalog.application.usecase.catalogitem.GetCatalogItem;
 import com.sanigest.catalog.application.usecase.catalogitem.ListCatalogItems;
 import com.sanigest.catalog.application.usecase.catalogitem.UpdateCatalogItem;
 import com.sanigest.catalog.application.usecase.client.ChangeClientStatus;
+import com.sanigest.catalog.application.usecase.client.ClientCategories;
 import com.sanigest.catalog.application.usecase.client.ClientCompany;
+import com.sanigest.catalog.application.usecase.client.ClientProfileRules;
+import com.sanigest.catalog.application.usecase.client.ClientReferenceData;
 import com.sanigest.catalog.application.usecase.client.CreateClient;
 import com.sanigest.catalog.application.usecase.client.GetClient;
 import com.sanigest.catalog.application.usecase.client.ListClients;
@@ -45,7 +52,9 @@ import com.sanigest.catalog.application.usecase.supplier.GetSupplier;
 import com.sanigest.catalog.application.usecase.supplier.ListSuppliers;
 import com.sanigest.catalog.application.usecase.supplier.SupplierCompany;
 import com.sanigest.catalog.application.usecase.supplier.UpdateSupplier;
+import com.sanigest.catalog.domain.enums.ClientStatus;
 import com.sanigest.catalog.domain.model.Client;
+import com.sanigest.catalog.domain.model.ClientCategory;
 import com.sanigest.catalog.domain.model.ClientDetails;
 import com.sanigest.catalog.domain.model.Supplier;
 import com.sanigest.catalog.domain.model.SupplierDetails;
@@ -79,6 +88,9 @@ import org.springframework.test.web.servlet.ResultActions;
   CreateClient.class,
   ListClients.class,
   ClientCompany.class,
+  ClientCategories.class,
+  ClientReferenceData.class,
+  ClientProfileRules.class,
   GetClient.class,
   UpdateClient.class,
   ChangeClientStatus.class,
@@ -93,6 +105,8 @@ class CatalogWebPolicyTest {
   @Autowired MockMvc mvc;
   @MockitoBean JwtDecoder decoder;
   @MockitoBean ClientRepository clients;
+  @MockitoBean ClientCategoryRepository clientCategories;
+  @MockitoBean ClientReferenceRepository clientReferences;
   @MockitoBean CatalogItemRepository items;
   @MockitoBean SupplierRepository suppliers;
   @MockitoBean CatalogAuthorization authorization;
@@ -139,6 +153,10 @@ class CatalogWebPolicyTest {
           {"size", "-1"},
           {"size", "101"},
           {"status", "DELETED"},
+          {"clientType", "PERSON"},
+          {"paymentTerms", "INVALID"},
+          {"categoryId", "invalid"},
+          {"sort", "status,asc"},
           {"search", "\0"}
         }) {
       mvc.perform(
@@ -149,6 +167,75 @@ class CatalogWebPolicyTest {
           .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
     }
     verifyNoInteractions(clients);
+  }
+
+  @Test
+  void exposesCategoryAndReferenceOptionsWithTheExistingReadPermission() throws Exception {
+    var tenant = UUID.randomUUID();
+    var category =
+        new ClientCategory(UUID.randomUUID(), tenant, "REGULAR", "Regular", ClientStatus.ACTIVE);
+    given(authorization.membership(CATALOG_READ)).willReturn(Optional.of(tenant));
+    given(clientCategories.list(tenant)).willReturn(List.of(category));
+    given(clientReferences.countries())
+        .willReturn(List.of(new Option("DO", "República Dominicana")));
+    validToken();
+
+    mvc.perform(get("/api/v1/clients/categories").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].code").value("REGULAR"))
+        .andExpect(jsonPath("$[0].id").value(category.id().toString()));
+    mvc.perform(
+            get("/api/v1/clients/reference-data/countries")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].code").value("DO"));
+    given(authorization.membership(CATALOG_READ)).willReturn(Optional.empty());
+    mvc.perform(get("/api/v1/clients/categories").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void managesCompanyCategoriesAndKeepsReservedDefaultActive() throws Exception {
+    var tenant = UUID.randomUUID();
+    var id = UUID.randomUUID();
+    given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.of(tenant));
+    given(clientCategories.insert(any())).willReturn(true, false);
+    given(clientCategories.lockForEdit(tenant, id))
+        .willReturn(
+            Optional.of(new ClientCategory(id, tenant, "VIP", "VIP", ClientStatus.ACTIVE)),
+            Optional.of(new ClientCategory(id, tenant, "REGULAR", "Regular", ClientStatus.ACTIVE)));
+    validToken();
+
+    var payload = "{\"code\":\"VIP\",\"name\":\"Preferencial\"}";
+    mvc.perform(
+            post("/api/v1/clients/categories")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.status").value("ACTIVE"));
+    mvc.perform(
+            post("/api/v1/clients/categories")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.errorCode").value("DUPLICATE_CLIENT_CATEGORY"));
+
+    var change = "{\"name\":\"Preferencial\",\"status\":\"INACTIVE\"}";
+    mvc.perform(
+            put("/api/v1/clients/categories/{id}", id)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(change))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("INACTIVE"));
+    mvc.perform(
+            put("/api/v1/clients/categories/{id}", id)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(change))
+        .andExpect(status().isBadRequest());
   }
 
   @Test

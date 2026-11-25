@@ -1,9 +1,9 @@
 package com.sanigest.catalog.api.controller;
 
 import com.sanigest.catalog.api.dto.ClientDetailResponse;
+import com.sanigest.catalog.api.dto.ClientListFilter;
 import com.sanigest.catalog.api.dto.ClientPageResponse;
 import com.sanigest.catalog.api.dto.ClientPatchRequest;
-import com.sanigest.catalog.api.dto.ClientResponse;
 import com.sanigest.catalog.api.dto.CreateClientRequest;
 import com.sanigest.catalog.application.usecase.client.ChangeClientStatus;
 import com.sanigest.catalog.application.usecase.client.CreateClient;
@@ -11,11 +11,12 @@ import com.sanigest.catalog.application.usecase.client.GetClient;
 import com.sanigest.catalog.application.usecase.client.ListClients;
 import com.sanigest.catalog.application.usecase.client.UpdateClient;
 import com.sanigest.catalog.domain.exception.InvalidClientPatch;
-import jakarta.validation.Valid;
+import jakarta.validation.Validator;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,18 +35,21 @@ class ClientController {
   private final GetClient getClient;
   private final UpdateClient updateClient;
   private final ChangeClientStatus changeClientStatus;
+  private final Validator validator;
 
   ClientController(
       CreateClient createClient,
       ListClients listClients,
       GetClient getClient,
       UpdateClient updateClient,
-      ChangeClientStatus changeClientStatus) {
+      ChangeClientStatus changeClientStatus,
+      Validator validator) {
     this.createClient = createClient;
     this.listClients = listClients;
     this.getClient = getClient;
     this.updateClient = updateClient;
     this.changeClientStatus = changeClientStatus;
+    this.validator = validator;
   }
 
   @GetMapping("/api/v1/clients/{id}")
@@ -85,16 +89,16 @@ class ClientController {
 
   @GetMapping("/api/v1/clients")
   ClientPageResponse list(
-      @RequestParam(required = false) String search,
-      @RequestParam(required = false) String status,
+      @ModelAttribute ClientListFilter filter,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = ListClients.DEFAULT_SIZE) int size) {
-    return ClientPageResponse.from(listClients.execute(search, status, page, size));
+    return ClientPageResponse.from(listClients.execute(filter.toCriteria(), page, size));
   }
 
   @PostMapping("/api/v1/clients")
   @ResponseStatus(HttpStatus.CREATED)
-  ClientResponse create(@Valid @RequestBody CreateClientRequest request) {
-    return ClientResponse.from(createClient.execute(request.toDetails()));
+  ClientDetailResponse create(@RequestBody JsonNode body) {
+    var request = CreateClientRequest.from(body, validator);
+    return ClientDetailResponse.from(createClient.execute(request.details()));
   }
 }

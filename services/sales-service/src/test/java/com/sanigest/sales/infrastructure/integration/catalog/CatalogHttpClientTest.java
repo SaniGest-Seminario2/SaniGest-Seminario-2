@@ -79,7 +79,14 @@ class CatalogHttpClientTest {
 
   @Test
   void loadsCustomerUsingAuthenticatedSessionAndSelectedTenant() {
-    CATALOG.stubFor(get(urlPathEqualTo(CUSTOMER)).willReturn(okJson(CUSTOMER_JSON)));
+    var expanded =
+        CUSTOMER_JSON.replaceFirst(
+            "\\{",
+            """
+            {"clientType":"LEGAL","paymentTerms":"BOTH","creditLimit":"50000.25",
+             "preferredReceiptType":"FISCAL_CREDIT","countryCode":"DO","categoryId":null,
+            """);
+    CATALOG.stubFor(get(urlPathEqualTo(CUSTOMER)).willReturn(okJson(expanded)));
     var snapshot = client.getCustomer(ID, TENANT);
     assertThat(snapshot.id()).isEqualTo(ID);
     assertThat(snapshot.name()).isEqualTo("Cliente");

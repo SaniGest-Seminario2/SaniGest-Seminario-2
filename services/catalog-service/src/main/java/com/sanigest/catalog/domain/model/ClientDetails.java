@@ -1,5 +1,6 @@
 package com.sanigest.catalog.domain.model;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -10,7 +11,16 @@ public record ClientDetails(
     @Size(max = 64) String taxId,
     @Email @Size(max = 320) String email,
     @Pattern(regexp = "[0-9+() .-]{7,32}") String phone,
-    @Size(max = 255) String address) {
+    @Size(max = 255) String address,
+    @Valid ClientProfile profile) {
+  public ClientDetails(String name, String taxId, String email, String phone, String address) {
+    this(name, taxId, email, phone, address, null);
+  }
+
+  public ClientDetails withProfile(ClientProfile updated) {
+    return new ClientDetails(name, updated.normalizeTaxId(taxId), email, phone, address, updated);
+  }
+
   public ClientDetails {
     if (name == null || name.isBlank()) {
       throw new IllegalArgumentException("Client name is required");
