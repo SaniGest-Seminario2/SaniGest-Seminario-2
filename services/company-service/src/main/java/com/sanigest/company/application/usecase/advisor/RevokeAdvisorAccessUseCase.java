@@ -21,7 +21,12 @@ public class RevokeAdvisorAccessUseCase {
 
   @Transactional
   public void revoke(UUID actorId, UUID advisorId) {
-    UUID companyId = owners.requireOwner(actorId);
+    revoke(actorId, null, advisorId);
+  }
+
+  @Transactional
+  public void revoke(UUID actorId, UUID requestedCompany, UUID advisorId) {
+    UUID companyId = owners.requireOwner(actorId, requestedCompany);
     owners.lockAndRecheck(actorId, companyId);
     var current = access.find(companyId, advisorId);
     // Keep a revision even when DELETE wins a race against an initial PUT.

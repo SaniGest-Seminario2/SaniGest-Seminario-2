@@ -43,3 +43,7 @@
 El [catálogo de librerías](../../libraries/README.md) incluye validación JWT
 y el contrato técnico de autorización empresarial. Conserva los modelos y
 reglas de negocio dentro de cada servicio.
+
+En Expense, Finance e Inventory aplica la [guía de contexto empresarial](company-context.md).
+Requiere el selector en rutas empresariales, autoriza cada operación contra
+Company y usa el tenant autorizado para consultas, eventos e idempotencia.

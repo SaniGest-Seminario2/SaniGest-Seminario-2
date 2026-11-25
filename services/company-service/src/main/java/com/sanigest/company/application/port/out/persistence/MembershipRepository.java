@@ -20,8 +20,12 @@ public interface MembershipRepository {
   /** Resolves a sole operational membership for a legacy public route. */
   Optional<CompanyMembership> findCompanyByUserId(UUID userId);
 
-  /** Returns empty when an implicit request has zero or several operational companies. */
-  Optional<ActiveAccess> findActiveAccess(UUID userId, String permission);
+  Optional<CompanyMembership> findCompanyByUserIdAndCompanyId(UUID userId, UUID companyId);
+
+  Optional<Membership> findActiveMembershipForUpdate(UUID userId, UUID companyId);
+
+  /** Resolves access for the specific operational company and user. */
+  Optional<ActiveAccess> findActiveAccess(UUID userId, UUID companyId, String permission);
 
   record ActiveAccess(
       UUID companyId, CompanyRole role, boolean explicitGrant, String companyName) {}

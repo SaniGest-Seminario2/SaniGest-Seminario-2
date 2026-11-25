@@ -40,7 +40,14 @@ class ServiceRoutes {
             route ->
                 route
                     .path(
-                        "/api/v1/companies/**",
+                        "/api/v1/companies",
+                        "/api/v1/companies/{companyId}",
+                        "/api/v1/companies/{companyId}/users",
+                        "/api/v1/companies/{companyId}/invitations",
+                        "/api/v1/companies/{companyId}/members/{userId}",
+                        "/api/v1/companies/{companyId}/members/{userId}/role",
+                        "/api/v1/companies/{companyId}/audit-log",
+                        "/api/v1/companies/{companyId}/advisor-access",
                         "/api/v1/invitations/{token}/accept",
                         "/api/v1/advisor/companies")
                     .uri(destination(environment, "COMPANY_SERVICE_URL")))
@@ -56,8 +63,36 @@ class ServiceRoutes {
             "catalog",
             route ->
                 route
-                    .path("/api/v1/clients/**", "/api/v1/suppliers/**", "/api/v1/catalog-items/**")
+                    .path(
+                        "/api/v1/clients",
+                        "/api/v1/clients/{id}",
+                        "/api/v1/clients/{id}/status",
+                        "/api/v1/suppliers",
+                        "/api/v1/suppliers/{id}",
+                        "/api/v1/suppliers/{id}/status",
+                        "/api/v1/catalog-items",
+                        "/api/v1/catalog-items/{id}",
+                        "/api/v1/catalog-items/{id}/status")
                     .uri(destination(environment, "CATALOG_SERVICE_URL")))
+        .build();
+  }
+
+  @Bean
+  @ConditionalOnProperty("SALES_SERVICE_URL")
+  RouteLocator salesRoutes(RouteLocatorBuilder builder, Environment environment) {
+    return builder
+        .routes()
+        .route(
+            "sales",
+            route ->
+                route
+                    .path(
+                        "/api/v1/sales",
+                        "/api/v1/sales/{id}",
+                        "/api/v1/sales/{id}/cancel",
+                        "/api/v1/sales/{id}/invoices",
+                        "/api/v1/receivables/{id}")
+                    .uri(destination(environment, "SALES_SERVICE_URL")))
         .build();
   }
 

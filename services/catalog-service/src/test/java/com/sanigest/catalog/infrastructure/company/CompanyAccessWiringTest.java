@@ -40,7 +40,11 @@ class CompanyAccessWiringTest {
 
   @Test
   void disabledByDefaultAndFailsStartupForMissingCredentialsWhenEnabled() {
-    runner().run(context -> assertThat(context).doesNotHaveBean(CatalogAuthorization.class));
+    runner()
+        .run(context ->
+            assertThat(context)
+                .doesNotHaveBean(CompanyAccess.class)
+                .hasSingleBean(CatalogAuthorization.class));
     runner()
         .withPropertyValues("sanigest.company-access.enabled=true")
         .run(context -> assertThat(context).hasFailed());

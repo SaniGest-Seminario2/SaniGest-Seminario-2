@@ -170,3 +170,8 @@ mvn -pl services/catalog-service -am verify
 Las pruebas de integración requieren un daemon Docker accesible. Aplican el
 bootstrap de PostgreSQL del monorepo y prueban el contrato HTTP, JWT, JPA,
 Flyway y los permisos entre las bases de Catalog, Company e Identity.
+
+Clientes, proveedores y artículos requieren `X-Company-Id` en cada petición,
+incluidas las consultas directas de Sales. El servicio consulta Company v2 para
+la empresa seleccionada y limita las consultas de persistencia al tenant
+autorizado. Consulta la [matriz de rutas](../../docs/development/company-context.md).

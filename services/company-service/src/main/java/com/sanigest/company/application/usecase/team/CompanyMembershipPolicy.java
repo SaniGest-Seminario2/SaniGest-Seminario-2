@@ -5,6 +5,7 @@ import com.sanigest.company.application.exception.CompanyNotFoundException;
 import com.sanigest.company.application.exception.LastOwnerException;
 import com.sanigest.company.application.exception.MemberNotFoundException;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
+import com.sanigest.company.application.usecase.access.OperationalCompanySelection;
 import com.sanigest.company.application.usecase.audit.CompanyAuditRecorder;
 import com.sanigest.company.domain.enums.AuditOperation;
 import com.sanigest.company.domain.enums.CompanyRole;
@@ -29,11 +30,14 @@ public class CompanyMembershipPolicy {
 
   <T> T changeMembership(
       UUID actorId,
+      UUID requestedCompany,
       UUID targetId,
       boolean assigningOwner,
       AuditOperation operation,
       Function<Membership, T> change) {
-    var scope = memberships.findCompanyByUserId(actorId).orElseThrow(CompanyNotFoundException::new);
+    var scope =
+        OperationalCompanySelection.profile(memberships, actorId, requestedCompany)
+            .orElseThrow(CompanyNotFoundException::new);
     UUID companyId = scope.company().companyId();
     memberships.lockMembershipChanges(companyId);
     Membership target = null;

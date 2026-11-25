@@ -27,10 +27,11 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 class CompanySalesAuthorizationTest {
+  private final UUID company = UUID.randomUUID();
   private final CompanyAccess client = mock(CompanyAccess.class);
   private final DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
   private final CompanySalesAuthorization authorization =
-      new CompanySalesAuthorization(beans.getBeanProvider(CompanyAccess.class));
+      new CompanySalesAuthorization(beans.getBeanProvider(CompanyAccess.class), () -> company);
 
   @AfterEach
   void clearSession() {
@@ -57,8 +58,7 @@ class CompanySalesAuthorizationTest {
       MembershipRole role, boolean grant, Permission permission, Scope scope, boolean allowed) {
     authenticate();
     beans.registerSingleton("companyAccess", client);
-    UUID company = UUID.randomUUID();
-    when(client.membership(scope))
+    when(client.membership(company, scope))
         .thenReturn(Optional.of(new MembershipContext(company, role, grant)));
 
     if (allowed) {

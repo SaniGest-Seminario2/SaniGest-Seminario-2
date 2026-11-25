@@ -113,10 +113,10 @@ mvn -B -pl services/company-service -am -Psmoke \
 
 Los consumidores de `/companies/me` y sus subrutas pueden seguir operando
 si hay una sola empresa activa autorizada. Si hay varias, reciben **409**
-con `COMPANY_SELECTION_REQUIRED`. La autorización interna singular devuelve
-**403** ante ambigüedad. S2-454 añade la selección por petición y S2-455
-amplía la aceptación de invitaciones. Desactivar la variable detiene altas
-adicionales y conserva las membresías ya confirmadas.
+con `COMPANY_SELECTION_REQUIRED`. Envía `X-Company-Id` o usa las rutas explícitas
+`/companies/{companyId}`. Company verifica el par actor y empresa en cada consulta
+interna v2. S2-455 amplía las invitaciones y el listado de miembros. La activación
+y el rollback están descritos en la [guía de contexto empresarial](../../docs/development/company-context.md).
 
 ## Architecture rules
 

@@ -3,6 +3,7 @@ package com.sanigest.company.application.usecase.advisor;
 import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.exception.CompanyNotFoundException;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
+import com.sanigest.company.application.usecase.access.OperationalCompanySelection;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.MembershipStatus;
 import java.util.UUID;
@@ -16,9 +17,10 @@ class AdvisorOwnerPolicy {
     this.memberships = memberships;
   }
 
-  UUID requireOwner(UUID actorId) {
+  UUID requireOwner(UUID actorId, UUID requestedCompany) {
     var membership =
-        memberships.findCompanyByUserId(actorId).orElseThrow(CompanyNotFoundException::new);
+        OperationalCompanySelection.profile(memberships, actorId, requestedCompany)
+            .orElseThrow(CompanyNotFoundException::new);
     UUID companyId = membership.company().companyId();
     var actor =
         memberships
@@ -34,7 +36,7 @@ class AdvisorOwnerPolicy {
 
   void lockAndRecheck(UUID actorId, UUID companyId) {
     memberships.lockMembershipChanges(companyId);
-    if (!companyId.equals(requireOwner(actorId))) {
+    if (!companyId.equals(requireOwner(actorId, companyId))) {
       throw new CompanyAccessDeniedException();
     }
   }

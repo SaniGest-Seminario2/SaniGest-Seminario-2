@@ -1,0 +1,58 @@
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/service.Dockerfile
+      args:
+        SERVICE: api-gateway
+    profiles: [apps]
+    environment:
+      JWT_ISSUER: ${JWT_ISSUER:-sanigest}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      IDENTITY_SERVICE_URL: http://identity-service:8080
+      COMPANY_SERVICE_URL: http://company-service:8080
+      CATALOG_SERVICE_URL: http://catalog-service:8080
+      SALES_SERVICE_URL: http://sales-service:8080
+      GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-}
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-8085}:8080"
+    volumes:
+      - ${JWT_PUBLIC_KEY_FILE:-./.secrets/jwt-public.pem}:/run/secrets/jwt-public.pem:ro
+    depends_on:
+      identity-service:
+        condition: service_healthy
+      company-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      sales-service:
+        condition: service_healthy
+    networks: [sanigest-local]
+
+  company-service:
+    environment:
+      COMPANY_MULTIPLE_MEMBERSHIPS_ENABLED: ${COMPANY_MULTIPLE_MEMBERSHIPS_ENABLED:-false}
+      SPRING_APPLICATION_JSON: >-
+        {"sanigest":{"company-access":{"callers":{
+        "catalog":{"issuer":"catalog-company-access","public-key":"file:/run/secrets/catalog-company-public.pem"},
+        "sales":{"issuer":"sales-company-access","public-key":"file:/run/secrets/sales-company-public.pem"}}}}}
+    volumes:
+      - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/catalog-company-public.pem:/run/secrets/catalog-company-public.pem:ro
+      - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/sales-company-public.pem:/run/secrets/sales-company-public.pem:ro
+
+  catalog-service:
+    environment:
+      SPRING_APPLICATION_JSON: >-
+        {"sanigest":{"company-access":{"enabled":true,"origin":"http://company-service:8080",
+        "issuer":"catalog-company-access","private-key-location":"file:/run/secrets/catalog-company-private.pem"}}}
+    volumes:
+      - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/catalog-company-private.pem:/run/secrets/catalog-company-private.pem:ro
+
+  sales-service:
+    environment:
+      SALES_COMPANY_ACCESS_ENABLED: "true"
+      SALES_COMPANY_ACCESS_ORIGIN: http://company-service:8080
+      SALES_COMPANY_ACCESS_PRIVATE_KEY_LOCATION: file:/run/secrets/sales-company-private.pem
+    volumes:
+      - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/sales-company-private.pem:/run/secrets/sales-company-private.pem:ro

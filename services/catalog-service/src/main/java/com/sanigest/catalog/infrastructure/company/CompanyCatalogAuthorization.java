@@ -9,12 +9,16 @@ import com.sanigest.companyaccess.CompanyAccess.Scope;
 import com.sanigest.companyaccess.CompanyAccessUnavailable;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 final class CompanyCatalogAuthorization implements CatalogAuthorization {
-  private final CompanyAccess access;
+  private final Supplier<CompanyAccess> companyAccess;
+  private final Supplier<UUID> companySelection;
 
-  CompanyCatalogAuthorization(CompanyAccess access) {
-    this.access = access;
+  CompanyCatalogAuthorization(
+      Supplier<CompanyAccess> companyAccess, Supplier<UUID> companySelection) {
+    this.companyAccess = companyAccess;
+    this.companySelection = companySelection;
   }
 
   @Override
@@ -22,9 +26,11 @@ final class CompanyCatalogAuthorization implements CatalogAuthorization {
     if (AuthenticatedActor.userId().isEmpty()) {
       return Optional.empty();
     }
+    UUID companyId = companySelection.get();
     try {
-      return access
-          .membership(scope(permission))
+      return companyAccess
+          .get()
+          .membership(companyId, scope(permission))
           .filter(membership -> permits(membership, permission))
           .map(MembershipContext::companyId);
     } catch (CompanyAccessUnavailable unavailable) {
@@ -38,7 +44,7 @@ final class CompanyCatalogAuthorization implements CatalogAuthorization {
       return Optional.empty();
     }
     try {
-      return access.delegated(requestedCompany, scope(permission))
+      return companyAccess.get().delegated(requestedCompany, scope(permission))
           ? Optional.of(requestedCompany)
           : Optional.empty();
     } catch (CompanyAccessUnavailable unavailable) {

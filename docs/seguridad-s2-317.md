@@ -43,10 +43,12 @@ siguiente verificación, aunque el JWT siga vigente.
 
 Las rutas de empresa propia son para cuentas REGULAR. Company ya gestiona
 concesiones ADVISOR por empresa, módulo y alcance. Catalog y Sales usan
-`common-company-access` para consultar a Company. La resolución REGULAR
-vigente se basa en una membresía singular; la delegación usa una empresa
-explícita. Las rutas internas quedan fuera del Gateway público.
+`common-company-access` para consultar a Company. Las modalidades MEMBERSHIP y DELEGATED consultan la empresa explícita mediante
+el [protocolo v2](../libraries/common-company-access/README.md). Las rutas internas
+quedan fuera del Gateway público.
 
 [S2-454](https://devjoanvasquez-1791077375328.atlassian.net/browse/S2-454)
 evoluciona la selección por petición y la autorización por par usuario-empresa
 según el [contrato objetivo v0.8](SaniGest_T1001_Contrato_Funcional_v0.8.md).
+
+La [guía de selección empresarial](development/company-context.md) detalla los selectores y el corte coordinado.

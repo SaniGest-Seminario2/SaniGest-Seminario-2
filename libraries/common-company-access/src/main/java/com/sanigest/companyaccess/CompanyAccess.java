@@ -32,7 +32,7 @@ public interface CompanyAccess {
   }
 
   /** Company resolves the active membership. The caller applies its operation policy. */
-  Optional<MembershipContext> membership(Scope scope);
+  Optional<MembershipContext> membership(UUID companyId, Scope scope);
 
   /** Company checks eligibility and the exact current delegation for the requested tenant. */
   boolean delegated(UUID companyId, Scope scope);

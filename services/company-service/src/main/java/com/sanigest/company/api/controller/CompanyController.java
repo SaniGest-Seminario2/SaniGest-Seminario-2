@@ -1,6 +1,7 @@
 package com.sanigest.company.api.controller;
 
 import static com.sanigest.company.api.controller.CompanyActor.authenticatedUserId;
+import static com.sanigest.company.api.routing.CompanyRequestSelection.resolve;
 
 import com.sanigest.company.api.dto.CompanyPatchRequest;
 import com.sanigest.company.api.dto.CompanyProfileResponse;
@@ -14,6 +15,7 @@ import com.sanigest.company.application.usecase.profile.CreateCompanyUseCase;
 import com.sanigest.company.application.usecase.profile.GetMyCompanyUseCase;
 import com.sanigest.company.application.usecase.profile.ListMyCompaniesUseCase;
 import com.sanigest.company.application.usecase.profile.UpdateMyCompanyUseCase;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -22,6 +24,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -61,9 +64,13 @@ public class CompanyController {
         .toList();
   }
 
-  @GetMapping("/me")
-  CompanyProfileResponse me(@AuthenticationPrincipal Jwt jwt) {
-    var profile = getMyCompany.get(authenticatedUserId(jwt, regularAccount));
+  @GetMapping({"/me", "/{companyId}"})
+  CompanyProfileResponse me(
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable(required = false) String companyId,
+      HttpServletRequest http) {
+    var profile =
+        getMyCompany.get(authenticatedUserId(jwt, regularAccount), resolve(http, companyId));
     return new CompanyProfileResponse(
         profile.companyId(),
         profile.companyName(),
@@ -74,11 +81,15 @@ public class CompanyController {
         profile.status());
   }
 
-  @PatchMapping("/me")
+  @PatchMapping({"/me", "/{companyId}"})
   UpdatedCompanyResponse update(
-      @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CompanyPatchRequest request) {
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable(required = false) String companyId,
+      HttpServletRequest http,
+      @Valid @RequestBody CompanyPatchRequest request) {
     var updated =
-        updateMyCompany.update(authenticatedUserId(jwt, regularAccount), request.toPatch());
+        updateMyCompany.update(
+            authenticatedUserId(jwt, regularAccount), resolve(http, companyId), request.toPatch());
     var company = updated.company();
     return new UpdatedCompanyResponse(
         company.id(),

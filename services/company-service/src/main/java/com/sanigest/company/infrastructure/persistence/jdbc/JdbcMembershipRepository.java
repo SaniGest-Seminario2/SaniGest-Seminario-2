@@ -29,7 +29,7 @@ class JdbcMembershipRepository implements MembershipRepository {
   }
 
   @Override
-  public Optional<ActiveAccess> findActiveAccess(UUID userId, String permission) {
+  public Optional<ActiveAccess> findActiveAccess(UUID userId, UUID companyId, String permission) {
     var matches =
         jdbc.query(
             """
@@ -39,8 +39,7 @@ class JdbcMembershipRepository implements MembershipRepository {
               WHERE mp.membership_id = m.id AND cp.company_id = m.company_id AND cp.permission = ?
             ) AS explicit_grant
             FROM company_memberships m JOIN companies c ON c.id = m.company_id
-            WHERE m.user_id = ? AND m.status = 'ACTIVE' AND c.status = 'ACTIVE'
-            FETCH FIRST 2 ROWS ONLY
+            WHERE m.user_id = ? AND m.company_id = ? AND m.status = 'ACTIVE' AND c.status = 'ACTIVE'
             """,
             (row, index) ->
                 new ActiveAccess(
@@ -49,8 +48,9 @@ class JdbcMembershipRepository implements MembershipRepository {
                     row.getBoolean("explicit_grant"),
                     row.getString("company_name")),
             permission,
-            userId);
-    return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
+            userId,
+            companyId);
+    return DataAccessUtils.optionalResult(matches);
   }
 
   @Override
@@ -99,19 +99,28 @@ class JdbcMembershipRepository implements MembershipRepository {
 
   @Override
   public Optional<Membership> findByUserIdForUpdate(UUID userId) {
-    return singularOperationalMembership(
-        userId,
-        jdbc.query(
-            """
-            SELECT m.id, m.company_id, m.user_id, m.role, m.status FROM company_memberships m
-            WHERE m.user_id = ? AND m.status = 'ACTIVE'
-              AND EXISTS (SELECT 1 FROM companies c WHERE c.id = m.company_id AND c.status = 'ACTIVE')
-            ORDER BY m.company_id
-            FETCH FIRST 2 ROWS ONLY
-            FOR UPDATE
-            """,
-            JdbcMembershipRepository::membership,
-            userId));
+    return singularOperationalMembership(userId, operationalMembership(userId, null));
+  }
+
+  @Override
+  public Optional<Membership> findActiveMembershipForUpdate(UUID userId, UUID companyId) {
+    return DataAccessUtils.optionalResult(
+        operationalMembership(userId, java.util.Objects.requireNonNull(companyId)));
+  }
+
+  private List<Membership> operationalMembership(UUID userId, UUID companyId) {
+    return jdbc.query(
+        """
+        SELECT m.id, m.company_id, m.user_id, m.role, m.status FROM company_memberships m
+        WHERE m.user_id = ? %s AND m.status = 'ACTIVE'
+          AND EXISTS (SELECT 1 FROM companies c WHERE c.id = m.company_id AND c.status = 'ACTIVE')
+        ORDER BY m.company_id
+        FETCH FIRST 2 ROWS ONLY
+        FOR UPDATE
+        """
+            .formatted(companyId == null ? "" : "AND m.company_id = ?"),
+        JdbcMembershipRepository::membership,
+        companyId == null ? new Object[] {userId} : new Object[] {userId, companyId});
   }
 
   @Override
@@ -240,29 +249,38 @@ class JdbcMembershipRepository implements MembershipRepository {
 
   @Override
   public Optional<CompanyMembership> findCompanyByUserId(UUID userId) {
-    return singularOperationalMembership(
-        userId,
-        jdbc.query(
-            """
-            SELECT m.status AS membership_status, c.id, c.name, c.business_name,
-                   c.rnc, c.location, c.currency, c.status
-            FROM company_memberships m
-            JOIN companies c ON c.id = m.company_id
-            WHERE m.user_id = ? AND m.status = 'ACTIVE' AND c.status = 'ACTIVE'
-            FETCH FIRST 2 ROWS ONLY
-            """,
-            (rs, rowNum) ->
-                new CompanyMembership(
-                    MembershipStatus.valueOf(rs.getString("membership_status")),
-                    new CompanyProfile(
-                        rs.getObject("id", UUID.class),
-                        rs.getString("name"),
-                        rs.getString("business_name"),
-                        rs.getString("rnc"),
-                        rs.getString("location"),
-                        rs.getString("currency"),
-                        rs.getString("status"))),
-            userId));
+    return singularOperationalMembership(userId, operationalProfile(userId, null));
+  }
+
+  @Override
+  public Optional<CompanyMembership> findCompanyByUserIdAndCompanyId(UUID userId, UUID companyId) {
+    return DataAccessUtils.optionalResult(
+        operationalProfile(userId, java.util.Objects.requireNonNull(companyId)));
+  }
+
+  private List<CompanyMembership> operationalProfile(UUID userId, UUID companyId) {
+    return jdbc.query(
+        """
+        SELECT m.status AS membership_status, c.id, c.name, c.business_name,
+               c.rnc, c.location, c.currency, c.status
+        FROM company_memberships m
+        JOIN companies c ON c.id = m.company_id
+        WHERE m.user_id = ? %s AND m.status = 'ACTIVE' AND c.status = 'ACTIVE'
+        FETCH FIRST 2 ROWS ONLY
+        """
+            .formatted(companyId == null ? "" : "AND m.company_id = ?"),
+        (rs, rowNum) ->
+            new CompanyMembership(
+                MembershipStatus.valueOf(rs.getString("membership_status")),
+                new CompanyProfile(
+                    rs.getObject("id", UUID.class),
+                    rs.getString("name"),
+                    rs.getString("business_name"),
+                    rs.getString("rnc"),
+                    rs.getString("location"),
+                    rs.getString("currency"),
+                    rs.getString("status"))),
+        companyId == null ? new Object[] {userId} : new Object[] {userId, companyId});
   }
 
   private <T> Optional<T> singularOperationalMembership(UUID userId, List<T> matches) {

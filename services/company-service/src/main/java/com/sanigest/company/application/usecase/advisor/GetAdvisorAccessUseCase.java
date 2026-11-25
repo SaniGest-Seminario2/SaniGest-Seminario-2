@@ -19,7 +19,12 @@ public class GetAdvisorAccessUseCase {
 
   @Transactional
   public List<AdvisorAccess> get(UUID actorId) {
-    UUID companyId = owners.requireOwner(actorId);
+    return get(actorId, null);
+  }
+
+  @Transactional
+  public List<AdvisorAccess> get(UUID actorId, UUID requestedCompany) {
+    UUID companyId = owners.requireOwner(actorId, requestedCompany);
     owners.lockAndRecheck(actorId, companyId);
     return access.list(companyId);
   }

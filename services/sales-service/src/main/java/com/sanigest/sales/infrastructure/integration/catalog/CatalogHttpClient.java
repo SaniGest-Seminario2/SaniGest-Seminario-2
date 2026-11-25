@@ -30,18 +30,14 @@ final class CatalogHttpClient implements CatalogClient {
   }
 
   @Override
-  public CatalogCustomerSnapshot getCustomer(UUID customerId) {
-    return getCustomer(customerId, null);
-  }
-
-  @Override
   public CatalogCustomerSnapshot getCustomer(UUID customerId, UUID expectedCompanyId) {
     var response =
         fetch(
             customerId,
             expectedCompanyId,
-            proxy -> proxy.getCustomer(customerId, expectedCompanyId));
+            proxy -> proxy.getCustomer(customerId, expectedCompanyId, expectedCompanyId));
     if (response == null
+        || !matchesTenant(expectedCompanyId, response.companyId())
         || !matches(customerId, response.id())
         || !validText(response.name(), 160)) {
       throw new CatalogResourceInvalidException(INVALID_RESPONSE);
@@ -54,18 +50,14 @@ final class CatalogHttpClient implements CatalogClient {
   }
 
   @Override
-  public CatalogItemSnapshot getItem(UUID catalogItemId) {
-    return getItem(catalogItemId, null);
-  }
-
-  @Override
   public CatalogItemSnapshot getItem(UUID catalogItemId, UUID expectedCompanyId) {
     var response =
         fetch(
             catalogItemId,
             expectedCompanyId,
-            proxy -> proxy.getItem(catalogItemId, expectedCompanyId));
+            proxy -> proxy.getItem(catalogItemId, expectedCompanyId, expectedCompanyId));
     if (response == null
+        || !matchesTenant(expectedCompanyId, response.companyId())
         || !matches(catalogItemId, response.id())
         || !validText(response.name(), 200)
         || !"DOP".equals(response.currency())
@@ -99,7 +91,7 @@ final class CatalogHttpClient implements CatalogClient {
 
   private <T> T fetch(
       UUID id, UUID expectedCompanyId, Function<CatalogHttpApi, ResponseEntity<T>> request) {
-    if (id == null) {
+    if (id == null || expectedCompanyId == null) {
       throw new CatalogResourceInvalidException(INVALID_REQUEST);
     }
     try {
@@ -108,10 +100,12 @@ final class CatalogHttpClient implements CatalogClient {
               api.orElseThrow(() ->
                   new CatalogUnavailableException(
                       CatalogUnavailableException.Reason.NOT_CONFIGURED)));
-      if (expectedCompanyId != null
-          && !expectedCompanyId
-              .toString()
-              .equals(response.getHeaders().getFirst("X-Catalog-Company-Id"))) {
+      if (response.getStatusCode().value() != 200) {
+        throw new CatalogUnavailableException(
+            CatalogUnavailableException.Reason.DEPENDENCY_FAILURE);
+      }
+      if (!java.util.List.of(expectedCompanyId.toString())
+          .equals(response.getHeaders().getOrEmpty("X-Catalog-Company-Id"))) {
         throw new CatalogResourceInvalidException(INVALID_RESPONSE);
       }
       return response.getBody();
@@ -126,6 +120,10 @@ final class CatalogHttpClient implements CatalogClient {
       }
       throw new CatalogResourceInvalidException(INVALID_RESPONSE);
     }
+  }
+
+  private static boolean matchesTenant(UUID expectedCompany, String returnedCompany) {
+    return returnedCompany == null || matches(expectedCompany, returnedCompany);
   }
 
   private static boolean matches(UUID requested, String received) {

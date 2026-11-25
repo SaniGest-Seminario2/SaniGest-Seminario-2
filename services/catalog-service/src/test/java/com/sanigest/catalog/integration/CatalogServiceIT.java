@@ -553,6 +553,10 @@ class CatalogServiceIT {
     var jwt = jwtDecoder.decode(token);
     SecurityContextHolder.getContext()
         .setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
+    var request = new org.springframework.mock.web.MockHttpServletRequest();
+    request.addHeader("X-Company-Id", SELECTORS.get(token).toString());
+    org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(
+        new org.springframework.web.context.request.ServletRequestAttributes(request));
     try {
       var details = new ClientDetails("Client", taxId, null, null, null);
       assertThatThrownBy(() -> createClient.execute(details))
@@ -562,6 +566,7 @@ class CatalogServiceIT {
                   assertThat(failure.reason()).isEqualTo(ClientCreationException.Reason.FORBIDDEN));
     } finally {
       SecurityContextHolder.clearContext();
+      org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
     }
     COMPANY.verify(1, getRequestedFor(urlEqualTo(PATH)).withHeader(USER_ASSERTION, equalTo(token)));
     assertThat(
@@ -1025,8 +1030,12 @@ class CatalogServiceIT {
     if (token != null) {
       request.header("Authorization", "Bearer " + token);
     }
-    if (companyHeader != null) {
-      request.header("X-Company-Id", companyHeader.toString());
+    if (token != null) {
+      request.header(
+          "X-Company-Id",
+          SELECTORS
+              .getOrDefault(token, companyHeader == null ? new UUID(0, 0) : companyHeader)
+              .toString());
     }
     return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
   }
@@ -1083,9 +1092,13 @@ class CatalogServiceIT {
     return jwt;
   }
 
+  private static final java.util.Map<String, UUID> SELECTORS =
+      new java.util.concurrent.ConcurrentHashMap<>();
+
   private static void stubMembership(
       String jwt, UUID companyId, MembershipRole role, boolean explicitGrant, Scope scope)
       throws Exception {
+    SELECTORS.put(jwt, companyId);
     var subject = SignedJWT.parse(jwt).getJWTClaimsSet().getSubject();
     COMPANY.stubFor(
         WireMock.get(urlEqualTo(PATH))
@@ -1132,8 +1145,12 @@ class CatalogServiceIT {
     if (token != null) {
       request.header("Authorization", "Bearer " + token);
     }
-    if (untrustedCompanyId != null) {
-      request.header("X-Company-Id", untrustedCompanyId.toString());
+    if (token != null) {
+      request.header(
+          "X-Company-Id",
+          SELECTORS
+              .getOrDefault(token, untrustedCompanyId == null ? new UUID(0, 0) : untrustedCompanyId)
+              .toString());
     }
     return request.build();
   }
@@ -1607,8 +1624,12 @@ class CatalogServiceIT {
     if (bearer != null) {
       request.header("Authorization", "Bearer " + bearer);
     }
-    if (forgedCompany != null) {
-      request.header("X-Company-Id", forgedCompany.toString());
+    if (bearer != null) {
+      request.header(
+          "X-Company-Id",
+          SELECTORS
+              .getOrDefault(bearer, forgedCompany == null ? new UUID(0, 0) : forgedCompany)
+              .toString());
     }
     return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
   }
@@ -2044,8 +2065,12 @@ class CatalogServiceIT {
     if (token != null) {
       request.header("Authorization", "Bearer " + token);
     }
-    if (companyHeader != null) {
-      request.header("X-Company-Id", companyHeader.toString());
+    if (token != null) {
+      request.header(
+          "X-Company-Id",
+          SELECTORS
+              .getOrDefault(token, companyHeader == null ? new UUID(0, 0) : companyHeader)
+              .toString());
     }
     return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
   }
@@ -2115,8 +2140,12 @@ class CatalogServiceIT {
       HttpClient http, String path, String token, UUID untrustedCompanyId)
       throws IOException, InterruptedException {
     var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path));
-    if (untrustedCompanyId != null) {
-      request.header("X-Company-Id", untrustedCompanyId.toString());
+    if (token != null) {
+      request.header(
+          "X-Company-Id",
+          SELECTORS
+              .getOrDefault(token, untrustedCompanyId == null ? new UUID(0, 0) : untrustedCompanyId)
+              .toString());
     }
     if (token != null) {
       request.header("Authorization", "Bearer " + token);

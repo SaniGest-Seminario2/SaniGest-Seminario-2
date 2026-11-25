@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 
 public record CatalogItemResponse(
     String id,
+    String companyId,
     String name,
     String type,
     @JsonProperty(required = true) String description,

@@ -30,11 +30,17 @@ public class ChangeCompanyMemberRoleUseCase {
 
   @Transactional(isolation = Isolation.READ_COMMITTED)
   public Membership change(UUID actorId, UUID targetId, CompanyRole role) {
+    return change(actorId, null, targetId, role);
+  }
+
+  @Transactional(isolation = Isolation.READ_COMMITTED)
+  public Membership change(UUID actorId, UUID requestedCompany, UUID targetId, CompanyRole role) {
     if (role == null) {
       throw new IllegalArgumentException("A company role is required");
     }
     return policy.changeMembership(
         actorId,
+        requestedCompany,
         targetId,
         role == CompanyRole.OWNER,
         AuditOperation.ROLE_CHANGED,

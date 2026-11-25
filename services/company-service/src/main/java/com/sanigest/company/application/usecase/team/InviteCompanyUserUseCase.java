@@ -8,6 +8,7 @@ import com.sanigest.company.application.port.out.integration.InvitationDelivery;
 import com.sanigest.company.application.port.out.persistence.CompanyRepository;
 import com.sanigest.company.application.port.out.persistence.InvitationRepository;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
+import com.sanigest.company.application.usecase.access.OperationalCompanySelection;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.InvitationStatus;
 import com.sanigest.company.domain.enums.MembershipStatus;
@@ -56,7 +57,13 @@ public class InviteCompanyUserUseCase {
 
   @Transactional
   public CreatedInvitation invite(UUID actor, String email, CompanyRole role, boolean replace) {
-    UUID companyId = authorizedCompany(actor);
+    return invite(actor, null, email, role, replace);
+  }
+
+  @Transactional
+  public CreatedInvitation invite(
+      UUID actor, UUID requestedCompany, String email, CompanyRole role, boolean replace) {
+    UUID companyId = authorizedCompany(actor, requestedCompany);
     String recipient = Invitation.normalizeEmail(email);
     var prior = invitations.findPendingForUpdate(companyId, recipient);
     Instant now = clock.instant();
@@ -96,9 +103,10 @@ public class InviteCompanyUserUseCase {
         invitation.id(), role, InvitationStatus.PENDING, invitation.expiresAt());
   }
 
-  private UUID authorizedCompany(UUID actor) {
+  private UUID authorizedCompany(UUID actor, UUID requestedCompany) {
     var membership =
-        memberships.findByUserIdForUpdate(actor).orElseThrow(CompanyNotFoundException::new);
+        OperationalCompanySelection.lockMembership(memberships, actor, requestedCompany)
+            .orElseThrow(CompanyNotFoundException::new);
     if (membership.status() != MembershipStatus.ACTIVE
         || (membership.role() != CompanyRole.OWNER && membership.role() != CompanyRole.ADMIN)) {
       throw new CompanyAccessDeniedException();

@@ -2,6 +2,7 @@ package com.sanigest.sales.infrastructure.integration.catalog.dto;
 
 public record CatalogCustomerResponse(
     String id,
+    String companyId,
     String name,
     String taxId,
     String email,

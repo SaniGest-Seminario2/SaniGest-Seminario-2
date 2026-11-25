@@ -10,27 +10,42 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 /** Versioned transport contract. */
 public final class CompanyAccessProtocol {
-  public static final String PATH = "/internal/v1/company-access";
+  public static final String PATH = "/internal/v2/company-access";
   public static final String USER_ASSERTION = "X-Company-User-Assertion";
-  public static final String AUDIENCE = "sanigest-company-access";
+  public static final String AUDIENCE = "sanigest-company-access-v2";
   public static final String TOKEN_TYPE = "sanigest-service+jwt";
 
   private CompanyAccessProtocol() {}
 
-  public record Query(UUID userId, Module module, Scope scope, UUID target) {
+  public enum AccessMode {
+    MEMBERSHIP,
+    DELEGATED
+  }
+
+  public record Query(UUID userId, Module module, Scope scope, UUID companyId, AccessMode mode) {
+    public Query {
+      java.util.Objects.requireNonNull(userId);
+      java.util.Objects.requireNonNull(module);
+      java.util.Objects.requireNonNull(scope);
+      java.util.Objects.requireNonNull(companyId);
+      java.util.Objects.requireNonNull(mode);
+    }
+
     public static Query from(Jwt jwt) {
       var claims = jwt.getClaims();
       var tenant = claims.get("company_id");
       if (!(claims.get("module") instanceof String module)
           || !(claims.get("scope") instanceof String scope)
-          || (claims.containsKey("company_id") && !(tenant instanceof String))) {
+          || !(tenant instanceof String companyId)
+          || !(claims.get("mode") instanceof String mode)) {
         throw new IllegalArgumentException("Invalid Company access claims");
       }
       return new Query(
           uuid(jwt.getSubject()),
           Module.valueOf(module),
           Scope.valueOf(scope),
-          tenant == null ? null : uuid((String) tenant));
+          uuid(companyId),
+          AccessMode.valueOf(mode));
     }
   }
 
@@ -39,7 +54,7 @@ public final class CompanyAccessProtocol {
       UUID companyId,
       Module module,
       Scope scope,
-      String mode,
+      AccessMode mode,
       MembershipRole role,
       Boolean explicitGrant,
       @JsonInclude(JsonInclude.Include.NON_NULL) String companyName) {}

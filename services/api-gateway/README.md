@@ -60,3 +60,9 @@ también el acceso de Company a Identity para consultar la cuenta activa. Config
 el origen HTTPS del frontend y usa reglas del ALB que publiquen las rutas API.
 `GET /api/v1/companies/me` conserva las decisiones de autenticación y acceso
 de Company, incluida la respuesta 401 ante un JWT inválido.
+
+Las rutas públicas de Catalog y Sales requieren `X-Company-Id`. Las rutas de
+Company con UUID aceptan un selector opcional coincidente con el path. Gateway
+normaliza el UUID y retira encabezados reservados antes de reenviar. Configura
+`SALES_SERVICE_URL` como origen para ventas, facturas internas y cuentas por
+cobrar. Consulta la [matriz de rutas](../../docs/development/company-context.md).

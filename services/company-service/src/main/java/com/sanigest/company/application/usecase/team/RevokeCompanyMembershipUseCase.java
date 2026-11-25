@@ -27,8 +27,14 @@ public class RevokeCompanyMembershipUseCase {
 
   @Transactional(isolation = Isolation.READ_COMMITTED)
   public void revoke(UUID actorId, UUID targetId) {
+    revoke(actorId, null, targetId);
+  }
+
+  @Transactional(isolation = Isolation.READ_COMMITTED)
+  public void revoke(UUID actorId, UUID requestedCompany, UUID targetId) {
     policy.changeMembership(
         actorId,
+        requestedCompany,
         targetId,
         false,
         AuditOperation.MEMBER_REVOKED,

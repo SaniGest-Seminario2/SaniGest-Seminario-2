@@ -154,14 +154,14 @@ class SalesAuthorizationIntegrationTest {
     assertThat(assertion.getJWTClaimsSet().getSubject()).isEqualTo(USER.toString());
     assertThat(assertion.getJWTClaimsSet().getStringClaim("module")).isEqualTo("SALES");
     assertThat(assertion.getJWTClaimsSet().getStringClaim("scope")).isEqualTo(scope);
-    assertThat(assertion.getJWTClaimsSet().getClaim("company_id")).isNull();
+    assertThat(assertion.getJWTClaimsSet().getClaim("company_id")).isEqualTo(COMPANY.toString());
   }
 
   @Test
   void usesOnlyResolvedCompanyForAccessToAnObject() throws Exception {
     authenticate();
     var request = new MockHttpServletRequest();
-    request.addHeader("X-Company-Id", FOREIGN_COMPANY.toString());
+    request.addHeader("X-Company-Id", COMPANY.toString());
     RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     reply(membership("OWNER", "READ", false));
     assertThat(operation.membership(SALES_READ)).isEqualTo(COMPANY);
@@ -308,6 +308,9 @@ class SalesAuthorizationIntegrationTest {
   }
 
   private String authenticate() throws Exception {
+    var request = new MockHttpServletRequest();
+    request.addHeader("X-Company-Id", COMPANY.toString());
+    RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     String bearer = token(USER_KEYS, ISSUER, AUDIENCE, Instant.now().plusSeconds(60));
     SecurityContextHolder.getContext()
         .setAuthentication(new JwtAuthenticationConverter().convert(decoder.decode(bearer)));
@@ -334,9 +337,18 @@ class SalesAuthorizationIntegrationTest {
     return json(
         """
         {"userId":"%s","companyId":"%s","module":"%s","scope":"%s",
-         "mode":"MEMBERSHIP","role":"%s","explicitGrant":%s}
+         "mode":"MEMBERSHIP","role":"%s","explicitGrant":%s%s}
         """
-            .formatted(USER, COMPANY, module, scope, role, grant));
+            .formatted(
+                USER,
+                COMPANY,
+                module,
+                scope,
+                role,
+                grant,
+                "WRITE".equals(scope) && "SALES".equals(module)
+                    ? ",\"companyName\":\"Empresa\""
+                    : ""));
   }
 
   private static ResponseDefinitionBuilder delegation(UUID target, String scope) {

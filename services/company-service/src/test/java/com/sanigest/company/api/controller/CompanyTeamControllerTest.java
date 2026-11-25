@@ -60,9 +60,11 @@ class CompanyTeamControllerTest {
             CompanyRole.OPERATOR,
             InvitationStatus.PENDING,
             Instant.parse("2026-11-22T00:00:00Z"));
-    when(invite.invite(user, EMAIL, CompanyRole.OPERATOR, true)).thenReturn(created);
+    when(invite.invite(user, null, EMAIL, CompanyRole.OPERATOR, true)).thenReturn(created);
 
-    var response = controller.invite(jwt(true), new InvitationRequest(EMAIL, "OPERATOR", true));
+    var response =
+        controller.invite(
+            jwt(true), null, request(), new InvitationRequest(EMAIL, "OPERATOR", true));
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     assertThat(response.getBody())
@@ -99,10 +101,10 @@ class CompanyTeamControllerTest {
     var member = member();
     when(memberships.findAllByCompanyId(company)).thenReturn(List.of(member));
 
-    assertThatThrownBy(() -> controller.users(jwt(true)))
+    assertThatThrownBy(() -> controller.users(jwt(true), null, request()))
         .isInstanceOf(CompanyAccessDeniedException.class);
     verify(memberships, never()).findAllByCompanyId(any());
-    var response = controller.users(jwt(true));
+    var response = controller.users(jwt(true), null, request());
     assertThat(response.getBody())
         .containsExactly(
             new MemberResponse(member.id(), user, CompanyRole.VIEWER, MembershipStatus.ACTIVE));
@@ -114,7 +116,7 @@ class CompanyTeamControllerTest {
     when(accounts.resolve("access-token")).thenReturn(AccountType.ADVISOR);
     assertThatThrownBy(() -> controller.accept(jwt(true), "invite-token"))
         .isInstanceOf(CompanyAccessDeniedException.class);
-    assertThatThrownBy(() -> controller.users(jwt(true)))
+    assertThatThrownBy(() -> controller.users(jwt(true), null, request()))
         .isInstanceOf(CompanyAccessDeniedException.class);
     verifyNoInteractions(accept, memberships);
   }
@@ -131,5 +133,9 @@ class CompanyTeamControllerTest {
   private Membership member() {
     return new Membership(
         UUID.randomUUID(), company, user, CompanyRole.VIEWER, MembershipStatus.ACTIVE);
+  }
+
+  private static org.springframework.mock.web.MockHttpServletRequest request() {
+    return new org.springframework.mock.web.MockHttpServletRequest();
   }
 }

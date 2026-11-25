@@ -9,17 +9,41 @@ import com.sanigest.sales.application.exception.SalesAccessForbidden;
 import com.sanigest.sales.application.exception.SalesAuthorizationUnavailable;
 import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
+import com.sanigest.security.CompanySelector;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Component
 final class CompanySalesAuthorization implements SalesAuthorization, InvoiceCompanyAccess {
   private final ObjectProvider<CompanyAccess> clients;
 
+  @Autowired
   CompanySalesAuthorization(ObjectProvider<CompanyAccess> clients) {
-    this.clients = clients;
+    this(clients, CompanySalesAuthorization::requestedCompany);
   }
+
+  private static UUID requestedCompany() {
+    var values =
+        RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes request
+            ? Collections.list(request.getRequest().getHeaders(CompanySelector.HEADER))
+            : List.<String>of();
+    return CompanySelector.resolve(values, null, true);
+  }
+
+  CompanySalesAuthorization(
+      ObjectProvider<CompanyAccess> clients, Supplier<UUID> companySelection) {
+    this.clients = clients;
+    this.companySelection = companySelection;
+  }
+
+  private final Supplier<UUID> companySelection;
 
   @Override
   public UUID requireMembership(Permission permission) {
@@ -34,9 +58,10 @@ final class CompanySalesAuthorization implements SalesAuthorization, InvoiceComp
 
   private MembershipContext authorizedMembership(Permission permission) {
     requireActor();
+    UUID companyId = companySelection.get();
     try {
       return client()
-          .membership(scope(permission))
+          .membership(companyId, scope(permission))
           .filter(membership -> permits(membership, permission))
           .orElseThrow(SalesAccessForbidden::new);
     } catch (CompanyAccessUnavailable unavailable) {

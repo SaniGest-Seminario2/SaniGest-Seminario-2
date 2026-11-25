@@ -9,8 +9,11 @@ import com.sanigest.company.application.exception.CompanySelectionRequiredExcept
 import com.sanigest.company.application.exception.InvitationNotFoundException;
 import com.sanigest.company.application.exception.LastOwnerException;
 import com.sanigest.company.application.exception.MemberNotFoundException;
+import com.sanigest.companyaccess.TraceIds;
+import com.sanigest.security.CompanySelector.InvalidContext;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -31,6 +34,13 @@ class ApiExceptionHandler {
     return problem(request, HttpStatus.BAD_REQUEST, "The request is invalid");
   }
 
+  @ExceptionHandler(InvalidContext.class)
+  ProblemDetail invalidCompanyContext(HttpServletRequest request, InvalidContext failure) {
+    var result = problem(request, HttpStatus.BAD_REQUEST, "Invalid company selection");
+    result.setProperty("errorCode", failure.getMessage());
+    return result;
+  }
+
   @ExceptionHandler(IllegalArgumentException.class)
   ProblemDetail badRequest(HttpServletRequest request) {
     return problem(request, HttpStatus.BAD_REQUEST, "The request is invalid");
@@ -46,6 +56,7 @@ class ApiExceptionHandler {
   ProblemDetail companySelectionRequired(HttpServletRequest request) {
     var problem = problem(request, HttpStatus.CONFLICT, "Select a company for this operation");
     problem.setProperty("code", "COMPANY_SELECTION_REQUIRED");
+    problem.setProperty("errorCode", "COMPANY_SELECTION_REQUIRED");
     return problem;
   }
 
@@ -85,6 +96,9 @@ class ApiExceptionHandler {
 
   private ProblemDetail problem(HttpServletRequest request, HttpStatus status, String detail) {
     var problem = ProblemDetail.forStatusAndDetail(status, detail);
+    String trace = MDC.get("traceId");
+    problem.setProperty(
+        "traceId", TraceIds.normalize(trace == null ? request.getHeader("X-Trace-Id") : trace));
     if (CompanyRoutes.ACCEPT_INVITATION.equals(
         request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE))) {
       problem.setInstance(URI.create("/api/v1/invitations"));

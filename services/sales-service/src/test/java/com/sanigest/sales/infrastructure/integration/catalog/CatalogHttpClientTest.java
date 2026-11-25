@@ -8,9 +8,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.matching;
-import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.temporaryRedirect;
-import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -47,6 +46,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 
 class CatalogHttpClientTest {
   private static final UUID ID = UUID.randomUUID();
+  private static final UUID TENANT = UUID.randomUUID();
   private static final String CUSTOMER = "/api/v1/clients/" + ID;
   private static final String ITEM = "/api/v1/catalog-items/" + ID;
   private static final String CUSTOMER_JSON =
@@ -78,17 +78,18 @@ class CatalogHttpClientTest {
   }
 
   @Test
-  void loadsCustomerUsingOnlyTheAuthenticatedSession() {
-    CATALOG.stubFor(get(CUSTOMER).willReturn(okJson(CUSTOMER_JSON)));
-    var snapshot = client.getCustomer(ID);
+  void loadsCustomerUsingAuthenticatedSessionAndSelectedTenant() {
+    CATALOG.stubFor(get(urlPathEqualTo(CUSTOMER)).willReturn(okJson(CUSTOMER_JSON)));
+    var snapshot = client.getCustomer(ID, TENANT);
     assertThat(snapshot.id()).isEqualTo(ID);
     assertThat(snapshot.name()).isEqualTo("Cliente");
     assertThat(snapshot.status()).isEqualTo(Status.ACTIVE);
     CATALOG.verify(
         1,
-        getRequestedFor(urlEqualTo(CUSTOMER))
+        getRequestedFor(urlPathEqualTo(CUSTOMER))
             .withHeader("Authorization", equalTo("Bearer user-session"))
-            .withHeader("X-Company-Id", absent())
+            .withHeader("X-Company-Id", equalTo(TENANT.toString()))
+            .withQueryParam("expectedCompanyId", equalTo(TENANT.toString()))
             .withHeader("X-Company-User-Assertion", absent())
             .withHeader("X-Trace-Id", matching("[0-9a-f]{32}")));
   }
@@ -97,10 +98,10 @@ class CatalogHttpClientTest {
   @CsvSource({"PRODUCT,3200.10", "SERVICE,0.00"})
   void loadsActiveItemWithExactPrice(Type type, String price) {
     CATALOG.stubFor(
-        get(ITEM)
+        get(urlPathEqualTo(ITEM))
             .willReturn(
                 okJson(ITEM_JSON.replace("PRODUCT", type.name()).replace("3200.10", price))));
-    var snapshot = client.getItem(ID);
+    var snapshot = client.getItem(ID, TENANT);
     assertThat(snapshot.id()).isEqualTo(ID);
     assertThat(snapshot.name()).isEqualTo("Silla");
     assertThat(snapshot.description()).isEqualTo("Gris");
@@ -108,17 +109,20 @@ class CatalogHttpClientTest {
     assertThat(snapshot.price()).isEqualTo(new BigDecimal(price));
     assertThat(snapshot.currency()).isEqualTo("DOP");
     assertThat(snapshot.active()).isTrue();
-    CATALOG.verify(1, getRequestedFor(urlEqualTo(ITEM)));
+    CATALOG.verify(1, getRequestedFor(urlPathEqualTo(ITEM)));
   }
 
   @Test
   void rejectsInactiveResources() {
-    CATALOG.stubFor(get(CUSTOMER).willReturn(okJson(CUSTOMER_JSON.replace("ACTIVE", "INACTIVE"))));
-    CATALOG.stubFor(get(ITEM).willReturn(okJson(ITEM_JSON.replace("true", "false"))));
-    assertThatThrownBy(() -> client.getCustomer(ID))
+    CATALOG.stubFor(
+        get(urlPathEqualTo(CUSTOMER))
+            .willReturn(okJson(CUSTOMER_JSON.replace("ACTIVE", "INACTIVE"))));
+    CATALOG.stubFor(
+        get(urlPathEqualTo(ITEM)).willReturn(okJson(ITEM_JSON.replace("true", "false"))));
+    assertThatThrownBy(() -> client.getCustomer(ID, TENANT))
         .isInstanceOf(CatalogResourceInvalidException.class)
         .hasMessage("Catalog: INACTIVE");
-    assertThatThrownBy(() -> client.getItem(ID))
+    assertThatThrownBy(() -> client.getItem(ID, TENANT))
         .isInstanceOf(CatalogResourceInvalidException.class)
         .hasMessage("Catalog: INACTIVE");
   }
@@ -135,8 +139,8 @@ class CatalogHttpClientTest {
             CUSTOMER_JSON.replace(ID.toString(), "1-1-1-1-1"),
             CUSTOMER_JSON.replace("Cliente", " "),
             CUSTOMER_JSON.replace("ACTIVE", "UNKNOWN"))) {
-      CATALOG.stubFor(get(CUSTOMER).willReturn(okJson(json)));
-      assertThatThrownBy(() -> client.getCustomer(ID))
+      CATALOG.stubFor(get(urlPathEqualTo(CUSTOMER)).willReturn(okJson(json)));
+      assertThatThrownBy(() -> client.getCustomer(ID, TENANT))
           .isInstanceOf(CatalogResourceInvalidException.class)
           .hasMessage("Catalog: INVALID_RESPONSE");
     }
@@ -159,8 +163,8 @@ class CatalogHttpClientTest {
             ITEM_JSON.replace("3200.10", "0.001"),
             ITEM_JSON.replace("3200.10", "1000000000000"),
             ITEM_JSON.replace("DOP", "USD"))) {
-      CATALOG.stubFor(get(ITEM).willReturn(okJson(json)));
-      assertThatThrownBy(() -> client.getItem(ID))
+      CATALOG.stubFor(get(urlPathEqualTo(ITEM)).willReturn(okJson(json)));
+      assertThatThrownBy(() -> client.getItem(ID, TENANT))
           .isInstanceOf(CatalogResourceInvalidException.class)
           .hasMessage("Catalog: INVALID_RESPONSE");
     }
@@ -179,35 +183,39 @@ class CatalogHttpClientTest {
           case 401, 403 -> CatalogAccessDeniedException.class;
           default -> CatalogUnavailableException.class;
         };
-    CATALOG.stubFor(get(CUSTOMER).willReturn(aResponse().withStatus(status).withBody("private")));
-    CATALOG.stubFor(get(ITEM).willReturn(aResponse().withStatus(status).withBody("private")));
-    assertThatThrownBy(() -> client.getCustomer(ID))
+    CATALOG.stubFor(
+        get(urlPathEqualTo(CUSTOMER))
+            .willReturn(aResponse().withStatus(status).withBody("private")));
+    CATALOG.stubFor(
+        get(urlPathEqualTo(ITEM)).willReturn(aResponse().withStatus(status).withBody("private")));
+    assertThatThrownBy(() -> client.getCustomer(ID, TENANT))
         .isInstanceOf(exception)
         .hasMessage("Catalog: " + reason)
         .hasNoCause();
-    assertThatThrownBy(() -> client.getItem(ID))
+    assertThatThrownBy(() -> client.getItem(ID, TENANT))
         .isInstanceOf(exception)
         .hasMessage("Catalog: " + reason)
         .hasNoCause();
-    CATALOG.verify(1, getRequestedFor(urlEqualTo(CUSTOMER)));
-    CATALOG.verify(1, getRequestedFor(urlEqualTo(ITEM)));
+    CATALOG.verify(1, getRequestedFor(urlPathEqualTo(CUSTOMER)));
+    CATALOG.verify(1, getRequestedFor(urlPathEqualTo(ITEM)));
   }
 
   @Test
   void abortsOnResponseTimeout() {
-    CATALOG.stubFor(get(ITEM).willReturn(okJson(ITEM_JSON).withFixedDelay(1200)));
+    CATALOG.stubFor(get(urlPathEqualTo(ITEM)).willReturn(okJson(ITEM_JSON).withFixedDelay(1200)));
     var impatient = client(URI.create(CATALOG.baseUrl()), Duration.ofMillis(300));
-    assertThatThrownBy(() -> impatient.getItem(ID))
+    assertThatThrownBy(() -> impatient.getItem(ID, TENANT))
         .isInstanceOf(CatalogUnavailableException.class)
         .hasMessage("Catalog: TRANSPORT_FAILURE");
-    CATALOG.verify(1, getRequestedFor(urlEqualTo(ITEM)));
+    CATALOG.verify(1, getRequestedFor(urlPathEqualTo(ITEM)));
   }
 
   @Test
   void boundsReadingTheEntireResponseBody() {
-    CATALOG.stubFor(get(ITEM).willReturn(okJson(ITEM_JSON).withChunkedDribbleDelay(4, 1200)));
+    CATALOG.stubFor(
+        get(urlPathEqualTo(ITEM)).willReturn(okJson(ITEM_JSON).withChunkedDribbleDelay(4, 1200)));
     var impatient = client(URI.create(CATALOG.baseUrl()), Duration.ofMillis(600));
-    assertThatThrownBy(() -> impatient.getItem(ID))
+    assertThatThrownBy(() -> impatient.getItem(ID, TENANT))
         .isInstanceOf(CatalogUnavailableException.class)
         .hasMessage("Catalog: TRANSPORT_FAILURE");
   }
@@ -219,7 +227,7 @@ class CatalogHttpClientTest {
       port = socket.getLocalPort();
     }
     var offline = client(URI.create("http://127.0.0.1:" + port), Duration.ofSeconds(2));
-    assertThatThrownBy(() -> offline.getItem(ID))
+    assertThatThrownBy(() -> offline.getItem(ID, TENANT))
         .isInstanceOf(CatalogUnavailableException.class)
         .hasMessage("Catalog: TRANSPORT_FAILURE");
   }
@@ -227,11 +235,11 @@ class CatalogHttpClientTest {
   @Test
   void failsBeforeSendingWithoutValidIdentity() {
     SecurityContextHolder.clearContext();
-    assertThatThrownBy(() -> client.getItem(ID))
+    assertThatThrownBy(() -> client.getItem(ID, TENANT))
         .isInstanceOf(CatalogAccessDeniedException.class)
         .hasMessage("Catalog: MISSING_IDENTITY");
     authenticate(Instant.now().minusSeconds(1));
-    assertThatThrownBy(() -> client.getCustomer(ID))
+    assertThatThrownBy(() -> client.getCustomer(ID, TENANT))
         .isInstanceOf(CatalogAccessDeniedException.class)
         .hasMessage("Catalog: MISSING_IDENTITY");
     CATALOG.verify(0, anyRequestedFor(anyUrl()));
@@ -243,11 +251,12 @@ class CatalogHttpClientTest {
     other.start();
     try {
       CATALOG.stubFor(
-          get(ITEM).willReturn(temporaryRedirect(other.baseUrl() + "/redirect-target")));
-      assertThatThrownBy(() -> client.getItem(ID))
+          get(urlPathEqualTo(ITEM))
+              .willReturn(temporaryRedirect(other.baseUrl() + "/redirect-target")));
+      assertThatThrownBy(() -> client.getItem(ID, TENANT))
           .isInstanceOf(CatalogUnavailableException.class)
           .hasMessage("Catalog: DEPENDENCY_FAILURE");
-      CATALOG.verify(1, getRequestedFor(urlEqualTo(ITEM)));
+      CATALOG.verify(1, getRequestedFor(urlPathEqualTo(ITEM)));
       other.verify(0, anyRequestedFor(anyUrl()));
     } finally {
       other.stop();
@@ -283,12 +292,40 @@ class CatalogHttpClientTest {
   @Test
   void handlesMissingConfigurationAndInvalidId() {
     var disabled = client(null, Duration.ofSeconds(2));
-    assertThatThrownBy(() -> disabled.getItem(ID))
+    assertThatThrownBy(() -> disabled.getItem(ID, TENANT))
         .isInstanceOf(CatalogUnavailableException.class)
         .hasMessage("Catalog: NOT_CONFIGURED");
-    assertThatThrownBy(() -> client.getCustomer(null))
+    assertThatThrownBy(() -> client.getCustomer(null, TENANT))
         .isInstanceOf(CatalogResourceInvalidException.class)
         .hasMessage("Catalog: INVALID_REQUEST");
+  }
+
+  @Test
+  void rejectsAResponseForAnotherTenant() {
+    CATALOG.stubFor(
+        get(urlPathEqualTo(CUSTOMER))
+            .willReturn(
+                com.github.tomakehurst.wiremock.client.WireMock.okJson(CUSTOMER_JSON)
+                    .withHeader("X-Catalog-Company-Id", UUID.randomUUID().toString())));
+    assertThatThrownBy(() -> client.getCustomer(ID, TENANT))
+        .isInstanceOf(CatalogResourceInvalidException.class)
+        .hasMessage("Catalog: INVALID_RESPONSE");
+  }
+
+  @Test
+  void rejectsAConflictingCompanyInThePayloadEvenWithTheCorrectHeader() {
+    String payload =
+        CUSTOMER_JSON.replaceFirst("\\{", "{\"companyId\":\"" + UUID.randomUUID() + "\",");
+    CATALOG.stubFor(get(urlPathEqualTo(CUSTOMER)).willReturn(okJson(payload)));
+    assertThatThrownBy(() -> client.getCustomer(ID, TENANT))
+        .isInstanceOf(CatalogResourceInvalidException.class)
+        .hasMessage("Catalog: INVALID_RESPONSE");
+  }
+
+  private static com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder okJson(
+      String body) {
+    return com.github.tomakehurst.wiremock.client.WireMock.okJson(body)
+        .withHeader("X-Catalog-Company-Id", TENANT.toString());
   }
 
   private static CatalogClient client(URI origin, Duration timeout) {
