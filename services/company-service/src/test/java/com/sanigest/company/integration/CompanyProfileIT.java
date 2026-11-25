@@ -82,7 +82,9 @@ import tools.jackson.databind.ObjectMapper;
 @ActiveProfiles("test")
 @Testcontainers
 @ExtendWith(OutputCaptureExtension.class)
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = "sanigest.company.multiple-memberships-enabled=true")
 class CompanyProfileIT {
   private static final String COMPANIES = "/api/v1/companies";
   private static final String ME = COMPANIES + "/me";
@@ -860,6 +862,225 @@ class CompanyProfileIT {
   }
 
   @Test
+  void listsOnlyOperationalMembershipsAndFailsClosedOnAmbiguousAccess() throws Exception {
+    var actor = UUID.randomUUID();
+    var jwt = token(actor);
+    assertThat(get(COMPANIES, jwt).body()).isEqualTo("[]");
+    assertThat(get(COMPANIES, null).statusCode()).isEqualTo(401);
+    assertThat(get(COMPANIES, "invalid").statusCode()).isEqualTo(401);
+
+    var first = register(jwt, "first", "A Company", null);
+    var viewer = UUID.randomUUID();
+    var second = createCompany(viewer, token(viewer), "B Company", null);
+    addMember(second, actor, "VIEWER");
+    var original = companyId(first);
+    var outsider = UUID.randomUUID();
+    var foreign = createCompany(outsider, token(outsider), "Foreign", null);
+
+    var listed = get(COMPANIES + "?userId=" + outsider, jwt);
+    assertThat(listed.statusCode()).isEqualTo(200);
+    JSONAssert.assertEquals(
+        """
+        [{"companyId":"%s","companyName":"A Company SRL","businessName":"A Company",
+          "role":"OWNER","membershipStatus":"ACTIVE","status":"ACTIVE"},
+         {"companyId":"%s","companyName":"B Company SRL","businessName":"B Company",
+          "role":"VIEWER","membershipStatus":"ACTIVE","status":"ACTIVE"}]
+        """
+            .formatted(original, second),
+        listed.body(),
+        true);
+    assertThat(listed.body()).doesNotContain(foreign.toString());
+    assertThat(companyId(register(jwt, "first", "A Company", null))).isEqualTo(original);
+
+    var ambiguous = get(ME, jwt);
+    assertThat(ambiguous.statusCode()).isEqualTo(409);
+    assertThat(ambiguous.body())
+        .contains("COMPANY_SELECTION_REQUIRED")
+        .doesNotContain(original.toString(), second.toString());
+    assertThat(patch(ME, jwt, "{\"location\":\"Santiago\"}").statusCode()).isEqualTo(409);
+    assertThat(get(AUDIT, jwt).statusCode()).isEqualTo(409);
+    assertThat(
+            internalAccess(companyAssertion(actor, "CATALOG", "READ", null), jwt, foreign)
+                .statusCode())
+        .isEqualTo(403);
+
+    jdbc.update(
+        "UPDATE company_memberships SET status = 'SUSPENDED' WHERE company_id = ? AND user_id = ?",
+        second,
+        actor);
+    assertThat(get(COMPANIES, jwt).body())
+        .contains(original.toString())
+        .doesNotContain(second.toString());
+    jdbc.update(
+        "UPDATE company_memberships SET status = 'ACTIVE' WHERE company_id = ? AND user_id = ?",
+        second,
+        actor);
+    jdbc.update("UPDATE companies SET status = 'INACTIVE' WHERE id = ?", second);
+    assertThat(get(COMPANIES, jwt).body())
+        .contains(original.toString())
+        .doesNotContain(second.toString());
+    assertThat(get(ME, jwt).statusCode()).isEqualTo(200);
+    jdbc.update("UPDATE companies SET status = 'ACTIVE' WHERE id = ?", second);
+    jdbc.update(
+        "UPDATE company_memberships SET status = 'REVOKED' WHERE company_id = ? AND user_id = ?",
+        original,
+        actor);
+    assertThat(register(jwt, "first", "A Company", null).statusCode()).isEqualTo(403);
+    assertThat(get(COMPANIES, jwt).body())
+        .contains(second.toString())
+        .doesNotContain(original.toString());
+    assertThat(get(ME, jwt).statusCode()).isEqualTo(200);
+
+    ACCOUNT_STATUS.put(actor.toString(), 503);
+    assertThat(get(COMPANIES, jwt).statusCode()).isEqualTo(503);
+    assertThat(register(jwt, "unavailable", "Unavailable", null).statusCode()).isEqualTo(503);
+    assertThat(registrationCount(actor)).isEqualTo(1);
+    ACCOUNT_STATUS.remove(actor.toString());
+    ACCOUNT_TYPE.put(actor.toString(), "ADVISOR");
+    assertThat(get(COMPANIES, jwt).statusCode()).isEqualTo(403);
+    assertThat(register(jwt, "advisor", "Advisor", null).statusCode()).isEqualTo(403);
+  }
+
+  @Test
+  void validatesRegistrationAndIgnoresClientSuppliedAuthority() throws Exception {
+    var actor = UUID.randomUUID();
+    var outsider = UUID.randomUUID();
+    var jwt = token(actor);
+    var invalid =
+        request(COMPANIES)
+            .header("Authorization", "Bearer " + jwt)
+            .header("Content-Type", "application/json")
+            .header("Idempotency-Key", "validation")
+            .POST(HttpRequest.BodyPublishers.ofString("{}"))
+            .build();
+    assertThat(http.send(invalid, HttpResponse.BodyHandlers.ofString()).statusCode())
+        .isEqualTo(400);
+    assertThat(register(jwt, "k".repeat(129), "Invalid Key", null).statusCode()).isEqualTo(400);
+    assertThat(registrationCount(actor)).isZero();
+
+    var spoofed =
+        request(COMPANIES)
+            .header("Authorization", "Bearer " + jwt)
+            .header("Content-Type", "application/json")
+            .header("Idempotency-Key", "validation")
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    """
+                    {"companyName":"Protected SRL","businessName":"Protected","email":"company@example.com",
+                     "phone":"8095555555","location":"Santo Domingo","ownerId":"%s","userId":"%s",
+                     "role":"VIEWER","currency":"USD","status":"INACTIVE"}
+                    """
+                        .formatted(outsider, outsider)))
+            .build();
+    var result = http.send(spoofed, HttpResponse.BodyHandlers.ofString());
+    var company = companyId(result);
+    assertThat(result.body()).contains("\"currency\":\"DOP\"", "\"status\":\"ACTIVE\"");
+    assertThat(
+            jdbc.queryForMap(
+                "SELECT user_id, role, status FROM company_memberships WHERE company_id = ?",
+                company))
+        .containsEntry("user_id", actor)
+        .containsEntry("role", "OWNER")
+        .containsEntry("status", "ACTIVE");
+    assertThat(get(COMPANIES, token(outsider)).body()).isEqualTo("[]");
+  }
+
+  @Test
+  void serializesConcurrentReplaysAndAllowsIndependentKeysAndActors() throws Exception {
+    var actor = UUID.randomUUID();
+    var jwt = token(actor);
+    var first = registrationRequest(jwt, "same", "Concurrent Same", null);
+    var identical = raceRegistrations(first, first);
+    var original = companyId(identical.getFirst());
+    assertThat(companyId(identical.getLast())).isEqualTo(original);
+    assertThat(registrationCount(actor)).isEqualTo(1);
+    assertThat(membershipCount(actor)).isEqualTo(1);
+
+    var different =
+        raceRegistrations(
+            registrationRequest(jwt, "different", "Concurrent Left", null),
+            registrationRequest(jwt, "different", "Concurrent Right", null));
+    assertThat(different).extracting(HttpResponse::statusCode).containsExactlyInAnyOrder(201, 409);
+
+    var independent =
+        raceRegistrations(
+            registrationRequest(jwt, "left", "Concurrent A", null),
+            registrationRequest(jwt, "right", "Concurrent B", null));
+    assertThat(companyId(independent.getFirst())).isNotEqualTo(companyId(independent.getLast()));
+    assertThat(registrationCount(actor)).isEqualTo(4);
+    assertThat(membershipCount(actor)).isEqualTo(4);
+    assertThat(
+            jdbc.queryForList(
+                "SELECT role FROM company_memberships WHERE user_id = ?", String.class, actor))
+        .containsExactly("OWNER", "OWNER", "OWNER", "OWNER");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM companies WHERE business_name IN ('Concurrent Left', 'Concurrent Right')",
+                Integer.class))
+        .isEqualTo(1);
+    assertThat(companyId(register(token(UUID.randomUUID()), "same", "Independent actor", null)))
+        .isNotEqualTo(original);
+  }
+
+  @Test
+  void rollsBackCompanyWhenEitherMembershipOrRegistrationCannotBePersisted() throws Exception {
+    var actor = UUID.randomUUID();
+    var jwt = token(actor);
+    jdbc.execute(
+        "ALTER TABLE company_memberships ADD CONSTRAINT reject_test_actor CHECK (user_id <> '%s')"
+            .formatted(actor));
+    try {
+      assertThat(register(jwt, "rollback", "Failed Membership", null).statusCode()).isEqualTo(409);
+    } finally {
+      jdbc.execute("ALTER TABLE company_memberships DROP CONSTRAINT reject_test_actor");
+    }
+    jdbc.execute(
+        "ALTER TABLE company_registration_idempotency ADD CONSTRAINT reject_test_key CHECK (user_id <> '%s')"
+            .formatted(actor));
+    try {
+      assertThat(register(jwt, "rollback", "Failed Registration", null).statusCode())
+          .isEqualTo(409);
+    } finally {
+      jdbc.execute("ALTER TABLE company_registration_idempotency DROP CONSTRAINT reject_test_key");
+    }
+    assertThat(membershipCount(actor)).isZero();
+    assertThat(registrationCount(actor)).isZero();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM companies WHERE business_name IN ('Failed Membership', 'Failed Registration')",
+                Integer.class))
+        .isZero();
+    assertThat(register(jwt, "rollback", "Successful Retry", null).statusCode()).isEqualTo(201);
+  }
+
+  private int registrationCount(UUID actor) {
+    return jdbc.queryForObject(
+        "SELECT COUNT(*) FROM company_registration_idempotency WHERE user_id = ?",
+        Integer.class,
+        actor);
+  }
+
+  private List<HttpResponse<String>> raceRegistrations(HttpRequest first, HttpRequest second)
+      throws Exception {
+    var ready = new CountDownLatch(2);
+    var start = new CountDownLatch(1);
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      var left = executor.submit(() -> sendRegistration(first, ready, start));
+      var right = executor.submit(() -> sendRegistration(second, ready, start));
+      assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+      start.countDown();
+      return List.of(left.get(15, TimeUnit.SECONDS), right.get(15, TimeUnit.SECONDS));
+    }
+  }
+
+  private HttpResponse<String> sendRegistration(
+      HttpRequest request, CountDownLatch ready, CountDownLatch start) throws Exception {
+    ready.countDown();
+    assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+    return http.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  @Test
   void distinguishesMissingMembershipFromRevokedAuthorization() throws Exception {
     UUID userId = UUID.randomUUID();
     String token = token(userId);
@@ -1564,25 +1785,34 @@ class CompanyProfileIT {
   }
 
   private UUID createCompany(UUID userId, String token, String name, String rnc) throws Exception {
-    var request =
-        request(COMPANIES)
-            .header("Authorization", "Bearer " + token)
-            .header("Idempotency-Key", userId.toString())
-            .header("Content-Type", "application/json")
-            .POST(
-                HttpRequest.BodyPublishers.ofString(
-                    """
-                    {"companyName":"%s SRL","businessName":"%s","rnc":%s,
-                     "email":"company@example.com","phone":"8095555555","location":"Santo Domingo"}
-                    """
-                        .formatted(name, name, rnc == null ? "null" : "\"%s\"".formatted(rnc))))
-            .build();
-    var response = http.send(request, HttpResponse.BodyHandlers.ofString());
-    assertThat(response.statusCode()).isEqualTo(201);
-    return jdbc.queryForObject(
-        "SELECT company_id FROM company_memberships WHERE user_id = ? AND role = 'OWNER' AND status = 'ACTIVE'",
-        UUID.class,
-        userId);
+    return companyId(register(token, userId.toString(), name, rnc));
+  }
+
+  private static UUID companyId(HttpResponse<String> response) {
+    assertThat(response.statusCode()).as(response.body()).isEqualTo(201);
+    return UUID.fromString(
+        new ObjectMapper().readTree(response.body()).path("companyId").stringValue());
+  }
+
+  private HttpResponse<String> register(String token, String key, String name, String rnc)
+      throws Exception {
+    return http.send(
+        registrationRequest(token, key, name, rnc), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private HttpRequest registrationRequest(String token, String key, String name, String rnc) {
+    return request(COMPANIES)
+        .header("Authorization", "Bearer " + token)
+        .header("Idempotency-Key", key)
+        .header("Content-Type", "application/json")
+        .POST(
+            HttpRequest.BodyPublishers.ofString(
+                """
+                {"companyName":"%s SRL","businessName":"%s","rnc":%s,
+                 "email":"company@example.com","phone":"8095555555","location":"Santo Domingo"}
+                """
+                    .formatted(name, name, rnc == null ? "null" : "\"%s\"".formatted(rnc))))
+        .build();
   }
 
   private void assertProfile(

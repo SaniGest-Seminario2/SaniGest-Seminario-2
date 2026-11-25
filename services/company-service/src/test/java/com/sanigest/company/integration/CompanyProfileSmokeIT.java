@@ -102,6 +102,61 @@ class CompanyProfileSmokeIT {
     send(companyUrl, ME + "?companyId=" + companyId, "PATCH", 404, changes, outsiderToken, null);
   }
 
+  @Test
+  @EnabledIfSystemProperty(named = "smoke.company.multi", matches = "true")
+  void registersListsAndReplaysTwoCompaniesUsingRealIdentity() throws Exception {
+    String identityUrl = System.getProperty("smoke.identity.url");
+    String companyUrl = System.getProperty("smoke.company.url");
+    String token = registerAndLogin(identityUrl);
+    assertThat(send(companyUrl, COMPANIES, "GET", 200, null, token, null).size()).isZero();
+
+    var first =
+        json.createObjectNode()
+            .put("companyName", "Company A SRL")
+            .put("businessName", "Company A")
+            .put("location", "Santo Domingo")
+            .put("email", "company@example.com")
+            .put("phone", "8095555555");
+    var second =
+        first.deepCopy().put("companyName", "Company B SRL").put("businessName", "Company B");
+    var createdA = send(companyUrl, COMPANIES, "POST", 201, first, token, "company-a");
+    var createdB = send(companyUrl, COMPANIES, "POST", 201, second, token, "company-b");
+    assertThat(createdA.path("companyId")).isNotEqualTo(createdB.path("companyId"));
+    assertThat(send(companyUrl, COMPANIES, "POST", 201, first, token, "company-a"))
+        .isEqualTo(createdA);
+
+    var companies = send(companyUrl, COMPANIES, "GET", 200, null, token, null);
+    assertThat(companies.size()).isEqualTo(2);
+    assertThat(companies.get(0).path("companyId")).isEqualTo(createdA.path("companyId"));
+    assertThat(companies.get(1).path("companyId")).isEqualTo(createdB.path("companyId"));
+    for (var company : companies) {
+      assertThat(company.path("role").stringValue()).isEqualTo("OWNER");
+      assertThat(company.path("membershipStatus").stringValue()).isEqualTo("ACTIVE");
+    }
+    assertThat(
+            send(companyUrl, COMPANIES, "GET", 200, null, registerAndLogin(identityUrl), null)
+                .size())
+        .isZero();
+  }
+
+  private String registerAndLogin(String identityUrl) throws Exception {
+    var credentials =
+        json.createObjectNode()
+            .put("email", "multi-" + UUID.randomUUID() + "@example.com")
+            .put("password", UUID.randomUUID().toString());
+    send(
+        identityUrl,
+        "/api/v1/auth/register",
+        "POST",
+        201,
+        credentials.deepCopy().put("name", "Multi-company smoke"),
+        null,
+        null);
+    return send(identityUrl, "/api/v1/auth/login", "POST", 200, credentials, null, null)
+        .path("accessToken")
+        .stringValue();
+  }
+
   private JsonNode send(
       String baseUrl,
       String path,

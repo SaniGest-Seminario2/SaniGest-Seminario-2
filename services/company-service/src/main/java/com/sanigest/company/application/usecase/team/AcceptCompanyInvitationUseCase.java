@@ -15,6 +15,7 @@ import com.sanigest.company.domain.model.Membership;
 import java.time.Clock;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -38,7 +39,7 @@ public class AcceptCompanyInvitationUseCase {
     this.audit = audit;
   }
 
-  @Transactional
+  @Transactional(isolation = Isolation.READ_COMMITTED)
   public Membership accept(UUID userId, String verifiedEmail, String token) {
     if (verifiedEmail == null) {
       throw new CompanyAccessDeniedException();
@@ -51,6 +52,7 @@ public class AcceptCompanyInvitationUseCase {
       throw new CompanyAccessDeniedException();
     }
     requirePending(invitation);
+    memberships.lockMembershipCreation(userId);
     if (memberships.existsByUserId(userId)) {
       throw new CompanyConflictException("User already belongs to a company");
     }

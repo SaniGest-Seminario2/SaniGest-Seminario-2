@@ -1,0 +1,2 @@
+ALTER TABLE company_memberships
+DROP CONSTRAINT uq_company_memberships_user;

@@ -37,6 +37,9 @@ public class UpdateMyCompanyUseCase {
         companies
             .findByIdForUpdate(membership.companyId())
             .orElseThrow(CompanyNotFoundException::new);
+    if (!"ACTIVE".equals(company.status())) {
+      throw new CompanyAccessDeniedException();
+    }
     var updated = company.updateProfile(patch);
     return new UpdatedCompany(updated, companies.updateProfile(updated));
   }

@@ -2,16 +2,23 @@ package com.sanigest.company.application.usecase.profile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.sanigest.company.application.dto.CompanyRegistration;
 import com.sanigest.company.application.dto.CreateCompanyCommand;
+import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.exception.CompanyConflictException;
 import com.sanigest.company.application.port.out.persistence.CompanyRegistrationStore;
+import com.sanigest.company.domain.enums.CompanyRole;
+import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.company.domain.model.Company;
+import com.sanigest.company.domain.model.Membership;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -21,7 +28,7 @@ class CreateCompanyUseCaseTest {
   private static final UUID USER_ID = UUID.randomUUID();
   private static final UUID COMPANY_ID = UUID.randomUUID();
   private final CompanyRegistrationStore registrations = mock(CompanyRegistrationStore.class);
-  private final CreateCompanyUseCase useCase = new CreateCompanyUseCase(registrations);
+  private final CreateCompanyUseCase useCase = new CreateCompanyUseCase(registrations, true);
   private final CreateCompanyCommand request =
       new CreateCompanyCommand(
           "Clínica", "Clínica SRL", "123456789", "a@b.com", "8095555555", "SD", null, null);
@@ -30,12 +37,18 @@ class CreateCompanyUseCaseTest {
   void storesNewCompanyWithItsIdempotencyRecord() {
     useCase.create(USER_ID, "key", request);
 
-    var registration = ArgumentCaptor.forClass(CompanyRegistration.class);
+    var hash = ArgumentCaptor.forClass(String.class);
     var company = ArgumentCaptor.forClass(Company.class);
-    verify(registrations).insert(eq(USER_ID), eq("key"), registration.capture(), company.capture());
-    assertThat(registration.getValue().hash()).hasSize(64);
+    var owner = ArgumentCaptor.forClass(Membership.class);
+    verify(registrations).insert(eq("key"), hash.capture(), company.capture(), owner.capture());
+    assertThat(hash.getValue()).hasSize(64);
+    assertThat(owner.getValue().userId()).isEqualTo(USER_ID);
+    assertThat(owner.getValue().role()).isEqualTo(CompanyRole.OWNER);
+    assertThat(owner.getValue().status()).isEqualTo(MembershipStatus.ACTIVE);
+    assertThat(company.getValue().currency()).isEqualTo("DOP");
+    assertThat(company.getValue().status()).isEqualTo("ACTIVE");
     assertThat(company.getValue().rnc()).isEqualTo(request.rnc());
-    assertThat(company.getValue().id()).isEqualTo(registration.getValue().companyId());
+    assertThat(company.getValue().id()).isEqualTo(owner.getValue().companyId());
     verify(registrations).loadCompany(company.getValue().id());
   }
 
@@ -43,15 +56,41 @@ class CreateCompanyUseCaseTest {
   void rejectsMissingOrOversizedIdempotencyKey() {
     assertThatThrownBy(() -> useCase.create(USER_ID, " ", request))
         .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> useCase.create(USER_ID, "x\u0000y", request))
+        .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> useCase.create(USER_ID, "x".repeat(129), request))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
-  void rejectsAlreadyRegisteredUser() {
+  void rejectsAlreadyRegisteredUserInCompatibilityMode() {
+    var legacy = new CreateCompanyUseCase(registrations, false);
     when(registrations.hasMembership(USER_ID)).thenReturn(true);
-    assertThatThrownBy(() -> useCase.create(USER_ID, "key", request))
+    assertThatThrownBy(() -> legacy.create(USER_ID, "key", request))
         .isInstanceOf(CompanyConflictException.class);
+  }
+
+  @Test
+  void allowsAdditionalCompaniesInMultiCompanyMode() {
+    when(registrations.hasMembership(USER_ID)).thenReturn(true);
+    useCase.create(USER_ID, "first", request);
+    useCase.create(USER_ID, "second", request);
+
+    var first = ArgumentCaptor.forClass(Company.class);
+    var second = ArgumentCaptor.forClass(Company.class);
+    verify(registrations).insert(eq("first"), anyString(), first.capture(), any());
+    verify(registrations).insert(eq("second"), anyString(), second.capture(), any());
+    assertThat(first.getValue().id()).isNotEqualTo(second.getValue().id());
+    verify(registrations, never()).hasMembership(USER_ID);
+  }
+
+  @Test
+  void rejectsReplayWhenOriginalMembershipIsNoLongerActive() {
+    when(registrations.find(USER_ID, "key"))
+        .thenReturn(Optional.of(new CompanyRegistration("stored", COMPANY_ID)));
+    assertThatThrownBy(() -> useCase.create(USER_ID, "key", request))
+        .isInstanceOf(CompanyAccessDeniedException.class);
+    verify(registrations, never()).loadCompany(COMPANY_ID);
   }
 
   @Test

@@ -1,8 +1,11 @@
 package com.sanigest.company.infrastructure.persistence.jdbc;
 
+import com.sanigest.company.application.dto.AuthorizedCompany;
 import com.sanigest.company.application.dto.CompanyMembership;
 import com.sanigest.company.application.dto.CompanyProfile;
+import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.exception.CompanyConflictException;
+import com.sanigest.company.application.exception.CompanySelectionRequiredException;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.MembershipStatus;
@@ -27,7 +30,7 @@ class JdbcMembershipRepository implements MembershipRepository {
 
   @Override
   public Optional<ActiveAccess> findActiveAccess(UUID userId, String permission) {
-    return DataAccessUtils.optionalResult(
+    var matches =
         jdbc.query(
             """
             SELECT m.company_id, c.name AS company_name, m.role, EXISTS (
@@ -37,6 +40,7 @@ class JdbcMembershipRepository implements MembershipRepository {
             ) AS explicit_grant
             FROM company_memberships m JOIN companies c ON c.id = m.company_id
             WHERE m.user_id = ? AND m.status = 'ACTIVE' AND c.status = 'ACTIVE'
+            FETCH FIRST 2 ROWS ONLY
             """,
             (row, index) ->
                 new ActiveAccess(
@@ -45,14 +49,67 @@ class JdbcMembershipRepository implements MembershipRepository {
                     row.getBoolean("explicit_grant"),
                     row.getString("company_name")),
             permission,
-            userId));
+            userId);
+    return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
+  }
+
+  @Override
+  public List<AuthorizedCompany> findAuthorizedCompanies(UUID userId) {
+    return jdbc.query(
+        """
+        SELECT c.id, c.name, c.business_name, m.role, m.status AS membership_status, c.status
+        FROM company_memberships m JOIN companies c ON c.id = m.company_id
+        WHERE m.user_id = ? AND m.status = 'ACTIVE' AND c.status = 'ACTIVE'
+        ORDER BY c.name, c.id
+        """,
+        (rs, row) ->
+            new AuthorizedCompany(
+                rs.getObject("id", UUID.class),
+                rs.getString("name"),
+                rs.getString("business_name"),
+                CompanyRole.valueOf(rs.getString("role")),
+                MembershipStatus.valueOf(rs.getString("membership_status")),
+                rs.getString("status")),
+        userId);
+  }
+
+  @Override
+  public void lockMembershipCreation(UUID userId) {
+    // Distinct from the per-company lock for team role and status changes.
+    jdbc.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+        row -> {},
+        "sanigest.company.membership-creation:" + userId);
+  }
+
+  @Override
+  public boolean lockActiveMembership(UUID companyId, UUID userId) {
+    return !jdbc.query(
+            """
+            SELECT m.id FROM company_memberships m
+            WHERE m.company_id = ? AND m.user_id = ? AND m.status = 'ACTIVE'
+              AND EXISTS (SELECT 1 FROM companies c WHERE c.id = m.company_id AND c.status = 'ACTIVE')
+            FOR UPDATE
+            """,
+            (rs, row) -> rs.getObject("id", UUID.class),
+            companyId,
+            userId)
+        .isEmpty();
   }
 
   @Override
   public Optional<Membership> findByUserIdForUpdate(UUID userId) {
-    return DataAccessUtils.optionalResult(
+    return singularOperationalMembership(
+        userId,
         jdbc.query(
-            "SELECT id, company_id, user_id, role, status FROM company_memberships WHERE user_id = ? FOR UPDATE",
+            """
+            SELECT m.id, m.company_id, m.user_id, m.role, m.status FROM company_memberships m
+            WHERE m.user_id = ? AND m.status = 'ACTIVE'
+              AND EXISTS (SELECT 1 FROM companies c WHERE c.id = m.company_id AND c.status = 'ACTIVE')
+            ORDER BY m.company_id
+            FETCH FIRST 2 ROWS ONLY
+            FOR UPDATE
+            """,
             JdbcMembershipRepository::membership,
             userId));
   }
@@ -183,14 +240,16 @@ class JdbcMembershipRepository implements MembershipRepository {
 
   @Override
   public Optional<CompanyMembership> findCompanyByUserId(UUID userId) {
-    return DataAccessUtils.optionalResult(
+    return singularOperationalMembership(
+        userId,
         jdbc.query(
             """
             SELECT m.status AS membership_status, c.id, c.name, c.business_name,
                    c.rnc, c.location, c.currency, c.status
             FROM company_memberships m
             JOIN companies c ON c.id = m.company_id
-            WHERE m.user_id = ?
+            WHERE m.user_id = ? AND m.status = 'ACTIVE' AND c.status = 'ACTIVE'
+            FETCH FIRST 2 ROWS ONLY
             """,
             (rs, rowNum) ->
                 new CompanyMembership(
@@ -204,5 +263,15 @@ class JdbcMembershipRepository implements MembershipRepository {
                         rs.getString("currency"),
                         rs.getString("status"))),
             userId));
+  }
+
+  private <T> Optional<T> singularOperationalMembership(UUID userId, List<T> matches) {
+    if (matches.size() > 1) {
+      throw new CompanySelectionRequiredException();
+    }
+    if (matches.isEmpty() && existsByUserId(userId)) {
+      throw new CompanyAccessDeniedException();
+    }
+    return DataAccessUtils.optionalResult(matches);
   }
 }
