@@ -1,14 +1,14 @@
-# Módulos previstos
+# Evolución de servicios
 
-| Servicio | Ticket | Alcance |
+| Servicio | Estado | Tickets de evolución |
 | --- | --- | --- |
-| [Catalog](catalog-service.md) | S2-318 | Clientes, proveedores y catálogo |
-| [Sales](sales-service.md) | S2-331 | Venta, facturación y cuentas por cobrar |
-| [Expense](expense-service.md) | S2-342 | Compras, gastos y cuentas por pagar |
-| [Finance](finance-service.md) | S2-349 | Caja, dashboard y reportes |
+| [Catalog](catalog-service.md) | Ejecutable | S2-456 a S2-459 |
+| [Sales](sales-service.md) | Ejecutable | S2-461 a S2-463 y S2-465 |
+| [Inventory](inventory-service.md) | Pendiente | S2-460 y S2-465 |
+| [Expense](expense-service.md) | Pendiente | S2-342 a S2-348, S2-465 y S2-466 |
+| [Finance](finance-service.md) | Pendiente | S2-349 a S2-359, S2-464 y S2-467 a S2-469 |
 
-Estos módulos cuentan con responsabilidades definidas en el
-[contrato funcional](../SaniGest_T1001_Contrato_Funcional_v0.7.md).
-Los tickets respectivos incorporarán el código ejecutable al reactor Maven.
-La auditoría pertenece al servicio que ejecuta la operación y el MVP incorpora
-las notificaciones en los flujos de cada servicio.
+Priorizar multiempresa en S2-453/S2-454 según el
+[contrato objetivo](../SaniGest_T1001_Contrato_Funcional_v0.8.md).
+La auditoría pertenece al servicio que ejecuta la operación. La
+[matriz](../traceability/ui-backend-matrix-v0.8.md) enumera el estado por acción.

@@ -4,14 +4,16 @@ Backend de SaniGest basado en microservicios con Java, Spring Boot y PostgreSQL.
 
 ## Documentación arquitectónica
 
-El contrato funcional y el ADR describen los límites entre servicios.
+El [contrato funcional v0.8](docs/SaniGest_T1001_Contrato_Funcional_v0.8.md)
+y el [ADR-002](docs/adr/ADR-002-evolucion-arquitectonica-multiempresa-inventario-finanzas.md)
+definen el objetivo de evolución. Consulta la
+[matriz de pantallas y APIs](docs/traceability/ui-backend-matrix-v0.8.md)
+para conocer el estado de las rutas.
 
-- [Contrato funcional y mapa de APIs v0.7](docs/SaniGest_T1001_Contrato_Funcional_v0.7.md)
-- [ADR-001: propietarios de datos y comunicación entre servicios](docs/adr/ADR-001-propiedad-datos-comunicacion-servicios.md)
-
-El ADR-001 es la referencia obligatoria para definir nuevas historias, tablas,
-integraciones síncronas y eventos entre servicios. Ningún módulo puede consultar
-las tablas de otro servicio ni compartir sus entidades JPA.
+El [contrato v0.7](docs/SaniGest_T1001_Contrato_Funcional_v0.7.md)
+registra el alcance histórico. El
+[ADR-001](docs/adr/ADR-001-propiedad-datos-comunicacion-servicios.md)
+mantiene vigentes sus decisiones de propiedad y comunicación según el ADR-002.
 
 ## Requisitos
 
@@ -31,7 +33,7 @@ docker --version
 
 ```text
 .
-├── services/               Gateway y servicios desplegables de Identity y Company
+├── services/               Gateway, Identity, Company, Catalog y Sales
 ├── libraries/              Librerías técnicas compartidas
 ├── infrastructure/         Imágenes de servicios, PostgreSQL local y verificaciones de Compose
 ├── config/                 Reglas de calidad del build
@@ -186,9 +188,8 @@ en ejecución.
 ## Entorno local con Docker Compose
 
 El Compose de desarrollo ofrece dos perfiles: `infra` levanta sólo PostgreSQL,
-Valkey y Kafka; `apps` levanta el stack completo, incluidas esas dependencias y
-los microservicios ejecutables. Crea primero el archivo local de variables, que
-Git ignora:
+Valkey y Kafka; `apps` agrega Identity, Company, Catalog y Sales. Gateway
+se ejecuta con Maven. Crea primero el archivo local de variables que Git ignora:
 
 ```bash
 cp .env.example .env

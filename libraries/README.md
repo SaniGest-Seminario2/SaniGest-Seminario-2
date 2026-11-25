@@ -1,9 +1,20 @@
 # Librerías compartidas
 
-Los módulos requieren al menos dos consumidores. [`common-security`](common-security) contiene
-la validación JWT de emisor, audiencia, tipo de token y cuenta que usan Gateway, Identity y Company.
+| Módulo | Estado | Límite |
+| --- | --- | --- |
+| [common-security](common-security) | En reactor | Validación JWT. Consumidores Gateway, Identity, Company, Catalog y Sales. |
+| [common-company-access](common-company-access) | En reactor | Protocolo técnico Company, Catalog y Sales. S2-454 evoluciona el selector. |
+| common-web | Planificado en S2-302/371 | RFC 9457, serialización y paginación técnicas. |
+| common-events | Planificado en S2-384 | Esquemas/envelopes de eventos versionados con compatibilidad. |
+| common-cache | Candidato | TTL, convenciones de claves y métricas sin política de negocio. |
+| common-messaging | Candidato | Adaptación Kafka, instrumentación y utilidades técnicas de publicación/consumo. |
+| common-observability | Candidato | Correlación, métricas y configuración técnica compartida. |
+| common-test-support | Candidato | Fixtures y arranque de infraestructura reutilizable para pruebas. |
 
-Se permiten contratos técnicos versionados y utilidades pequeñas, por ejemplo
-`common-web`, `common-security` o `common-events`. Se prohíben entidades JPA,
-repositorios, DTO de dominio y reglas de negocio compartidas entre servicios,
-conforme al ADR-001 de `S2-303`.
+Extraer un módulo cuando existan al menos dos consumidores concretos, un
+contrato estable y una reducción demostrable de duplicación técnica. Mantener
+la propiedad de reglas y datos en cada servicio. Una librería no distribuye
+entidades JPA, repositorios, agregados, reglas comerciales, servicios de
+negocio ni modelos internos de persistencia. El
+[ADR-002](../docs/adr/ADR-002-evolucion-arquitectonica-multiempresa-inventario-finanzas.md)
+conserva estos límites del ADR-001.

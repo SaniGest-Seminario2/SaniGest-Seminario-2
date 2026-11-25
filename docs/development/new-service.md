@@ -1,8 +1,8 @@
 # Incorporar un servicio
 
 1. Verifica la responsabilidad y la propiedad de datos en el
-   [contrato funcional](../SaniGest_T1001_Contrato_Funcional_v0.7.md) y en
-   [ADR-001](../adr/ADR-001-propiedad-datos-comunicacion-servicios.md).
+   [contrato objetivo v0.8](../SaniGest_T1001_Contrato_Funcional_v0.8.md) y en
+   [ADR-002](../adr/ADR-002-evolucion-arquitectonica-multiempresa-inventario-finanzas.md).
 2. Crea `services/<dominio>-service` con un POM que herede de `sanigest-parent`
    y agrega su ruta a los módulos del POM raíz. Usa el POM de
    [Identity](../../services/identity-service/pom.xml) como referencia para las
@@ -13,7 +13,8 @@
    `application/usecase`, sus datos de entrada y salida en `application/dto`
    y sus errores en `application/exception`. Define los contratos salientes en
    `application/port/out`, agrupados según la dependencia que representan.
-   Implementa esos contratos en `infrastructure`. Conserva el modelo y sus
+   Implementa esos contratos en `infrastructure` con adaptadores de
+   persistencia, integración, mensajería o seguridad según la capacidad. Conserva el modelo y sus
    reglas en `domain/model` y los enums en `domain/enums`. Coloca las
    constantes compartidas junto al contrato al que pertenecen.
    El caso de uso define el límite transaccional cuando coordina varias
@@ -39,5 +40,6 @@
    [validación de Compose](../../infrastructure/qa/validate-compose.sh) y añade
    la imagen a la [verificación de infraestructura](../../.github/workflows/ci-infrastructure.yml).
 
-`common-security` ofrece validación JWT compartida. Conserva los modelos y
+El [catálogo de librerías](../../libraries/README.md) incluye validación JWT
+y el contrato técnico de autorización empresarial. Conserva los modelos y
 reglas de negocio dentro de cada servicio.

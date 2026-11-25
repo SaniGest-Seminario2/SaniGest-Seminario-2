@@ -4,7 +4,7 @@ Sales es dueño de las ventas y sus líneas en PostgreSQL. S2-331 entrega el
 modelo, la persistencia y los endpoints de salud. S2-332 incorpora el registro
 HTTP de ventas. S2-333 incorpora el listado paginado. S2-334 incorpora el detalle
 y la cancelación.
-Consulta el [contrato funcional v0.7](../../docs/SaniGest_T1001_Contrato_Funcional_v0.7.md)
+Consulta el [contrato objetivo v0.8](../../docs/SaniGest_T1001_Contrato_Funcional_v0.8.md)
 y el [ADR-001](../../docs/adr/ADR-001-propiedad-datos-comunicacion-servicios.md).
 
 ## Arquitectura y datos
@@ -201,9 +201,9 @@ contrato compartido. El cliente bloquea redirecciones y carece de reintentos
 configurados. Los GET de detalle requieren `CATALOG_READ`. Catalog resuelve
 la membresía vigente contra Company en cada consulta y busca por la empresa
 autorizada y el UUID. Habilita la integración de Catalog con Company para
-autorizar estas consultas según su [configuración](../../libraries/common-company-access/README.md). Los headers de empresa enviados por consumidores se ignoran. El contrato v0.7 asigna como máximo una empresa a cada usuario
-regular. El caso de uso de S2-332 deberá usar la empresa verificada por el puerto
-de autorización de Sales.
+autorizar estas consultas según su [configuración](../../libraries/common-company-access/README.md). La resolución vigente de Sales ignora headers de empresa del consumidor y usa
+la membresía singular devuelta por Company. S2-454 incorpora el selector
+explícito del contrato v0.8.
 Micrometer observa las llamadas HTTP y se envían `X-Trace-Id` y `traceparent`
 para correlación. Las excepciones omiten cuerpos de respuesta y credenciales.
 

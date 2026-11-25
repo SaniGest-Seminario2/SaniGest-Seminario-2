@@ -1,18 +1,18 @@
 # Servicios
 
-| Módulo | Responsabilidad | Datos propios |
+| Módulo | Estado del repositorio | Responsabilidad y datos propios |
 | --- | --- | --- |
-| [API Gateway](api-gateway/README.md) | Entrada pública, validación de acceso y enrutamiento HTTP | — |
-| [Identity](identity-service/README.md) | Registro, identidad, autenticación y sesiones | `sanigest_identity` |
-| [Company](company-service/README.md) | Empresas, membresías, invitaciones y auditoría | `sanigest_company` |
-| [Catalog](catalog-service/README.md) | Maestros de clientes, proveedores, productos y servicios | `sanigest_catalog` |
+| [API Gateway](api-gateway/README.md) | Maven; enruta Identity, Company y Catalog | Entrada pública y validación de borde, sin BD |
+| [Identity](identity-service/README.md) | Reactor y Compose | Identidad, perfil, autenticación, sesiones. `sanigest_identity` |
+| [Company](company-service/README.md) | Reactor y Compose | Empresas, membresías, invitaciones, permisos y auditoría. `sanigest_company` |
+| [Catalog](catalog-service/README.md) | Reactor y Compose | Maestros comerciales y relaciones de suministro objetivo. `sanigest_catalog` |
+| [Sales](sales-service/README.md) | Reactor y Compose | Ventas, facturas internas y obligaciones; cobros objetivo. `sanigest_sales` |
+| [Inventory](../docs/roadmap/inventory-service.md) | Pendiente | Almacén, stock, reservas y kardex. `sanigest_inventory` propuesta |
+| [Expense](../docs/roadmap/expense-service.md) | Pendiente; base local reservada | Compras, gastos, recepciones, obligaciones y pagos. `sanigest_expense` |
+| [Finance](../docs/roadmap/finance-service.md) | Pendiente; base local reservada | Cuentas, caja, movimientos, transferencias y proyecciones. `sanigest_finance` |
 
-Cada aplicación tiene su propio POM, configuración de Spring y pruebas.
-Company, Identity y Catalog organizan el código en `api`, `application`,
-`domain` e `infrastructure`, mantienen sus propias migraciones y tienen
-imágenes en el perfil `apps` de Docker Compose. Gateway organiza su código
-en enrutamiento, seguridad y observabilidad, y se ejecuta localmente con Maven.
-
-La [guía para añadir un servicio](../docs/development/new-service.md) describe
-cómo incorporarlo al reactor y a CI. Los módulos previstos están en el
-[mapa de evolución](../docs/roadmap/README.md).
+Los servicios de negocio organizan su código en API, aplicación, dominio e
+infraestructura y mantienen migraciones independientes. Consulta la
+[guía de incorporación](../docs/development/new-service.md), el
+[mapa de evolución](../docs/roadmap/README.md) y las
+[rutas verificadas y objetivo](../docs/traceability/ui-backend-matrix-v0.8.md).
