@@ -1,0 +1,8 @@
+sanigest:
+  jwt:
+    issuer: sanigest-test
+    audience: sanigest-api-test
+  company-access:
+    response-timeout: 750ms
+  catalog:
+    response-timeout: 750ms

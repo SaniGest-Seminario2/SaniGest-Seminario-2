@@ -11,6 +11,7 @@ services:
       IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?Define IDENTITY_DB_PASSWORD in .env}
       COMPANY_DB_PASSWORD: ${COMPANY_DB_PASSWORD:?Define COMPANY_DB_PASSWORD in .env}
       CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Define CATALOG_DB_PASSWORD in .env}
+      INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD:?Define INVENTORY_DB_PASSWORD in .env}
       SALES_DB_PASSWORD: ${SALES_DB_PASSWORD:?Define SALES_DB_PASSWORD in .env}
       EXPENSE_DB_PASSWORD: ${EXPENSE_DB_PASSWORD:?Define EXPENSE_DB_PASSWORD in .env}
       FINANCE_DB_PASSWORD: ${FINANCE_DB_PASSWORD:?Define FINANCE_DB_PASSWORD in .env}
@@ -95,6 +96,9 @@ services:
     profiles: [apps]
     environment:
       SPRING_PROFILES_ACTIVE: local
+      SPRING_APPLICATION_JSON: >-
+        {"sanigest":{"company-access":{"callers":{"catalog":{"issuer":"catalog-company-access","public-key":"file:/run/secrets/catalog-company-public.pem"},
+        "inventory":{"issuer":"inventory-company-access","public-key":"file:/run/secrets/inventory-company-public.pem"}}}}}
       JWT_ISSUER: ${JWT_ISSUER:-sanigest}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
       JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
@@ -108,6 +112,18 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       CACHE_DEFAULT_TTL: ${CACHE_DEFAULT_TTL:-5m}
     volumes:
+      - type: bind
+        source: ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/catalog-company-public.pem
+        target: /run/secrets/catalog-company-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/inventory-company-public.pem
+        target: /run/secrets/inventory-company-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
       - type: bind
         source: ${JWT_PUBLIC_KEY_FILE:-./.secrets/jwt-public.pem}
         target: /run/secrets/jwt-public.pem
@@ -192,10 +208,19 @@ services:
       JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
       JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
       SERVER_PORT: 8080
+      SPRING_APPLICATION_JSON: >-
+        {"sanigest":{"company-access":{"enabled":true,"origin":"http://company-service:8080",
+        "issuer":"catalog-company-access","private-key-location":"file:/run/secrets/catalog-company-private.pem"}}}
       CATALOG_DB_HOST: postgres
       CATALOG_DB_PORT: 5432
       CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Define CATALOG_DB_PASSWORD in .env}
     volumes:
+      - type: bind
+        source: ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/catalog-company-private.pem
+        target: /run/secrets/catalog-company-private.pem
+        read_only: true
+        bind:
+          create_host_path: false
       - type: bind
         source: ${JWT_PUBLIC_KEY_FILE:-./.secrets/jwt-public.pem}
         target: /run/secrets/jwt-public.pem
@@ -246,6 +271,58 @@ services:
       - "127.0.0.1:${SALES_SERVICE_PORT:-8084}:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - sanigest-local
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/service.Dockerfile
+      args:
+        SERVICE: inventory-service
+    image: sanigest/inventory-service:${SANIGEST_IMAGE_TAG:-local}
+    profiles: [apps]
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      JWT_ISSUER: ${JWT_ISSUER:-sanigest}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      SERVER_PORT: 8080
+      INVENTORY_CATALOG_ORIGIN: ${INVENTORY_CATALOG_ORIGIN:-http://catalog-service:8080}
+      INVENTORY_COMPANY_ACCESS_ORIGIN: http://company-service:8080
+      INVENTORY_COMPANY_ACCESS_PRIVATE_KEY_LOCATION: file:/run/secrets/inventory-company-private.pem
+      INVENTORY_DB_HOST: postgres
+      INVENTORY_DB_PORT: 5432
+      INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD:?Define INVENTORY_DB_PASSWORD in .env}
+    volumes:
+      - type: bind
+        source: ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/inventory-company-private.pem
+        target: /run/secrets/inventory-company-private.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${JWT_PUBLIC_KEY_FILE:-./.secrets/jwt-public.pem}
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:${INVENTORY_SERVICE_PORT:-8086}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      company-service:
+        condition: service_healthy
+      catalog-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health/readiness"]

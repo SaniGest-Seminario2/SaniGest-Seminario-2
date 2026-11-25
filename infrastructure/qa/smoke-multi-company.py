@@ -8,7 +8,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 
-def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200, origin=None):
+def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200, origin=None, method=None):
     headers = {}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -20,14 +20,19 @@ def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200, 
     if data is not None:
         headers["Content-Type"] = "application/json"
         body = json.dumps(data).encode()
-    request = urllib.request.Request(f"{origin or GATEWAY}/api/v1/{path}", body, headers)
+    request = urllib.request.Request(f"{origin or GATEWAY}/api/v1/{path}", body, headers, method=method)
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             actual, payload = response.status, response.read()
     except urllib.error.HTTPError as response:
         actual, payload = response.code, response.read()
     if actual != status:
-        raise AssertionError(f"{request.method} {path}: expected {status}, got {actual}")
+        try:
+            problem = json.loads(payload)
+            code = problem.get("errorCode") if isinstance(problem, dict) else None
+        except (UnicodeError, ValueError):
+            code = None
+        raise AssertionError(f"{request.get_method()} {path}: expected {status}, got {actual} ({code})")
     return json.loads(payload) if payload else None
 
 
@@ -50,8 +55,10 @@ def main():
     exchange("companies/me", token=token, status=409)
     client_a = exchange("clients", token=token, tenant=a, data={"name": "Cliente A"}, status=201)["id"]
     client_b = exchange("clients", token=token, tenant=b, data={"name": "Cliente B"}, status=201)["id"]
-    item_a = exchange("catalog-items", token=token, tenant=a,
-                      data={"name": "Artículo A", "type": "PRODUCT", "price": 25}, status=201)["id"]
+    item_a = exchange("catalog-items", token=token, tenant=a, status=201, data={
+        "name": "Artículo A", "type": "PRODUCT", "price": "25.00", "unitCode": "UNIT",
+        "taxClassificationCode": "ITBIS_18",
+    })["id"]
 
     barrier = threading.Barrier(2)
 
@@ -74,10 +81,43 @@ def main():
     exchange("clients", token=token, status=400)
     exchange("clients", token=token, status=400, origin=CATALOG)
     exchange(f"clients/{client_a}", token=token, tenant=b, status=404, origin=CATALOG)
+    verify_inventory(token, a, b, item_a)
     print("Multi-company HTTP smoke passed")
+
+
+def verify_inventory(token, company, other, item):
+    def inventory(path, **kwargs):
+        return exchange(path, token=token, tenant=company, **kwargs)
+
+    warehouse = inventory("warehouses", data={"code": "ALM-001", "name": "Principal"}, status=201)["id"]
+    position = f"inventory/stock/{item}/{warehouse}"
+    assert inventory(position)["availability"] == "NOT_TRACKED"
+    initial = {"trackingEnabled": True, "minimumStock": "5.000", "initialQuantity": "20.000"}
+    assert inventory(position, method="PUT", data=initial, key=uuid.uuid4().hex)["onHand"] == "20.000"
+
+    def adjust(article, direction, quantity, key, status=201):
+        return inventory("inventory/adjustments", data={
+            "catalogItemId": article, "warehouseId": warehouse, "direction": direction,
+            "quantity": quantity, "reason": "Corrección smoke"}, key=key, status=status)
+
+    retry_key = uuid.uuid4().hex
+    inbound = adjust(item, "IN", "5", retry_key)
+    adjust(item, "OUT", "3", uuid.uuid4().hex)
+    assert inventory(position)["onHand"] == "22.000"
+    assert adjust(item, "IN", "5.000", retry_key) == inbound
+    assert inventory(f"inventory/movements?warehouseId={warehouse}")["totalElements"] == 3
+    summary = inventory(f"inventory/summary?warehouseId={warehouse}")
+    assert summary["activeWarehouses"] == summary["trackedPositions"] == summary["availablePositions"] == 1
+    service = inventory("catalog-items", data={"name": "Servicio", "type": "SERVICE", "price": 0}, status=201)["id"]
+    adjust(service, "IN", "1", uuid.uuid4().hex, 400)
+    exchange(position, token=token, tenant=other, status=404)
+    exchange("inventory/stock", status=401, origin=INVENTORY)
+    exchange("inventory/stock", token=token, status=400, origin=INVENTORY)
+    assert inventory(f"inventory/movements?warehouseId={warehouse}")["totalElements"] == 3
 
 
 if __name__ == "__main__":
     GATEWAY = os.environ.get("SMOKE_GATEWAY_URL", "http://127.0.0.1:8085")
     CATALOG = os.environ.get("SMOKE_CATALOG_URL", "http://127.0.0.1:8083")
+    INVENTORY = os.environ.get("SMOKE_INVENTORY_URL", "http://127.0.0.1:8086")
     main()

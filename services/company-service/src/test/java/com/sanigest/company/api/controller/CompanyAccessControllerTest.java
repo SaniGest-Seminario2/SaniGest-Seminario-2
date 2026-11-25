@@ -115,6 +115,21 @@ class CompanyAccessControllerTest {
     verifyNoInteractions(users, accounts, memberships);
   }
 
+  @Test
+  void inventoryResolvesMembershipWithoutGrantingDelegation() {
+    session(USER);
+    when(accounts.resolve(SESSION)).thenReturn(AccountType.REGULAR);
+    when(memberships.findActiveAccess(USER, COMPANY, "INVENTORY_WRITE"))
+        .thenReturn(Optional.of(new ActiveAccess(COMPANY, CompanyRole.ADMIN, false, "Empresa")));
+    var body = controller.resolve(assertion(null, "INVENTORY"), SESSION).getBody();
+    assertThat(body.module()).isEqualTo(CompanyAccess.Module.INVENTORY);
+    assertThat(body.role()).isEqualTo(CompanyAccess.MembershipRole.ADMIN);
+    assertThat(body.explicitGrant()).isFalse();
+    assertThatThrownBy(() -> controller.resolve(assertion(COMPANY, "INVENTORY"), null))
+        .isInstanceOf(CompanyAccessDeniedException.class);
+    verifyNoInteractions(advisors);
+  }
+
   private void session(UUID user) {
     when(users.decode(SESSION)).thenReturn(sessionJwt(user));
   }

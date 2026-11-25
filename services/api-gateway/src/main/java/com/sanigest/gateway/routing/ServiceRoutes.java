@@ -104,6 +104,27 @@ class ServiceRoutes {
         .build();
   }
 
+  @Bean
+  @ConditionalOnProperty("INVENTORY_SERVICE_URL")
+  RouteLocator inventoryRoutes(RouteLocatorBuilder builder, Environment environment) {
+    return builder
+        .routes()
+        .route(
+            "inventory",
+            route ->
+                route
+                    .path(
+                        "/api/v1/warehouses",
+                        "/api/v1/warehouses/{id}",
+                        "/api/v1/inventory/stock",
+                        "/api/v1/inventory/stock/{itemId}/{warehouseId}",
+                        "/api/v1/inventory/summary",
+                        "/api/v1/inventory/movements",
+                        "/api/v1/inventory/adjustments")
+                    .uri(destination(environment, "INVENTORY_SERVICE_URL")))
+        .build();
+  }
+
   private URI destination(Environment environment, String property) {
     URI uri;
     try {

@@ -1,6 +1,6 @@
 # Trazabilidad UI → backend v0.8
 
-Rutas relativas a `/api/v1`, salvo la ruta interna indicada. **I** implementado, **E** existente pero requiere evolución, **P** pendiente, **F** fuera del MVP. «→» separa ruta vigente de ruta objetivo. El estado corresponde al código inspeccionado, no al estado Jira. Las rutas de Sales están en sus controladores; Gateway hoy enruta Identity, Company y Catalog. La [especificación](../SaniGest_T1001_Contrato_Funcional_v0.8.md) y el [ADR-002](../adr/ADR-002-evolucion-arquitectonica-multiempresa-inventario-finanzas.md) aplican a todas las filas objetivo.
+Rutas relativas a `/api/v1`, salvo la ruta interna indicada. **I** implementado, **E** existente pero requiere evolución, **P** pendiente, **F** fuera del MVP. «→» separa ruta vigente de ruta objetivo. El estado corresponde al código inspeccionado, no al estado Jira. Las rutas de Sales están en sus controladores; Gateway enruta Identity, Company, Catalog, Sales e Inventory. La [especificación](../SaniGest_T1001_Contrato_Funcional_v0.8.md) y el [ADR-002](../adr/ADR-002-evolucion-arquitectonica-multiempresa-inventario-finanzas.md) aplican a todas las filas objetivo.
 
 | Pantalla | Acción | Recurso API | Propietario | Dependencias | Evento objetivo | Jira | Estado |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -22,7 +22,7 @@ Rutas relativas a `/api/v1`, salvo la ruta interna indicada. **I** implementado,
 | Ficha proveedor | Relacionar artículos y costo | GET/PUT /suppliers/{id}/items; GET /catalog-items/{id}/suppliers | Catalog | Company | — | S2-458 | I |
 | Ficha proveedor | Saldo y pagos | GET /suppliers/{id}/payable-summary; GET /payables?supplierId=… | Expense | Company, Catalog | — | S2-346, S2-348, S2-458 | P |
 | Productos y servicios | Buscar, crear, editar, estado, precios e ITBIS | GET/POST /catalog-items; GET/PATCH /catalog-items/{id}; PATCH /catalog-items/{id}/status; GET /catalog-items/{categories,units,tax-classifications,summary}; GET /catalog-items/{id}/history | Catalog | Company; Inventory para stock (S2-460); Sales para activación de cuatro decimales (S2-461) | — | S2-417, S2-459 | I |
-| Inventario | Almacenes, disponibilidad, kardex, ajuste | /warehouses; /inventory/{stock,summary,movements,adjustments} | Inventory | Company, Catalog | Resultados de recepción | S2-460, S2-465 | P |
+| Inventario | Almacenes, configuración, disponibilidad, kardex y ajustes | GET/POST /warehouses; GET/PATCH /warehouses/{id}; GET /inventory/{stock,summary,movements}; GET/PUT /inventory/stock/{itemId}/{warehouseId}; POST /inventory/adjustments | Inventory | Company, Catalog | — | S2-460 | I |
 | Ventas | Crear, listar, detalle y cancelar | GET/POST /sales; GET /sales/{id}; POST /sales/{id}/cancel | Sales | Company, Catalog, Inventory | Venta registrada/anulada | S2-332 a S2-334, S2-461, S2-463, S2-465 | E |
 | Facturación | Emitir desde venta | POST /sales/{saleId}/invoices | Sales | Company | Factura interna emitida | S2-335, S2-420, S2-462 | E |
 | Facturación | Formulario, listado, ficha | GET/POST /invoices; GET /invoices/{id} | Sales | Company, Catalog, Inventory | Venta y factura registradas según origen | S2-336, S2-420, S2-462 | P |

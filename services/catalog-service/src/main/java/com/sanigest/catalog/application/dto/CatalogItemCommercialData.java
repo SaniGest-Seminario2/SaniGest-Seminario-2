@@ -9,7 +9,17 @@ public record CatalogItemCommercialData(
     UUID primarySupplierId,
     BigDecimal taxRate,
     LocalDate taxEffectiveFrom,
-    LocalDate taxEffectiveUntil) {
+    LocalDate taxEffectiveUntil,
+    Boolean unitDivisible) {
+  public CatalogItemCommercialData(
+      String categoryName,
+      UUID primarySupplierId,
+      BigDecimal taxRate,
+      LocalDate from,
+      LocalDate until) {
+    this(categoryName, primarySupplierId, taxRate, from, until, null);
+  }
+
   public static final CatalogItemCommercialData EMPTY =
       new CatalogItemCommercialData(null, null, null, null, null);
 }

@@ -14,6 +14,7 @@ COPY services/api-gateway/pom.xml services/api-gateway/pom.xml
 COPY services/identity-service/pom.xml services/identity-service/pom.xml
 COPY services/catalog-service/pom.xml services/catalog-service/pom.xml
 COPY services/sales-service/pom.xml services/sales-service/pom.xml
+COPY services/inventory-service/pom.xml services/inventory-service/pom.xml
 COPY services/${SERVICE}/src services/${SERVICE}/src
 RUN --mount=type=cache,target=/root/.m2,sharing=locked \
     sh scripts/ci/maven-build.sh -pl "services/${SERVICE}" -am -DskipTests package && \

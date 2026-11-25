@@ -30,6 +30,7 @@ class ServiceRoutingIT {
   private static final String ORIGIN = "https://frontend.example";
   private static final String COMPANY_ME = "/api/v1/companies/me";
   private static final String TENANT = "e3fc1fd0-42ea-4a0d-9c14-6cbd44592b42";
+  private static final HttpServer INVENTORY = backend("inventory");
   private static final HttpServer SALES = backend("sales");
   private static final HttpServer IDENTITY = backend("identity");
   private static final HttpServer COMPANY = backend("company");
@@ -44,6 +45,7 @@ class ServiceRoutingIT {
     registry.add("IDENTITY_SERVICE_URL", () -> origin(IDENTITY));
     registry.add("COMPANY_SERVICE_URL", () -> origin(COMPANY));
     registry.add("CATALOG_SERVICE_URL", () -> origin(CATALOG));
+    registry.add("INVENTORY_SERVICE_URL", () -> origin(INVENTORY));
     registry.add("SALES_SERVICE_URL", () -> origin(SALES));
     registry.add("GATEWAY_CORS_ALLOWED_ORIGINS", () -> ORIGIN + ",https://another.example");
   }
@@ -54,6 +56,7 @@ class ServiceRoutingIT {
     COMPANY.stop(0);
     CATALOG.stop(0);
     SALES.stop(0);
+    INVENTORY.stop(0);
   }
 
   @Test
@@ -79,6 +82,13 @@ class ServiceRoutingIT {
                 Map.entry("/api/v1/catalog-items/123/history", "catalog"),
                 Map.entry("/api/v1/catalog-items/123/suppliers", "catalog"),
                 Map.entry("/api/v1/suppliers/123/items", "catalog"),
+                Map.entry("/api/v1/warehouses", "inventory"),
+                Map.entry("/api/v1/warehouses/123", "inventory"),
+                Map.entry("/api/v1/inventory/stock", "inventory"),
+                Map.entry("/api/v1/inventory/stock/123/456", "inventory"),
+                Map.entry("/api/v1/inventory/summary", "inventory"),
+                Map.entry("/api/v1/inventory/movements", "inventory"),
+                Map.entry("/api/v1/inventory/adjustments", "inventory"),
                 Map.entry("/api/v1/sales", "sales"),
                 Map.entry("/api/v1/receivables/123", "sales"))
             .entrySet()) {
@@ -97,6 +107,31 @@ class ServiceRoutingIT {
                     .GET())
                 .statusCode())
         .isEqualTo(404);
+  }
+
+  @Test
+  void inventoryRequiresOneCompanySelectorAndStripsUntrustedContext() throws Exception {
+    String token = "Bearer " + GatewayTestTokens.validToken();
+    var path = "/api/v1/inventory/stock";
+    assertThat(send(request(gateway(), path).header("Authorization", token).GET()).body())
+        .contains("COMPANY_CONTEXT_REQUIRED");
+    assertThat(
+            send(request(gateway(), path)
+                    .header("Authorization", token)
+                    .header("X-Company-Id", TENANT)
+                    .header("X-Company-Id", TENANT)
+                    .GET())
+                .body())
+        .contains("INVALID_COMPANY_CONTEXT");
+    var forwarded =
+        send(
+            request(gateway(), path)
+                .header("Authorization", token)
+                .header("X-Company-Id", TENANT)
+                .header("X-Company-User-Assertion", "untrusted")
+                .GET());
+    assertThat(forwarded.statusCode()).isEqualTo(200);
+    assertThat(forwarded.headers().firstValue("X-Backend-X-Company-User-Assertion")).isEmpty();
   }
 
   @Test

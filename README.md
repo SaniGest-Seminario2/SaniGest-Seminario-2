@@ -208,7 +208,11 @@ docker compose ps
 ```
 
 Genera las claves RSA locales según la [configuración JWT](docs/seguridad-s2-317.md)
-antes de construir y ejecutar las aplicaciones:
+antes de construir y ejecutar las aplicaciones. Genera también las claves dedicadas de Catalog e Inventory según la
+[guía del contexto empresarial](docs/development/company-context.md).
+Inventory expone el puerto local 8086. Para actualizar un volumen existente,
+ejecuta el [bootstrap dirigido de Inventory](services/inventory-service/README.md)
+antes de iniciar las aplicaciones.
 
 ```bash
 docker compose --profile apps up -d --build --wait

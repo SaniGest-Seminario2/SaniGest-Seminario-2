@@ -127,6 +127,7 @@ class CatalogServiceIT {
           "COMPANY_DB_PASSWORD", UUID.randomUUID().toString(),
           "CATALOG_DB_PASSWORD", UUID.randomUUID().toString(),
           "SALES_DB_PASSWORD", UUID.randomUUID().toString(),
+          "INVENTORY_DB_PASSWORD", UUID.randomUUID().toString(),
           "EXPENSE_DB_PASSWORD", UUID.randomUUID().toString(),
           "FINANCE_DB_PASSWORD", UUID.randomUUID().toString());
   private static final KeyPair KEY = rsaKey();

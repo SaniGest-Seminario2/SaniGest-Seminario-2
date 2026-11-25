@@ -1,0 +1,18 @@
+package com.sanigest.inventory.domain;
+
+public enum StockAvailability {
+  NOT_TRACKED,
+  OUT,
+  LOW,
+  AVAILABLE;
+
+  public static StockAvailability derive(StockConfiguration configuration, StockBalance balance) {
+    if (!configuration.trackingEnabled()) {
+      return NOT_TRACKED;
+    }
+    if (balance.available().signum() == 0) {
+      return OUT;
+    }
+    return balance.available().compareTo(configuration.minimumStock()) <= 0 ? LOW : AVAILABLE;
+  }
+}

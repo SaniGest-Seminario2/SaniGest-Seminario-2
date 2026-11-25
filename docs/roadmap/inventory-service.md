@@ -1,6 +1,6 @@
 # Inventory Service
 
-Estado pendiente. S2-460 incorpora el módulo Java 21, PostgreSQL `sanigest_inventory`, Flyway, Gateway, Compose, CI y OpenAPI. S2-465 integra ventas y recepciones. La selección empresarial de S2-454 precede a la exposición del dominio. Véanse el [contrato v0.8](../SaniGest_T1001_Contrato_Funcional_v0.8.md) y el [ADR-002](../adr/ADR-002-evolucion-arquitectonica-multiempresa-inventario-finanzas.md).
+S2-460 configura la primera versión operativa. El [servicio](../../services/inventory-service/README.md) incorpora el módulo Java 21, PostgreSQL `sanigest_inventory`, Flyway, Gateway, Compose, CI y OpenAPI. S2-465 integra ventas y recepciones. La selección empresarial de S2-454 precede a la exposición del dominio. Véanse el [contrato v0.8](../SaniGest_T1001_Contrato_Funcional_v0.8.md) y el [ADR-002](../adr/ADR-002-evolucion-arquitectonica-multiempresa-inventario-finanzas.md).
 
 ## Recursos objetivo
 
