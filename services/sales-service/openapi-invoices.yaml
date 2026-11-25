@@ -1,8 +1,72 @@
 openapi: 3.0.3
 info:
-  title: SaniGest Sales — Facturación interna
+  title: SaniGest Sales
   version: '1.0'
+security:
+  - bearerAuth: []
 paths:
+  /api/v1/sales:
+    parameters:
+      - $ref: '#/components/parameters/CompanySelector'
+    get:
+      summary: Lista ventas de la empresa con SALES_READ.
+      responses:
+        '200': {description: Operación completada.}
+        '400': {$ref: '#/components/responses/InvalidContext'}
+        '401': {description: JWT inválido o ausente.}
+        '403': {description: Permiso empresarial insuficiente.}
+        '404': {description: Recurso ausente o fuera de la empresa autorizada.}
+        '503': {description: Autorización o dependencia indisponible.}
+    post:
+      summary: Registra una venta con SALES_WRITE e Idempotency-Key.
+      parameters:
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      responses:
+        '201': {description: Operación completada.}
+        '400': {$ref: '#/components/responses/InvalidContext'}
+        '401': {description: JWT inválido o ausente.}
+        '403': {description: Permiso empresarial insuficiente.}
+        '404': {description: Recurso ausente o fuera de la empresa autorizada.}
+        '503': {description: Autorización o dependencia indisponible.}
+  /api/v1/sales/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CompanySelector'
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      summary: Consulta una venta con SALES_READ.
+      responses:
+        '200': {description: Operación completada.}
+        '400': {$ref: '#/components/responses/InvalidContext'}
+        '401': {description: JWT inválido o ausente.}
+        '403': {description: Permiso empresarial insuficiente.}
+        '404': {description: Recurso ausente o fuera de la empresa autorizada.}
+        '503': {description: Autorización o dependencia indisponible.}
+  /api/v1/sales/{id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/CompanySelector'
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      summary: Cancela una venta con SALES_CANCEL (OWNER o ADMIN).
+      responses:
+        '200': {description: Operación completada.}
+        '400': {$ref: '#/components/responses/InvalidContext'}
+        '401': {description: JWT inválido o ausente.}
+        '403': {description: Permiso empresarial insuficiente.}
+        '404': {description: Recurso ausente o fuera de la empresa autorizada.}
+        '503': {description: Autorización o dependencia indisponible.}
+  /api/v1/receivables/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CompanySelector'
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      summary: Consulta una cuenta por cobrar con SALES_READ.
+      responses:
+        '200': {description: Operación completada.}
+        '400': {$ref: '#/components/responses/InvalidContext'}
+        '401': {description: JWT inválido o ausente.}
+        '403': {description: Permiso empresarial insuficiente.}
+        '404': {description: Recurso ausente o fuera de la empresa autorizada.}
+        '503': {description: Autorización o dependencia indisponible.}
   /api/v1/sales/{saleId}/invoices:
     post:
       operationId: issueInternalInvoice
@@ -17,6 +81,7 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/CompanySelector'
         - name: saleId
           in: path
           required: true
@@ -37,7 +102,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Invoice'}
         '400':
-          description: UUID, clave o cuerpo inválido.
+          description: Selector, UUID, clave o cuerpo inválido.
           content:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
@@ -64,6 +129,20 @@ paths:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
 components:
+  parameters:
+    CompanySelector:
+      name: X-Company-Id
+      in: header
+      required: true
+      description: UUID de la empresa seleccionada para esta petición.
+      schema: {type: string, format: uuid}
+      example: e3fc1fd0-42ea-4a0d-9c14-6cbd44592b42
+  responses:
+    InvalidContext:
+      description: Selector ausente, duplicado o inválido, o petición inválida.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
   schemas:

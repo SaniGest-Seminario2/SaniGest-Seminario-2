@@ -45,7 +45,7 @@ class CompanyAccessControllerTest {
   void reportsOnlyTheCurrentMembershipAndExplicitGrant() {
     session(USER);
     when(accounts.resolve(SESSION)).thenReturn(AccountType.REGULAR);
-    when(memberships.findActiveAccess(USER, "CATALOG_WRITE"))
+    when(memberships.findActiveAccess(USER, COMPANY, "CATALOG_WRITE"))
         .thenReturn(Optional.of(new ActiveAccess(COMPANY, CompanyRole.OPERATOR, true, "Empresa")));
     var response = controller.resolve(assertion(null), SESSION);
     assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
@@ -63,7 +63,7 @@ class CompanyAccessControllerTest {
   void includesCompanyNameInSalesWriteMembership() {
     session(USER);
     when(accounts.resolve(SESSION)).thenReturn(AccountType.REGULAR);
-    when(memberships.findActiveAccess(USER, "SALES_WRITE"))
+    when(memberships.findActiveAccess(USER, COMPANY, "SALES_WRITE"))
         .thenReturn(Optional.of(new ActiveAccess(COMPANY, CompanyRole.OWNER, false, "Empresa")));
     var response = controller.resolve(assertion(null, "SALES"), SESSION);
     assertThat(response.getBody().companyId()).isEqualTo(COMPANY);
@@ -103,7 +103,8 @@ class CompanyAccessControllerTest {
     var response = controller.resolve(assertion(COMPANY), null);
     assertThat(response.getBody())
         .satisfies(body -> {
-          assertThat(body.mode()).isEqualTo("DELEGATED");
+          assertThat(body.mode())
+              .isEqualTo(com.sanigest.companyaccess.CompanyAccessProtocol.AccessMode.DELEGATED);
           assertThat(body.companyId()).isEqualTo(COMPANY);
         });
     verify(advisors)
@@ -132,10 +133,9 @@ class CompanyAccessControllerTest {
             .header("alg", "RS256")
             .subject(USER.toString())
             .claim("module", module)
-            .claim("scope", "WRITE");
-    if (target != null) {
-      jwt.claim("company_id", target.toString());
-    }
+            .claim("scope", "WRITE")
+            .claim("company_id", (target == null ? COMPANY : target).toString())
+            .claim("mode", target == null ? "MEMBERSHIP" : "DELEGATED");
     return jwt.build();
   }
 }

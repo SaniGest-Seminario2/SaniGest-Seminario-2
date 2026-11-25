@@ -6,6 +6,7 @@ import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailabl
 import com.sanigest.catalog.application.exception.InvalidClientQueryException;
 import com.sanigest.catalog.domain.exception.InvalidClientPatch;
 import com.sanigest.catalog.domain.exception.InvalidSupplierDetails;
+import com.sanigest.security.CompanySelector.InvalidContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -16,6 +17,11 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 class CatalogRequestErrorHandler {
+  @ExceptionHandler(InvalidContext.class)
+  ProblemDetail invalidCompanyContext(InvalidContext failure) {
+    return problem(HttpStatus.BAD_REQUEST, failure.getMessage(), "Invalid company selection");
+  }
+
   @ExceptionHandler({
     MethodArgumentNotValidException.class,
     HttpMessageNotReadableException.class,

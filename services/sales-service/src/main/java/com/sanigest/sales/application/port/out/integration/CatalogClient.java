@@ -6,10 +6,6 @@ import java.util.UUID;
 
 /** Loads sale-eligible snapshots within the authenticated actor's current Catalog membership. */
 public interface CatalogClient {
-  CatalogCustomerSnapshot getCustomer(UUID customerId);
-
-  CatalogItemSnapshot getItem(UUID catalogItemId);
-
   CatalogCustomerSnapshot getCustomer(UUID customerId, UUID expectedCompanyId);
 
   CatalogItemSnapshot getItem(UUID catalogItemId, UUID expectedCompanyId);

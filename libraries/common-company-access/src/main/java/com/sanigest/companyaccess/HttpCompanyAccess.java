@@ -1,5 +1,6 @@
 package com.sanigest.companyaccess;
 
+import com.sanigest.companyaccess.CompanyAccessProtocol.AccessMode;
 import com.sanigest.companyaccess.CompanyAccessProtocol.Query;
 import com.sanigest.companyaccess.CompanyAccessProtocol.Response;
 import io.micrometer.observation.Observation;
@@ -76,8 +77,8 @@ public final class HttpCompanyAccess implements CompanyAccess {
   }
 
   @Override
-  public Optional<MembershipContext> membership(Scope scope) {
-    return resolve(null, scope)
+  public Optional<MembershipContext> membership(UUID companyId, Scope scope) {
+    return resolve(companyId, scope, AccessMode.MEMBERSHIP)
         .map(response ->
             new MembershipContext(
                 response.companyId(),
@@ -88,10 +89,10 @@ public final class HttpCompanyAccess implements CompanyAccess {
 
   @Override
   public boolean delegated(UUID companyId, Scope scope) {
-    return resolve(Objects.requireNonNull(companyId), scope).isPresent();
+    return resolve(companyId, scope, AccessMode.DELEGATED).isPresent();
   }
 
-  private Optional<Response> resolve(UUID target, Scope scope) {
+  private Optional<Response> resolve(UUID companyId, Scope scope, AccessMode mode) {
     return AuthenticatedActor.current()
         .flatMap(actor ->
             observe(
@@ -99,8 +100,9 @@ public final class HttpCompanyAccess implements CompanyAccess {
                     UUID.fromString(actor.getSubject()),
                     module,
                     Objects.requireNonNull(scope),
-                    target),
-                target == null ? actor.getTokenValue() : null));
+                    companyId,
+                    mode),
+                mode == AccessMode.MEMBERSHIP ? actor.getTokenValue() : null));
   }
 
   private Optional<Response> observe(Query query, String userAssertion) {

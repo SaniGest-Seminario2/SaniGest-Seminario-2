@@ -1,12 +1,14 @@
 package com.sanigest.company.api.controller;
 
 import static com.sanigest.company.api.controller.CompanyActor.authenticatedUserId;
+import static com.sanigest.company.api.routing.CompanyRequestSelection.resolve;
 
 import com.sanigest.company.api.dto.ChangeMemberRoleRequest;
 import com.sanigest.company.api.dto.MemberResponse;
 import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.team.ChangeCompanyMemberRoleUseCase;
 import com.sanigest.company.application.usecase.team.RevokeCompanyMembershipUseCase;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.CacheControl;
@@ -21,7 +23,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/companies/me/members/{userId}")
+@RequestMapping({
+  "/api/v1/companies/me/members/{userId}",
+  "/api/v1/companies/{companyId}/members/{userId}"
+})
 class CompanyMembershipController {
   private final RequireRegularAccount regularAccount;
   private final ChangeCompanyMemberRoleUseCase changeRole;
@@ -39,18 +44,29 @@ class CompanyMembershipController {
   @PatchMapping("/role")
   ResponseEntity<MemberResponse> changeRole(
       @AuthenticationPrincipal Jwt jwt,
+      @PathVariable(required = false) String companyId,
+      HttpServletRequest http,
       @PathVariable UUID userId,
       @Valid @RequestBody ChangeMemberRoleRequest request) {
     var membership =
-        changeRole.change(authenticatedUserId(jwt, regularAccount), userId, request.role());
+        changeRole.change(
+            authenticatedUserId(jwt, regularAccount),
+            resolve(http, companyId),
+            userId,
+            request.role());
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .body(MemberResponse.from(membership));
   }
 
   @DeleteMapping
-  ResponseEntity<Void> revoke(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID userId) {
-    revokeMembership.revoke(authenticatedUserId(jwt, regularAccount), userId);
+  ResponseEntity<Void> revoke(
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable(required = false) String companyId,
+      HttpServletRequest http,
+      @PathVariable UUID userId) {
+    revokeMembership.revoke(
+        authenticatedUserId(jwt, regularAccount), resolve(http, companyId), userId);
     return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
   }
 }

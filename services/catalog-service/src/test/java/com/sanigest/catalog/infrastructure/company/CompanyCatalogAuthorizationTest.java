@@ -28,9 +28,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 class CompanyCatalogAuthorizationTest {
-  private final CompanyAccess access = mock(CompanyAccess.class);
-  private final CompanyCatalogAuthorization authorization = new CompanyCatalogAuthorization(access);
   private final UUID companyId = UUID.randomUUID();
+  private final CompanyAccess access = mock(CompanyAccess.class);
+  private final CompanyCatalogAuthorization authorization =
+      new CompanyCatalogAuthorization(() -> access, () -> companyId);
 
   @BeforeEach
   void authenticate() {
@@ -59,9 +60,9 @@ class CompanyCatalogAuthorizationTest {
     "VIEWER,true,false"
   })
   void appliesMembershipPolicy(MembershipRole role, boolean grant, boolean canWrite) {
-    when(access.membership(Scope.READ))
+    when(access.membership(companyId, Scope.READ))
         .thenReturn(Optional.of(new MembershipContext(companyId, role, false)));
-    when(access.membership(Scope.WRITE))
+    when(access.membership(companyId, Scope.WRITE))
         .thenReturn(Optional.of(new MembershipContext(companyId, role, grant)));
 
     assertThat(authorization.membership(CATALOG_READ)).contains(companyId);
@@ -84,7 +85,7 @@ class CompanyCatalogAuthorizationTest {
 
   @Test
   void checksMembershipAgainAfterRevocation() {
-    when(access.membership(Scope.WRITE))
+    when(access.membership(companyId, Scope.WRITE))
         .thenReturn(Optional.of(new MembershipContext(companyId, MembershipRole.OWNER, false)))
         .thenReturn(Optional.empty());
     assertThat(authorization.membership(CATALOG_WRITE)).contains(companyId);
@@ -102,7 +103,7 @@ class CompanyCatalogAuthorizationTest {
 
   @Test
   void failsClosedAndPreservesTechnicalFailures() {
-    when(access.membership(Scope.WRITE)).thenThrow(new CompanyAccessUnavailable());
+    when(access.membership(companyId, Scope.WRITE)).thenThrow(new CompanyAccessUnavailable());
     when(access.delegated(companyId, Scope.READ)).thenThrow(new CompanyAccessUnavailable());
 
     assertThatThrownBy(() -> authorization.membership(CATALOG_WRITE))

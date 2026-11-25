@@ -19,9 +19,9 @@ public class ResolveCompanyAccess {
     this.advisors = advisors;
   }
 
-  public ActiveAccess membership(UUID userId, String permission) {
+  public ActiveAccess membership(UUID userId, UUID companyId, String permission) {
     return memberships
-        .findActiveAccess(userId, permission)
+        .findActiveAccess(userId, companyId, permission)
         .orElseThrow(CompanyAccessDeniedException::new);
   }
 

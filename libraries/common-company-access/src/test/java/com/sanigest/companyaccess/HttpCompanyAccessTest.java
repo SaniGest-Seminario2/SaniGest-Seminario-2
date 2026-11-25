@@ -63,7 +63,7 @@ class HttpCompanyAccessTest {
   @Test
   void resolvesMembershipAndSendsOnlyTheSignedTechnicalContext() throws Exception {
     respond(200, membership());
-    assertThat(client().membership(Scope.WRITE))
+    assertThat(client().membership(COMPANY, Scope.WRITE))
         .contains(
             new CompanyAccess.MembershipContext(
                 COMPANY, CompanyAccess.MembershipRole.OPERATOR, true));
@@ -91,7 +91,8 @@ class HttpCompanyAccessTest {
     assertThat(claims.getSubject()).isEqualTo(USER.toString());
     assertThat(claims.getClaim("module")).isEqualTo("CATALOG");
     assertThat(claims.getClaim("scope")).isEqualTo("WRITE");
-    assertThat(claims.getClaim("company_id")).isNull();
+    assertThat(claims.getClaim("company_id")).isEqualTo(COMPANY.toString());
+    assertThat(claims.getClaim("mode")).isEqualTo("MEMBERSHIP");
     assertThat(
             Duration.between(
                 claims.getIssueTime().toInstant(), claims.getExpirationTime().toInstant()))
@@ -106,14 +107,14 @@ class HttpCompanyAccessTest {
     COMPANY_SERVER.resetAll();
     respond(403, "");
     assertThat(client.delegated(COMPANY, Scope.WRITE)).isFalse();
-    assertThat(client.membership(Scope.WRITE)).isEmpty();
+    assertThat(client.membership(COMPANY, Scope.WRITE)).isEmpty();
   }
 
   @ParameterizedTest
   @ValueSource(ints = {201, 302, 401, 404, 429, 500, 503})
   void treatsUnexpectedStatusAsUnavailable(int status) {
     respond(status, membership());
-    assertThatThrownBy(() -> client().membership(Scope.WRITE))
+    assertThatThrownBy(() -> client().membership(COMPANY, Scope.WRITE))
         .isInstanceOf(CompanyAccessUnavailable.class);
   }
 
@@ -129,6 +130,7 @@ class HttpCompanyAccessTest {
         "wrong-scope",
         "wrong-user",
         "invalid-uuid",
+        "wrong-company",
         "wrong-role",
         "wrong-mode",
         "missing-boolean",
@@ -142,6 +144,8 @@ class HttpCompanyAccessTest {
           case "unknown-module" -> membership().replace("CATALOG", "UNKNOWN");
           case "wrong-scope" -> membership().replace("WRITE", "READ");
           case "wrong-user" -> membership().replace(USER.toString(), UUID.randomUUID().toString());
+          case "wrong-company" ->
+              membership().replace(COMPANY.toString(), UUID.randomUUID().toString());
           case "invalid-uuid" -> membership().replace(COMPANY.toString(), "1-1-1-1-1");
           case "wrong-role" -> membership().replace("OPERATOR", "UNKNOWN");
           case "wrong-mode" -> membership().replace("MEMBERSHIP", "DELEGATED");
@@ -152,7 +156,7 @@ class HttpCompanyAccessTest {
           default -> invalid;
         };
     respond(200, body);
-    assertThatThrownBy(() -> client().membership(Scope.WRITE))
+    assertThatThrownBy(() -> client().membership(COMPANY, Scope.WRITE))
         .isInstanceOf(CompanyAccessUnavailable.class);
   }
 
@@ -167,7 +171,7 @@ class HttpCompanyAccessTest {
   void boundsTheResponseTimeWithoutLoggingCredentials(CapturedOutput output) throws Exception {
     var client = client();
     respond(403, "");
-    assertThat(client.membership(Scope.WRITE)).isEmpty();
+    assertThat(client.membership(COMPANY, Scope.WRITE)).isEmpty();
     COMPANY_SERVER.resetAll();
     COMPANY_SERVER.stubFor(
         get(urlEqualTo(PATH))
@@ -177,7 +181,7 @@ class HttpCompanyAccessTest {
                     .withHeader("Content-Type", "application/json")
                     .withFixedDelay(2500)
                     .withBody(membership())));
-    assertThatThrownBy(() -> client.membership(Scope.WRITE))
+    assertThatThrownBy(() -> client.membership(COMPANY, Scope.WRITE))
         .isInstanceOf(CompanyAccessUnavailable.class)
         .hasNoCause();
     var request = COMPANY_SERVER.getAllServeEvents().getFirst().getRequest();
@@ -190,11 +194,11 @@ class HttpCompanyAccessTest {
   void ignoresUnauthenticatedExpiredAndMalformedIdentity() {
     SecurityContextHolder.clearContext();
     var client = client();
-    assertThat(client.membership(Scope.WRITE)).isEmpty();
+    assertThat(client.membership(COMPANY, Scope.WRITE)).isEmpty();
     authenticate("1-1-1-1-1", Instant.now().plusSeconds(300));
-    assertThat(client.membership(Scope.WRITE)).isEmpty();
+    assertThat(client.membership(COMPANY, Scope.WRITE)).isEmpty();
     authenticate(USER.toString(), Instant.now().minusSeconds(1));
-    assertThat(client.membership(Scope.WRITE)).isEmpty();
+    assertThat(client.membership(COMPANY, Scope.WRITE)).isEmpty();
     COMPANY_SERVER.verify(0, getRequestedFor(urlEqualTo(PATH)));
   }
 
@@ -229,11 +233,11 @@ class HttpCompanyAccessTest {
     COMPANY_SERVER.stubFor(
         get(urlEqualTo(PATH)).willReturn(aResponse().withStatus(200).withBody(membership())));
     var client = client();
-    assertThatThrownBy(() -> client.membership(Scope.WRITE))
+    assertThatThrownBy(() -> client.membership(COMPANY, Scope.WRITE))
         .isInstanceOf(CompanyAccessUnavailable.class);
     COMPANY_SERVER.resetAll();
     respond(200, membership() + " ".repeat(4096));
-    assertThatThrownBy(() -> client.membership(Scope.WRITE))
+    assertThatThrownBy(() -> client.membership(COMPANY, Scope.WRITE))
         .isInstanceOf(CompanyAccessUnavailable.class);
   }
 

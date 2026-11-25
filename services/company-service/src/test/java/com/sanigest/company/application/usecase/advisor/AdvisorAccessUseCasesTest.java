@@ -68,6 +68,8 @@ class AdvisorAccessUseCasesTest {
         new CompanyProfile(companyId, "Company", "Company SRL", null, null, "DOP", "ACTIVE");
     when(memberships.findCompanyByUserId(actorId))
         .thenReturn(Optional.of(new CompanyMembership(MembershipStatus.ACTIVE, profile)));
+    when(memberships.findCompanyByUserIdAndCompanyId(actorId, companyId))
+        .thenReturn(Optional.of(new CompanyMembership(MembershipStatus.ACTIVE, profile)));
     role(CompanyRole.OWNER);
     when(manager.getTransaction(any())).thenAnswer(invocation -> new SimpleTransactionStatus());
   }

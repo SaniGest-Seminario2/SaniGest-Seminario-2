@@ -4,6 +4,7 @@ import com.sanigest.company.application.dto.AuditPage;
 import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.port.out.persistence.CompanyAuditRepository;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
+import com.sanigest.company.application.usecase.access.OperationalCompanySelection;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.MembershipStatus;
 import java.time.Instant;
@@ -27,13 +28,18 @@ public class GetCompanyAuditLogUseCase {
 
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public AuditPage get(UUID actorId, Instant from, Instant to, int page, int size) {
+    return get(actorId, null, from, to, page, size);
+  }
+
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+  public AuditPage get(
+      UUID actorId, UUID requestedCompany, Instant from, Instant to, int page, int size) {
     if (page < 0 || size < 1 || size > 100 || (from != null && to != null && from.isAfter(to))) {
       throw new IllegalArgumentException("Invalid audit log filters");
     }
 
     var company =
-        memberships
-            .findCompanyByUserId(actorId)
+        OperationalCompanySelection.profile(memberships, actorId, requestedCompany)
             .filter(entry -> entry.status() == MembershipStatus.ACTIVE)
             .map(entry -> entry.company())
             .filter(profile -> "ACTIVE".equals(profile.status()))

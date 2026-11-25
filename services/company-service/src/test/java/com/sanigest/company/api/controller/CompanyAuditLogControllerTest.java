@@ -43,14 +43,14 @@ class CompanyAuditLogControllerTest {
             MembershipStatus.ACTIVE,
             null);
     var auditLog = mock(GetCompanyAuditLogUseCase.class);
-    when(auditLog.get(actor, null, null, 2, 20))
+    when(auditLog.get(actor, null, null, null, 2, 20))
         .thenReturn(new AuditPage(List.of(event), 2, 20, true));
     var jwt = Jwt.withTokenValue("test").header("alg", "RS256").subject(actor.toString()).build();
 
     var response =
         new CompanyAuditLogController(
                 new RequireRegularAccount(token -> AccountType.REGULAR), auditLog)
-            .get(jwt, null, null, 2, 20);
+            .get(jwt, null, request(), null, null, 2, 20);
 
     assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
     assertThat(response.getBody())
@@ -73,5 +73,9 @@ class CompanyAuditLogControllerTest {
                 2,
                 20,
                 true));
+  }
+
+  private static org.springframework.mock.web.MockHttpServletRequest request() {
+    return new org.springframework.mock.web.MockHttpServletRequest();
   }
 }

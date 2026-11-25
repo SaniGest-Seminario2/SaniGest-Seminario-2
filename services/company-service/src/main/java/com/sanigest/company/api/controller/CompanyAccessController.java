@@ -6,6 +6,7 @@ import com.sanigest.company.application.usecase.access.ResolveCompanyAccess;
 import com.sanigest.company.domain.model.AdvisorPermission;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
 import com.sanigest.companyaccess.CompanyAccessProtocol;
+import com.sanigest.companyaccess.CompanyAccessProtocol.AccessMode;
 import com.sanigest.companyaccess.CompanyAccessProtocol.Query;
 import com.sanigest.companyaccess.CompanyAccessProtocol.Response;
 import java.util.UUID;
@@ -38,36 +39,40 @@ class CompanyAccessController {
       @RequestHeader(name = CompanyAccessProtocol.USER_ASSERTION, required = false)
           String session) {
     var query = Query.from(assertion);
-    if (query.target() == null) {
+    if (query.mode() == AccessMode.MEMBERSHIP) {
       UUID userId = regularUser(session, query.userId());
       var membership =
-          access.membership(userId, query.module().name() + "_" + query.scope().name());
+          access.membership(
+              userId, query.companyId(), query.module().name() + "_" + query.scope().name());
       return response(
           new Response(
               userId,
               membership.companyId(),
               query.module(),
               query.scope(),
-              "MEMBERSHIP",
+              AccessMode.MEMBERSHIP,
               MembershipRole.valueOf(membership.role().name()),
               membership.explicitGrant(),
               "SALES_WRITE".equals(query.module().name() + "_" + query.scope().name())
                   ? membership.companyName()
                   : null));
     }
+    if (session != null) {
+      throw new CompanyAccessDeniedException();
+    }
     access.requireDelegation(
         query.userId(),
-        query.target(),
+        query.companyId(),
         new AdvisorPermission(
             AdvisorPermission.Module.valueOf(query.module().name()),
             AdvisorPermission.Scope.valueOf(query.scope().name())));
     return response(
         new Response(
             query.userId(),
-            query.target(),
+            query.companyId(),
             query.module(),
             query.scope(),
-            "DELEGATED",
+            AccessMode.DELEGATED,
             null,
             null,
             null));

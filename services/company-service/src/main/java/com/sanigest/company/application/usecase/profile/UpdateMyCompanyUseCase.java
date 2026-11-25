@@ -5,6 +5,7 @@ import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.exception.CompanyNotFoundException;
 import com.sanigest.company.application.port.out.persistence.CompanyRepository;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
+import com.sanigest.company.application.usecase.access.OperationalCompanySelection;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.company.domain.model.Company.ProfilePatch;
@@ -24,8 +25,14 @@ public class UpdateMyCompanyUseCase {
 
   @Transactional
   public UpdatedCompany update(UUID userId, ProfilePatch patch) {
+    return update(userId, null, patch);
+  }
+
+  @Transactional
+  public UpdatedCompany update(UUID userId, UUID requestedCompany, ProfilePatch patch) {
     var membership =
-        memberships.findByUserIdForUpdate(userId).orElseThrow(CompanyNotFoundException::new);
+        OperationalCompanySelection.lockMembership(memberships, userId, requestedCompany)
+            .orElseThrow(CompanyNotFoundException::new);
     var role = membership.role();
     if (membership.status() != MembershipStatus.ACTIVE
         || (role != CompanyRole.OWNER && role != CompanyRole.ADMIN)

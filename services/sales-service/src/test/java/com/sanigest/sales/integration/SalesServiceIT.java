@@ -142,27 +142,31 @@ class SalesServiceIT {
   @Test
   @Tag("smoke")
   void loadsCatalogSnapshotsAndKeepsSalesHealthyWhenCatalogFails() throws Exception {
+    var tenant = UUID.randomUUID();
     var customer = UUID.randomUUID();
     var item = UUID.randomUUID();
     var customerPath = "/api/v1/clients/" + customer;
     var itemPath = "/api/v1/catalog-items/" + item;
     CATALOG.stubFor(
-        WireMock.get(customerPath)
+        WireMock.get(WireMock.urlPathEqualTo(customerPath))
             .willReturn(
                 okJson(
-                    """
-                    {"id":"%s","name":"Cliente","taxId":null,"email":null,"phone":null,"address":null,"status":"ACTIVE"}
-                    """
-                        .formatted(customer))));
+                        """
+                            {"id":"%s","name":"Cliente","taxId":null,"email":null,
+                        "phone":null,"address":null,"status":"ACTIVE"}
+                        """
+                            .formatted(customer))
+                    .withHeader("X-Catalog-Company-Id", tenant.toString())));
     CATALOG.stubFor(
-        WireMock.get(itemPath)
+        WireMock.get(WireMock.urlPathEqualTo(itemPath))
             .willReturn(
                 okJson(
-                    """
-                      {"id":"%s","name":"Silla","type":"PRODUCT","description":null,
-                    "price":3200.10,"currency":"DOP","active":true}
-                    """
-                        .formatted(item))));
+                        """
+                          {"id":"%s","name":"Silla","type":"PRODUCT","description":null,
+                        "price":3200.10,"currency":"DOP","active":true}
+                        """
+                            .formatted(item))
+                    .withHeader("X-Catalog-Company-Id", tenant.toString())));
     var now = Instant.now();
     var jwt =
         Jwt.withTokenValue("smoke-session")
@@ -174,10 +178,11 @@ class SalesServiceIT {
     SecurityContextHolder.getContext()
         .setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
     try (var http = HttpClient.newHttpClient()) {
-      assertThat(catalog.getCustomer(customer).name()).isEqualTo("Cliente");
-      assertThat(catalog.getItem(item).price()).isEqualTo(new BigDecimal("3200.10"));
-      CATALOG.stubFor(WireMock.get(itemPath).willReturn(aResponse().withStatus(503)));
-      assertThatThrownBy(() -> catalog.getItem(item))
+      assertThat(catalog.getCustomer(customer, tenant).name()).isEqualTo("Cliente");
+      assertThat(catalog.getItem(item, tenant).price()).isEqualTo(new BigDecimal("3200.10"));
+      CATALOG.stubFor(
+          WireMock.get(WireMock.urlPathEqualTo(itemPath)).willReturn(aResponse().withStatus(503)));
+      assertThatThrownBy(() -> catalog.getItem(item, tenant))
           .isInstanceOf(CatalogUnavailableException.class)
           .hasMessage("Catalog: DEPENDENCY_FAILURE");
       assertThat(get(http, "/actuator/health").statusCode()).isEqualTo(200);
@@ -1827,6 +1832,7 @@ class SalesServiceIT {
             .POST(HttpRequest.BodyPublishers.ofString(body));
     if (bearer != null) {
       request.header("Authorization", "Bearer " + bearer);
+      request.setHeader("X-Company-Id", SELECTORS.getOrDefault(bearer, new UUID(0, 0)).toString());
     }
     if (key != null) {
       request.header("Idempotency-Key", key);
@@ -1869,6 +1875,7 @@ class SalesServiceIT {
             .GET();
     if (bearer != null) {
       request.header("Authorization", "Bearer " + bearer);
+      request.setHeader("X-Company-Id", SELECTORS.getOrDefault(bearer, new UUID(0, 0)).toString());
     }
     return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
   }
@@ -1889,6 +1896,7 @@ class SalesServiceIT {
             .POST(HttpRequest.BodyPublishers.ofString(body));
     if (bearer != null) {
       request.header("Authorization", "Bearer " + bearer);
+      request.setHeader("X-Company-Id", SELECTORS.getOrDefault(bearer, new UUID(0, 0)).toString());
     }
     return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
   }
@@ -1921,6 +1929,7 @@ class SalesServiceIT {
             .GET();
     if (bearer != null) {
       request.header("Authorization", "Bearer " + bearer);
+      request.setHeader("X-Company-Id", SELECTORS.getOrDefault(bearer, new UUID(0, 0)).toString());
     }
     return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
   }
@@ -1955,17 +1964,21 @@ class SalesServiceIT {
     var request =
         HttpRequest.newBuilder(URI.create("http://localhost:" + targetPort + "/api/v1/sales"))
             .header("Content-Type", "application/json")
-            .header("X-Company-Id", fixture.user().toString())
+            .header("X-Company-Id", fixture.company().toString())
             .timeout(Duration.ofSeconds(10))
             .POST(HttpRequest.BodyPublishers.ofString(body));
     if (bearer != null) {
       request.header("Authorization", "Bearer " + bearer);
+      request.setHeader("X-Company-Id", SELECTORS.getOrDefault(bearer, new UUID(0, 0)).toString());
     }
     if (key != null) {
       request.header("Idempotency-Key", key);
     }
     return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
   }
+
+  private static final java.util.Map<String, UUID> SELECTORS =
+      new java.util.concurrent.ConcurrentHashMap<>();
 
   private static Fixture fixture() throws Exception {
     return fixture("REGULAR");
@@ -1997,6 +2010,7 @@ class SalesServiceIT {
             UUID.randomUUID(),
             UUID.randomUUID(),
             jwt.serialize());
+    SELECTORS.put(fixture.bearer(), company);
     fixture.customer("ACTIVE");
     fixture.item(fixture.productPath(), fixture.product(), "PRODUCT", "1500.00", true);
     fixture.item(fixture.servicePath(), fixture.service(), "SERVICE", "3200.50", true);
@@ -2046,6 +2060,7 @@ class SalesServiceIT {
       CATALOG.stubFor(
           WireMock.get(WireMock.urlPathEqualTo(path))
               .withQueryParam("expectedCompanyId", equalTo(company.toString()))
+              .withHeader("X-Company-Id", equalTo(company.toString()))
               .withHeader("Authorization", equalTo("Bearer " + bearer))
               .willReturn(okJson(body).withHeader("X-Catalog-Company-Id", company.toString())));
     }
@@ -2066,9 +2081,17 @@ class SalesServiceIT {
                   okJson(
                       """
                       {"userId":"%s","companyId":"%s","module":"SALES","scope":"%s",
-                      "mode":"MEMBERSHIP","role":"%s","explicitGrant":%s,"companyName":"%s"}
+                      "mode":"MEMBERSHIP","role":"%s","explicitGrant":%s%s}
                       """
-                          .formatted(user, company, scope, role, grant, companyName))));
+                          .formatted(
+                              user,
+                              company,
+                              scope,
+                              role,
+                              grant,
+                              "WRITE".equals(scope)
+                                  ? ",\"companyName\":\"" + companyName + "\""
+                                  : ""))));
     }
 
     void companyReply(int status) {

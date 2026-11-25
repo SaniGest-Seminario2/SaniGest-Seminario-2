@@ -29,6 +29,8 @@ import org.springframework.test.context.DynamicPropertySource;
 class ServiceRoutingIT {
   private static final String ORIGIN = "https://frontend.example";
   private static final String COMPANY_ME = "/api/v1/companies/me";
+  private static final String TENANT = "e3fc1fd0-42ea-4a0d-9c14-6cbd44592b42";
+  private static final HttpServer SALES = backend("sales");
   private static final HttpServer IDENTITY = backend("identity");
   private static final HttpServer COMPANY = backend("company");
   private static final HttpServer CATALOG = backend("catalog");
@@ -42,6 +44,7 @@ class ServiceRoutingIT {
     registry.add("IDENTITY_SERVICE_URL", () -> origin(IDENTITY));
     registry.add("COMPANY_SERVICE_URL", () -> origin(COMPANY));
     registry.add("CATALOG_SERVICE_URL", () -> origin(CATALOG));
+    registry.add("SALES_SERVICE_URL", () -> origin(SALES));
     registry.add("GATEWAY_CORS_ALLOWED_ORIGINS", () -> ORIGIN + ",https://another.example");
   }
 
@@ -50,6 +53,7 @@ class ServiceRoutingIT {
     IDENTITY.stop(0);
     COMPANY.stop(0);
     CATALOG.stop(0);
+    SALES.stop(0);
   }
 
   @Test
@@ -57,16 +61,31 @@ class ServiceRoutingIT {
     String token = GatewayTestTokens.validToken();
     for (var entry :
         Map.of(
-                "/api/v1/auth/login", "identity",
-                "/api/v1/users", "identity",
-                "/api/v1/companies", "company",
-                "/api/v1/advisor/companies", "company",
-                "/api/v1/clients", "catalog",
-                "/api/v1/suppliers/123", "catalog",
-                "/api/v1/catalog-items", "catalog")
+                "/api/v1/auth/login",
+                "identity",
+                "/api/v1/users",
+                "identity",
+                "/api/v1/companies",
+                "company",
+                "/api/v1/advisor/companies",
+                "company",
+                "/api/v1/clients",
+                "catalog",
+                "/api/v1/suppliers/123",
+                "catalog",
+                "/api/v1/catalog-items",
+                "catalog",
+                "/api/v1/sales",
+                "sales",
+                "/api/v1/receivables/123",
+                "sales")
             .entrySet()) {
       var response =
-          send(request(gateway(), entry.getKey()).header("Authorization", "Bearer " + token).GET());
+          send(
+              request(gateway(), entry.getKey())
+                  .header("Authorization", "Bearer " + token)
+                  .header("X-Company-Id", TENANT)
+                  .GET());
       assertThat(response.statusCode()).isEqualTo(200);
       assertThat(response.body()).isEqualTo(entry.getValue() + " GET " + entry.getKey() + " ");
     }
@@ -105,6 +124,7 @@ class ServiceRoutingIT {
               request(gateway(), path)
                   .header("Authorization", authorization)
                   .header("Content-Type", "application/json")
+                  .header("X-Company-Id", TENANT)
                   .header("X-Correlation-Id", "untrusted")
                   .header("traceparent", "untrusted")
                   .header("tracestate", "untrusted")
@@ -178,7 +198,7 @@ class ServiceRoutingIT {
     assertThat(preflight(COMPANY_ME, "https://denied.example", "GET", "Authorization").statusCode())
         .isEqualTo(403);
     assertThat(preflight(COMPANY_ME, ORIGIN, "TRACE", "Authorization").statusCode()).isEqualTo(403);
-    assertThat(preflight(COMPANY_ME, ORIGIN, "GET", "X-Company-Id").statusCode()).isEqualTo(403);
+    assertThat(preflight(COMPANY_ME, ORIGIN, "GET", "X-Company-Id").statusCode()).isEqualTo(200);
   }
 
   @Test
@@ -200,11 +220,56 @@ class ServiceRoutingIT {
     var response =
         send(
             request(gateway(), "/api/v1/catalog-items/slow")
+                .header("X-Company-Id", TENANT)
                 .header("Authorization", "Bearer " + GatewayTestTokens.validToken())
                 .GET());
     assertThat(response.statusCode()).isEqualTo(504);
     assertThat(response.headers().firstValue("Content-Type")).contains("application/problem+json");
     assertThat(response.body()).contains("UPSTREAM_TIMEOUT", "traceId").doesNotContain("127.0.0.1");
+  }
+
+  @Test
+  void rejectsMissingDuplicateAndConflictingSelectorsBeforeRouting() throws Exception {
+    String token = "Bearer " + GatewayTestTokens.validToken();
+    var sales = request(gateway(), "/api/v1/sales").header("Authorization", token).GET();
+    assertThat(send(sales).body()).contains("COMPANY_CONTEXT_REQUIRED");
+    assertThat(send(sales.header("X-Company-Id", "1-1-1-1-1")).body())
+        .contains("INVALID_COMPANY_CONTEXT");
+    assertThat(send(sales.header("X-Company-Id", TENANT)).body())
+        .contains("INVALID_COMPANY_CONTEXT");
+    var company =
+        request(gateway(), "/api/v1/companies/" + TENANT + "/users")
+            .header("Authorization", token)
+            .GET();
+    assertThat(send(company).statusCode()).isEqualTo(200);
+    assertThat(send(company.header("X-Company-Id", "0098a4d2-cf3e-4599-a9da-af9972e50251")).body())
+        .contains("COMPANY_CONTEXT_MISMATCH");
+    assertThat(
+            send(request(gateway(), "/internal/v2/company-access")
+                    .header("Authorization", token)
+                    .GET())
+                .statusCode())
+        .isEqualTo(404);
+  }
+
+  @Test
+  void forwardsOnlyThePublicSelectorAndStripsInternalHeaders() throws Exception {
+    String authorization = "Bearer " + GatewayTestTokens.validToken();
+    var response =
+        send(
+            request(gateway(), "/api/v1/clients")
+                .header("Authorization", authorization)
+                .header("X-Company-Id", TENANT.toUpperCase(java.util.Locale.ROOT))
+                .header("X-Company-User-Assertion", "spoofed")
+                .header("X-Company-Role", "OWNER")
+                .header("X-User-Id", "spoofed")
+                .GET());
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(response.headers().firstValue("X-Backend-X-Company-Id")).contains(TENANT);
+    assertThat(response.headers().firstValue("X-Backend-Authorization")).contains(authorization);
+    for (String header : new String[] {"X-Company-User-Assertion", "X-Company-Role", "X-User-Id"}) {
+      assertThat(response.headers().firstValue("X-Backend-" + header)).isEmpty();
+    }
   }
 
   private HttpResponse<String> preflight(String path, String origin, String method, String headers)
@@ -277,7 +342,17 @@ class ServiceRoutingIT {
     var headers = exchange.getRequestHeaders();
     var responseHeaders = exchange.getResponseHeaders();
     for (String header :
-        new String[] {"Authorization", "Content-Type", "Traceparent", "Tracestate", "Baggage"}) {
+        new String[] {
+          "Authorization",
+          "Content-Type",
+          "Traceparent",
+          "Tracestate",
+          "Baggage",
+          "X-Company-Id",
+          "X-Company-User-Assertion",
+          "X-Company-Role",
+          "X-User-Id"
+        }) {
       if (headers.containsKey(header)) {
         responseHeaders.set("X-Backend-" + header, headers.getFirst(header));
       }

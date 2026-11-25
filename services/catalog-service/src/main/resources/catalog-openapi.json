@@ -25,6 +25,16 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "expectedCompanyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Usado por Sales. Debe coincidir con la empresa ya autorizada."
           }
         ],
         "responses": {
@@ -34,6 +44,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CatalogItemDetailResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Catalog-Company-Id": {
+                "description": "Empresa verificada cuando se solicita expectedCompanyId.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -120,7 +139,12 @@
             "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
           }
         }
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/CompanySelector"
+        }
+      ]
     },
     "/api/v1/catalog-items/{id}/status": {
       "patch": {
@@ -187,7 +211,12 @@
             "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
           }
         }
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/CompanySelector"
+        }
+      ]
     },
     "/api/v1/catalog-items": {
       "get": {
@@ -380,7 +409,12 @@
             }
           }
         }
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/CompanySelector"
+        }
+      ]
     },
     "/actuator/health": {
       "get": {
@@ -510,6 +544,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Selector ausente, duplicado o inválido."
           }
         }
       }
@@ -715,18 +752,17 @@
             }
           }
         ]
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/CompanySelector"
+        }
+      ]
     },
     "/api/v1/suppliers/{id}": {
       "parameters": [
         {
-          "name": "id",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "format": "uuid"
-          }
+          "$ref": "#/components/parameters/CompanySelector"
         }
       ],
       "get": {
@@ -905,13 +941,7 @@
     "/api/v1/suppliers/{id}/status": {
       "parameters": [
         {
-          "name": "id",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "format": "uuid"
-          }
+          "$ref": "#/components/parameters/CompanySelector"
         }
       ],
       "patch": {
@@ -1196,18 +1226,17 @@
             }
           }
         }
-      }
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/CompanySelector"
+        }
+      ]
     },
     "/api/v1/clients/{id}": {
       "parameters": [
         {
-          "name": "id",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "format": "uuid"
-          }
+          "$ref": "#/components/parameters/CompanySelector"
         }
       ],
       "get": {
@@ -1235,6 +1264,15 @@
                   "phone": "809-555-1234",
                   "address": null,
                   "status": "ACTIVE"
+                }
+              }
+            },
+            "headers": {
+              "X-Catalog-Company-Id": {
+                "description": "Empresa verificada cuando se solicita expectedCompanyId.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -1282,7 +1320,19 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "expectedCompanyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Usado por Sales. Debe coincidir con la empresa ya autorizada."
+          }
+        ]
       },
       "patch": {
         "operationId": "updateClient",
@@ -1386,13 +1436,7 @@
     "/api/v1/clients/{id}/status": {
       "parameters": [
         {
-          "name": "id",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "format": "uuid"
-          }
+          "$ref": "#/components/parameters/CompanySelector"
         }
       ],
       "patch": {
@@ -2335,6 +2379,19 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "CompanySelector": {
+        "name": "X-Company-Id",
+        "in": "header",
+        "required": true,
+        "description": "UUID de la empresa seleccionada por petición. Requiere autorización vigente para esa empresa.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "example": "e3fc1fd0-42ea-4a0d-9c14-6cbd44592b42"
       }
     }
   }

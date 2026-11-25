@@ -14,14 +14,7 @@ public class OpenApiController {
     return Map.of(
         "openapi", "3.0.3",
         "info", Map.of("title", "SaniGest Company Service", "version", "0.1.0"),
-        "paths",
-            Map.of(
-                "/api/v1/companies",
-                CompanyOpenApi.operations(),
-                AdvisorAccessController.PATH,
-                AdvisorAccessOpenApi.operations(),
-                AdvisorCompaniesController.PATH,
-                AdvisorAccessOpenApi.selectorOperations()),
+        "paths", CompanyContextOpenApi.paths(),
         "components",
             Map.of(
                 "securitySchemes",

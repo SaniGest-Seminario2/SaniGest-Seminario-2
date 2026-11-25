@@ -1,6 +1,7 @@
 package com.sanigest.company.api.controller;
 
 import static com.sanigest.company.api.controller.CompanyActor.authenticatedUserId;
+import static com.sanigest.company.api.routing.CompanyRequestSelection.resolve;
 
 import com.sanigest.company.api.dto.InvitationRequest;
 import com.sanigest.company.api.dto.InvitationResponse;
@@ -11,6 +12,7 @@ import com.sanigest.company.application.usecase.team.AcceptCompanyInvitationUseC
 import com.sanigest.company.application.usecase.team.InviteCompanyUserUseCase;
 import com.sanigest.company.application.usecase.team.ListMyCompanyUsersUseCase;
 import com.sanigest.company.domain.enums.CompanyRole;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.CacheControl;
@@ -43,12 +45,16 @@ class CompanyTeamController {
     this.listUsers = listUsers;
   }
 
-  @PostMapping("/api/v1/companies/me/invitations")
+  @PostMapping({"/api/v1/companies/me/invitations", "/api/v1/companies/{companyId}/invitations"})
   ResponseEntity<InvitationResponse> invite(
-      @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody InvitationRequest request) {
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable(required = false) String companyId,
+      HttpServletRequest http,
+      @Valid @RequestBody InvitationRequest request) {
     var created =
         inviteUser.invite(
             authenticatedUserId(jwt, regularAccount),
+            resolve(http, companyId),
             request.email(),
             CompanyRole.valueOf(request.role()),
             request.replace());
@@ -73,9 +79,13 @@ class CompanyTeamController {
         .body(MemberResponse.from(member));
   }
 
-  @GetMapping("/api/v1/companies/me/users")
-  ResponseEntity<List<MemberResponse>> users(@AuthenticationPrincipal Jwt jwt) {
-    var members = listUsers.list(authenticatedUserId(jwt, regularAccount));
+  @GetMapping({"/api/v1/companies/me/users", "/api/v1/companies/{companyId}/users"})
+  ResponseEntity<List<MemberResponse>> users(
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable(required = false) String companyId,
+      HttpServletRequest http) {
+    var members =
+        listUsers.list(authenticatedUserId(jwt, regularAccount), resolve(http, companyId));
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .body(members.stream().map(MemberResponse::from).toList());

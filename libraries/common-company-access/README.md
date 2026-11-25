@@ -1,7 +1,7 @@
 # Acceso empresarial entre servicios
 
-`CompanyAccess.membership(scope)` consulta en Company la membresía activa del
-usuario autenticado. Devuelve su empresa, rol actual y si existe una concesión
+`CompanyAccess.membership(companyId, scope)` consulta en Company la membresía activa del
+usuario autenticado para la empresa solicitada. Devuelve su empresa, rol actual y si existe una concesión
 explícita para la combinación módulo y alcance. Cada consumidor decide cómo
 aplicar esos datos a su operación, incluso desde un caso de uso protegido con
 Spring Method Security. Si una operación ya tiene empresa, el consumidor debe
@@ -14,15 +14,15 @@ actual de Identity, la empresa activa y la concesión exacta de S2-313.
 `READ` y `WRITE` son alcances distintos. Se admiten `CATALOG`, `SALES`,
 `EXPENSE` y `FINANCE`.
 
-## Contrato interno v1
+## Contrato interno v2
 
-`GET /internal/v1/company-access` se sirve en el origen privado de Company.
+`GET /internal/v2/company-access` se sirve en el origen privado de Company.
 La ruta queda fuera del Gateway y del OpenAPI público. El encabezado
 `Authorization` lleva un JWT técnico RS256 con un emisor y clave dedicados
 por módulo, tipo `sanigest-service+jwt`, audiencia exclusiva
-`sanigest-company-access` y una vigencia máxima de 60 segundos. Los claims
-firmados incluyen `sub` (UUID del actor), `module` y `scope`. La consulta
-delegada incluye además `company_id` (UUID a verificar). Company vincula la
+`sanigest-company-access-v2` y una vigencia máxima de 60 segundos. Los claims
+firmados incluyen `sub` (UUID del actor), `module`, `scope`,
+`company_id` (UUID solicitado) y `mode` (`MEMBERSHIP` o `DELEGATED`). Company vincula la
 clave al módulo configurado y valida los claims antes de resolver el acceso.
 
 Para membresía, la librería toma de Spring Security el JWT de sesión ya
@@ -39,11 +39,11 @@ payload. La conexión usa HTTPS salvo durante desarrollo y pruebas locales.
 | `200` | JSON con `userId`, `companyId`, `module`, `scope` y `mode`. Para `MEMBERSHIP` incluye `role` y `explicitGrant` booleano (permiso `<MODULE>_<SCOPE>`). Para `DELEGATED` confirma la empresa solicitada. |
 | `403` | Denegación efectiva. La librería devuelve un resultado vacío o falso. |
 | `401`, `404`, `5xx` y restantes estados inesperados | Error técnico. La librería lanza `CompanyAccessUnavailable`. |
-| Timeout, red caída, cuerpo inválido o identidad, módulo, alcance o empresa delegada discordantes | Error técnico. La librería lanza `CompanyAccessUnavailable`. |
+| Timeout, red caída, cuerpo inválido o identidad, módulo, alcance, modalidad o empresa discordantes | Error técnico. La librería lanza `CompanyAccessUnavailable`. |
 
 Para membresía `SALES / WRITE`, Company incluye `companyName` desde la empresa
 activa asociada a `companyId`. Sales verifica la autorización antes de utilizar
-el dato como snapshot. El campo es opcional durante el despliegue de Company.
+el dato como snapshot. V2 exige un nombre no vacío para esta combinación.
 
 Sin caché de decisiones y con `Cache-Control: no-store` en la respuesta de
 Company. Una revocación confirmada se aplica desde la siguiente consulta que
@@ -91,3 +91,5 @@ de escritura para Catalog. VIEWER queda denegado. El contrato público de alta
 no selecciona una empresa delegada. Una denegación se traduce a `403`. Con la
 integración deshabilitada o la autoridad indisponible responde `503` y se
 evita la escritura.
+
+El corte requiere desplegar Company, Catalog y Sales en una cohorte compatible. Consulta la [activación coordinada](../../docs/development/company-context.md).

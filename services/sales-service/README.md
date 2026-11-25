@@ -93,8 +93,8 @@ Kafka conforme al ADR-001.
 membresía vigente o una delegación explícita. El adaptador
 `CompanySalesAuthorization` consulta Company para el módulo `SALES` mediante
 `common-company-access`. Los roles y concesiones se obtienen de Company en cada
-operación. Los claims empresariales, el body y `X-Company-Id` carecen de efecto
-en la resolución de la membresía.
+operación. `X-Company-Id` selecciona la empresa que Company verifica contra la
+membresía vigente del actor.
 
 | Rol o contexto | SALES_READ | SALES_WRITE | SALES_CANCEL |
 | --- | --- | --- | --- |
@@ -201,9 +201,10 @@ contrato compartido. El cliente bloquea redirecciones y carece de reintentos
 configurados. Los GET de detalle requieren `CATALOG_READ`. Catalog resuelve
 la membresía vigente contra Company en cada consulta y busca por la empresa
 autorizada y el UUID. Habilita la integración de Catalog con Company para
-autorizar estas consultas según su [configuración](../../libraries/common-company-access/README.md). La resolución vigente de Sales ignora headers de empresa del consumidor y usa
-la membresía singular devuelta por Company. S2-454 incorpora el selector
-explícito del contrato v0.8.
+autorizar estas consultas según su [configuración](../../libraries/common-company-access/README.md). Sales envía
+la empresa autorizada en `X-Company-Id` y `expectedCompanyId`, y valida el tenant
+de la respuesta. Si el actor carece de `CATALOG_READ`, se rechaza el registro.
+Consulta el [contrato de rutas](../../docs/development/company-context.md).
 Micrometer observa las llamadas HTTP y se envían `X-Trace-Id` y `traceparent`
 para correlación. Las excepciones omiten cuerpos de respuesta y credenciales.
 

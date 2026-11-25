@@ -4,10 +4,14 @@ import com.sanigest.companyaccess.CompanyAccess;
 import com.sanigest.companyaccess.HttpCompanyAccess;
 import com.sanigest.companyaccess.HttpCompanyAccess.Settings;
 import com.sanigest.security.AccessTokens;
+import com.sanigest.security.CompanySelector;
 import io.micrometer.observation.ObservationRegistry;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +31,6 @@ import tools.jackson.databind.ObjectMapper;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(CompanyAccessConfiguration.ClientSettings.class)
-@ConditionalOnProperty(name = "sanigest.company-access.enabled", havingValue = "true")
 class CompanyAccessConfiguration {
   @ConfigurationProperties("sanigest.company-access")
   record ClientSettings(
@@ -38,6 +41,7 @@ class CompanyAccessConfiguration {
       @DefaultValue("2s") Duration responseTimeout) {}
 
   @Bean
+  @ConditionalOnProperty(name = "sanigest.company-access.enabled", havingValue = "true")
   CompanyAccess companyAccess(
       ClientSettings settings,
       @Value("${sanigest.jwt.issuer}") String userIssuer,
@@ -78,8 +82,22 @@ class CompanyAccessConfiguration {
   }
 
   @Bean
-  CompanyCatalogAuthorization catalogAuthorization(CompanyAccess access) {
-    return new CompanyCatalogAuthorization(access);
+  CompanyCatalogAuthorization catalogAuthorization(ObjectProvider<CompanyAccess> access) {
+    return new CompanyCatalogAuthorization(
+        () ->
+            access.getIfAvailable(() -> {
+              throw new com.sanigest.catalog.application.exception
+                  .CatalogAuthorizationUnavailable();
+            }),
+        CompanyAccessConfiguration::requestedCompany);
+  }
+
+  private static UUID requestedCompany() {
+    var values =
+        RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes request
+            ? Collections.list(request.getRequest().getHeaders(CompanySelector.HEADER))
+            : List.<String>of();
+    return CompanySelector.resolve(values, null, true);
   }
 
   private static String traceId() {

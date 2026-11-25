@@ -7,12 +7,12 @@ Rutas relativas a `/api/v1`, salvo la ruta interna indicada. **I** implementado,
 | Acceso y perfil | Registrar, iniciar, renovar, cerrar, consultar | POST /auth/{register,login,refresh,logout}; GET /auth/me | Identity | Gateway | — | S2-386, S2-416 | I |
 | Onboarding | Crear empresa y OWNER (alta múltiple activable en Company) | POST /companies | Company | Identity | — | S2-308, S2-453 | E |
 | Selector | Listar empresas operativas de la cuenta REGULAR | GET /companies | Company | Identity | — | S2-453 | E |
-| Selector | Seleccionar empresa por petición | X-Company-Id por petición | Company | Identity, Gateway | — | S2-454 | P |
-| Contexto | Autorizar ruta de negocio | GET /internal/v1/company-access | Company | Identity, common-company-access | — | S2-317, S2-330, S2-454 | E |
-| Empresa | Perfil y auditoría | GET/PATCH /companies/me; GET /companies/me/audit-log → /companies/{companyId} y /audit-log | Company | Identity | — | S2-309, S2-454 | E |
-| Equipo | Invitar, aceptar, listar | POST /companies/me/invitations, POST /invitations/{token}/accept, GET /companies/me/users → contexto explícito en administración | Company | Identity | — | S2-311, S2-312, S2-454, S2-455 | E |
-| Equipo | Cambiar rol o revocar | PATCH /companies/me/members/{userId}/role; DELETE /companies/me/members/{userId} → subrutas por empresa | Company | Identity | — | S2-454, S2-455 | E |
-| Acceso delegado | Listar y administrar concesión | GET /advisor/companies; GET/PUT/DELETE /companies/me/advisor-access → subruta por empresa | Company | Identity | — | S2-454 | E |
+| Selector | Seleccionar empresa por petición | X-Company-Id por petición | Company | Identity, Gateway | — | S2-454 | I |
+| Contexto | Autorizar ruta de negocio | GET /internal/v2/company-access | Company | Identity, common-company-access | — | S2-317, S2-330, S2-454 | I |
+| Empresa | Perfil y auditoría | GET/PATCH /companies/{companyId}; GET /companies/{companyId}/audit-log; compatibilidad /companies/me | Company | Identity | — | S2-309, S2-454 | I |
+| Equipo | Invitar, aceptar, listar | POST /companies/{companyId}/invitations; POST /invitations/{token}/accept; GET /companies/{companyId}/users | Company | Identity | — | S2-311, S2-312, S2-454, S2-455 | E |
+| Equipo | Cambiar rol o revocar | PATCH /companies/{companyId}/members/{userId}/role; DELETE /companies/{companyId}/members/{userId} | Company | Identity | — | S2-454, S2-455 | E |
+| Acceso delegado | Listar y administrar concesión | GET /advisor/companies; GET/PUT/DELETE /companies/{companyId}/advisor-access | Company | Identity | — | S2-454 | I |
 | Clientes | Listar, crear, editar, estado | GET/POST /clients; GET/PATCH /clients/{id}; PATCH /clients/{id}/status | Catalog | Company | — | S2-318, S2-418, S2-456 | E |
 | Ficha cliente | Métricas, facturas, cobros y estado de cuenta | GET /clients/{id}/{financial-summary,statement} | Sales | Company, Catalog | — | S2-457 | P |
 | Proveedores | Listar, crear, editar, estado | GET/POST /suppliers; GET/PATCH /suppliers/{id}; PATCH /suppliers/{id}/status | Catalog | Company | — | S2-419, S2-458 | E |
@@ -63,3 +63,5 @@ Los listados vigentes de clientes y proveedores admiten search, status, page y s
 [468]: https://devjoanvasquez-1791077375328.atlassian.net/browse/S2-468
 [469]: https://devjoanvasquez-1791077375328.atlassian.net/browse/S2-469
 [470]: https://devjoanvasquez-1791077375328.atlassian.net/browse/S2-470
+
+Los selectores, permisos y mecanismos de autorización por ruta se detallan en la [matriz de contexto empresarial](../development/company-context.md).

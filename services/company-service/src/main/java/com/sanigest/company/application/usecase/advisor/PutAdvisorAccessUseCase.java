@@ -43,12 +43,21 @@ public class PutAdvisorAccessUseCase {
 
   public AdvisorAccess put(
       UUID actorId, UUID advisorId, long revision, List<AdvisorPermission> permissions) {
+    return put(actorId, null, advisorId, revision, permissions);
+  }
+
+  public AdvisorAccess put(
+      UUID actorId,
+      UUID requestedCompany,
+      UUID advisorId,
+      long revision,
+      List<AdvisorPermission> permissions) {
     if (revision < 0
         || permissions.isEmpty()
         || permissions.stream().distinct().count() != permissions.size()) {
       throw new IllegalArgumentException("Invalid advisor permissions or revision");
     }
-    UUID companyId = owners.requireOwner(actorId);
+    UUID companyId = owners.requireOwner(actorId, requestedCompany);
     if (actorId.equals(advisorId) || !eligibility.isEligible(advisorId)) {
       try {
         audit.rejected(companyId, actorId, null, AuditOperation.ADVISOR_GRANTED);

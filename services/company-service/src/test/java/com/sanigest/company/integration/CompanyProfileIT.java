@@ -211,11 +211,120 @@ class CompanyProfileIT {
   private final HttpClient http = HttpClient.newHttpClient();
 
   @Test
+  void selectsTheSameActorInTwoCompaniesWithoutMixingRoles() throws Exception {
+    var alpha = newOwner("Tenant Alpha");
+    var beta = newOwner("Tenant Beta");
+    jdbc.update(
+        "INSERT INTO company_memberships (id, company_id, user_id, role) VALUES (?, ?, ?, 'VIEWER')",
+        UUID.randomUUID(),
+        beta.companyId(),
+        alpha.actorId());
+
+    var first =
+        http.sendAsync(
+            request(COMPANIES + "/" + alpha.companyId())
+                .header("Authorization", "Bearer " + alpha.token())
+                .GET()
+                .build(),
+            HttpResponse.BodyHandlers.ofString());
+    var second =
+        http.sendAsync(
+            request(ME)
+                .header("Authorization", "Bearer " + alpha.token())
+                .header("X-Company-Id", beta.companyId().toString())
+                .GET()
+                .build(),
+            HttpResponse.BodyHandlers.ofString());
+    assertThat(first.get(5, TimeUnit.SECONDS).body())
+        .contains("Tenant Alpha")
+        .doesNotContain("Tenant Beta");
+    assertThat(second.get(5, TimeUnit.SECONDS).body())
+        .contains("Tenant Beta")
+        .doesNotContain("Tenant Alpha");
+    assertThat(get(ME, alpha.token()).statusCode()).isEqualTo(409);
+
+    var mismatch =
+        request(COMPANIES + "/" + alpha.companyId())
+            .header("Authorization", "Bearer " + alpha.token())
+            .header("X-Company-Id", beta.companyId().toString())
+            .GET()
+            .build();
+    assertThat(http.send(mismatch, HttpResponse.BodyHandlers.ofString()).body())
+        .contains("COMPANY_CONTEXT_MISMATCH");
+    assertThat(get(COMPANIES + "/" + alpha.companyId(), beta.token()).statusCode()).isEqualTo(403);
+
+    assertThat(
+            patch(COMPANIES + "/" + alpha.companyId(), alpha.token(), "{\"location\":\"Santiago\"}")
+                .statusCode())
+        .isEqualTo(200);
+    assertThat(
+            patch(COMPANIES + "/" + beta.companyId(), alpha.token(), "{\"location\":\"Santiago\"}")
+                .statusCode())
+        .isEqualTo(403);
+    UUID permission = UUID.randomUUID();
+    jdbc.update(
+        "INSERT INTO company_permissions (id, company_id, permission) VALUES (?, ?, ?)",
+        permission,
+        alpha.companyId(),
+        "CATALOG_WRITE");
+    jdbc.update(
+        """
+        INSERT INTO membership_permissions (membership_id, permission_id)
+        SELECT id, ? FROM company_memberships WHERE company_id = ? AND user_id = ?
+        """,
+        permission,
+        alpha.companyId(),
+        alpha.actorId());
+
+    String selectedBeta =
+        companyAssertion(
+            alpha.actorId(),
+            "CATALOG",
+            "WRITE",
+            beta.companyId(),
+            CATALOG_ISSUER,
+            CATALOG_KEYS,
+            "MEMBERSHIP");
+    String selectedAlpha =
+        companyAssertion(
+            alpha.actorId(),
+            "CATALOG",
+            "WRITE",
+            alpha.companyId(),
+            CATALOG_ISSUER,
+            CATALOG_KEYS,
+            "MEMBERSHIP");
+    assertThat(internalAccess(selectedAlpha, alpha.token(), beta.companyId()).body())
+        .contains("\"role\":\"OWNER\"", "\"explicitGrant\":true");
+    assertThat(internalAccess(selectedBeta, alpha.token(), alpha.companyId()).body())
+        .contains("\"role\":\"VIEWER\"", "\"explicitGrant\":false");
+    for (String status : List.of("SUSPENDED", "REVOKED")) {
+      jdbc.update(
+          "UPDATE company_memberships SET status = ? WHERE company_id = ? AND user_id = ?",
+          status,
+          beta.companyId(),
+          alpha.actorId());
+      assertThat(internalAccess(selectedBeta, alpha.token(), alpha.companyId()).statusCode())
+          .isEqualTo(403);
+      assertThat(get(COMPANIES + "/" + alpha.companyId(), alpha.token()).statusCode())
+          .isEqualTo(200);
+    }
+  }
+
+  @Test
   @Tag("smoke")
   void internalMembershipBindsTheSessionAndIgnoresExternalTenantHeaders() throws Exception {
     var owner = newOwner("Internal membership");
     var other = newOwner("Unrelated tenant");
-    String assertion = companyAssertion(owner.actorId(), "CATALOG", "WRITE", null);
+    String assertion =
+        companyAssertion(
+            owner.actorId(),
+            "CATALOG",
+            "WRITE",
+            owner.companyId(),
+            CATALOG_ISSUER,
+            CATALOG_KEYS,
+            "MEMBERSHIP");
     var response = internalAccess(assertion, owner.token(), other.companyId());
     assertThat(response.statusCode()).isEqualTo(200);
     assertThat(response.headers().firstValue("Cache-Control")).hasValue("no-store");
@@ -228,6 +337,28 @@ class CompanyProfileIT {
         .isEqualTo(401);
     assertThat(internalAccess(null, owner.token(), owner.companyId()).statusCode()).isEqualTo(401);
 
+    UUID actor = owner.actorId();
+    UUID tenant = owner.companyId();
+    for (String invalid :
+        List.of(
+            companyAssertion(
+                actor, "CATALOG", "WRITE", tenant, "unknown-issuer", CATALOG_KEYS, "MEMBERSHIP"),
+            companyAssertion(
+                actor, "CATALOG", "WRITE", tenant, CATALOG_ISSUER, SALES_KEYS, "MEMBERSHIP"),
+            companyAssertion(
+                actor, "CATALOG", "WRITE", tenant, CATALOG_ISSUER, CATALOG_KEYS, "UNKNOWN"),
+            companyAssertion(
+                actor,
+                "CATALOG",
+                "WRITE",
+                tenant,
+                "MEMBERSHIP",
+                new AssertionCredentials(CATALOG_ISSUER, "wrong-audience", CATALOG_KEYS)))) {
+      assertThat(internalAccess(invalid, owner.token(), tenant).statusCode()).isEqualTo(401);
+    }
+    String delegatedRegular = companyAssertion(actor, "CATALOG", "WRITE", tenant);
+    assertThat(internalAccess(delegatedRegular, null, tenant).statusCode()).isEqualTo(403);
+
     jdbc.update("UPDATE companies SET status = 'INACTIVE' WHERE id = ?", owner.companyId());
     assertThat(internalAccess(assertion, owner.token(), other.companyId()).statusCode())
         .isEqualTo(403);
@@ -238,7 +369,14 @@ class CompanyProfileIT {
     var owner = newOwner("Invoice Company");
     UUID other = newOwner("Unrelated Company").companyId();
     String assertion =
-        companyAssertion(owner.actorId(), "SALES", "WRITE", null, SALES_ISSUER, SALES_KEYS);
+        companyAssertion(
+            owner.actorId(),
+            "SALES",
+            "WRITE",
+            owner.companyId(),
+            SALES_ISSUER,
+            SALES_KEYS,
+            "MEMBERSHIP");
     var response = internalAccess(assertion, owner.token(), other);
     assertThat(response.statusCode()).isEqualTo(200);
     var body = new ObjectMapper().readTree(response.body());
@@ -246,7 +384,14 @@ class CompanyProfileIT {
     assertThat(body.path("companyId").asString()).isEqualTo(owner.companyId().toString());
 
     String read =
-        companyAssertion(owner.actorId(), "SALES", "READ", null, SALES_ISSUER, SALES_KEYS);
+        companyAssertion(
+            owner.actorId(),
+            "SALES",
+            "READ",
+            owner.companyId(),
+            SALES_ISSUER,
+            SALES_KEYS,
+            "MEMBERSHIP");
     var readResponse = internalAccess(read, owner.token(), other);
     assertThat(readResponse.statusCode()).isEqualTo(200);
     assertThat(readResponse.body()).doesNotContain("companyName");
@@ -302,22 +447,42 @@ class CompanyProfileIT {
 
   private static String companyAssertion(UUID user, String module, String scope, UUID target)
       throws JOSEException {
-    return companyAssertion(user, module, scope, target, CATALOG_ISSUER, CATALOG_KEYS);
+    return companyAssertion(user, module, scope, target, CATALOG_ISSUER, CATALOG_KEYS, "DELEGATED");
   }
 
   private static String companyAssertion(
-      UUID user, String module, String scope, UUID target, String issuer, KeyPair keys)
+      UUID user, String module, String scope, UUID target, String issuer, KeyPair keys, String mode)
+      throws JOSEException {
+    return companyAssertion(
+        user,
+        module,
+        scope,
+        target,
+        mode,
+        new AssertionCredentials(issuer, CompanyAccessProtocol.AUDIENCE, keys));
+  }
+
+  private record AssertionCredentials(String issuer, String audience, KeyPair keys) {}
+
+  private static String companyAssertion(
+      UUID user,
+      String module,
+      String scope,
+      UUID target,
+      String mode,
+      AssertionCredentials credentials)
       throws JOSEException {
     Instant now = Instant.now();
     var claims =
         new JWTClaimsSet.Builder()
-            .issuer(issuer)
-            .audience(CompanyAccessProtocol.AUDIENCE)
+            .issuer(credentials.issuer())
+            .audience(credentials.audience())
             .subject(user.toString())
             .issueTime(Date.from(now))
             .expirationTime(Date.from(now.plusSeconds(60)))
             .claim("module", module)
-            .claim("scope", scope);
+            .claim("scope", scope)
+            .claim("mode", mode);
     if (target != null) {
       claims.claim("company_id", target.toString());
     }
@@ -327,7 +492,7 @@ class CompanyProfileIT {
                 .type(new JOSEObjectType(CompanyAccessProtocol.TOKEN_TYPE))
                 .build(),
             claims.build());
-    jwt.sign(new RSASSASigner((RSAPrivateKey) keys.getPrivate()));
+    jwt.sign(new RSASSASigner((RSAPrivateKey) credentials.keys().getPrivate()));
     return jwt.serialize();
   }
 
@@ -901,6 +1066,20 @@ class CompanyProfileIT {
     assertThat(get(AUDIT, jwt).statusCode()).isEqualTo(409);
     assertThat(
             internalAccess(companyAssertion(actor, "CATALOG", "READ", null), jwt, foreign)
+                .statusCode())
+        .isEqualTo(401);
+    assertThat(
+            internalAccess(
+                    companyAssertion(
+                        actor,
+                        "CATALOG",
+                        "READ",
+                        foreign,
+                        CATALOG_ISSUER,
+                        CATALOG_KEYS,
+                        "MEMBERSHIP"),
+                    jwt,
+                    original)
                 .statusCode())
         .isEqualTo(403);
 
@@ -1486,8 +1665,8 @@ class CompanyProfileIT {
             .GET()
             .build();
     var otherAudit = http.send(crossCompany, HttpResponse.BodyHandlers.ofString());
-    assertThat(otherAudit.statusCode()).isEqualTo(200);
-    assertThat(otherAudit.body()).contains("\"content\":[]").doesNotContain(company.toString());
+    assertThat(otherAudit.statusCode()).isEqualTo(403);
+    assertThat(otherAudit.body()).doesNotContain(company.toString());
 
     UUID permission = UUID.randomUUID();
     jdbc.update(
@@ -1609,7 +1788,7 @@ class CompanyProfileIT {
             .DELETE()
             .build();
     assertThat(http.send(crossCompany, HttpResponse.BodyHandlers.ofString()).statusCode())
-        .isEqualTo(404);
+        .isEqualTo(403);
     assertThat(patch(memberPath(outsider) + "/role", ownerJwt, promote).statusCode())
         .isEqualTo(404);
     assertThat(patch(ME + "/members/not-a-uuid/role", ownerJwt, promote).statusCode())

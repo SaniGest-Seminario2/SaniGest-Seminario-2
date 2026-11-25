@@ -38,7 +38,7 @@ class CompanyControllerTest {
     var profiles = mock(GetMyCompanyUseCase.class);
     var userId = UUID.randomUUID();
     var companyId = UUID.randomUUID();
-    when(profiles.get(userId))
+    when(profiles.get(userId, null))
         .thenReturn(
             new CompanyProfile(
                 companyId, "Clinic", "Clinic SRL", "123456789", "SD", "DOP", "ACTIVE"));
@@ -51,7 +51,7 @@ class CompanyControllerTest {
             new RequireRegularAccount(token -> AccountType.REGULAR));
     var jwt = Jwt.withTokenValue("test").header("alg", "RS256").subject(userId.toString()).build();
 
-    assertThat(controller.me(jwt))
+    assertThat(controller.me(jwt, null, request()))
         .isEqualTo(
             new CompanyProfileResponse(
                 companyId, "Clinic", "Clinic SRL", "123456789", "SD", "DOP", "ACTIVE"));
@@ -167,17 +167,22 @@ class CompanyControllerTest {
             .claim("accountType", "REGULAR")
             .build();
     when(accounts.resolve("test")).thenReturn(AccountType.ADVISOR);
-    assertThatThrownBy(() -> controller.me(jwt)).isInstanceOf(CompanyAccessDeniedException.class);
-    assertThatThrownBy(() -> controller.update(jwt, null))
+    assertThatThrownBy(() -> controller.me(jwt, null, request()))
+        .isInstanceOf(CompanyAccessDeniedException.class);
+    assertThatThrownBy(() -> controller.update(jwt, null, request(), null))
         .isInstanceOf(CompanyAccessDeniedException.class);
     assertThatThrownBy(() -> controller.create(jwt, "key", null))
         .isInstanceOf(CompanyAccessDeniedException.class);
     assertThatThrownBy(() -> controller.list(jwt)).isInstanceOf(CompanyAccessDeniedException.class);
     when(accounts.resolve("test")).thenThrow(new AuthorizationUnavailableException());
-    assertThatThrownBy(() -> controller.me(jwt))
+    assertThatThrownBy(() -> controller.me(jwt, null, request()))
         .isInstanceOf(AuthorizationUnavailableException.class);
     assertThatThrownBy(() -> controller.list(jwt))
         .isInstanceOf(AuthorizationUnavailableException.class);
     verifyNoInteractions(create, read, update, list);
+  }
+
+  private static org.springframework.mock.web.MockHttpServletRequest request() {
+    return new org.springframework.mock.web.MockHttpServletRequest();
   }
 }

@@ -22,6 +22,15 @@ public class ListMyCompanyUsersUseCase {
 
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public List<Membership> list(UUID userId) {
-    return memberships.findAllByCompanyId(getMyCompany.get(userId).companyId());
+    return list(userId, null);
+  }
+
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+  public List<Membership> list(UUID userId, UUID requestedCompany) {
+    return memberships.findAllByCompanyId(
+        (requestedCompany == null
+                ? getMyCompany.get(userId)
+                : getMyCompany.get(userId, requestedCompany))
+            .companyId());
   }
 }

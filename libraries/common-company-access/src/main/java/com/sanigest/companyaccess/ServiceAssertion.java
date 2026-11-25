@@ -34,10 +34,9 @@ final class ServiceAssertion {
             .issueTime(Date.from(now))
             .expirationTime(Date.from(now.plusSeconds(60)))
             .claim("module", query.module().name())
-            .claim("scope", query.scope().name());
-    if (query.target() != null) {
-      claims.claim("company_id", query.target().toString());
-    }
+            .claim("scope", query.scope().name())
+            .claim("company_id", query.companyId().toString())
+            .claim("mode", query.mode().name());
     var jwt =
         new SignedJWT(
             new JWSHeader.Builder(JWSAlgorithm.RS256)
