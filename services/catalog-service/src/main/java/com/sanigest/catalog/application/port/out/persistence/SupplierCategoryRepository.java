@@ -11,10 +11,4 @@ public interface SupplierCategoryRepository {
   List<SupplierCategory> list(UUID companyId);
 
   Optional<SupplierCategory> lockForAssignment(UUID companyId, UUID id);
-
-  Optional<SupplierCategory> lockForEdit(UUID companyId, UUID id);
-
-  boolean insert(SupplierCategory category);
-
-  void update(SupplierCategory category);
 }

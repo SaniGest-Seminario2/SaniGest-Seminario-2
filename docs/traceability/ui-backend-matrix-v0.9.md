@@ -17,7 +17,7 @@ Base main `454eb69`. Rutas relativas a `/api/v1`. **Vigente** indica ruta presen
 | Selector de cuentas | GET /accounts/options | Finance | Pendiente | S2-467 |
 | Clientes, ficha y desactivación | GET/POST /clients; GET/PATCH /clients/{id}; PATCH /clients/{id}/status | Catalog | Evolución formulario | S2-475, S2-418 |
 | Clientes sin paginar | GET /clients/all | Catalog | Pendiente | S2-475 |
-| Referencias y categorías | GET /clients/reference-data/{countries,provinces,municipalities,receipt-types}; GET/POST /{clients,suppliers,catalog-items}/categories; PUT /{clients,suppliers,catalog-items}/categories/{id}; GET /catalog-items/{units,tax-classifications} | Catalog | Vigente | S2-473, S2-475–477 |
+| Referencias y categorías | GET /clients/reference-data/{countries,provinces,municipalities,receipt-types}; GET /{clients,suppliers,catalog-items}/categories; GET /catalog-items/{units,tax-classifications} | Catalog | Vigente | S2-473, S2-475–477 |
 | Clientes, saldo, indicadores y ficha financiera | Composición en GET /clients y /clients/all; GET /clients/{id}/{financial-summary,statement} (propuestas); resumen ruta pendiente | Catalog/Sales | Pendiente | S2-457, S2-418 |
 | Proveedores, ficha y desactivación | GET/POST /suppliers; GET/PATCH /suppliers/{id}; PATCH /suppliers/{id}/status | Catalog | Evolución formulario | S2-476, S2-419 |
 | Proveedores sin paginar y saldo | GET /suppliers/all; composición con Expense para tabla y ficha (contrato de lote pendiente) | Catalog/Expense | Pendiente | S2-476, S2-346 |

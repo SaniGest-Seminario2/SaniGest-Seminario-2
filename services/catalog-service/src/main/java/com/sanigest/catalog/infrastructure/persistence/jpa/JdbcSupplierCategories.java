@@ -67,43 +67,4 @@ class JdbcSupplierCategories implements SupplierCategoryRepository {
         .query(CATEGORY)
         .optional();
   }
-
-  @Override
-  public Optional<SupplierCategory> lockForEdit(UUID companyId, UUID id) {
-    return jdbc.sql(BY_COMPANY + " AND id = :id FOR UPDATE")
-        .param("company", companyId)
-        .param("id", id)
-        .query(CATEGORY)
-        .optional();
-  }
-
-  @Override
-  public boolean insert(SupplierCategory category) {
-    return jdbc.sql(
-                """
-                INSERT INTO catalog.supplier_categories (id, company_id, code, name)
-                VALUES (:id, :company, :code, :name)
-                ON CONFLICT (company_id, code) DO NOTHING
-                """)
-            .param("id", category.id())
-            .param("company", category.companyId())
-            .param("code", category.code())
-            .param("name", category.name())
-            .update()
-        == 1;
-  }
-
-  @Override
-  public void update(SupplierCategory category) {
-    jdbc.sql(
-            """
-            UPDATE catalog.supplier_categories SET name = :name, status = :status
-            WHERE company_id = :company AND id = :id
-            """)
-        .param("name", category.name())
-        .param("status", category.status().name())
-        .param("company", category.companyId())
-        .param("id", category.id())
-        .update();
-  }
 }

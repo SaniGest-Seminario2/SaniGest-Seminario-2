@@ -8,7 +8,6 @@ import com.sanigest.catalog.application.dto.CatalogItemReferences.Tax;
 import com.sanigest.catalog.application.dto.CatalogItemReferences.Unit;
 import com.sanigest.catalog.application.dto.CatalogItemSummary;
 import com.sanigest.catalog.application.exception.CatalogItemAccessException;
-import com.sanigest.catalog.application.exception.DuplicateCatalogItemCode;
 import com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository;
 import com.sanigest.catalog.domain.model.CatalogItemCategory;
 import java.sql.ResultSet;
@@ -18,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -58,49 +56,16 @@ class JdbcCatalogItemCommercialRepository implements CatalogItemCommercialReposi
   }
 
   @Override
-  public CatalogItemCategory lockCategory(UUID companyId, UUID id, boolean exclusive) {
+  public CatalogItemCategory lockCategory(UUID companyId, UUID id) {
     return jdbc.sql(
             """
-            SELECT * FROM catalog.catalog_item_categories WHERE company_id = :company AND id = :id
-            """
-                + (exclusive ? " FOR NO KEY UPDATE" : " FOR SHARE"))
+            SELECT * FROM catalog.catalog_item_categories WHERE company_id = :company AND id = :id FOR SHARE
+            """)
         .param("company", companyId)
         .param("id", id)
         .query((row, index) -> category(row))
         .optional()
         .orElseThrow(() -> new CatalogItemAccessException(CATALOG_ITEM_NOT_FOUND));
-  }
-
-  @Override
-  public void insertCategory(CatalogItemCategory category) {
-    try {
-      jdbc.sql(
-              """
-              INSERT INTO catalog.catalog_item_categories (company_id, id, code, name)
-              VALUES (:company, :id, :code, :name)
-              """)
-          .param("company", category.companyId())
-          .param("id", category.id())
-          .param("code", category.code())
-          .param("name", category.name())
-          .update();
-    } catch (DuplicateKeyException duplicate) {
-      throw new DuplicateCatalogItemCode("DUPLICATE_CATEGORY_CODE");
-    }
-  }
-
-  @Override
-  public void updateCategory(CatalogItemCategory category) {
-    jdbc.sql(
-            """
-            UPDATE catalog.catalog_item_categories SET name = :name, active = :active
-            WHERE company_id = :company AND id = :id
-            """)
-        .param("company", category.companyId())
-        .param("id", category.id())
-        .param("name", category.name())
-        .param("active", category.active())
-        .update();
   }
 
   private static CatalogItemCategory category(ResultSet row) throws SQLException {

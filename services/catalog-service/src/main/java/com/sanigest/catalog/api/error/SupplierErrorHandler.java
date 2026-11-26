@@ -50,12 +50,6 @@ class SupplierErrorHandler {
   ProblemDetail commercial(SupplierCommercialException failure) {
     var reason = failure.reason();
     return switch (reason) {
-      case DUPLICATE_SUPPLIER_CATEGORY ->
-          CatalogProblems.problem(
-              HttpStatus.CONFLICT, reason.name(), "Supplier category code already exists");
-      case SUPPLIER_CATEGORY_NOT_FOUND ->
-          CatalogProblems.problem(
-              HttpStatus.NOT_FOUND, reason.name(), "Supplier category not found");
       case INVALID_SUPPLIER_CATEGORY ->
           CatalogProblems.problem(
               HttpStatus.BAD_REQUEST, reason.name(), "Supplier category is unavailable");

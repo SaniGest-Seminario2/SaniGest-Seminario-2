@@ -13,10 +13,4 @@ public interface ClientCategoryRepository {
   UUID defaultId(UUID companyId);
 
   Optional<ClientCategory> lockForAssignment(UUID companyId, UUID id);
-
-  Optional<ClientCategory> lockForEdit(UUID companyId, UUID id);
-
-  boolean insert(ClientCategory category);
-
-  void update(ClientCategory category);
 }

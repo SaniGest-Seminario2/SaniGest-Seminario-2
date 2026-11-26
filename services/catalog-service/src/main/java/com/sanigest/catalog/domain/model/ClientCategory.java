@@ -21,8 +21,4 @@ public record ClientCategory(
     }
     name = name.strip();
   }
-
-  public ClientCategory revise(String label, ClientStatus target) {
-    return new ClientCategory(id, companyId, code, label, target);
-  }
 }
