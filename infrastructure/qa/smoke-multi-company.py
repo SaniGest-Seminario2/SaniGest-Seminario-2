@@ -145,6 +145,10 @@ def main():
     exchange("sales", token=token, tenant=a, data={**sale, "clientId": client_b},
              key=uuid.uuid4().hex, status=404)
     assert exchange("sales", token=token, tenant=a)["totalElements"] == 1
+    invoice_key = uuid.uuid4().hex
+    direct = exchange("invoices", token=token, tenant=a, data=sale, key=invoice_key, status=201)
+    assert exchange("invoices", token=token, tenant=a, data=sale, key=invoice_key, status=201) == direct
+    assert exchange(f"receivables/{direct['saleId']}", token=token, tenant=a)["invoiceId"] == direct["id"]
     exchange(f"sales/{sale_id}", token=token, tenant=b, status=404)
     exchange("clients", token=token, status=400)
     exchange("clients", token=token, status=400, origin=CATALOG)

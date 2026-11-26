@@ -1,16 +1,10 @@
 name: Code CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: code-ci-${{ github.ref }}
-  cancel-in-progress: true
 
 env:
   # Modules with unit tests and an instruction coverage gate.
@@ -20,31 +14,8 @@ env:
     services/catalog-service services/sales-service services/inventory-service
 
 jobs:
-  syntax:
-    # Keep this name stable for branch protection.
-    name: Syntax and compilation
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Java 21 and Maven cache
-        uses: ./.github/actions/setup-maven
-
-      - name: Validate Maven configuration, format and static analysis
-        run: sh scripts/ci/run-stage.sh 'Maven reactor' 'Configuration and static analysis' sh scripts/ci/maven-build.sh validate
-
-      - name: Compile production sources
-        run: >-
-          sh scripts/ci/run-stage.sh 'Maven reactor' Compilation
-          sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true compile
-
   unit-tests:
-    # Keep this name stable for branch protection.
     name: Unit tests
-    needs: syntax
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

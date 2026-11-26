@@ -89,7 +89,24 @@ final class CatalogHttpClient implements CatalogClient {
         price,
         response.currency(),
         response.active(),
-        response.taxRate());
+        invoice ? taxRate(response.taxRate()) : null);
+  }
+
+  private static BigDecimal taxRate(String value) {
+    if (value == null) {
+      return null;
+    }
+    try {
+      var rate = new BigDecimal(value);
+      if (rate.signum() >= 0
+          && rate.compareTo(BigDecimal.ONE) < 0
+          && rate.stripTrailingZeros().scale() <= 6) {
+        return rate;
+      }
+    } catch (NumberFormatException invalid) {
+      throw new CatalogResourceInvalidException(INVALID_RESPONSE);
+    }
+    throw new CatalogResourceInvalidException(INVALID_RESPONSE);
   }
 
   private static BigDecimal invoicePrice(BigDecimal price) {

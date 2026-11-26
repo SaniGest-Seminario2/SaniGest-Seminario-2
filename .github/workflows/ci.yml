@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  syntax:
+    name: Syntax and compilation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java 21 and Maven cache
+        uses: ./.github/actions/setup-maven
+
+      - name: Validate Maven configuration, format and static analysis
+        run: sh scripts/ci/run-stage.sh 'Maven reactor' 'Configuration and static analysis' sh scripts/ci/maven-build.sh validate
+
+      - name: Compile production sources
+        run: >-
+          sh scripts/ci/run-stage.sh 'Maven reactor' Compilation
+          sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true compile
+
+  code:
+    needs: syntax
+    uses: ./.github/workflows/ci-code.yml
+  company:
+    needs: syntax
+    uses: ./.github/workflows/ci-company-service.yml
+  identity:
+    needs: syntax
+    uses: ./.github/workflows/ci-identity-service.yml
+  catalog:
+    needs: syntax
+    uses: ./.github/workflows/ci-catalog-service.yml
+  sales:
+    needs: syntax
+    uses: ./.github/workflows/ci-sales-service.yml
+  inventory:
+    needs: syntax
+    uses: ./.github/workflows/ci-inventory-service.yml
+  infrastructure:
+    needs: syntax
+    uses: ./.github/workflows/ci-infrastructure.yml
+  multi-company:
+    name: Multi-company smoke through Gateway
+    needs: [code, company, identity, catalog, sales, inventory, infrastructure]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - run: sh infrastructure/qa/run-smoke-multi-company.sh
+  required:
+    name: CI required
+    if: ${{ always() }}
+    needs: [syntax, code, company, identity, catalog, sales, inventory, infrastructure, multi-company]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      RESULTS: ${{ toJSON(needs.*.result) }}
+    steps:
+      - name: Verify all CI stages passed
+        run: jq -e 'length == 9 and all(.[]; . == "success")' <<< "$RESULTS"

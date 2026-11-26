@@ -1,26 +1,10 @@
 name: Identity Service CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-    paths:
-      - "services/identity-service/**"
-      - "libraries/common-security/**"
-      - "pom.xml"
-      - "config/**"
-      - "scripts/ci/**"
-      - ".github/actions/setup-maven/**"
-      - ".github/workflows/reusable-service-ci.yml"
-      - ".github/workflows/ci-identity-service.yml"
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: identity-service-ci-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   verify:
@@ -28,3 +12,4 @@ jobs:
     uses: ./.github/workflows/reusable-service-ci.yml
     with:
       service: identity-service
+      service-unit: false

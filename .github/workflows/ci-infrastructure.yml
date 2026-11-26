@@ -1,16 +1,10 @@
 name: Infrastructure CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: infrastructure-ci-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   infrastructure-smoke:
@@ -43,6 +37,6 @@ jobs:
 
       - name: Build application images
         run: |
-          sh scripts/ci/run-stage.sh Infrastructure 'Build Company, Identity, Catalog and Sales images' \
-            docker compose --env-file .env.example --profile apps --progress plain build \
-            company-service identity-service catalog-service sales-service inventory-service
+          sh scripts/ci/run-stage.sh Infrastructure 'Build application images' \
+            docker compose --env-file .env.example -f docker-compose.yml -f infrastructure/qa/compose-multi-company.yml --profile apps --progress plain build \
+            company-service identity-service catalog-service sales-service inventory-service api-gateway

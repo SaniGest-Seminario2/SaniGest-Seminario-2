@@ -1,36 +1,10 @@
 name: Inventory Service CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-    paths:
-      - "services/inventory-service/**"
-      - "services/company-service/**"
-      - "services/catalog-service/**"
-      - "services/api-gateway/**"
-      - "infrastructure/qa/**"
-      - "libraries/common-security/**"
-      - "libraries/common-company-access/**"
-      - "pom.xml"
-      - "config/**"
-      - "infrastructure/postgres/init/**"
-      - "infrastructure/docker/service.Dockerfile"
-      - "docker-compose.yml"
-      - ".dockerignore"
-      - ".env.example"
-      - "scripts/ci/**"
-      - ".github/actions/setup-maven/**"
-      - ".github/workflows/reusable-service-ci.yml"
-      - ".github/workflows/ci-inventory-service.yml"
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: inventory-service-ci-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   verify:

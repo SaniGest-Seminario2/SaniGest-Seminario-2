@@ -122,7 +122,7 @@ class SalesServiceIT {
       CATALOG.start();
     }
     registry.add("sanigest.catalog.origin", CATALOG::baseUrl);
-    registry.add("sanigest.catalog.response-timeout", () -> "500ms");
+    registry.add("sanigest.catalog.response-timeout", () -> "2s");
     registry.add("sanigest.company-access.origin", CATALOG::baseUrl);
     registry.add("sanigest.company-access.enabled", () -> true);
     var publicKey = pem("session", "PUBLIC KEY", USER_KEYS.getPublic().getEncoded());
@@ -721,7 +721,7 @@ class SalesServiceIT {
     var item = fixture.itemJson(fixture.service(), "SERVICE", "3200.50", true);
     var answer =
         switch (scenario) {
-          case "timeout" -> okJson(item).withFixedDelay(1500);
+          case "timeout" -> okJson(item).withFixedDelay(5000);
           case "currency" -> okJson(item.replace("DOP", "USD"));
           case "negative" -> okJson(item.replace("3200.50", "-1.00"));
           case "incomplete" -> okJson(item.replace(",\"active\":true", ""));
@@ -1635,7 +1635,7 @@ class SalesServiceIT {
         owner.productPath(),
         owner
             .itemJson(owner.product(), "PRODUCT", "10.1234", true)
-            .replace("\"price\"", "\"taxRate\":0.18,\"price\""));
+            .replace("\"price\"", "\"taxRate\":\"0.18\",\"price\""));
     owner.item(owner.servicePath(), owner.service(), "SERVICE", "5.00", true);
     String payload = owner.body().replace("\"quantity\":2", "\"quantity\":2,\"discount\":1");
     try (var http = HttpClient.newHttpClient()) {

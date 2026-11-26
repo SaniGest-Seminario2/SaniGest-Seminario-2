@@ -109,10 +109,6 @@ jobs:
           sh scripts/ci/run-stage.sh "$SERVICE" 'Smoke tests'
           sh scripts/ci/maven-build.sh -e -Dspotless.skip=true -Dcheckstyle.skip=true -pl "services/$SERVICE" -am -Psmoke verify
 
-      - name: Run the multi-company flow through Gateway
-        if: inputs.service == 'inventory-service'
-        run: sh infrastructure/qa/run-smoke-multi-company.sh
-
       - name: Validate and summarize smoke reports
         if: ${{ !cancelled() && steps.tests.outcome != '' }}
         env:

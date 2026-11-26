@@ -1,31 +1,10 @@
 name: Catalog Service CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-    paths:
-      - "services/catalog-service/**"
-      - "libraries/common-security/**"
-      - "libraries/common-company-access/**"
-      - "pom.xml"
-      - "config/**"
-      - "infrastructure/postgres/init/**"
-      - "infrastructure/docker/service.Dockerfile"
-      - "docker-compose.yml"
-      - ".env.example"
-      - "scripts/ci/**"
-      - ".github/actions/setup-maven/**"
-      - ".github/workflows/reusable-service-ci.yml"
-      - ".github/workflows/ci-catalog-service.yml"
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: catalog-service-ci-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   verify:
@@ -33,3 +12,4 @@ jobs:
     uses: ./.github/workflows/reusable-service-ci.yml
     with:
       service: catalog-service
+      service-unit: false
