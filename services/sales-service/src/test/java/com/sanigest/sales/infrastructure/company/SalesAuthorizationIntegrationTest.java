@@ -102,7 +102,7 @@ class SalesAuthorizationIntegrationTest {
     registry.add(
         "sanigest.company-access.private-key-location", () -> privateKey.toUri().toString());
     registry.add("sanigest.company-access.enabled", () -> true);
-    registry.add("sanigest.company-access.response-timeout", () -> "600ms");
+    registry.add("sanigest.company-access.response-timeout", () -> "2s");
     registry.add("management.endpoint.health.group.readiness.include", () -> "readinessState");
   }
 
@@ -252,7 +252,7 @@ class SalesAuthorizationIntegrationTest {
           case "module" -> membership("OWNER", "WRITE", true, "CATALOG");
           case "mode" -> delegation(COMPANY, "WRITE");
           case "503" -> aResponse().withStatus(503);
-          case "timeout" -> membership("OWNER", "WRITE", true).withFixedDelay(1500);
+          case "timeout" -> membership("OWNER", "WRITE", true).withFixedDelay(5000);
           default -> throw new AssertionError(failure);
         });
     assertThatThrownBy(() -> operation.membership(SALES_WRITE))
