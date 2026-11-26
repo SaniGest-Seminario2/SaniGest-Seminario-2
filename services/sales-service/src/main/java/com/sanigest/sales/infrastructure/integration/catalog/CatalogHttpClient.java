@@ -51,6 +51,15 @@ final class CatalogHttpClient implements CatalogClient {
 
   @Override
   public CatalogItemSnapshot getItem(UUID catalogItemId, UUID expectedCompanyId) {
+    return getItem(catalogItemId, expectedCompanyId, false);
+  }
+
+  @Override
+  public CatalogItemSnapshot getInvoiceItem(UUID catalogItemId, UUID expectedCompanyId) {
+    return getItem(catalogItemId, expectedCompanyId, true);
+  }
+
+  private CatalogItemSnapshot getItem(UUID catalogItemId, UUID expectedCompanyId, boolean invoice) {
     var response =
         fetch(
             catalogItemId,
@@ -68,7 +77,7 @@ final class CatalogHttpClient implements CatalogClient {
       throw new CatalogResourceInvalidException(INVALID_RESPONSE);
     }
     var type = requiredEnum(Type.class, response.type());
-    var normalizedPrice = compatiblePrice(response.price());
+    var price = invoice ? invoicePrice(response.price()) : compatiblePrice(response.price());
     if (!response.active() || Boolean.FALSE.equals(response.availableForSale())) {
       throw new CatalogResourceInvalidException(INACTIVE);
     }
@@ -77,9 +86,37 @@ final class CatalogHttpClient implements CatalogClient {
         response.name(),
         type,
         response.description(),
-        normalizedPrice,
+        price,
         response.currency(),
-        response.active());
+        response.active(),
+        invoice ? taxRate(response.taxRate()) : null);
+  }
+
+  private static BigDecimal taxRate(String value) {
+    if (value == null) {
+      return null;
+    }
+    try {
+      var rate = new BigDecimal(value);
+      if (rate.signum() >= 0
+          && rate.compareTo(BigDecimal.ONE) < 0
+          && rate.stripTrailingZeros().scale() <= 6) {
+        return rate;
+      }
+    } catch (NumberFormatException invalid) {
+      throw new CatalogResourceInvalidException(INVALID_RESPONSE);
+    }
+    throw new CatalogResourceInvalidException(INVALID_RESPONSE);
+  }
+
+  private static BigDecimal invoicePrice(BigDecimal price) {
+    if (price == null
+        || price.signum() < 0
+        || price.compareTo(BigDecimal.TEN.pow(15)) >= 0
+        || price.stripTrailingZeros().scale() > 4) {
+      throw new CatalogResourceInvalidException(INVALID_RESPONSE);
+    }
+    return price.setScale(4);
   }
 
   private static BigDecimal compatiblePrice(BigDecimal price) {

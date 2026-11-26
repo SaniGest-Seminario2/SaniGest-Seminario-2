@@ -122,7 +122,7 @@ class SalesServiceIT {
       CATALOG.start();
     }
     registry.add("sanigest.catalog.origin", CATALOG::baseUrl);
-    registry.add("sanigest.catalog.response-timeout", () -> "500ms");
+    registry.add("sanigest.catalog.response-timeout", () -> "2s");
     registry.add("sanigest.company-access.origin", CATALOG::baseUrl);
     registry.add("sanigest.company-access.enabled", () -> true);
     var publicKey = pem("session", "PUBLIC KEY", USER_KEYS.getPublic().getEncoded());
@@ -201,7 +201,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("8");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -272,7 +272,9 @@ class SalesServiceIT {
             "sale_lines.item_description:character varying:YES",
             "sale_lines.unit_price:numeric:NO",
             "sale_lines.quantity:numeric:NO",
-            "sale_lines.subtotal:numeric:NO");
+            "sale_lines.subtotal:numeric:NO",
+            "sale_lines.discount:numeric:YES",
+            "sale_lines.tax_rate:numeric:YES");
 
     assertThat(
             jdbc.queryForList(
@@ -328,8 +330,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(6);
-    assertThat(history.getLast()).containsEntry("version", "6").containsEntry("success", true);
+    assertThat(history).hasSize(8);
+    assertThat(history.getLast()).containsEntry("version", "8").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -397,12 +399,12 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(1);
-    assertThat(current.migrate().migrationsExecuted).isEqualTo(1);
+    assertThat(current.migrate().migrationsExecuted).isEqualTo(3);
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
         .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("6");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("8");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
@@ -526,11 +528,11 @@ class SalesServiceIT {
     "-1,1,0,sale_lines_quantity_range",
     "0.0001,0,0,sale_lines_quantity_range",
     "1000000000000,0,0,sale_lines_quantity_range",
-    "1000,1.001,1001,sale_lines_unit_price_amount",
-    "0.001,100000000000000000,100000000000000,sale_lines_unit_price_amount",
+    "1000,1.001,1001,sale_lines_unit_pricing_check",
+    "0.001,100000000000000000,100000000000000,sale_lines_unit_pricing_check",
     "2,50000000000000000,100000000000000000,sale_lines_subtotal_amount",
     "1.001,1,1.001,sale_lines_subtotal_amount",
-    "2,1,1,sale_lines_subtotal_exact"
+    "2,1,1,sale_lines_unit_pricing_check"
   })
   @Tag("regression")
   void rejectsInvalidDecimalsInPostgres(
@@ -719,7 +721,7 @@ class SalesServiceIT {
     var item = fixture.itemJson(fixture.service(), "SERVICE", "3200.50", true);
     var answer =
         switch (scenario) {
-          case "timeout" -> okJson(item).withFixedDelay(1500);
+          case "timeout" -> okJson(item).withFixedDelay(5000);
           case "currency" -> okJson(item.replace("DOP", "USD"));
           case "negative" -> okJson(item.replace("3200.50", "-1.00"));
           case "incomplete" -> okJson(item.replace(",\"active\":true", ""));
@@ -1623,6 +1625,46 @@ class SalesServiceIT {
   private long countReceivables(UUID company) {
     return jdbc.queryForObject(
         "SELECT count(*) FROM sales.receivables WHERE company_id = ?", Long.class, company);
+  }
+
+  @Test
+  void createsMultilineInvoiceAndOneObligationWithStableReplay() throws Exception {
+    var owner = fixture();
+    owner.membership("OWNER", false);
+    owner.catalog(
+        owner.productPath(),
+        owner
+            .itemJson(owner.product(), "PRODUCT", "10.1234", true)
+            .replace("\"price\"", "\"taxRate\":\"0.18\",\"price\""));
+    owner.item(owner.servicePath(), owner.service(), "SERVICE", "5.00", true);
+    String payload = owner.body().replace("\"quantity\":2", "\"quantity\":2,\"discount\":1");
+    try (var http = HttpClient.newHttpClient()) {
+      var request =
+          HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/invoices"))
+              .header("Content-Type", "application/json")
+              .header("X-Company-Id", owner.company().toString())
+              .header("Authorization", "Bearer " + owner.bearer())
+              .header("Idempotency-Key", "direct-invoice")
+              .POST(HttpRequest.BodyPublishers.ofString(payload))
+              .build();
+      var created = http.send(request, HttpResponse.BodyHandlers.ofString());
+      assertThat(created.statusCode()).withFailMessage(created.body()).isEqualTo(201);
+      var replay = http.send(request, HttpResponse.BodyHandlers.ofString());
+      assertThat(replay.statusCode()).isEqualTo(201);
+      assertThat(replay.body()).isEqualTo(created.body());
+      var invoice = new ObjectMapper().readTree(created.body());
+      assertThat(invoice.path("lines").size()).isEqualTo(2);
+      assertThat(invoice.at("/lines/0/taxAmount").asString()).isEqualTo("3.47");
+      assertThat(invoice.path("total").asString()).isEqualTo("37.72");
+      assertThat(countInvoices(owner.company())).isOne();
+      assertThat(countReceivables(owner.company())).isOne();
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT total_amount FROM sales.receivables WHERE company_id = ?",
+                  java.math.BigDecimal.class,
+                  owner.company()))
+          .isEqualByComparingTo("37.72");
+    }
   }
 
   @Test

@@ -13,6 +13,18 @@ final class SaleAmounts {
     return exactDecimal(value, field, AMOUNT_LIMIT, 2);
   }
 
+  static BigDecimal unitPrice(BigDecimal value) {
+    return exactDecimal(value, "unitPrice", BigDecimal.TEN.pow(15), 4);
+  }
+
+  static BigDecimal rounded(BigDecimal value) {
+    return value.setScale(2, RoundingMode.HALF_UP);
+  }
+
+  static BigDecimal taxRate(BigDecimal value) {
+    return exactDecimal(value, "taxRate", BigDecimal.ONE, 6);
+  }
+
   static BigDecimal quantity(BigDecimal value) {
     BigDecimal quantity = exactDecimal(value, "quantity", QUANTITY_LIMIT, 3);
     if (quantity.signum() == 0) {

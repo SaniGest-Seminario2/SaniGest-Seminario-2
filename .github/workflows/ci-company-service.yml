@@ -1,27 +1,10 @@
 name: Company Service CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-    paths:
-      - "services/company-service/**"
-      - "libraries/common-security/**"
-      - "libraries/common-company-access/**"
-      - "pom.xml"
-      - "config/**"
-      - "scripts/ci/**"
-      - ".github/actions/setup-maven/**"
-      - ".github/workflows/reusable-service-ci.yml"
-      - ".github/workflows/ci-company-service.yml"
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: company-service-ci-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   verify:

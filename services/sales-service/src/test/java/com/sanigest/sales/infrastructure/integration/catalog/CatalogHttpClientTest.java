@@ -120,6 +120,28 @@ class CatalogHttpClientTest {
   }
 
   @Test
+  void readsTheCatalogDecimalStringForInvoicePricing() {
+    var item =
+        ITEM_JSON.replace("\"price\":3200.10", "\"price\":3200.1234,\"taxRate\":\"0.180000\"");
+    CATALOG.stubFor(get(urlPathEqualTo(ITEM)).willReturn(okJson(item)));
+
+    var snapshot = client.getInvoiceItem(ID, TENANT);
+    assertThat(snapshot.price()).isEqualByComparingTo("3200.1234");
+    assertThat(snapshot.taxRate()).isEqualByComparingTo("0.18");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"invalid", "-0.18", "1", "0.1234567"})
+  void rejectsInvalidCatalogTaxRatesForInvoicePricing(String rate) {
+    var item = ITEM_JSON.replace("\"price\"", "\"taxRate\":\"" + rate + "\",\"price\"");
+    CATALOG.stubFor(get(urlPathEqualTo(ITEM)).willReturn(okJson(item)));
+
+    assertThatThrownBy(() -> client.getInvoiceItem(ID, TENANT))
+        .isInstanceOf(CatalogResourceInvalidException.class)
+        .hasMessage("Catalog: INVALID_RESPONSE");
+  }
+
+  @Test
   void rejectsInactiveResources() {
     CATALOG.stubFor(
         get(urlPathEqualTo(CUSTOMER))

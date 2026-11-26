@@ -49,7 +49,18 @@ public class CreateSale {
     return sales.register(sale);
   }
 
+  Sale registerForInvoice(Sale sale, LocalDate dueDate) {
+    if (sale.mode() == SaleMode.CREDIT || sale.total().signum() == 0) {
+      return register(sale, dueDate);
+    }
+    return sales.register(sale, Receivable.fromSale(sale, sale.saleDate(), clock.instant()));
+  }
+
   Sale prepare(CreateSaleCommand command, UUID companyId) {
+    return prepare(command, companyId, false);
+  }
+
+  Sale prepare(CreateSaleCommand command, UUID companyId, boolean invoice) {
     LocalDate date = effectiveDate(command);
     validateDueDate(command, date);
     var client = customer(command.clientId(), companyId);
@@ -63,7 +74,9 @@ public class CreateSale {
                 toSaleLine(
                     saleId,
                     line,
-                    snapshots.computeIfAbsent(line.catalogItemId(), id -> item(id, companyId))))
+                    snapshots.computeIfAbsent(
+                        line.catalogItemId(), id -> item(id, companyId, invoice)),
+                    invoice))
             .toList();
     Sale sale;
     try {
@@ -90,8 +103,9 @@ public class CreateSale {
     return client;
   }
 
-  private CatalogItemSnapshot item(UUID itemId, UUID companyId) {
-    var item = catalog.getItem(itemId, companyId);
+  private CatalogItemSnapshot item(UUID itemId, UUID companyId, boolean invoice) {
+    var item =
+        invoice ? catalog.getInvoiceItem(itemId, companyId) : catalog.getItem(itemId, companyId);
     if (item == null
         || !itemId.equals(item.id())
         || item.type() == null
@@ -105,8 +119,15 @@ public class CreateSale {
   }
 
   private static SaleLine toSaleLine(
-      UUID saleId, CreateSaleCommand.Line line, CatalogItemSnapshot item) {
+      UUID saleId, CreateSaleCommand.Line line, CatalogItemSnapshot item, boolean invoice) {
     try {
+      if (invoice) {
+        return SaleLine.forInvoice(
+            UUID.randomUUID(), saleId, item, line.quantity(), line.discount());
+      }
+      if (line.discount() != null) {
+        throw new InvalidSaleRequest();
+      }
       return SaleLine.fromCatalog(UUID.randomUUID(), saleId, item, line.quantity());
     } catch (IllegalArgumentException invalid) {
       throw new SaleAmountNotRepresentable(invalid);

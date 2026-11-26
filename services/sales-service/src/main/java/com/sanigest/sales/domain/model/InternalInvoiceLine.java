@@ -11,17 +11,54 @@ public record InternalInvoiceLine(
     String itemDescription,
     BigDecimal unitPrice,
     BigDecimal quantity,
-    BigDecimal subtotal) {
+    BigDecimal subtotal,
+    BigDecimal discount,
+    BigDecimal taxRate) {
+
+  public InternalInvoiceLine(
+      UUID id,
+      UUID itemId,
+      String name,
+      String description,
+      BigDecimal price,
+      BigDecimal quantity,
+      BigDecimal subtotal) {
+    this(id, itemId, name, description, price, quantity, subtotal, null, null);
+  }
+
+  public BigDecimal taxAmount() {
+    return taxRate == null ? BigDecimal.ZERO : SaleAmounts.rounded(subtotal.multiply(taxRate));
+  }
+
+  public BigDecimal total() {
+    return SaleAmounts.amount(subtotal.add(taxAmount()), "lineTotal");
+  }
 
   public InternalInvoiceLine {
     Objects.requireNonNull(id);
     Objects.requireNonNull(catalogItemId);
     itemName = SnapshotText.name(itemName, 200, "itemName");
     itemDescription = SnapshotText.bounded(itemDescription, 1000, "itemDescription");
-    unitPrice = SaleAmounts.amount(unitPrice, "unitPrice");
+    if ((discount == null) != (taxRate == null)) {
+      throw new IllegalArgumentException("Discount and tax rate must be recorded together");
+    }
+    unitPrice =
+        discount == null
+            ? SaleAmounts.amount(unitPrice, "unitPrice")
+            : SaleAmounts.unitPrice(unitPrice);
     quantity = SaleAmounts.quantity(quantity);
     subtotal = SaleAmounts.amount(subtotal, "subtotal");
-    if (subtotal.compareTo(unitPrice.multiply(quantity)) != 0) {
+    var net = unitPrice.multiply(quantity);
+    if (discount != null) {
+      discount = SaleAmounts.amount(discount, "discount");
+      taxRate = SaleAmounts.taxRate(taxRate);
+      net = net.subtract(discount);
+      if (net.signum() < 0) {
+        throw new IllegalArgumentException("Invoice discount exceeds line amount");
+      }
+      net = SaleAmounts.rounded(net);
+    }
+    if (subtotal.compareTo(net) != 0) {
       throw new IllegalArgumentException("Invalid invoice line subtotal");
     }
   }
@@ -34,6 +71,8 @@ public record InternalInvoiceLine(
         line.itemDescription(),
         line.unitPrice(),
         line.quantity(),
-        line.subtotal());
+        line.subtotal(),
+        line.discount(),
+        line.taxRate());
   }
 }

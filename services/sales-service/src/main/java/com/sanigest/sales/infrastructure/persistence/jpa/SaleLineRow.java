@@ -32,8 +32,12 @@ class SaleLineRow {
   @Column(length = 1000)
   private String itemDescription;
 
-  @Column(nullable = false, precision = 19, scale = 2)
+  @Column(nullable = false, precision = 19, scale = 4)
   private BigDecimal unitPrice;
+
+  private BigDecimal discount;
+
+  private BigDecimal taxRate;
 
   @Column(nullable = false, precision = 15, scale = 3)
   private BigDecimal quantity;
@@ -53,10 +57,21 @@ class SaleLineRow {
     unitPrice = line.unitPrice();
     quantity = line.quantity();
     subtotal = line.subtotal();
+    discount = line.discount();
+    taxRate = line.taxRate();
   }
 
   SaleLine toDomain(UUID saleId) {
     return new SaleLine(
-        id, saleId, catalogItemId, itemName, itemDescription, unitPrice, quantity, subtotal);
+        id,
+        saleId,
+        catalogItemId,
+        itemName,
+        itemDescription,
+        unitPrice,
+        quantity,
+        subtotal,
+        discount,
+        taxRate);
   }
 }

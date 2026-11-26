@@ -20,4 +20,7 @@
         checks="RegexpSinglelineJava"
         files="(CompanyServiceSmokeIT|IdentityRegistrationSmokeIT)\.java"
         message="System\.out\.println"/>
+    <!-- S2-461: Keep the original SaleLine snapshot constructor for legacy callers. -->
+    <suppress checks="ParameterNumber" files="[/\\]SaleLine\.java$"
+        message="More than 7 parameters \(found 8\)\."/>
 </suppressions>

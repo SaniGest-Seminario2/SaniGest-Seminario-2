@@ -6,6 +6,7 @@ import com.sanigest.sales.application.exception.SaleNotFound;
 import com.sanigest.sales.application.port.out.persistence.InvoiceRepository;
 import com.sanigest.sales.domain.model.InternalInvoice;
 import com.sanigest.sales.domain.model.Sale;
+import jakarta.persistence.EntityManager;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Locale;
@@ -16,16 +17,33 @@ import java.util.function.Supplier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 class PostgresInvoiceRepository implements InvoiceRepository {
   private final JdbcTemplate jdbc;
   private final SaleRows sales;
+  private final EntityManager entityManager;
 
-  PostgresInvoiceRepository(JdbcTemplate jdbc, SaleRows sales) {
+  PostgresInvoiceRepository(JdbcTemplate jdbc, SaleRows sales, EntityManager entityManager) {
     this.jdbc = jdbc;
     this.sales = sales;
+    this.entityManager = entityManager;
+  }
+
+  @Override
+  @Transactional(propagation = Propagation.MANDATORY)
+  public String issueForNewSale(
+      Sale sale,
+      int year,
+      Function<String, InternalInvoice> create,
+      Function<InternalInvoice, String> response) {
+    entityManager.flush();
+    var invoice = create.apply(allocateNumber(sale.companyId(), year));
+    String body = response.apply(invoice);
+    insert(invoice, null, body);
+    return body;
   }
 
   @Override
@@ -71,13 +89,14 @@ class PostgresInvoiceRepository implements InvoiceRepository {
       throw new InvoiceConflict();
     }
 
-    InternalInvoice invoice = create.apply(sale, () -> allocateNumber(request));
+    InternalInvoice invoice =
+        create.apply(sale, () -> allocateNumber(request.companyId(), request.year()));
     String body = response.apply(invoice);
     insert(invoice, request.key(), body);
     return body;
   }
 
-  private String allocateNumber(Request request) {
+  private String allocateNumber(UUID companyId, int year) {
     long sequence =
         jdbc.queryForObject(
             """
@@ -88,9 +107,9 @@ class PostgresInvoiceRepository implements InvoiceRepository {
             RETURNING last_number
             """,
             Long.class,
-            request.companyId(),
-            request.year());
-    return String.format(Locale.ROOT, "FAC-%04d-%03d", request.year(), sequence);
+            companyId,
+            year);
+    return String.format(Locale.ROOT, "FAC-%04d-%03d", year, sequence);
   }
 
   private Sale loadSource(Request request) {
@@ -138,8 +157,8 @@ class PostgresInvoiceRepository implements InvoiceRepository {
           """
           INSERT INTO sales.internal_invoice_lines
             (invoice_id, position, source_line_id, catalog_item_id, item_name, item_description,
-             unit_price, quantity, subtotal)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             unit_price, quantity, subtotal, discount, tax_rate)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           """,
           invoice.id(),
           position,
@@ -149,7 +168,9 @@ class PostgresInvoiceRepository implements InvoiceRepository {
           line.itemDescription(),
           line.unitPrice(),
           line.quantity(),
-          line.subtotal());
+          line.subtotal(),
+          line.discount(),
+          line.taxRate());
     }
   }
 }

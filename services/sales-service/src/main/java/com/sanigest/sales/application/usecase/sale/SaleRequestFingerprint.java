@@ -18,6 +18,10 @@ final class SaleRequestFingerprint {
   }
 
   static String hash(CreateSaleCommand command) {
+    return hash(command, false);
+  }
+
+  static String hash(CreateSaleCommand command, boolean invoice) {
     var canonical =
         new StringBuilder(OPERATION)
             .append('\n')
@@ -37,6 +41,12 @@ final class SaleRequestFingerprint {
           .append(line.catalogItemId())
           .append('\n')
           .append(line.quantity().stripTrailingZeros().toPlainString());
+      if (invoice) {
+        canonical
+            .append('\n')
+            .append(
+                line.discount() == null ? "0" : line.discount().stripTrailingZeros().toString());
+      }
     }
     try {
       return HexFormat.of()

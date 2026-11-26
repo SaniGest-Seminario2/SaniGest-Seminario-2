@@ -10,6 +10,12 @@ import java.util.function.Supplier;
 public interface InvoiceRepository {
   record Request(UUID companyId, UUID actorId, UUID saleId, String key, int year) {}
 
+  String issueForNewSale(
+      Sale sale,
+      int year,
+      Function<String, InternalInvoice> create,
+      Function<InternalInvoice, String> response);
+
   String issue(
       Request request,
       BiFunction<Sale, Supplier<String>, InternalInvoice> create,

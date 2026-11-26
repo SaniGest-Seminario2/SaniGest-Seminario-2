@@ -1,6 +1,7 @@
 package com.sanigest.sales.api.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.sanigest.sales.domain.model.SaleLine;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -12,7 +13,13 @@ public record SaleLineResponse(
     String itemDescription,
     @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal unitPrice,
     BigDecimal quantity,
-    @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal subtotal) {
+    @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal subtotal,
+    @JsonInclude(JsonInclude.Include.NON_NULL) @JsonFormat(shape = JsonFormat.Shape.STRING)
+        BigDecimal discount,
+    @JsonInclude(JsonInclude.Include.NON_NULL) @JsonFormat(shape = JsonFormat.Shape.STRING)
+        BigDecimal taxRate,
+    @JsonInclude(JsonInclude.Include.NON_NULL) @JsonFormat(shape = JsonFormat.Shape.STRING)
+        BigDecimal taxAmount) {
 
   static SaleLineResponse from(SaleLine line) {
     return new SaleLineResponse(
@@ -22,6 +29,9 @@ public record SaleLineResponse(
         line.itemDescription(),
         line.unitPrice(),
         line.quantity(),
-        line.subtotal());
+        line.subtotal(),
+        line.discount(),
+        line.taxRate(),
+        line.taxRate() == null ? null : line.taxAmount());
   }
 }

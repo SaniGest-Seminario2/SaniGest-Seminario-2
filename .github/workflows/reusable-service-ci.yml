@@ -8,11 +8,6 @@ on:
         required: true
         type: string
 
-      service-unit:
-        description: Publish the separate service unit status
-        type: boolean
-        default: true
-
 permissions:
   contents: read
 
@@ -46,46 +41,6 @@ jobs:
           sh scripts/ci/run-stage.sh "$SERVICE" 'Static analysis, compilation and Maven verify preparation'
           sh scripts/ci/maven-build.sh -e -pl "services/$SERVICE" -am -Pci-warm-test-runtime -DskipTests -DskipITs verify
 
-  unit-tests:
-    if: ${{ inputs.service-unit }}
-    # This service-specific status check is kept independently of Code CI.
-    name: Unit tests
-    needs: syntax
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      ARTIFACT: ${{ inputs.service }}-unit-reports-${{ github.run_id }}-${{ github.run_attempt }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Java 21 and Maven cache
-        uses: ./.github/actions/setup-maven
-        with:
-          cache-scope: ${{ inputs.service }}
-          cache-dependency-path: ${{ env.MAVEN_CACHE_PATHS }}
-
-      - name: Run service unit tests
-        id: tests
-        run: >-
-          sh scripts/ci/run-stage.sh "$SERVICE" 'Unit tests'
-          sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true -pl "services/$SERVICE" -am -Pservice-unit -DskipITs test
-
-      - name: Validate and summarize unit test reports
-        if: ${{ !cancelled() && steps.tests.outcome != '' }}
-        env:
-          OUTCOME: ${{ steps.tests.outcome }}
-        run: python3 scripts/ci/report.py "$SERVICE" unit "$OUTCOME" "$ARTIFACT" "services/$SERVICE"
-
-      - name: Publish unit test reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ env.ARTIFACT }}
-          path: services/${{ inputs.service }}/target/surefire-reports/
-          if-no-files-found: warn
-          retention-days: 7
-
   smoke:
     name: Smoke tests
     needs: syntax
@@ -108,10 +63,6 @@ jobs:
         run: >-
           sh scripts/ci/run-stage.sh "$SERVICE" 'Smoke tests'
           sh scripts/ci/maven-build.sh -e -Dspotless.skip=true -Dcheckstyle.skip=true -pl "services/$SERVICE" -am -Psmoke verify
-
-      - name: Run the multi-company flow through Gateway
-        if: inputs.service == 'inventory-service'
-        run: sh infrastructure/qa/run-smoke-multi-company.sh
 
       - name: Validate and summarize smoke reports
         if: ${{ !cancelled() && steps.tests.outcome != '' }}

@@ -65,21 +65,16 @@ Para reconstruir desde cero:
 mvn -B clean verify
 ```
 
-En cada PR, Code CI compila el reactor, ejecuta las pruebas unitarias y las
-pruebas de integración del Gateway, y comprueba la cobertura. Infrastructure CI
-valida Compose, ejecuta las pruebas de humo y construye las imágenes de
-aplicación. En los PR hacia `main`, las verificaciones de Company, Identity,
-Catalog y Sales se ejecutan según las rutas modificadas, incluidas sus
-dependencias compartidas.
+El workflow `CI` corre en PRs a `main`, en cada push a `main` y por ejecución
+manual desde Actions. Primero valida y compila el reactor. Después ejecuta en
+paralelo las unitarias con cobertura, la integración HTTP de Gateway, smoke y
+regresión de Company, Identity, Catalog, Sales e Inventory, y las verificaciones
+de Compose, infraestructura e imágenes.
+El smoke multiempresa arranca después de la compilación, construye su propio
+stack y verifica los seis servicios a través de Gateway en paralelo. Los reportes de pruebas y cobertura se conservan durante siete días.
 
-Cada push a `main`, incluidos los merges, activa Code CI, Infrastructure CI y
-las verificaciones de los cuatro servicios sin filtros de rutas. Los reportes
-de pruebas y cobertura se conservan durante siete días.
-
-En la protección de `main` en GitHub, configura `Syntax and compilation`,
-`Unit tests` y `Coverage gate` como checks obligatorios. Los workflows de
-servicio quedan fuera de esa lista porque pueden omitirse en un PR según las
-rutas modificadas.
+En la protección de `main` de GitHub, usa `CI required` como check obligatorio.
+Ese check reúne los resultados de todos los jobs, incluido el smoke multiempresa.
 
 ## Formato y análisis estático Java
 

@@ -93,7 +93,7 @@ public record InternalInvoice(
         || lines.stream().map(InternalInvoiceLine::id).distinct().count() != lines.size()
         || total.compareTo(
                 lines.stream()
-                    .map(InternalInvoiceLine::subtotal)
+                    .map(InternalInvoiceLine::total)
                     .reduce(BigDecimal.ZERO, BigDecimal::add))
             != 0) {
       throw new IllegalArgumentException("Invalid invoice lines or total");
