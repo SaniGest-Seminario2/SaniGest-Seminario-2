@@ -24,6 +24,9 @@ y elimina sus volúmenes al finalizar.
 El despliegue del MVP en AWS con ECR, ECS/Fargate y RDS PostgreSQL está previsto
 en los tickets `S2-390` a `S2-394`.
 
+La [configuración OIDC de GitHub Actions](aws/README.md) permite obtener
+credenciales temporales para el despliegue a dev.
+
 ## PostgreSQL local
 
 `postgres/init/10-create-service-databases.sh` inicializa una base y un rol de
