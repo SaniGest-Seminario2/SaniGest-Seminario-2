@@ -55,7 +55,8 @@ class CreateSaleTest {
           authorization,
           catalog,
           repository,
-          Clock.fixed(Instant.parse("2026-11-24T02:00:00Z"), ZoneId.of("America/Santo_Domingo")));
+          Clock.fixed(Instant.parse("2026-11-24T02:00:00Z"), ZoneId.of("America/Santo_Domingo")),
+          (item, company) -> false);
 
   @BeforeEach
   void authorize() {

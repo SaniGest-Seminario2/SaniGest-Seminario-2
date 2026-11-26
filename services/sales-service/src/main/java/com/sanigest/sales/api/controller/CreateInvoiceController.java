@@ -38,12 +38,13 @@ public class CreateInvoiceController {
     if (keys == null || keys.size() != 1 || !KEY_FORMAT.matcher(keys.getFirst()).matches()) {
       throw new InvalidIdempotencyKey();
     }
+    var form = request.toCommand();
     var result =
         issueInvoice.create(
             createSale,
             keys.getFirst(),
-            request.toCommand(),
-            invoice -> json.writeValueAsString(InvoiceResponse.from(invoice)));
+            form,
+            invoice -> json.writeValueAsString(InvoiceResponse.from(invoice, form)));
     return ResponseEntity.status(result.status())
         .contentType(MediaType.APPLICATION_JSON)
         .body(result.body());

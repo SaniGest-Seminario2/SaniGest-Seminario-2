@@ -140,17 +140,6 @@ paths:
         '403': {description: Permiso empresarial insuficiente.}
         '404': {description: Recurso ausente o fuera de la empresa autorizada.}
         '503': {description: Autorización o dependencia indisponible.}
-    post:
-      summary: Registra una venta con SALES_WRITE e Idempotency-Key.
-      parameters:
-        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
-      responses:
-        '201': {description: Operación completada.}
-        '400': {$ref: '#/components/responses/InvalidContext'}
-        '401': {description: JWT inválido o ausente.}
-        '403': {description: Permiso empresarial insuficiente.}
-        '404': {description: Recurso ausente o fuera de la empresa autorizada.}
-        '503': {description: Autorización o dependencia indisponible.}
   /api/v1/sales/{id}:
     parameters:
       - $ref: '#/components/parameters/CompanySelector'
@@ -199,13 +188,24 @@ paths:
         '404': {description: Recurso ausente o fuera de la empresa autorizada.}
         '503': {description: Autorización o dependencia indisponible.}
   /api/v1/invoices:
+    get:
+      summary: Lista facturas de la empresa con paginación y SALES_READ.
+      parameters:
+        - $ref: '#/components/parameters/CompanySelector'
+        - $ref: '#/components/parameters/InvoiceSearch'
+        - $ref: '#/components/parameters/InvoiceStatus'
+        - $ref: '#/components/parameters/InvoicePageNumber'
+        - $ref: '#/components/parameters/InvoicePageSize'
+      responses:
+        '200': {$ref: '#/components/responses/InvoicePage'}
     post:
       summary: Crea una factura interna multilínea con SALES_WRITE.
       description: >
         Registra la venta, la factura y la obligación positiva en una transacción.
-        Aplica el precio y el ITBIS de Catalog al emitir y redondea base e impuesto
+        Aplica el precio unitario enviado o el vigente en Catalog. Valida la tasa contra Catalog y redondea base e impuesto
         por línea a dos decimales. La obligación CASH vence en la fecha comercial
-        y la CREDIT usa dueDate. La misma clave y solicitud recuperan el mismo
+        y la CREDIT usa dueDate. Los productos con seguimiento de stock se rechazan
+        hasta habilitar la reserva de existencias. La misma clave y solicitud recuperan el mismo
         documento durante la ventana de idempotencia de Sales.
       parameters:
         - $ref: '#/components/parameters/CompanySelector'
@@ -223,7 +223,9 @@ paths:
               properties:
                 clientId: {type: string, format: uuid}
                 mode: {type: string, enum: [CASH, CREDIT]}
-                saleDate: {type: string, format: date}
+                issueDate: {type: string, format: date}
+                requestedReceiptType: {type: string, enum: [CONSUMPTION, FISCAL_CREDIT]}
+                notes: {type: string, maxLength: 1000}
                 dueDate:
                   type: string
                   format: date
@@ -238,6 +240,11 @@ paths:
                     properties:
                       catalogItemId: {type: string, format: uuid}
                       quantity: {type: number, minimum: 0, exclusiveMinimum: true, multipleOf: 0.001}
+                      unitPrice: {type: number, minimum: 0, multipleOf: 0.0001}
+                      taxRate:
+                        type: number
+                        description: Fracción de ITBIS compatible con la tasa de Catalog.
+                        enum: [0, 0.16, 0.18]
                       discount:
                         type: number
                         description: Descuento en DOP sobre el importe bruto de la línea.
@@ -257,6 +264,66 @@ paths:
         '409': {description: Conflicto de idempotencia o de registro.}
         '422': {description: Cliente o artículo inactivo, o importes fuera de rango.}
         '503': {description: Autorización o dependencia indisponible.}
+  /api/v1/invoices/all:
+    get:
+      summary: Lista todas las facturas que coinciden con la búsqueda.
+      parameters:
+        - $ref: '#/components/parameters/CompanySelector'
+        - $ref: '#/components/parameters/InvoiceSearch'
+        - $ref: '#/components/parameters/InvoiceStatus'
+      responses:
+        '200': {$ref: '#/components/responses/InvoiceList'}
+  /api/v1/invoices/collectible:
+    get:
+      summary: Lista facturas vigentes con saldo positivo y paginación.
+      parameters:
+        - $ref: '#/components/parameters/CompanySelector'
+        - $ref: '#/components/parameters/InvoiceSearch'
+        - $ref: '#/components/parameters/InvoiceStatus'
+        - $ref: '#/components/parameters/InvoicePageNumber'
+        - $ref: '#/components/parameters/InvoicePageSize'
+      responses:
+        '200': {$ref: '#/components/responses/InvoicePage'}
+  /api/v1/invoices/collectible/all:
+    get:
+      summary: Lista todas las facturas cobrables que coinciden con la búsqueda.
+      parameters:
+        - $ref: '#/components/parameters/CompanySelector'
+        - $ref: '#/components/parameters/InvoiceSearch'
+        - $ref: '#/components/parameters/InvoiceStatus'
+      responses:
+        '200': {$ref: '#/components/responses/InvoiceList'}
+  /api/v1/invoices/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CompanySelector'
+      - $ref: '#/components/parameters/InvoiceId'
+    get:
+      summary: Consulta una factura por ID con SALES_READ.
+      responses:
+        '200': {$ref: '#/components/responses/InvoiceDocument'}
+        '404': {description: Factura ausente en la empresa.}
+  /api/v1/invoices/{id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/CompanySelector'
+      - $ref: '#/components/parameters/InvoiceId'
+    post:
+      summary: Anula la factura, la venta y la obligación abierta con SALES_CANCEL.
+      description: Una anulación repetida devuelve la auditoría de la primera.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, minLength: 1, maxLength: 500}
+      responses:
+        '200': {$ref: '#/components/responses/InvoiceDocument'}
+        '400': {description: ID o motivo inválido.}
+        '403': {description: Permisos insuficientes.}
+        '404': {description: Factura ausente en la empresa.}
+        '409': {description: La obligación registra cobros.}
   /api/v1/sales/{saleId}/invoices:
     post:
       operationId: issueInternalInvoice
@@ -320,6 +387,14 @@ paths:
               schema: {$ref: '#/components/schemas/Problem'}
 components:
   parameters:
+    InvoiceId: {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    InvoiceSearch: {name: search, in: query, schema: {type: string, maxLength: 250}}
+    InvoiceStatus:
+      name: status
+      in: query
+      schema: {type: string, enum: [ALL, ISSUED, CANCELLED, PARTIALLY_PAID, PAID]}
+    InvoicePageNumber: {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}
+    InvoicePageSize: {name: size, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
     CompanySelector:
       name: X-Company-Id
       in: header
@@ -328,6 +403,29 @@ components:
       schema: {type: string, format: uuid}
       example: e3fc1fd0-42ea-4a0d-9c14-6cbd44592b42
   responses:
+    InvoiceDocument:
+      description: Documento y estado actuales.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Invoice'}
+    InvoicePage:
+      description: Página de facturas en orden descendente de fecha e ID.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [content, page, size, totalElements, totalPages]
+            properties:
+              content: {type: array, items: {$ref: '#/components/schemas/Invoice'}}
+              page: {type: integer}
+              size: {type: integer}
+              totalElements: {type: integer, format: int64}
+              totalPages: {type: integer, format: int64}
+    InvoiceList:
+      description: Facturas en el mismo orden que la consulta paginada.
+      content:
+        application/json:
+          schema: {type: array, items: {$ref: '#/components/schemas/Invoice'}}
     InvalidContext:
       description: Selector ausente, duplicado o inválido, o petición inválida.
       content:
@@ -434,7 +532,16 @@ components:
           example: FAC-2026-001
         documentType: {type: string, enum: [INTERNAL]}
         fiscalClassification: {type: string, enum: [NOT_FISCAL]}
-        status: {type: string, enum: [ISSUED]}
+        status: {type: string, enum: [ISSUED, CANCELLED]}
+        issueDate: {type: string, format: date}
+        mode: {type: string, enum: [CASH, CREDIT]}
+        requestedReceiptType: {type: string, enum: [CONSUMPTION, FISCAL_CREDIT]}
+        notes: {type: string}
+        cancelledAt: {type: string, format: date-time}
+        cancelledBy: {type: string, format: uuid}
+        cancelReason: {type: string}
+        paymentStatus: {type: string, enum: [OPEN, PARTIALLY_PAID, PAID, CANCELLED]}
+        outstandingBalance: {$ref: '#/components/schemas/Amount'}
         issuedAt: {type: string, format: date-time}
         saleDate: {type: string, format: date}
         company: {$ref: '#/components/schemas/Party'}

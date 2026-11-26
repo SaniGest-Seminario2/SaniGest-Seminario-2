@@ -13,6 +13,10 @@ final class SaleRequestFingerprint {
 
   private SaleRequestFingerprint() {}
 
+  private static String decimal(java.math.BigDecimal value) {
+    return value == null ? "-" : value.stripTrailingZeros().toString();
+  }
+
   static int version(CreateSaleCommand command) {
     return command.dueDate() == null ? LEGACY_VERSION : DUE_DATE_VERSION;
   }
@@ -48,6 +52,9 @@ final class SaleRequestFingerprint {
                 line.discount() == null ? "0" : line.discount().stripTrailingZeros().toString());
       }
     }
+    if (invoice && command.hasInvoiceFields()) {
+      appendInvoiceForm(canonical, command);
+    }
     try {
       return HexFormat.of()
           .formatHex(
@@ -55,6 +62,26 @@ final class SaleRequestFingerprint {
                   .digest(canonical.toString().getBytes(StandardCharsets.UTF_8)));
     } catch (NoSuchAlgorithmException failure) {
       throw new IllegalStateException("SHA-256 is required by Java", failure);
+    }
+  }
+
+  private static void appendInvoiceForm(StringBuilder canonical, CreateSaleCommand command) {
+    // Append only for extended requests to preserve replay of existing keys.
+    canonical
+        .append('\n')
+        .append("invoice-form-v1")
+        .append('\n')
+        .append(command.requestedReceiptType())
+        .append('\n')
+        .append(command.notes() == null ? -1 : command.notes().length())
+        .append(':')
+        .append(command.notes());
+    for (var line : command.lines()) {
+      canonical
+          .append('\n')
+          .append(decimal(line.unitPrice()))
+          .append('\n')
+          .append(decimal(line.taxRate()));
     }
   }
 }

@@ -145,11 +145,14 @@ la configuración local y difiere el tráfico remoto hasta la primera decisión.
 
 | Ruta | Permiso | Ticket |
 | --- | --- | --- |
-| POST /api/v1/sales | SALES_WRITE | S2-332 |
+| POST /api/v1/sales (legado, desactivado por defecto) | SALES_WRITE | S2-332 |
 | GET /api/v1/sales | SALES_READ | S2-333 |
 | GET /api/v1/sales/{id} | SALES_READ | S2-334 |
 | POST /api/v1/sales/{id}/cancel | SALES_CANCEL | S2-334 |
 | POST /api/v1/sales/{saleId}/invoices | SALES_WRITE | S2-335 |
+| POST /api/v1/invoices | SALES_WRITE | S2-462 |
+| GET /api/v1/invoices, /all, /collectible, /collectible/all y /{id} | SALES_READ | S2-462 |
+| POST /api/v1/invoices/{id}/cancel | SALES_CANCEL | S2-462 |
 
 Sales expone salud, registro, listado, detalle, cancelación y emisión manual de facturas internas.
 Al implementar cada ruta, exigir autenticación en el filtro y en el método
@@ -432,6 +435,15 @@ claves, cuerpos y credenciales. Los perfiles Maven `smoke` y `regression`
 incluyen el flujo HTTP con PostgreSQL y WireMock.
 
 ### Emitir una factura interna
+
+La entrada pública para una operación comercial nueva es POST /api/v1/invoices.
+El alta de venta independiente queda desactivada por defecto. Durante una
+migración se puede habilitar mediante sanigest.sales.legacy-creation-enabled.
+
+Para emitir una factura con productos, Sales verifica el seguimiento en Inventory
+usando el tenant y la sesión de la solicitud. Configura SALES_INVENTORY_ORIGIN
+con el origen de Inventory. Compose ya lo configura. Los productos con stock
+controlado se rechazan hasta habilitar la reserva de existencias.
 
 `POST /api/v1/sales/{saleId}/invoices` requiere JWT Bearer, una membresía
 empresarial con `SALES_WRITE` y un único header `Idempotency-Key`. Se envía sin
