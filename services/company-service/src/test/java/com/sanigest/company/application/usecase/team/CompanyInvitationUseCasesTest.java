@@ -90,6 +90,17 @@ class CompanyInvitationUseCasesTest {
   }
 
   @Test
+  void exposesInvitationRolesOnlyToActiveAdministrators() {
+    authorize(CompanyRole.ADMIN, MembershipStatus.ACTIVE);
+    assertThat(invite.assignableRoles(owner, null))
+        .containsExactly(CompanyRole.OPERATOR, CompanyRole.VIEWER);
+    authorize(CompanyRole.VIEWER, MembershipStatus.ACTIVE);
+    assertThatThrownBy(() -> invite.assignableRoles(owner, null))
+        .isInstanceOf(CompanyAccessDeniedException.class);
+    verifyNoInteractions(invitations);
+  }
+
+  @Test
   void rejectsUnauthorizedMembersBeforeLookingUpInvitations() {
     authorize(CompanyRole.OPERATOR, MembershipStatus.ACTIVE);
     assertThatThrownBy(() -> invite.invite(owner, EMAIL, CompanyRole.VIEWER, false))

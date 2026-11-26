@@ -5,6 +5,476 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v1/catalog/options": {
+      "get": {
+        "summary": "Consultar opciones fijas de Catalog",
+        "description": "Requiere CATALOG_READ. BOTH es una condición de maestro. null indica que el plazo no aplica.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Opciones disponibles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "clientTypes",
+                    "clientPaymentTerms",
+                    "supplierPaymentTerms",
+                    "supplierSupplyTypes",
+                    "supplierCreditDays",
+                    "itemTypes",
+                    "itemTypeFilters"
+                  ],
+                  "properties": {
+                    "clientTypes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "enum": [
+                              "NATURAL",
+                              "LEGAL"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "clientPaymentTerms": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "enum": [
+                              "CASH",
+                              "CREDIT",
+                              "BOTH"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "supplierPaymentTerms": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "enum": [
+                              "CASH",
+                              "CREDIT",
+                              "BOTH"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "supplierSupplyTypes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "enum": [
+                              "PRODUCT",
+                              "SERVICE",
+                              "BOTH"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "supplierCreditDays": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "integer",
+                            "nullable": true,
+                            "enum": [
+                              null,
+                              15,
+                              30,
+                              60,
+                              90
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "itemTypes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "enum": [
+                              "PRODUCT",
+                              "SERVICE"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "itemTypeFilters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "enum": [
+                              "ALL",
+                              "PRODUCT",
+                              "SERVICE"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "401": {
+            "description": "JWT inválido o ausente"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente"
+          },
+          "503": {
+            "description": "Autorización no disponible"
+          }
+        }
+      }
+    },
+    "/api/v1/clients/options": {
+      "get": {
+        "summary": "Seleccionar clientes activos",
+        "description": "Requiere CATALOG_READ. Hasta 20 resultados, por nombre e ID.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Opciones disponibles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "maxItems": 20
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "401": {
+            "description": "JWT inválido o ausente"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente"
+          },
+          "503": {
+            "description": "Autorización no disponible"
+          }
+        }
+      }
+    },
+    "/api/v1/suppliers/options": {
+      "get": {
+        "summary": "Seleccionar proveedores activos",
+        "description": "Requiere CATALOG_READ. La cobertura BOTH incluye productos y servicios. Hasta 20 resultados, por nombre e ID.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supplyType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PRODUCT",
+                "SERVICE",
+                "BOTH"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Opciones disponibles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "maxItems": 20
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "401": {
+            "description": "JWT inválido o ausente"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente"
+          },
+          "503": {
+            "description": "Autorización no disponible"
+          }
+        }
+      }
+    },
+    "/api/v1/catalog-items/options": {
+      "get": {
+        "summary": "Seleccionar artículos activos",
+        "description": "Requiere CATALOG_READ. SALE y PURCHASE aplican la elegibilidad comercial correspondiente antes de limitar a 20 resultados. Orden por nombre e ID.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ALL",
+                "PRODUCT",
+                "SERVICE"
+              ]
+            }
+          },
+          {
+            "name": "operation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SALE",
+                "PURCHASE"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Opciones disponibles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "maxItems": 20
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "401": {
+            "description": "JWT inválido o ausente"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente"
+          },
+          "503": {
+            "description": "Autorización no disponible"
+          }
+        }
+      }
+    },
     "/api/v1/catalog-items/{id}": {
       "get": {
         "operationId": "getCatalogItem",
@@ -239,10 +709,11 @@
           {
             "name": "type",
             "in": "query",
-            "description": "Tipo exacto",
+            "description": "Tipo exacto. ALL omite el filtro.",
             "schema": {
               "type": "string",
               "enum": [
+                "ALL",
                 "PRODUCT",
                 "SERVICE"
               ]

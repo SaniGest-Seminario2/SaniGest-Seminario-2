@@ -6220,6 +6220,336 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Opciones y selectores S2-473",
+      "item": [
+        {
+          "name": "GET /companies/{{companyId}}/options",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/companies/{{companyId}}/options",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                "{{companyId}}",
+                "options"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /catalog/options",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/catalog/options",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "options"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /clients/options",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/clients/options?search=Cliente",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "clients",
+                "options"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Cliente"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /suppliers/options",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/suppliers/options?search=Proveedor&supplyType=PRODUCT",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "suppliers",
+                "options"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Proveedor"
+                },
+                {
+                  "key": "supplyType",
+                  "value": "PRODUCT"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /catalog-items/options",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/catalog-items/options?search=Artículo&type=PRODUCT&operation=SALE",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog-items",
+                "options"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Artículo"
+                },
+                {
+                  "key": "type",
+                  "value": "PRODUCT"
+                },
+                {
+                  "key": "operation",
+                  "value": "SALE"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /inventory/options",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/inventory/options",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "options"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /warehouses/options",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/warehouses/options?search=Principal",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "warehouses",
+                "options"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Principal"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /sales/options",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/sales/options",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sales",
+                "options"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
     }
   ]
 }

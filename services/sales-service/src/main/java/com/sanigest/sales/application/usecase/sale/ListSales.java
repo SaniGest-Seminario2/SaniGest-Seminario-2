@@ -11,6 +11,7 @@ import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
 import com.sanigest.sales.domain.enums.SaleStatus;
 import java.time.LocalDate;
 import java.util.Locale;
+import java.util.UUID;
 
 public final class ListSales {
   public static final String DEFAULT_SIZE = "20";
@@ -31,10 +32,7 @@ public final class ListSales {
 
   public SalePage execute(
       String search, String status, LocalDate from, LocalDate to, int page, int size) {
-    var companyId = authorization.requireMembership(SALES_READ);
-    if (companyId == null) {
-      throw new SalesAccessForbidden();
-    }
+    var companyId = requireReadCompany();
     String term = search == null ? "" : search.strip();
     LocalDate first = from == null ? SaleSearch.MIN_DATE : from;
     LocalDate last = to == null ? SaleSearch.MAX_DATE : to;
@@ -51,6 +49,14 @@ public final class ListSales {
     }
     return sales.search(
         companyId, new SaleSearch(term, parseStatus(status), first, last, page, size));
+  }
+
+  public UUID requireReadCompany() {
+    var companyId = authorization.requireMembership(SALES_READ);
+    if (companyId == null) {
+      throw new SalesAccessForbidden();
+    }
+    return companyId;
   }
 
   private static SaleStatus parseStatus(String status) {

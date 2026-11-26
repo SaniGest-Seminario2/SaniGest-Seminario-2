@@ -47,6 +47,11 @@ public class ListCatalogItems {
     return items.search(companyId, criteria(type, term, active, filters), page, size);
   }
 
+  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  public void authorizeRead() {
+    company.require(CATALOG_READ);
+  }
+
   static CatalogItemSearchCriteria criteria(
       String type, String term, String active, CommercialFilters filters) {
     return new CatalogItemSearchCriteria(
@@ -62,7 +67,7 @@ public class ListCatalogItems {
       java.util.UUID categoryId, String availableForSale, String availableForPurchase) {}
 
   private static CatalogItemType parseType(String type) {
-    if (type == null) {
+    if (type == null || "ALL".equals(type)) {
       return null;
     }
     try {

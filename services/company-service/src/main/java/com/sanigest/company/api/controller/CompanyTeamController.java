@@ -3,6 +3,7 @@ package com.sanigest.company.api.controller;
 import static com.sanigest.company.api.controller.CompanyActor.authenticatedUserId;
 import static com.sanigest.company.api.routing.CompanyRequestSelection.resolve;
 
+import com.sanigest.company.api.dto.CompanyOptions;
 import com.sanigest.company.api.dto.InvitationRequest;
 import com.sanigest.company.api.dto.InvitationResponse;
 import com.sanigest.company.api.dto.MemberPageResponse;
@@ -48,6 +49,17 @@ class CompanyTeamController {
     this.inviteUser = inviteUser;
     this.acceptInvitation = acceptInvitation;
     this.listUsers = listUsers;
+  }
+
+  @GetMapping("/api/v1/companies/{companyId}/options")
+  ResponseEntity<CompanyOptions> options(
+      @AuthenticationPrincipal Jwt jwt, @PathVariable String companyId, HttpServletRequest http) {
+    var roles =
+        inviteUser.assignableRoles(
+            authenticatedUserId(jwt, regularAccount), resolve(http, companyId));
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(CompanyOptions.from(roles));
   }
 
   @PostMapping({"/api/v1/companies/me/invitations", "/api/v1/companies/{companyId}/invitations"})

@@ -103,6 +103,21 @@ def main():
     product = exchange(f"catalog-items/{item_a}", token=token, tenant=a)
     assert product["primarySupplierName"] == supplier["name"] and product["unitDivisible"] is False
 
+    company_options = exchange(f"companies/{a}/options", token=token, tenant=a)
+    assert [option["value"] for option in company_options["invitationRoles"]] == ["OPERATOR", "VIEWER"]
+    catalog_options = exchange("catalog/options", token=token, tenant=a)
+    assert catalog_options["supplierCreditDays"][0] == {"value": None, "label": "No aplica"}
+    assert exchange("clients/options?search=Cliente", token=token, tenant=a) == [
+        {"id": client_a, "name": client["name"]}]
+    assert exchange("clients/options?search=Cliente", token=token, tenant=b) == [
+        {"id": client_b, "name": "Cliente B"}]
+    assert exchange("suppliers/options?supplyType=SERVICE", token=token, tenant=a) == []
+    assert exchange("catalog-items/options?operation=PURCHASE", token=token, tenant=a) == [
+        {"id": item_a, "name": product["name"]}]
+    sales_options = exchange("sales/options", token=token, tenant=a)
+    assert [option["value"] for option in sales_options["receivableFilters"]] == [
+        "ALL", "PENDING", "PARTIALLY_PAID"]
+
     barrier = threading.Barrier(2)
 
     def query(tenant):
@@ -143,6 +158,9 @@ def verify_inventory(token, company, other, item):
         return exchange(path, token=token, tenant=company, **kwargs)
 
     warehouse = inventory("warehouses", data={"code": "ALM-001", "name": "Principal"}, status=201)["id"]
+    assert inventory("warehouses/options?search=principal") == [{"id": warehouse, "name": "Principal"}]
+    assert exchange("warehouses/options", token=token, tenant=other) == []
+    assert inventory("inventory/options")["availabilityFilters"][0] == {"value": "ALL", "label": "Todos"}
     position = f"inventory/stock/{item}/{warehouse}"
     assert inventory(position)["availability"] == "NOT_TRACKED"
     initial = {"trackingEnabled": True, "minimumStock": "5.000", "initialQuantity": "20.000"}

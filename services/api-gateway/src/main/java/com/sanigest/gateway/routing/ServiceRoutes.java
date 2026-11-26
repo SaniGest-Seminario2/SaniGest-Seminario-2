@@ -42,6 +42,7 @@ class ServiceRoutes {
                     .path(
                         "/api/v1/companies",
                         "/api/v1/companies/{companyId}",
+                        "/api/v1/companies/{companyId}/options",
                         "/api/v1/companies/{companyId}/users",
                         "/api/v1/companies/{companyId}/invitations",
                         "/api/v1/companies/{companyId}/invitations/{invitationId}",
@@ -66,6 +67,7 @@ class ServiceRoutes {
             route ->
                 route
                     .path(
+                        "/api/v1/catalog/options",
                         "/api/v1/clients",
                         "/api/v1/clients/{id}",
                         "/api/v1/clients/{id}/status",
@@ -116,6 +118,7 @@ class ServiceRoutes {
                     .path(
                         "/api/v1/warehouses",
                         "/api/v1/warehouses/{id}",
+                        "/api/v1/inventory/options",
                         "/api/v1/inventory/stock",
                         "/api/v1/inventory/stock/{itemId}/{warehouseId}",
                         "/api/v1/inventory/summary",

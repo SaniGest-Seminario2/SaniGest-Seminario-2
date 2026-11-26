@@ -1,5 +1,6 @@
 package com.sanigest.company.domain.model;
 
+import com.sanigest.company.domain.enums.CompanyStatus;
 import java.util.UUID;
 
 /** Domain representation of a company, independent of persistence and transport. */
@@ -68,7 +69,9 @@ public record Company(
         || businessName.isBlank()) {
       throw new IllegalArgumentException("A company requires an id and a name");
     }
-    if (!"DOP".equals(currency) || !("ACTIVE".equals(status) || "INACTIVE".equals(status))) {
+    if (!"DOP".equals(currency)
+        || !(CompanyStatus.ACTIVE.name().equals(status)
+            || CompanyStatus.INACTIVE.name().equals(status))) {
       throw new IllegalArgumentException("Invalid company defaults");
     }
   }

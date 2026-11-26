@@ -3,6 +3,7 @@ package com.sanigest.company.domain.model;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.InvitationStatus;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -15,6 +16,9 @@ public record Invitation(
     Instant createdAt,
     Instant expiresAt,
     String name) {
+
+  public static final List<CompanyRole> ASSIGNABLE_ROLES =
+      List.of(CompanyRole.OPERATOR, CompanyRole.VIEWER);
 
   public Invitation(
       UUID id,
@@ -47,7 +51,7 @@ public record Invitation(
         || createdAt == null
         || expiresAt == null
         || !expiresAt.isAfter(createdAt)
-        || (role != CompanyRole.OPERATOR && role != CompanyRole.VIEWER)) {
+        || (role == null || !ASSIGNABLE_ROLES.contains(role))) {
       throw new IllegalArgumentException("Invalid invitation");
     }
   }

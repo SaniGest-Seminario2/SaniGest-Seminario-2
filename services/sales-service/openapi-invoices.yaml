@@ -5,6 +5,118 @@ info:
 security:
   - bearerAuth: []
 paths:
+  /api/v1/sales/options:
+    get:
+      summary: Consultar opciones de Sales
+      description: Requiere SALES_READ. Los filtros de factura y cartera son opciones de UI. PENDING representa
+        OPEN en cartera. El comprobante solicitado es distinto de la clasificación fiscal de la factura interna.
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/CompanySelector'
+      responses:
+        '200':
+          description: Opciones disponibles
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - saleModes
+                - requestedReceiptTypes
+                - invoiceFilters
+                - receivableFilters
+                - paymentMethods
+                properties:
+                  saleModes:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                      - value
+                      - label
+                      properties:
+                        value:
+                          type: string
+                          enum:
+                          - CASH
+                          - CREDIT
+                        label:
+                          type: string
+                  requestedReceiptTypes:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                      - value
+                      - label
+                      properties:
+                        value:
+                          type: string
+                          enum:
+                          - CONSUMPTION
+                          - FISCAL_CREDIT
+                        label:
+                          type: string
+                  invoiceFilters:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                      - value
+                      - label
+                      properties:
+                        value:
+                          type: string
+                          enum:
+                          - ALL
+                          - ISSUED
+                          - PARTIALLY_PAID
+                          - PAID
+                        label:
+                          type: string
+                  receivableFilters:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                      - value
+                      - label
+                      properties:
+                        value:
+                          type: string
+                          enum:
+                          - ALL
+                          - PENDING
+                          - PARTIALLY_PAID
+                        label:
+                          type: string
+                  paymentMethods:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                      - value
+                      - label
+                      properties:
+                        value:
+                          type: string
+                          enum:
+                          - CASH
+                          - CREDIT_CARD
+                          - DEBIT_CARD
+                          - TRANSFER
+                          - CHECK
+                        label:
+                          type: string
+        '400':
+          description: Parámetros inválidos
+        '401':
+          description: JWT inválido o ausente
+        '403':
+          description: Permiso empresarial insuficiente
+        '503':
+          description: Autorización no disponible
   /api/v1/sales:
     parameters:
       - $ref: '#/components/parameters/CompanySelector'

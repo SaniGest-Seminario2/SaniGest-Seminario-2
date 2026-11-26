@@ -3,6 +3,7 @@ package com.sanigest.inventory.api.controller;
 import com.sanigest.inventory.api.dto.InventoryRequests;
 import com.sanigest.inventory.api.dto.InventoryResponses.PageView;
 import com.sanigest.inventory.api.dto.InventoryResponses.WarehouseView;
+import com.sanigest.inventory.api.dto.NamedOption;
 import com.sanigest.inventory.application.dto.InventoryQueries;
 import com.sanigest.inventory.application.dto.InventoryQueries.Order;
 import com.sanigest.inventory.application.dto.InventoryQueries.Sort;
@@ -13,6 +14,7 @@ import com.sanigest.inventory.domain.Warehouse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -63,6 +65,21 @@ public class WarehouseController {
             new InventoryQueries.Warehouses(
                 search, status, new InventoryQueries.Paging(page, size, sort, order))),
         WarehouseView::from);
+  }
+
+  @GetMapping("/options")
+  List<NamedOption> options(
+      HttpServletRequest request, @RequestParam(required = false) String search) {
+    var company = RequestContext.company(request);
+    access.authorize(company, Operation.READ);
+    var query =
+        new InventoryQueries.Warehouses(
+            search,
+            Warehouse.Status.ACTIVE,
+            new InventoryQueries.Paging(0, 20, Sort.NAME, Order.ASC));
+    return warehouses.list(company, query).items().stream()
+        .map(warehouse -> new NamedOption(warehouse.id(), warehouse.name()))
+        .toList();
   }
 
   @GetMapping("/{id}")

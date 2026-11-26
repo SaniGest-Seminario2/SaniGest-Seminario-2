@@ -40,6 +40,39 @@ class InventorySecurityIT extends InventoryHttpFixture {
   }
 
   @Test
+  void warehouseOptionsFilterBeforeSelectingAndKeepTheCompanyBoundary() throws Exception {
+    var warehouse = warehouse();
+    var inactive =
+        expect(
+                "POST",
+                WAREHOUSES,
+                company,
+                null,
+                "{\"code\":\"ALM-2\",\"name\":\"Warehouse inactive\"}",
+                201)
+            .path("id")
+            .asString();
+    expect("PATCH", WAREHOUSES + "/" + inactive, company, null, "{\"status\":\"INACTIVE\"}", 200);
+
+    var path = WAREHOUSES + "/options?search=ware";
+    var options = expect("GET", path, company, null, null, 200);
+    assertThat(options.size()).isEqualTo(1);
+    assertThat(options.get(0).size()).isEqualTo(2);
+    assertThat(options.get(0).path("id").asString()).isEqualTo(warehouse.toString());
+    assertThat(options.get(0).path("name").asString()).isEqualTo("Warehouse");
+    assertThat(expect("GET", path, other, null, null, 200).size()).isZero();
+    assertThat(
+            expect("GET", WAREHOUSES + "/options?search=missing", company, null, null, 200).size())
+        .isZero();
+    initialize(warehouse, "3");
+    assertThat(
+            expect("GET", STOCK + "?availability=ALL", company, null, null, 200)
+                .path("totalElements")
+                .asInt())
+        .isEqualTo(1);
+  }
+
+  @Test
   void doesNotTreatOperatorWriteGrantAsAnAdjustmentPermission() throws Exception {
     var warehouse = warehouse();
     initialize(warehouse, "3");

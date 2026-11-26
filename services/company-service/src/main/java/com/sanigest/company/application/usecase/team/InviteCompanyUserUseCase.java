@@ -12,6 +12,7 @@ import com.sanigest.company.domain.model.Invitation;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -49,6 +50,12 @@ public class InviteCompanyUserUseCase {
     this.clock = clock;
     this.delivery = delivery;
     this.audit = audit;
+  }
+
+  @Transactional(readOnly = true)
+  public List<CompanyRole> assignableRoles(UUID actor, UUID requestedCompany) {
+    policy.requireAdministrator(actor, requestedCompany, false);
+    return Invitation.ASSIGNABLE_ROLES;
   }
 
   @Transactional
