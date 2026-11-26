@@ -1,0 +1,93 @@
+name: Deploy dev
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: >-
+      vars.AWS_DEV_DEPLOY_ENABLED == 'true' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      services: ${{ steps.config.outputs.services }}
+    steps:
+      - name: Validate deployment configuration
+        id: config
+        env:
+          DEPLOY_SERVICES: ${{ vars.AWS_DEV_SERVICES }}
+        run: |
+          services=$(jq -cen --argjson config "$DEPLOY_SERVICES" '
+            $config |
+            select(type == "array" and length > 0 and
+            (map(.service) | length == (unique | length)) and
+            all(.[];
+              (.service | test("^[a-z][a-z0-9-]+$")) and
+              (.repository | test("^[a-z0-9][a-z0-9/_-]+$")) and
+              (.healthUrl | test("^https://[^[:space:]]+$"))))
+          ')
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: plan
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.services) }}
+    name: Deploy ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      COMMIT: ${{ github.event.workflow_run.head_sha }}
+      AWS_ECS_CLUSTER: ${{ vars.AWS_DEV_ECS_CLUSTER }}
+      SERVICE_CONFIG: ${{ toJSON(matrix) }}
+      AWS_PAGER: ''
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check that the tested commit is still on top of main
+        id: revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tip=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          if [[ "$tip" == "$COMMIT" ]]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Skipping CI result for superseded commit $COMMIT."
+          fi
+
+      - name: Assume AWS dev role
+        if: steps.revision.outputs.current == 'true'
+        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
+        with:
+          role-to-assume: ${{ vars.AWS_DEV_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_DEV_REGION }}
+          role-session-name: deploy-dev-${{ github.run_id }}-${{ github.run_attempt }}
+          role-duration-seconds: 3600
+          mask-aws-account-id: true
+
+      - name: Package, publish and deploy changed service
+        if: steps.revision.outputs.current == 'true'
+        run: bash infrastructure/aws/deploy-dev.sh
