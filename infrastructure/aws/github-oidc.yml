@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: GitHub Actions OIDC role for SaniGest dev deployments
+
+Parameters:
+  ExistingProviderArn:
+    Type: String
+    Default: ''
+    AllowedPattern: '(|arn:aws:iam::[0-9]{12}:oidc-provider/token\.actions\.githubusercontent\.com)'
+    Description: Existing GitHub OIDC provider ARN in this account, or empty to create one.
+  GitHubSubject:
+    Type: String
+    Default: 'repo:SaniGest-Seminario2/SaniGest-Seminario-2:ref:refs/heads/main'
+    AllowedPattern: 'repo:SaniGest-Seminario2(@[0-9]+)?/SaniGest-Seminario-2(@[0-9]+)?:ref:refs/heads/main'
+    Description: Exact GitHub OIDC subject for this repository and main.
+  EcrRepositoryArns:
+    Type: CommaDelimitedList
+    AllowedPattern: 'arn:aws:ecr:[a-z0-9-]+:[0-9]{12}:repository/[a-z0-9/_-]+'
+    Description: Dev ECR repositories allowed to receive images.
+  EcsServiceArns:
+    Type: CommaDelimitedList
+    AllowedPattern: 'arn:aws:ecs:[a-z0-9-]+:[0-9]{12}:service/[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+'
+    Description: Dev ECS services allowed to receive deployments (long ARNs).
+  EcsTaskDefinitionArns:
+    Type: CommaDelimitedList
+    AllowedPattern: 'arn:aws:ecs:[a-z0-9-]+:[0-9]{12}:task-definition/[a-zA-Z0-9_-]+:\*'
+    Description: Dev task definition families, with a wildcard for revisions only.
+  EcsTaskRoleArns:
+    Type: CommaDelimitedList
+    AllowedPattern: 'arn:aws:iam::[0-9]{12}:role/[a-zA-Z0-9_+=,.@/-]+'
+    Description: Explicit execution and application roles used by the dev task definitions.
+
+Conditions:
+  CreateProvider: !Equals [!Ref ExistingProviderArn, '']
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRoleWithWebIdentity
+            Principal:
+              Federated: !If [CreateProvider, !Ref GitHubOidcProvider, !Ref ExistingProviderArn]
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Ref GitHubSubject
+      Policies:
+        - PolicyName: DeployDev
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: RegistryAuthentication
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+              - Sid: PushImages
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource: !Ref EcrRepositoryArns
+              - Sid: RegisterTaskRevision
+                Effect: Allow
+                Action: ecs:RegisterTaskDefinition
+                Resource: !Ref EcsTaskDefinitionArns
+              - Sid: DescribeTaskRevision
+                Effect: Allow
+                Action: ecs:DescribeTaskDefinition
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+              - Sid: InspectService
+                Effect: Allow
+                Action: ecs:DescribeServices
+                Resource: !Ref EcsServiceArns
+              - Sid: DeployTaskRevision
+                Effect: Allow
+                Action: ecs:UpdateService
+                Resource: !Ref EcsServiceArns
+                Condition:
+                  ArnLike:
+                    ecs:task-definition: !Ref EcsTaskDefinitionArns
+              - Sid: PassTaskRoles
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Ref EcsTaskRoleArns
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: ecs-tasks.amazonaws.com
+
+Outputs:
+  DeployRoleArn:
+    Value: !GetAtt GitHubDeployRole.Arn
