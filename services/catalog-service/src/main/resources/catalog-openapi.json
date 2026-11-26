@@ -354,8 +354,14 @@
             "$ref": "#/components/responses/CatalogItemForbidden"
           },
           "503": {
-            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable",
-            "description": "Autorización o Inventory indisponible, respuesta de Inventory inválida o presupuesto de composición agotado. No se devuelve una página parcial."
+            "description": "Autorización o Inventory indisponible, respuesta de Inventory inválida o presupuesto de composición agotado. No se devuelve una página parcial.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
             "description": "Almacén inexistente o fuera de la empresa autorizada.",
