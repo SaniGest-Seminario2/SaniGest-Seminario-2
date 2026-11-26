@@ -40,13 +40,17 @@ final class AdvisorEligibilityController {
   }
 
   @ExceptionHandler(InvalidUserId.class)
-  ProblemDetail invalidUserId() {
-    var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "userId must be a UUID");
+  ProblemDetail invalidUserId(InvalidUserId failure) {
+    var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, failure.getMessage());
     problem.setProperty("errors", Map.of("userId", "Invalid UUID"));
     return problem;
   }
 
-  private static final class InvalidUserId extends IllegalArgumentException {}
+  private static final class InvalidUserId extends IllegalArgumentException {
+    InvalidUserId() {
+      super("userId must be a UUID");
+    }
+  }
 
   @ExceptionHandler({DataAccessException.class, TransactionException.class})
   ProblemDetail unavailable() {
