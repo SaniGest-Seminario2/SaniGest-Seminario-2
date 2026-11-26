@@ -1,5 +1,6 @@
 package com.sanigest.inventory.api.controller;
 
+import com.sanigest.inventory.api.dto.InventoryOptions;
 import com.sanigest.inventory.api.dto.InventoryRequests;
 import com.sanigest.inventory.api.dto.InventoryResponses.MovementView;
 import com.sanigest.inventory.api.dto.InventoryResponses.PageView;
@@ -38,6 +39,12 @@ public class InventoryController {
     this.access = access;
     this.stock = stock;
     this.reads = reads;
+  }
+
+  @GetMapping("/options")
+  InventoryOptions options(HttpServletRequest request) {
+    access.authorize(RequestContext.company(request), Operation.READ);
+    return InventoryOptions.defaults();
   }
 
   @GetMapping("/stock/{itemId}/{warehouseId}")

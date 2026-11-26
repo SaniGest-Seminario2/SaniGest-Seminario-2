@@ -10,6 +10,179 @@
     }
   ],
   "paths": {
+    "/api/v1/inventory/options": {
+      "get": {
+        "summary": "Consultar opciones de disponibilidad",
+        "description": "Requiere INVENTORY READ. NOT_APPLICABLE identifica artículos sin inventario físico en las lecturas.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Opciones disponibles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "availabilityFilters",
+                    "availabilityStates"
+                  ],
+                  "properties": {
+                    "availabilityFilters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "enum": [
+                              "ALL",
+                              "AVAILABLE",
+                              "LOW",
+                              "OUT",
+                              "NOT_TRACKED"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "availabilityStates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "enum": [
+                              "AVAILABLE",
+                              "LOW",
+                              "OUT",
+                              "NOT_TRACKED",
+                              "NOT_APPLICABLE"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "401": {
+            "description": "JWT inválido o ausente"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente"
+          },
+          "503": {
+            "description": "Autorización no disponible"
+          }
+        }
+      }
+    },
+    "/api/v1/warehouses/options": {
+      "get": {
+        "summary": "Seleccionar almacenes activos",
+        "description": "Requiere INVENTORY READ. Hasta 20 resultados, por nombre e ID.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Opciones disponibles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "maxItems": 20
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "401": {
+            "description": "JWT inválido o ausente"
+          },
+          "403": {
+            "description": "Permiso empresarial insuficiente"
+          },
+          "503": {
+            "description": "Autorización no disponible"
+          }
+        }
+      }
+    },
     "/api/v1/warehouses": {
       "get": {
         "summary": "Listar almacenes",
@@ -505,10 +678,12 @@
           },
           {
             "name": "availability",
+            "description": "ALL omite el filtro de disponibilidad.",
             "in": "query",
             "schema": {
               "type": "string",
               "enum": [
+                "ALL",
                 "NOT_TRACKED",
                 "OUT",
                 "LOW",

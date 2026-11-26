@@ -1,6 +1,7 @@
 package com.sanigest.sales.api.controller;
 
 import com.sanigest.sales.api.dto.SalePageResponse;
+import com.sanigest.sales.api.dto.SalesOptions;
 import com.sanigest.sales.application.exception.InvalidSaleQuery;
 import com.sanigest.sales.application.usecase.sale.ListSales;
 import java.time.LocalDate;
@@ -19,6 +20,13 @@ public class SaleQueryController {
 
   SaleQueryController(ListSales listSales) {
     this.listSales = listSales;
+  }
+
+  @GetMapping(path = "/api/v1/sales/options", produces = MediaType.APPLICATION_JSON_VALUE)
+  @PreAuthorize("isAuthenticated()")
+  public SalesOptions options() {
+    listSales.requireReadCompany();
+    return SalesOptions.defaults();
   }
 
   @GetMapping(path = "/api/v1/sales", produces = MediaType.APPLICATION_JSON_VALUE)

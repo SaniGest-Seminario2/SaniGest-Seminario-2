@@ -4,6 +4,7 @@ import com.sanigest.inventory.application.dto.InventoryQueries;
 import com.sanigest.inventory.application.dto.InventoryQueries.Order;
 import com.sanigest.inventory.application.dto.InventoryQueries.Paging;
 import com.sanigest.inventory.application.dto.InventoryQueries.Sort;
+import com.sanigest.inventory.domain.InventoryViolation;
 import com.sanigest.inventory.domain.StockAvailability;
 import java.util.List;
 import java.util.UUID;
@@ -11,7 +12,7 @@ import java.util.UUID;
 public record StockFilters(
     UUID warehouseId,
     UUID catalogItemId,
-    StockAvailability availability,
+    String availability,
     Boolean trackingEnabled,
     String search,
     Integer page,
@@ -23,11 +24,22 @@ public record StockFilters(
     return new InventoryQueries.Stock(
         warehouseId,
         catalogItemId,
-        availability,
+        availabilityFilter(),
         trackingEnabled,
         search,
         paging(page, size, sort, Sort.UPDATED_AT, order),
         catalogItemIds);
+  }
+
+  private StockAvailability availabilityFilter() {
+    if (availability == null || availability.isBlank() || "ALL".equals(availability)) {
+      return null;
+    }
+    try {
+      return StockAvailability.valueOf(availability.strip());
+    } catch (IllegalArgumentException invalid) {
+      throw InventoryViolation.invalid("INVALID_REQUEST");
+    }
   }
 
   static Paging paging(Integer page, Integer size, Sort sort, Sort fallback, Order order) {

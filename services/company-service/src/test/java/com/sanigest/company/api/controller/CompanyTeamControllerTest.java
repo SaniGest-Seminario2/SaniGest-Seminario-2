@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.sanigest.company.api.dto.InvitationRequest;
 import com.sanigest.company.api.dto.InvitationResponse;
 import com.sanigest.company.api.dto.MemberResponse;
+import com.sanigest.company.api.dto.ValueOption;
 import com.sanigest.company.application.account.AccountType;
 import com.sanigest.company.application.dto.CompanyMembership;
 import com.sanigest.company.application.dto.CompanyProfile;
@@ -85,6 +86,25 @@ class CompanyTeamControllerTest {
                 "María",
                 EMAIL));
     assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
+  }
+
+  @Test
+  void mapsInvitationOptionsFromTheAuthorizedCompanyPolicy() {
+    when(accounts.resolve("access-token")).thenReturn(AccountType.REGULAR);
+    when(invite.assignableRoles(user, company))
+        .thenReturn(List.of(CompanyRole.OPERATOR, CompanyRole.VIEWER));
+
+    var response = controller.options(jwt(true), company.toString(), request());
+    assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
+    assertThat(response.getBody().invitationRoles())
+        .containsExactly(
+            new ValueOption<>("OPERATOR", "Operador"), new ValueOption<>("VIEWER", "Lector"));
+    assertThat(response.getBody().companyStatuses())
+        .extracting(ValueOption::value)
+        .containsExactly("ACTIVE", "INACTIVE");
+    assertThat(response.getBody().companyStatusFilters())
+        .extracting(ValueOption::value)
+        .containsExactly("ALL", "ACTIVE", "INACTIVE");
   }
 
   @Test

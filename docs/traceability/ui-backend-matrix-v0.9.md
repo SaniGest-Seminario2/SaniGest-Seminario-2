@@ -11,8 +11,10 @@ Base main `454eb69`. Rutas relativas a `/api/v1`. **Vigente** indica ruta presen
 | Equipo sin paginar | GET /companies/{companyId}/users/all | Company | Pendiente | S2-474 |
 | Equipo e incorporación | POST/GET /companies/{companyId}/invitations; DELETE /companies/{companyId}/invitations/{invitationId}; POST /invitations/{token}/accept | Company | Evolución entrega/alta; gestión vigente | S2-455, S2-474 |
 | Equipo, roles y desactivación | PATCH /companies/{companyId}/members/{userId}/{role,status}; DELETE /companies/{companyId}/members/{userId} | Company | Vigente | S2-455, S2-474 |
-| Opciones fijas y filtros | GET de opciones por dominio, rutas pendientes donde no exista referencia | Company/Catalog/Inventory/Sales; Expense/Finance con sus servicios | Pendiente | S2-473, S2-342, S2-349, S2-432 |
-| Selectores BD | GET /clients/options; GET /suppliers/options; GET /catalog-items/options; GET /accounts/options | Catalog; Finance para cuentas | Pendiente | S2-473, S2-467 |
+| Opciones fijas y filtros | GET /companies/{companyId}/options; GET /catalog/options; GET /inventory/options; GET /sales/options | Company/Catalog/Inventory/Sales | Vigente | S2-473 |
+| Opciones de Expense y Finance | Rutas por definir en sus respectivos servicios | Expense/Finance | Pendiente | S2-342, S2-349, S2-432 |
+| Selectores BD | GET /clients/options; GET /suppliers/options; GET /catalog-items/options; GET /warehouses/options | Catalog/Inventory | Vigente | S2-473 |
+| Selector de cuentas | GET /accounts/options | Finance | Pendiente | S2-467 |
 | Clientes, ficha y desactivación | GET/POST /clients; GET/PATCH /clients/{id}; PATCH /clients/{id}/status | Catalog | Evolución formulario | S2-475, S2-418 |
 | Clientes sin paginar | GET /clients/all | Catalog | Pendiente | S2-475 |
 | Referencias y categorías | GET /clients/reference-data/{countries,provinces,municipalities,receipt-types}; GET/POST /{clients,suppliers,catalog-items}/categories; PUT /{clients,suppliers,catalog-items}/categories/{id}; GET /catalog-items/{units,tax-classifications} | Catalog | Vigente | S2-473, S2-475–477 |

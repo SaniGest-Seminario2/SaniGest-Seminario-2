@@ -35,6 +35,14 @@ final class CompanyContextOpenApi {
             "post",
                 CompanyTeamOpenApi.accepted(
                     operation("Aceptar invitación con cuenta REGULAR activa", "200", false))));
+    put(
+        paths,
+        COMPANIES + "/{companyId}/options",
+        false,
+        Map.of(
+            "get",
+            CompanyTeamOpenApi.options(
+                operation("Consultar opciones de empresa como OWNER o ADMIN", "200", false))));
     for (String base : List.of(COMPANIES + "/me", COMPANIES + "/{companyId}")) {
       boolean legacy = base.endsWith("/me");
       put(

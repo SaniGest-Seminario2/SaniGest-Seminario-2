@@ -49,6 +49,7 @@ import com.sanigest.catalog.domain.enums.ClientStatus;
 import com.sanigest.catalog.domain.enums.ClientType;
 import com.sanigest.catalog.domain.enums.SupplierPaymentTerms;
 import com.sanigest.catalog.domain.enums.SupplierStatus;
+import com.sanigest.catalog.domain.enums.SupplierSupplyType;
 import com.sanigest.catalog.domain.model.CatalogItem;
 import com.sanigest.catalog.domain.model.CatalogItemPatch;
 import com.sanigest.catalog.domain.model.CatalogItemProfile;
@@ -1345,6 +1346,76 @@ class CatalogServiceIT {
       assertThat(get(http, detailPath, actor, companyA).statusCode()).isEqualTo(403);
       stubFailure(actor, 503);
       assertThat(get(http, detailPath, actor, companyA).statusCode()).isEqualTo(503);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void returnsActiveTenantSelectorsWithSearchAndCommercialEligibility() throws Exception {
+    var company = UUID.randomUUID();
+    var other = UUID.randomUUID();
+    var owner = scopedCatalogOwner(company);
+    var foreign = scopedCatalogOwner(other);
+    var item = UUID.randomUUID();
+    var supplier = UUID.randomUUID();
+    items.insert(
+        new CatalogItem(
+            item,
+            company,
+            "Selector item",
+            CatalogItemType.PRODUCT,
+            BigDecimal.ONE,
+            true,
+            null,
+            new CatalogItemProfile(null, null, null, "UNIT", null, "EXEMPT", true, false)));
+    suppliers.insert(
+        new Supplier(
+            supplier,
+            company,
+            new SupplierDetails(
+                "Selector supplier",
+                null,
+                "Contacto",
+                null,
+                null,
+                new SupplierProfile(
+                    null, SupplierSupplyType.BOTH, SupplierPaymentTerms.CASH, null, null, null)),
+            SupplierStatus.ACTIVE));
+    try (var http = HttpClient.newHttpClient()) {
+      var client =
+          sendProfile(http, owner, company, "Selector client", "BOTH").path("id").asString();
+      var inactive =
+          sendProfile(http, owner, company, "Selector inactive", "CASH").path("id").asString();
+      assertThat(
+              patch(
+                      http,
+                      "/api/v1/clients/" + inactive + "/status",
+                      owner,
+                      "{\"status\":\"INACTIVE\"}",
+                      company)
+                  .statusCode())
+          .isEqualTo(200);
+      var lookups =
+          Map.of(
+              "/api/v1/clients/options?search=selector",
+                  Map.of("id", client, "name", "Selector client"),
+              "/api/v1/suppliers/options?search=selector&supplyType=SERVICE",
+                  Map.of("id", supplier.toString(), "name", "Selector supplier"),
+              "/api/v1/catalog-items/options?search=selector&operation=SALE",
+                  Map.of("id", item.toString(), "name", "Selector item"));
+      for (var lookup : lookups.entrySet()) {
+        var selected = successfulBody(get(http, lookup.getKey(), owner, company));
+        assertThat(selected).isEqualTo(JsonMapper.shared().valueToTree(List.of(lookup.getValue())));
+        assertThat(successfulBody(get(http, lookup.getKey(), foreign, other)).size()).isZero();
+      }
+      assertThat(
+              successfulBody(get(http, "/api/v1/catalog-items/options?operation=PURCHASE", owner))
+                  .size())
+          .isZero();
+      var options = successfulBody(get(http, "/api/v1/catalog/options", owner));
+      assertThat(options.path("supplierCreditDays").get(0))
+          .isEqualTo(JsonMapper.shared().readTree("{\"value\":null,\"label\":\"No aplica\"}"));
+      assertThat(get(http, "/api/v1/catalog/options", null).statusCode()).isEqualTo(401);
     }
   }
 

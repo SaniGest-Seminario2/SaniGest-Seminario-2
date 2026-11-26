@@ -104,6 +104,22 @@ final class CompanyTeamOpenApi {
                 List.of("companyId", "companyName", "currency", "status")));
   }
 
+  static Map<String, Object> options(Map<String, Object> operation) {
+    Map<String, Object> properties =
+        Map.of(
+            "invitationRoles", optionsFor("OPERATOR", "VIEWER"),
+            "companyStatuses", optionsFor("ACTIVE", "INACTIVE"),
+            "companyStatusFilters", optionsFor("ALL", "ACTIVE", "INACTIVE"));
+    return response(operation, "200", object(properties, List.copyOf(properties.keySet())));
+  }
+
+  private static Map<String, Object> optionsFor(String... values) {
+    return array(
+        object(
+            Map.of("value", choices(values), "label", Map.of("type", "string")),
+            List.of("value", "label")));
+  }
+
   static Map<String, Object> members(Map<String, Object> operation) {
     var result =
         response(
