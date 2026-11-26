@@ -126,7 +126,9 @@ def verify_inventory(token, company, other, item):
     position = f"inventory/stock/{item}/{warehouse}"
     assert inventory(position)["availability"] == "NOT_TRACKED"
     initial = {"trackingEnabled": True, "minimumStock": "5.000", "initialQuantity": "20.000"}
-    assert inventory(position, method="PUT", data=initial, key=uuid.uuid4().hex)["onHand"] == "20.000"
+    configured = inventory(position, method="PUT", data=initial, key=uuid.uuid4().hex)
+    assert configured["onHand"] == "20.000" and configured["warehouseName"] == "Principal"
+    assert inventory(position) == configured
 
     def adjust(article, direction, quantity, key, status=201):
         return inventory("inventory/adjustments", data={
@@ -146,6 +148,12 @@ def verify_inventory(token, company, other, item):
     service = inventory("catalog-items", data={"name": "Servicio", "type": "SERVICE", "price": 0,
                                                 "unitCode": "UNIT", "taxClassificationCode": "EXEMPT"}, status=201)["id"]
     assert inventory(f"inventory/stock/{service}/{warehouse}")["availability"] == "NOT_APPLICABLE"
+    for state, item_type, expected in (("AVAILABLE", "PRODUCT", item), ("NOT_APPLICABLE", "SERVICE", service)):
+        path = f"catalog-items?warehouseId={warehouse}&availability={state}&type={item_type}&size=1"
+        page = inventory(path)
+        assert page["totalElements"] == page["totalPages"] == 1
+        assert page["content"][0]["id"] == expected
+        exchange(path, token=token, tenant=other, status=404)
     adjust(service, "IN", "1", uuid.uuid4().hex, 400)
     exchange(position, token=token, tenant=other, status=404)
     exchange("inventory/stock", status=401, origin=INVENTORY)

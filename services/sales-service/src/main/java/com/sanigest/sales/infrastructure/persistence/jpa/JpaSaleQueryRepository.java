@@ -43,7 +43,9 @@ class JpaSaleQueryRepository implements SaleQueryRepository {
                 row.getInvoiceNumber(),
                 row.getDueDate(),
                 paymentStatus(row.getPaymentStatus()),
-                row.getBalance() == null ? null : row.getBalance().setScale(2),
+                row.getOutstandingBalance() == null
+                    ? null
+                    : row.getOutstandingBalance().setScale(2),
                 row.getCollected() == null ? null : row.getCollected().setScale(2)));
   }
 

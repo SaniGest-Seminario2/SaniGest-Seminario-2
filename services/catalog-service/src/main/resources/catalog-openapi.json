@@ -229,7 +229,7 @@
       "get": {
         "operationId": "listCatalogItems",
         "summary": "Listar productos y servicios",
-        "description": "Requiere CATALOG_READ en la membresía vigente. Orden por nombre e ID ascendentes. Una página fuera de rango devuelve contenido vacío y conserva los totales.",
+        "description": "Requiere CATALOG_READ en la membresía vigente. Orden por nombre e ID ascendentes. Una página fuera de rango devuelve contenido vacío y conserva los totales. Para combinar filtros comerciales y stock, enviar warehouseId y availability juntos. Requiere lectura de Catalog e Inventory. Completa el conteo antes de paginar.",
         "security": [
           {
             "bearerAuth": []
@@ -307,6 +307,30 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "description": "Almacén explícito. Obligatorio cuando se envía availability.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "availability",
+            "in": "query",
+            "description": "Disponibilidad en el almacén elegido. SERVICE corresponde a NOT_APPLICABLE. Producto sin posición o seguimiento corresponde a NOT_TRACKED.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "NOT_APPLICABLE",
+                "NOT_TRACKED",
+                "OUT",
+                "LOW",
+                "AVAILABLE"
+              ]
+            }
           }
         ],
         "responses": {
@@ -330,7 +354,18 @@
             "$ref": "#/components/responses/CatalogItemForbidden"
           },
           "503": {
-            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable"
+            "$ref": "#/components/responses/CatalogItemAuthorizationUnavailable",
+            "description": "Autorización o Inventory indisponible, respuesta de Inventory inválida o presupuesto de composición agotado. No se devuelve una página parcial."
+          },
+          "404": {
+            "description": "Almacén inexistente o fuera de la empresa autorizada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       },

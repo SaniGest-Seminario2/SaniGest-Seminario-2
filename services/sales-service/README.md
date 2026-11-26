@@ -300,8 +300,9 @@ cuando hay metadatos persistidos. La consulta también incluye `invoiceId`,
 `collectedAmount` cuando existe el documento u obligación correspondiente.
 Los listados incluyen `invoiceNumber` y `paymentStatus`. El detalle de
 obligación conserva `balance` y agrega `outstandingBalance`, `saleCode`,
-`invoiceId` e `invoiceNumber`. El saldo de una obligación CANCELLED se
-conserva como dato histórico y se interpreta con ese estado.
+`invoiceId` e `invoiceNumber`. Para una obligación CANCELLED, `balance` conserva el saldo histórico,
+`outstandingBalance` devuelve `"0.00"` y `collectedAmount` se calcula
+a partir del balance histórico.
 
 `POST /api/v1/sales/{id}/cancel` recibe un UUID y un objeto JSON como
 `{"reason":"Venta registrada por duplicado"}`. El motivo, tras aplicar

@@ -1597,10 +1597,12 @@
           },
           "warehouseName": {
             "type": "string",
-            "nullable": true,
-            "description": "Nombre actual del almacén en las lecturas de existencias."
+            "description": "Nombre vigente del almacén al consultar o configurar existencias."
           }
-        }
+        },
+        "required": [
+          "warehouseName"
+        ]
       },
       "Movement": {
         "type": "object",

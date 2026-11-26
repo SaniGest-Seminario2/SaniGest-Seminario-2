@@ -111,6 +111,7 @@ import org.springframework.test.web.servlet.ResultActions;
   GetCatalogItem.class,
   UpdateCatalogItem.class,
   ListCatalogItems.class,
+  com.sanigest.catalog.application.usecase.catalogitem.FilterCatalogStock.class,
   CreateCatalogItem.class,
   CreateClient.class,
   ListClients.class,
@@ -151,6 +152,9 @@ class CatalogWebPolicyTest {
   @MockitoBean SupplierCategoryRepository supplierCategories;
   @MockitoBean SupplierItemRepository supplierItems;
   @MockitoBean CatalogAuthorization authorization;
+
+  @MockitoBean
+  com.sanigest.catalog.application.port.out.integration.InventoryAvailability inventory;
 
   @Test
   void createsAndReadsExpandedItemsThroughTheirPublishedContract() throws Exception {

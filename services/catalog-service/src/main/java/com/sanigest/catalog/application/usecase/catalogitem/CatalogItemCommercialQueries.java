@@ -33,6 +33,7 @@ public class CatalogItemCommercialQueries {
   private final CatalogBusinessDate date;
   private final GetCatalogItem getItem;
   private final ListCatalogItems listItems;
+  private final FilterCatalogStock stockFilter;
 
   CatalogItemCommercialQueries(
       CatalogItemCompany company,
@@ -40,13 +41,15 @@ public class CatalogItemCommercialQueries {
       CatalogItemRepository items,
       CatalogBusinessDate date,
       GetCatalogItem getItem,
-      ListCatalogItems listItems) {
+      ListCatalogItems listItems,
+      FilterCatalogStock stockFilter) {
     this.company = company;
     this.commercial = commercial;
     this.items = items;
     this.date = date;
     this.getItem = getItem;
     this.listItems = listItems;
+    this.stockFilter = stockFilter;
   }
 
   @Transactional
@@ -113,8 +116,12 @@ public class CatalogItemCommercialQueries {
       String active,
       ListCatalogItems.CommercialFilters filters,
       int page,
-      int size) {
-    var result = listItems.execute(type, search, active, filters, page, size);
+      int size,
+      FilterCatalogStock.Selection stock) {
+    var result =
+        stock.requested()
+            ? stockFilter.execute(type, search, active, filters, page, size, stock)
+            : listItems.execute(type, search, active, filters, page, size);
     return new PageView(result, details(result.content()));
   }
 

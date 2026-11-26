@@ -197,17 +197,28 @@ class InventoryWebTest {
         .thenReturn(new InventoryQueries.Page<>(List.of(movement), 1, 0, 20));
     when(ledger.summary(company, warehouse))
         .thenReturn(new InventoryQueries.Summary(1, 1, 0, 1, 0, 0));
-    mvc.perform(get(path).header(COMPANY, company))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.onHand").value("2.500"))
-        .andExpect(jsonPath("$.availability").value("LOW"));
-    mvc.perform(
-            put(path)
-                .header(COMPANY, company)
-                .header("Idempotency-Key", "start")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"trackingEnabled\":true,\"initialQuantity\":\"2.500\"}"))
-        .andExpect(status().isOk());
+    var detail =
+        mvc.perform(get(path).header(COMPANY, company))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.onHand").value("2.500"))
+            .andExpect(jsonPath("$.availability").value("LOW"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    var configured =
+        mvc.perform(
+                put(path)
+                    .header(COMPANY, company)
+                    .header("Idempotency-Key", "start")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"trackingEnabled\":true,\"initialQuantity\":\"2.500\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.warehouseName").value("Main"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    org.assertj.core.api.Assertions.assertThat(JsonMapper.shared().readTree(configured))
+        .isEqualTo(JsonMapper.shared().readTree(detail));
     mvc.perform(
             post(ADJUST)
                 .header(COMPANY, company)

@@ -61,12 +61,10 @@ public class InventoryController {
       @Valid @RequestBody InventoryRequests.Configure body) {
     var company = RequestContext.company(request);
     var actor = access.authorize(company, Operation.CONFIGURE_STOCK);
-    return StockView.from(
-        stock.configure(
-            new StockKey(company, itemId, warehouseId),
-            actor,
-            RequestContext.idempotency(request),
-            body.command()));
+    var key = new StockKey(company, itemId, warehouseId);
+    var name = reads.warehouseName(key);
+    var position = stock.configure(key, actor, RequestContext.idempotency(request), body.command());
+    return StockView.from(position, name);
   }
 
   @PostMapping("/adjustments")

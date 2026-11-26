@@ -44,17 +44,18 @@ public class ListCatalogItems {
       throw new InvalidCatalogItemQuery();
     }
     var term = search == null || search.isBlank() ? null : search.strip();
-    return items.search(
-        companyId,
-        new CatalogItemSearchCriteria(
-            parseType(type),
-            term,
-            parseActive(active),
-            filters.categoryId(),
-            parseActive(filters.availableForSale()),
-            parseActive(filters.availableForPurchase())),
-        page,
-        size);
+    return items.search(companyId, criteria(type, term, active, filters), page, size);
+  }
+
+  static CatalogItemSearchCriteria criteria(
+      String type, String term, String active, CommercialFilters filters) {
+    return new CatalogItemSearchCriteria(
+        parseType(type),
+        term,
+        parseActive(active),
+        filters.categoryId(),
+        parseActive(filters.availableForSale()),
+        parseActive(filters.availableForPurchase()));
   }
 
   public record CommercialFilters(

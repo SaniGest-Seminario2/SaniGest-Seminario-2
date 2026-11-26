@@ -74,6 +74,26 @@ interface CatalogItemRows extends Repository<CatalogItemRow, UUID> {
       @Param("size") int size,
       @Param("offset") long offset);
 
+  @Query(
+      value =
+          "SELECT * "
+              + FILTER
+              + """
+              AND (CAST(:afterId AS uuid) IS NULL OR (name, id) > (
+                SELECT previous.name, previous.id FROM catalog.catalog_items previous
+                WHERE previous.company_id = :companyId AND previous.id = :afterId
+              ))
+              ORDER BY name ASC, id ASC LIMIT :size
+              """,
+      nativeQuery = true)
+  List<CatalogItemRow> scan(
+      UUID companyId,
+      String type,
+      String pattern,
+      CatalogItemSearchCriteria criteria,
+      UUID afterId,
+      int size);
+
   @Query(value = "SELECT count(*) " + FILTER, nativeQuery = true)
   long countMatching(
       @Param("companyId") UUID companyId,

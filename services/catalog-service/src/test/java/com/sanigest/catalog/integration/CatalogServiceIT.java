@@ -44,16 +44,21 @@ import com.sanigest.catalog.application.usecase.supplier.GetSupplier;
 import com.sanigest.catalog.application.usecase.supplier.ListSuppliers;
 import com.sanigest.catalog.application.usecase.supplier.UpdateSupplier;
 import com.sanigest.catalog.domain.enums.CatalogItemType;
+import com.sanigest.catalog.domain.enums.ClientPaymentTerms;
 import com.sanigest.catalog.domain.enums.ClientStatus;
+import com.sanigest.catalog.domain.enums.ClientType;
+import com.sanigest.catalog.domain.enums.SupplierPaymentTerms;
 import com.sanigest.catalog.domain.enums.SupplierStatus;
 import com.sanigest.catalog.domain.model.CatalogItem;
 import com.sanigest.catalog.domain.model.CatalogItemPatch;
 import com.sanigest.catalog.domain.model.CatalogItemProfile;
 import com.sanigest.catalog.domain.model.Client;
 import com.sanigest.catalog.domain.model.ClientDetails;
+import com.sanigest.catalog.domain.model.ClientProfile;
 import com.sanigest.catalog.domain.model.Supplier;
 import com.sanigest.catalog.domain.model.SupplierDetails;
 import com.sanigest.catalog.domain.model.SupplierPatch;
+import com.sanigest.catalog.domain.model.SupplierProfile;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
 import com.sanigest.companyaccess.CompanyAccess.Scope;
 import com.zaxxer.hikari.HikariConfig;
@@ -201,6 +206,7 @@ class CatalogServiceIT {
     registry.add("spring.jpa.properties.hibernate.generate_statistics", () -> true);
     registry.add("sanigest.company-access.enabled", () -> true);
     registry.add("sanigest.company-access.origin", COMPANY::baseUrl);
+    registry.add("CATALOG_INVENTORY_ORIGIN", COMPANY::baseUrl);
     registry.add("sanigest.company-access.issuer", () -> "catalog-test-internal");
     registry.add("sanigest.company-access.private-key-location", COMPANY_ACCESS_KEY::toUri);
     registry.add("JWT_ISSUER", () -> ISSUER);
@@ -361,7 +367,8 @@ class CatalogServiceIT {
             "V14__create_catalog_item_reference_data.sql",
             "V15__extend_catalog_item_commercial_profile.sql",
             "V16__create_catalog_item_history.sql",
-            "V17__preserve_required_commercial_fields.sql");
+            "V17__preserve_required_commercial_fields.sql",
+            "V18__require_commercial_fields_on_insert.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -936,7 +943,7 @@ class CatalogServiceIT {
     var original =
         Client.register(
             UUID.randomUUID(), new ClientDetails("Concurrent client", null, null, null, null));
-    clients.insert(original);
+    seedClient(original);
     var snapshotRead = new CountDownLatch(1);
     var committed = new CountDownLatch(1);
     try (var executor = Executors.newSingleThreadExecutor()) {
@@ -1106,8 +1113,12 @@ class CatalogServiceIT {
         companyId,
         supplierId,
         itemId);
-    assertThat(Flyway.configure().dataSource(source).load().migrate().migrationsExecuted)
+    assertThat(
+            Flyway.configure().dataSource(source).target("17").load().migrate().migrationsExecuted)
         .isEqualTo(4);
+    assertThat(Flyway.configure().dataSource(source).load().migrate().migrationsExecuted)
+        .isEqualTo(1);
+    assertIncompleteInsertsRejected(jdbc, companyId);
     assertThat(
             jdbc.queryForObject(
                 "SELECT is_primary FROM catalog.supplier_items WHERE catalog_item_id = ?",
@@ -1173,7 +1184,7 @@ class CatalogServiceIT {
     var original =
         Client.register(
             UUID.randomUUID(), new ClientDetails("Persistent client", "321", null, null, null));
-    clients.insert(original);
+    seedClient(original);
     var stored =
         clients.update(
             original.companyId(),
@@ -1778,7 +1789,7 @@ class CatalogServiceIT {
 
     assertThatThrownBy(() ->
             transaction.executeWithoutResult(status -> {
-              suppliers.insert(supplier);
+              seedSupplier(supplier);
               assertThat(supplierCount(company)).isEqualTo(1);
               jdbc.update(
                   "UPDATE catalog.suppliers SET status = 'UNKNOWN' WHERE id = ?", supplier.id());
@@ -1786,8 +1797,8 @@ class CatalogServiceIT {
         .isInstanceOf(DataIntegrityViolationException.class);
     assertThat(supplierCount(company)).isZero();
 
-    suppliers.insert(supplier);
-    assertThatThrownBy(() -> suppliers.insert(supplier))
+    seedSupplier(supplier);
+    assertThatThrownBy(() -> seedSupplier(supplier))
         .isInstanceOf(DataIntegrityViolationException.class);
     assertThat(supplierCount(company)).isEqualTo(1);
   }
@@ -1891,10 +1902,10 @@ class CatalogServiceIT {
             SupplierStatus.ACTIVE);
     var alpha =
         Supplier.register(tenant, new SupplierDetails("Alpha", null, "Contact", null, null));
-    suppliers.insert(second);
-    suppliers.insert(first);
-    suppliers.insert(alpha);
-    suppliers.insert(Supplier.register(UUID.randomUUID(), original));
+    seedSupplier(second);
+    seedSupplier(first);
+    seedSupplier(alpha);
+    seedSupplier(Supplier.register(UUID.randomUUID(), original));
 
     try (var http = HttpClient.newHttpClient()) {
       assertPage(
@@ -1977,7 +1988,7 @@ class CatalogServiceIT {
             .willReturn(aResponse().withFixedDelay(3000)));
     var supplier =
         Supplier.register(tenant, new SupplierDetails("Protected", null, "Laura", null, null));
-    suppliers.insert(supplier);
+    seedSupplier(supplier);
     var path = SUPPLIERS + "/" + supplier.id();
     var inactive = "{\"status\":\"INACTIVE\"}";
 
@@ -2022,18 +2033,18 @@ class CatalogServiceIT {
     var tenant = UUID.randomUUID();
     var writer = authorizedToken(tenant);
     var first =
-        Supplier.register(tenant, new SupplierDetails("First", "Reserved", "Laura", null, null));
+        Supplier.register(tenant, new SupplierDetails("First", "012345690", "Laura", null, null));
     var second =
         Supplier.register(tenant, new SupplierDetails("Second", null, "Laura", null, null));
-    suppliers.insert(first.changeStatus(SupplierStatus.INACTIVE));
-    suppliers.insert(second);
+    seedSupplier(first.changeStatus(SupplierStatus.INACTIVE));
+    seedSupplier(second);
     try (var http = HttpClient.newHttpClient()) {
       var duplicate =
-          patch(http, SUPPLIERS + "/" + second.id(), writer, "{\"taxId\":\" Reserved \"}", null);
+          patch(http, SUPPLIERS + "/" + second.id(), writer, "{\"taxId\":\" 012345690 \"}", null);
       assertThat(duplicate.statusCode()).isEqualTo(409);
       assertThat(JsonMapper.shared().readTree(duplicate.body()).path("errorCode").asString())
           .isEqualTo("DUPLICATE_TAX_ID");
-      assertThat(suppliers.find(tenant, second.id())).contains(second);
+      assertThat(suppliers.find(tenant, second.id())).contains(completeSupplier(second));
     }
 
     var read = new CountDownLatch(1);
@@ -2704,19 +2715,17 @@ class CatalogServiceIT {
     var reader = membershipToken(tenant, MembershipRole.VIEWER, false, Scope.READ);
     var first = UUID.fromString("00000000-0000-0000-0000-000000000001");
     var second = UUID.fromString("00000000-0000-0000-0000-000000000002");
-    items.insert(
+    seedItem(
         new CatalogItem(
             second, tenant, "Silla %_!", CatalogItemType.PRODUCT, BigDecimal.ONE, true));
-    items.insert(
+    seedItem(
         new CatalogItem(first, tenant, "Silla %_!", CatalogItemType.PRODUCT, BigDecimal.ONE, true));
-    items.insert(
-        CatalogItem.register(tenant, "Silla ABC", CatalogItemType.PRODUCT, BigDecimal.ONE));
-    items.insert(
-        CatalogItem.register(tenant, "Silla %_!", CatalogItemType.SERVICE, BigDecimal.ONE));
-    items.insert(
+    seedItem(CatalogItem.register(tenant, "Silla ABC", CatalogItemType.PRODUCT, BigDecimal.ONE));
+    seedItem(CatalogItem.register(tenant, "Silla %_!", CatalogItemType.SERVICE, BigDecimal.ONE));
+    seedItem(
         CatalogItem.register(
             UUID.randomUUID(), "Silla %_!", CatalogItemType.PRODUCT, BigDecimal.ONE));
-    items.insert(
+    seedItem(
         CatalogItem.register(tenant, "Silla %_!", CatalogItemType.PRODUCT, BigDecimal.ONE)
             .withActive(false));
 
@@ -2750,12 +2759,12 @@ class CatalogServiceIT {
     var readerB = membershipToken(companyB, MembershipRole.VIEWER, false, Scope.READ);
     var clientA = Client.register(companyA, new ClientDetails("Cliente A", null, null, null, null));
     var clientB = Client.register(companyB, new ClientDetails("Cliente B", null, null, null, null));
-    clients.insert(clientA);
-    clients.insert(clientB);
+    seedClient(clientA);
+    seedClient(clientB);
     var itemA = CatalogItem.register(companyA, "Silla A", CatalogItemType.PRODUCT, BigDecimal.ONE);
     var itemB = CatalogItem.register(companyB, "Silla B", CatalogItemType.SERVICE, BigDecimal.TEN);
-    items.insert(itemA);
-    items.insert(itemB);
+    seedItem(itemA);
+    seedItem(itemB);
     var pathsA = List.of("/api/v1/clients/" + clientA.id(), CATALOG_ITEMS + "/" + itemA.id());
     var pathsB = List.of("/api/v1/clients/" + clientB.id(), CATALOG_ITEMS + "/" + itemB.id());
 
@@ -2829,7 +2838,7 @@ class CatalogServiceIT {
             .withHeader(USER_ASSERTION, equalTo(timeout))
             .willReturn(aResponse().withFixedDelay(3000)));
     var item = CatalogItem.register(tenant, "Silla", CatalogItemType.PRODUCT, BigDecimal.ONE);
-    items.insert(item);
+    seedItem(item);
     var path = CATALOG_ITEMS + "/" + item.id();
 
     try (var http = HttpClient.newHttpClient()) {
@@ -2869,7 +2878,7 @@ class CatalogServiceIT {
   void detectsConcurrentCatalogItemChangesInPostgres() throws Exception {
     var item =
         CatalogItem.register(UUID.randomUUID(), "Silla", CatalogItemType.PRODUCT, BigDecimal.ONE);
-    items.insert(item);
+    seedItem(item);
     var read = new CountDownLatch(1);
     var committed = new CountDownLatch(1);
     try (var executor = Executors.newSingleThreadExecutor()) {
@@ -3076,7 +3085,7 @@ class CatalogServiceIT {
             true,
             null,
             profile);
-    items.insert(item);
+    seedItem(item);
     assertThat(items.find(item.companyId(), item.id())).contains(item);
   }
 
@@ -3133,7 +3142,7 @@ class CatalogServiceIT {
     var item =
         CatalogItem.register(
             UUID.randomUUID(), "Rollback", CatalogItemType.PRODUCT, BigDecimal.TEN);
-    items.insert(item);
+    seedItem(item);
     var jdbc = new JdbcTemplate(dataSource);
     var transaction = new TransactionTemplate(transactions);
     assertThatThrownBy(() ->
@@ -3153,7 +3162,7 @@ class CatalogServiceIT {
                               Optional.empty(), Optional.empty(), Optional.of(BigDecimal.ONE))));
             }))
         .isInstanceOf(DataIntegrityViolationException.class);
-    assertThat(items.find(item.companyId(), item.id())).contains(item);
+    assertThat(items.find(item.companyId(), item.id())).contains(completeItem(item));
     assertThat(itemRevision(item.id())).isZero();
     assertThat(itemCommercial.history(item.companyId(), item.id(), 0, 20).totalElements())
         .isEqualTo(1);
@@ -3348,6 +3357,170 @@ class CatalogServiceIT {
           file, "-----BEGIN " + type + "-----\n" + encoded + "\n-----END " + type + "-----\n");
     } catch (IOException exception) {
       throw new UncheckedIOException(exception);
+    }
+  }
+
+  @Test
+  @Tag("regression")
+  void filtersStockAcrossCommercialBatchesWithExactPagination() throws Exception {
+    var tenant = UUID.randomUUID();
+    var warehouse = UUID.randomUUID();
+    var reader = membershipToken(tenant, MembershipRole.OWNER, false, Scope.READ);
+    var foreign = membershipToken(UUID.randomUUID(), MembershipRole.OWNER, false, Scope.READ);
+    var jdbc = new JdbcTemplate(dataSource);
+    jdbc.update(
+        """
+        INSERT INTO catalog.catalog_items
+          (id, company_id, name, type, price, unit_code, tax_classification_code, available_for_purchase)
+        SELECT gen_random_uuid(), ?, 'Stock ' || lpad(n::text, 3, '0') ||
+          CASE WHEN n = 100 THEN ' ' ELSE '' END, 'PRODUCT', 1, 'UNIT', 'EXEMPT', false
+        FROM generate_series(1, 105) n
+        """,
+        tenant);
+    var out =
+        jdbc.queryForList(
+            """
+            SELECT id FROM catalog.catalog_items
+            WHERE company_id = ? AND name IN ('Stock 101', 'Stock 103') ORDER BY name
+            """,
+            UUID.class,
+            tenant);
+    var stock = "/api/v1/inventory/stock";
+    COMPANY.stubFor(
+        WireMock.get(WireMock.urlPathEqualTo(stock))
+            .withHeader("X-Company-Id", equalTo(tenant.toString()))
+            .withHeader("Authorization", equalTo("Bearer " + reader))
+            .willReturn(WireMock.okJson("{\"content\":[],\"totalElements\":0}")));
+    COMPANY.stubFor(
+        WireMock.get(WireMock.urlPathEqualTo(stock))
+            .withHeader("X-Company-Id", equalTo(tenant.toString()))
+            .withHeader("Authorization", equalTo("Bearer " + reader))
+            .withQueryParam("warehouseId", equalTo(warehouse.toString()))
+            .withQueryParam("catalogItemIds", WireMock.containing(out.getFirst().toString()))
+            .willReturn(WireMock.okJson(stockPositions(warehouse, out))));
+    COMPANY.stubFor(
+        WireMock.get(urlEqualTo("/api/v1/warehouses/" + warehouse))
+            .withHeader("Authorization", equalTo("Bearer " + foreign))
+            .willReturn(aResponse().withStatus(404)));
+    var path =
+        CATALOG_ITEMS
+            + "?search=Stock&type=PRODUCT&active=true"
+            + "&availability=OUT&warehouseId="
+            + warehouse
+            + "&size=1";
+    try (var http = HttpClient.newHttpClient()) {
+      var first = successfulBody(get(http, path, reader));
+      var second = successfulBody(get(http, path + "&page=1", reader));
+      assertFilteredStockPage(first, 0, out.getFirst());
+      assertFilteredStockPage(second, 1, out.getLast());
+      assertThat(get(http, path, foreign).statusCode()).isEqualTo(404);
+      assertThat(get(http, CATALOG_ITEMS + "?availability=OUT", reader).statusCode())
+          .isEqualTo(400);
+      var notTracked =
+          successfulBody(
+              get(http, path.replace("availability=OUT", "availability=NOT_TRACKED"), reader));
+      assertThat(notTracked.path("totalElements").asInt()).isEqualTo(103);
+      assertThat(notTracked.path("totalPages").asInt()).isEqualTo(103);
+      COMPANY.verify(6, getRequestedFor(WireMock.urlPathEqualTo(stock)));
+      COMPANY.stubFor(
+          WireMock.get(WireMock.urlPathEqualTo(stock))
+              .atPriority(1)
+              .willReturn(aResponse().withStatus(503)));
+      var failure = get(http, path, reader);
+      assertThat(failure.statusCode()).isEqualTo(503);
+      assertThat(JsonMapper.shared().readTree(failure.body()).path("errorCode").asString())
+          .isEqualTo("INVENTORY_UNAVAILABLE");
+    }
+  }
+
+  private static void assertFilteredStockPage(JsonNode body, int page, UUID item) {
+    assertThat(body.path("page").asInt()).isEqualTo(page);
+    assertThat(body.path("size").asInt()).isEqualTo(1);
+    assertThat(body.path("totalElements").asLong()).isEqualTo(2);
+    assertThat(body.path("totalPages").asInt()).isEqualTo(2);
+    assertThat(body.path("content").isArray()).isTrue();
+    assertThat(body.path("content"))
+        .extracting(row -> row.path("id").asString())
+        .containsExactly(item.toString());
+  }
+
+  private static String stockPositions(UUID warehouse, List<UUID> ids) {
+    var content =
+        ids.stream()
+            .map(id -> Map.of("catalogItemId", id, "warehouseId", warehouse, "availability", "OUT"))
+            .toList();
+    return JsonMapper.shared()
+        .writeValueAsString(Map.of("content", content, "totalElements", ids.size()));
+  }
+
+  private void seedClient(Client client) {
+    clientCategories.initialize(client.companyId());
+    var profile =
+        new ClientProfile(
+            ClientType.LEGAL,
+            null,
+            "US",
+            null,
+            null,
+            null,
+            ClientPaymentTerms.CASH,
+            clientCategories.defaultId(client.companyId()),
+            null,
+            null);
+    clients.insert(
+        new Client(
+            client.id(),
+            client.companyId(),
+            client.details().withProfile(profile),
+            client.status()));
+  }
+
+  private void seedSupplier(Supplier supplier) {
+    suppliers.insert(completeSupplier(supplier));
+  }
+
+  private static Supplier completeSupplier(Supplier supplier) {
+    var d = supplier.details();
+    var profile = new SupplierProfile(null, null, SupplierPaymentTerms.CASH, null, null, null);
+    return new Supplier(
+        supplier.id(),
+        supplier.companyId(),
+        new SupplierDetails(d.name(), d.taxId(), d.contact(), d.phone(), d.email(), profile),
+        supplier.status());
+  }
+
+  private void seedItem(CatalogItem item) {
+    items.insert(completeItem(item));
+  }
+
+  private static CatalogItem completeItem(CatalogItem item) {
+    if (!item.profile().equals(CatalogItemProfile.LEGACY)) {
+      return item;
+    }
+    var profile = new CatalogItemProfile(null, null, null, "UNIT", null, "EXEMPT", true, false);
+    return new CatalogItem(
+        item.id(),
+        item.companyId(),
+        item.name(),
+        item.type(),
+        item.price(),
+        item.active(),
+        item.description(),
+        profile);
+  }
+
+  private static void assertIncompleteInsertsRejected(JdbcTemplate jdbc, UUID companyId) {
+    for (var sql :
+        List.of(
+            "INSERT INTO catalog.clients (id, company_id, name, status) VALUES (?, ?, 'New', 'ACTIVE')",
+            "INSERT INTO catalog.suppliers (id, company_id, name, contact) VALUES (?, ?, 'New', 'Contact')",
+            """
+            INSERT INTO catalog.catalog_items (id, company_id, name, type, price)
+            VALUES (?, ?, 'New', 'PRODUCT', 1)
+            """)) {
+      assertThatThrownBy(() -> jdbc.update(sql, UUID.randomUUID(), companyId))
+          .isInstanceOf(DataIntegrityViolationException.class)
+          .hasMessageContaining("requires");
     }
   }
 }

@@ -304,3 +304,14 @@ Clientes, proveedores y artículos requieren `X-Company-Id` en cada petición,
 incluidas las consultas directas de Sales. El servicio consulta Company v2 para
 la empresa seleccionada y limita las consultas de persistencia al tenant
 autorizado. Consulta la [matriz de rutas](../../docs/development/company-context.md).
+
+### Filtrar productos y servicios por existencias
+
+`GET /api/v1/catalog-items?warehouseId={uuid}&availability=OUT&type=PRODUCT`
+combina el filtro físico con los filtros comerciales y calcula el total antes
+de devolver la página. Envía ambos parámetros de stock juntos. La respuesta
+conserva el formato del listado general. El token debe permitir lectura en
+Catalog e Inventory para la empresa seleccionada. El cliente de Inventory usa
+`CATALOG_INVENTORY_ORIGIN`, configurado en Compose y con valor local
+`http://localhost:8086` por defecto. Si Inventory falla o se agota el presupuesto
+de lectura, la API devuelve 503 sin conteos parciales.
