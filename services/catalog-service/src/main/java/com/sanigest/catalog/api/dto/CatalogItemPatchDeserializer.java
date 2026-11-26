@@ -91,19 +91,14 @@ final class CatalogItemPatchDeserializer extends ValueDeserializer<CatalogItemPa
             categoryId =
                 Optional.of(
                     Optional.ofNullable(CatalogItemJson.nullable(parser, CatalogItemJson::id)));
-        case "unitCode" ->
-            unitCode =
-                Optional.of(
-                    Optional.ofNullable(CatalogItemJson.nullable(parser, CatalogItemJson::text)));
+        case "unitCode" -> unitCode = Optional.of(Optional.of(CatalogItemJson.text(parser)));
         case "estimatedCost" ->
             estimatedCost =
                 Optional.of(
                     Optional.ofNullable(
                         CatalogItemJson.nullable(parser, CatalogItemJson::decimal)));
         case "taxClassificationCode" ->
-            taxClassificationCode =
-                Optional.of(
-                    Optional.ofNullable(CatalogItemJson.nullable(parser, CatalogItemJson::text)));
+            taxClassificationCode = Optional.of(Optional.of(CatalogItemJson.text(parser)));
         case "availableForSale" -> availableForSale = Optional.of(CatalogItemJson.flag(parser));
         case "availableForPurchase" ->
             availableForPurchase = Optional.of(CatalogItemJson.flag(parser));

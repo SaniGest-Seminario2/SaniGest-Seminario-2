@@ -26,7 +26,11 @@ final class CompanyTeamOpenApi {
           "status",
           choices("PENDING"),
           "expiresAt",
-          DATE);
+          DATE,
+          "email",
+          EMAIL,
+          "name",
+          Map.of("type", "string", "maxLength", 160, "nullable", true));
 
   private CompanyTeamOpenApi() {}
 
@@ -35,8 +39,8 @@ final class CompanyTeamOpenApi {
         Map.<String, Object>of(
             "membershipId", UUID, "userId", UUID, "role", ROLES, "status", STATES);
     var summary = new LinkedHashMap<>(member);
-    summary.put("name", NAME);
-    summary.put("email", EMAIL);
+    summary.put("name", Map.of("type", "string", "maxLength", 160, "nullable", true));
+    summary.put("email", Map.of("type", "string", "format", "email", "nullable", true));
     var pending = new LinkedHashMap<>(INVITATION);
     pending.put("name", Map.of("type", "string", "maxLength", 160, "nullable", true));
     pending.put("email", EMAIL);
@@ -62,7 +66,29 @@ final class CompanyTeamOpenApi {
             object(
                 pending,
                 List.of("invitationId", "email", "role", "status", "createdAt", "expiresAt")),
-        "CompanyInvitationCreated", object(INVITATION, List.copyOf(INVITATION.keySet())));
+        "CompanyInvitationCreated", object(INVITATION, List.copyOf(INVITATION.keySet())),
+        "CompanyProfile",
+            object(
+                Map.of(
+                    "companyId",
+                    UUID,
+                    "companyName",
+                    NAME,
+                    "businessName",
+                    Map.of("type", "string", "nullable", true),
+                    "rnc",
+                    Map.of("type", "string", "nullable", true),
+                    "location",
+                    Map.of("type", "string", "nullable", true),
+                    "currency",
+                    choices("DOP"),
+                    "status",
+                    choices("ACTIVE"),
+                    "email",
+                    Map.of("type", "string", "format", "email", "nullable", true),
+                    "phone",
+                    Map.of("type", "string", "nullable", true)),
+                List.of("companyId", "companyName", "currency", "status")));
   }
 
   static Map<String, Object> members(Map<String, Object> operation) {
@@ -133,7 +159,7 @@ final class CompanyTeamOpenApi {
     return result;
   }
 
-  private static Map<String, Object> response(
+  static Map<String, Object> response(
       Map<String, Object> operation, String code, Map<String, Object> schema) {
     var result = new LinkedHashMap<>(operation);
     var responses = new LinkedHashMap<Object, Object>();

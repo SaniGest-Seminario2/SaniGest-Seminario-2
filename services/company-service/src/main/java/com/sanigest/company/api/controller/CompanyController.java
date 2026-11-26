@@ -78,7 +78,9 @@ public class CompanyController {
         profile.rnc(),
         profile.location(),
         profile.currency(),
-        profile.status());
+        profile.status(),
+        profile.email(),
+        profile.phone());
   }
 
   @PatchMapping({"/me", "/{companyId}"})

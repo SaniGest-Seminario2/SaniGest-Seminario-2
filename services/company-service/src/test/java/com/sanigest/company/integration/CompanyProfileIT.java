@@ -2362,7 +2362,8 @@ class CompanyProfileIT {
     JSONAssert.assertEquals(
         """
         {"companyId":"%s","companyName":"%s SRL","businessName":"%s","rnc":"%s",
-         "location":"Santo Domingo","currency":"DOP","status":"ACTIVE"}
+         "location":"Santo Domingo","currency":"DOP","status":"ACTIVE",
+         "email":"company@example.com","phone":"8095555555"}
         """
             .formatted(company, name, name, rnc),
         response.body(),

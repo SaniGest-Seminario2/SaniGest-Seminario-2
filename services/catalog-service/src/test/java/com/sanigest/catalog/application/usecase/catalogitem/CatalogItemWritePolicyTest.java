@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository;
 import com.sanigest.catalog.domain.exception.InvalidCatalogItem;
 import com.sanigest.catalog.domain.model.CatalogItem;
+import com.sanigest.catalog.domain.model.CatalogItemProfile;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -30,8 +32,18 @@ class CatalogItemWritePolicyTest {
 
   @Test
   void gatesUnsupportedPricesUntilPricingIsActivatedForSales() {
+    when(references.activeUnit("UNIT")).thenReturn(true);
+    when(references.currentTax("EXEMPT", date.today())).thenReturn(true);
     var item =
-        CatalogItem.register(UUID.randomUUID(), "Servicio", SERVICE, new BigDecimal("10.0001"));
+        new CatalogItem(
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            "Servicio",
+            SERVICE,
+            new BigDecimal("10.0001"),
+            true,
+            null,
+            new CatalogItemProfile(null, null, null, "UNIT", null, "EXEMPT", true, false));
     var legacy = new CatalogItemWritePolicy(references, date, false);
     assertThatThrownBy(() -> legacy.validate(null, item)).isInstanceOf(InvalidCatalogItem.class);
 

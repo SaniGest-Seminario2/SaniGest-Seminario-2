@@ -295,7 +295,13 @@ identifica si la venta se registró como `CASH` o `CREDIT`.
 histórico, las líneas en el orden guardado y los importes exactos en DOP.
 Las líneas incluyen `id`, `catalogItemId`, `itemName`, `itemDescription`,
 `unitPrice`, `quantity` y `subtotal`. El campo `cancellation` aparece
-cuando hay metadatos persistidos.
+cuando hay metadatos persistidos. La consulta también incluye `invoiceId`,
+`invoiceNumber`, `dueDate`, `paymentStatus`, `outstandingBalance` y
+`collectedAmount` cuando existe el documento u obligación correspondiente.
+Los listados incluyen `invoiceNumber` y `paymentStatus`. El detalle de
+obligación conserva `balance` y agrega `outstandingBalance`, `saleCode`,
+`invoiceId` e `invoiceNumber`. El saldo de una obligación CANCELLED se
+conserva como dato histórico y se interpreta con ese estado.
 
 `POST /api/v1/sales/{id}/cancel` recibe un UUID y un objeto JSON como
 `{"reason":"Venta registrada por duplicado"}`. El motivo, tras aplicar

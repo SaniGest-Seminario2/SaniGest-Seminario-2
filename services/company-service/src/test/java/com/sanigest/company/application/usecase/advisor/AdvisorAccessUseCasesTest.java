@@ -65,7 +65,8 @@ class AdvisorAccessUseCasesTest {
   @BeforeEach
   void setup() {
     var profile =
-        new CompanyProfile(companyId, "Company", "Company SRL", null, null, "DOP", "ACTIVE");
+        new CompanyProfile(
+            companyId, "Company", "Company SRL", null, null, "DOP", "ACTIVE", null, null);
     when(memberships.findCompanyByUserId(actorId))
         .thenReturn(Optional.of(new CompanyMembership(MembershipStatus.ACTIVE, profile)));
     when(memberships.findCompanyByUserIdAndCompanyId(actorId, companyId))

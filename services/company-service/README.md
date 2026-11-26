@@ -240,7 +240,7 @@ autenticada es REGULAR y está activa antes de resolver el contexto.
 
 | Método y subruta | Contrato |
 | --- | --- |
-| POST `/invitations` | Crea una invitación. Recibe email, rol OPERATOR o VIEWER, nombre opcional de hasta 160 caracteres y `replace` (por defecto false). Devuelve 201 con metadatos. |
+| POST `/invitations` | Crea una invitación. Recibe email, rol OPERATOR o VIEWER, nombre opcional de hasta 160 caracteres y `replace` (por defecto false). Devuelve 201 con nombre opcional, correo normalizado, rol, estado y vencimiento. |
 | GET `/invitations?page=0&size=20` | Array de invitaciones pendientes vigentes con nombre, email, rol, estado y fechas. Acceso de OWNER y ADMIN. |
 | DELETE `/invitations/{invitationId}` | Revoca una invitación pendiente de la empresa y devuelve 204. |
 | GET `/users` | Conserva el array histórico de identificadores, rol y estado para lectores autorizados. |

@@ -40,7 +40,11 @@ final class CompanyContextOpenApi {
           base,
           legacy,
           Map.of(
-              "get", operation("Consultar perfil empresarial", "200", legacy),
+              "get",
+                  CompanyTeamOpenApi.response(
+                      operation("Consultar perfil empresarial", "200", legacy),
+                      "200",
+                      Map.of("$ref", "#/components/schemas/CompanyProfile")),
               "patch", operation("Actualizar perfil empresarial", "200", legacy)));
       put(
           paths,

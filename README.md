@@ -33,7 +33,7 @@ docker --version
 
 ```text
 .
-├── services/               Gateway, Identity, Company, Catalog y Sales
+├── services/               Gateway, Identity, Company, Catalog, Inventory y Sales
 ├── libraries/              Librerías técnicas compartidas
 ├── infrastructure/         Imágenes de servicios, PostgreSQL local y verificaciones de Compose
 ├── config/                 Reglas de calidad del build
@@ -187,9 +187,11 @@ en ejecución.
 
 ## Entorno local con Docker Compose
 
-El Compose de desarrollo ofrece dos perfiles: `infra` levanta sólo PostgreSQL,
-Valkey y Kafka; `apps` agrega Identity, Company, Catalog y Sales. Gateway
-se ejecuta con Maven. Crea primero el archivo local de variables que Git ignora:
+La [guía de Docker y Postman](docs/development/docker-postman.md) muestra cómo
+arrancar el stack completo, incluido el Gateway, y probar sus endpoints.
+
+El Compose base ofrece dos perfiles. `infra` levanta PostgreSQL, Valkey y Kafka.
+`apps` agrega Identity, Company, Catalog, Inventory y Sales. Crea primero el archivo local de variables que Git ignora:
 
 ```bash
 cp .env.example .env

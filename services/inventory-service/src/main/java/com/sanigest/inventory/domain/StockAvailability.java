@@ -4,7 +4,8 @@ public enum StockAvailability {
   NOT_TRACKED,
   OUT,
   LOW,
-  AVAILABLE;
+  AVAILABLE,
+  NOT_APPLICABLE;
 
   public static StockAvailability derive(StockConfiguration configuration, StockBalance balance) {
     if (!configuration.trackingEnabled()) {

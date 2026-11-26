@@ -5,6 +5,7 @@ import com.sanigest.inventory.application.dto.InventoryQueries.Order;
 import com.sanigest.inventory.application.dto.InventoryQueries.Paging;
 import com.sanigest.inventory.application.dto.InventoryQueries.Sort;
 import com.sanigest.inventory.domain.StockAvailability;
+import java.util.List;
 import java.util.UUID;
 
 public record StockFilters(
@@ -16,7 +17,8 @@ public record StockFilters(
     Integer page,
     Integer size,
     Sort sort,
-    Order order) {
+    Order order,
+    List<UUID> catalogItemIds) {
   public InventoryQueries.Stock query() {
     return new InventoryQueries.Stock(
         warehouseId,
@@ -24,7 +26,8 @@ public record StockFilters(
         availability,
         trackingEnabled,
         search,
-        paging(page, size, sort, Sort.UPDATED_AT, order));
+        paging(page, size, sort, Sort.UPDATED_AT, order),
+        catalogItemIds);
   }
 
   static Paging paging(Integer page, Integer size, Sort sort, Sort fallback, Order order) {

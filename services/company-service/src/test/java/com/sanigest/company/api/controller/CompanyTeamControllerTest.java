@@ -65,7 +65,9 @@ class CompanyTeamControllerTest {
             UUID.randomUUID(),
             CompanyRole.OPERATOR,
             InvitationStatus.PENDING,
-            Instant.parse("2026-11-22T00:00:00Z"));
+            Instant.parse("2026-11-22T00:00:00Z"),
+            "María",
+            EMAIL);
     when(invite.invite(user, null, EMAIL, CompanyRole.OPERATOR, true, "María")).thenReturn(created);
 
     var response =
@@ -76,7 +78,12 @@ class CompanyTeamControllerTest {
     assertThat(response.getBody())
         .isEqualTo(
             new InvitationResponse(
-                created.invitationId(), "OPERATOR", "PENDING", created.expiresAt()));
+                created.invitationId(),
+                "OPERATOR",
+                "PENDING",
+                created.expiresAt(),
+                "María",
+                EMAIL));
     assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
   }
 
@@ -97,7 +104,8 @@ class CompanyTeamControllerTest {
   @Test
   void listsMembersOnlyAfterAuthorizingTheCallersCompany() {
     when(accounts.resolve("access-token")).thenReturn(AccountType.REGULAR);
-    var profile = new CompanyProfile(company, "Clinic", "Clinic", null, null, "DOP", "ACTIVE");
+    var profile =
+        new CompanyProfile(company, "Clinic", "Clinic", null, null, "DOP", "ACTIVE", null, null);
     when(memberships.findCompanyByUserId(user))
         .thenReturn(Optional.of(new CompanyMembership(MembershipStatus.SUSPENDED, profile)))
         .thenReturn(Optional.of(new CompanyMembership(MembershipStatus.ACTIVE, profile)));

@@ -71,7 +71,9 @@ class CompanyTeamController {
                 created.invitationId(),
                 created.role().name(),
                 created.status().name(),
-                created.expiresAt()));
+                created.expiresAt(),
+                created.name(),
+                created.email()));
   }
 
   @PostMapping(CompanyRoutes.ACCEPT_INVITATION)

@@ -41,7 +41,7 @@ class CompanyControllerTest {
     when(profiles.get(userId, null))
         .thenReturn(
             new CompanyProfile(
-                companyId, "Clinic", "Clinic SRL", "123456789", "SD", "DOP", "ACTIVE"));
+                companyId, "Clinic", "Clinic SRL", "123456789", "SD", "DOP", "ACTIVE", null, null));
     var controller =
         new CompanyController(
             mock(CreateCompanyUseCase.class),
@@ -54,7 +54,7 @@ class CompanyControllerTest {
     assertThat(controller.me(jwt, null, request()))
         .isEqualTo(
             new CompanyProfileResponse(
-                companyId, "Clinic", "Clinic SRL", "123456789", "SD", "DOP", "ACTIVE"));
+                companyId, "Clinic", "Clinic SRL", "123456789", "SD", "DOP", "ACTIVE", null, null));
   }
 
   @Test

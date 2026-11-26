@@ -33,12 +33,6 @@ public class CreateCatalogItem {
 
   @Transactional
   @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
-  public CatalogItem execute(String name, CatalogItemType type, BigDecimal price) {
-    return execute(name, type, price, null, CatalogItemProfile.LEGACY);
-  }
-
-  @Transactional
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
   public CatalogItem execute(
       String name,
       CatalogItemType type,

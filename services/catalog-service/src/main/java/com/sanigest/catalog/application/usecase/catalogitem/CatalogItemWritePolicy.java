@@ -29,9 +29,11 @@ public class CatalogItemWritePolicy {
     var profile = current.profile();
     var before = previous == null ? CatalogItemProfile.LEGACY : previous.profile();
     if (previous == null
-        && profile.taxClassificationCode() == null
-        && (!profile.equals(CatalogItemProfile.LEGACY) || current.description() != null)) {
-      throw new InvalidCatalogItem("A commercial item requires a tax classification");
+        && (profile.unitCode() == null
+            || profile.taxClassificationCode() == null
+            || profile.availableForPurchase() == null)) {
+      throw new InvalidCatalogItem(
+          "Unit, tax classification and purchase availability are required");
     }
     validatePrice(previous, current);
     validateReferences(current, before, profile);

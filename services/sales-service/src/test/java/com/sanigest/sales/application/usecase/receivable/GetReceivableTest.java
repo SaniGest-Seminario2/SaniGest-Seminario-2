@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.sanigest.sales.application.dto.ReceivableDetail;
 import com.sanigest.sales.application.exception.ReceivableNotFound;
 import com.sanigest.sales.application.exception.SalesAccessForbidden;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
@@ -25,7 +26,7 @@ class GetReceivableTest {
 
   @Test
   void readsOnlyWithinTheAuthorizedCompany() {
-    var account = mock(Receivable.class);
+    var account = new ReceivableDetail(mock(Receivable.class), "V-1", null, null);
     when(authorization.requireMembership(SALES_READ)).thenReturn(companyId);
     when(receivables.findByCompanyIdAndId(companyId, id)).thenReturn(Optional.of(account));
     assertThat(useCase.execute(id)).isSameAs(account);

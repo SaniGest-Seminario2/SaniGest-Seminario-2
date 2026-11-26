@@ -1,9 +1,12 @@
 package com.sanigest.sales.infrastructure.persistence.jpa;
 
+import com.sanigest.sales.application.dto.ReceivableDetail;
 import com.sanigest.sales.application.port.out.persistence.ReceivableRepository;
 import com.sanigest.sales.domain.enums.ReceivableOrigin;
 import com.sanigest.sales.domain.enums.ReceivableStatus;
 import com.sanigest.sales.domain.model.Receivable;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,8 +46,25 @@ class PostgresReceivableRepository implements ReceivableRepository {
   }
 
   @Override
-  public Optional<Receivable> findByCompanyIdAndId(UUID companyId, UUID id) {
-    return find("WHERE company_id = :company AND id = :id", companyId, id);
+  public Optional<ReceivableDetail> findByCompanyIdAndId(UUID companyId, UUID id) {
+    return jdbc.sql(
+            """
+            SELECT r.*, s.code AS sale_code, i.id AS invoice_id, i.number AS invoice_number
+            FROM sales.receivables r
+            LEFT JOIN sales.sales s ON s.company_id = r.company_id AND s.id = r.sale_id
+            LEFT JOIN sales.internal_invoices i
+              ON i.company_id = r.company_id AND i.sale_id = r.sale_id AND i.status = 'ISSUED'
+            WHERE r.company_id = :company AND r.id = :id
+            """)
+        .param("company", companyId)
+        .param("id", id)
+        .query((row, index) ->
+            new ReceivableDetail(
+                toReceivable(row),
+                row.getString("sale_code"),
+                row.getObject("invoice_id", UUID.class),
+                row.getString("invoice_number")))
+        .optional();
   }
 
   Optional<Receivable> lockBySale(UUID companyId, UUID saleId) {
@@ -75,19 +95,22 @@ class PostgresReceivableRepository implements ReceivableRepository {
                 + where)
         .param("company", companyId)
         .param("id", id)
-        .query((row, index) ->
-            new Receivable(
-                row.getObject("id", UUID.class),
-                row.getObject("company_id", UUID.class),
-                row.getObject("sale_id", UUID.class),
-                row.getObject("client_id", UUID.class),
-                row.getString("client_name"),
-                row.getBigDecimal("total_amount"),
-                row.getBigDecimal("balance"),
-                row.getObject("due_date", LocalDate.class),
-                ReceivableStatus.valueOf(row.getString("status")),
-                row.getTimestamp("created_at").toInstant(),
-                ReceivableOrigin.valueOf(row.getString("origin"))))
+        .query((row, index) -> toReceivable(row))
         .optional();
+  }
+
+  private static Receivable toReceivable(ResultSet row) throws SQLException {
+    return new Receivable(
+        row.getObject("id", UUID.class),
+        row.getObject("company_id", UUID.class),
+        row.getObject("sale_id", UUID.class),
+        row.getObject("client_id", UUID.class),
+        row.getString("client_name"),
+        row.getBigDecimal("total_amount"),
+        row.getBigDecimal("balance"),
+        row.getObject("due_date", LocalDate.class),
+        ReceivableStatus.valueOf(row.getString("status")),
+        row.getTimestamp("created_at").toInstant(),
+        ReceivableOrigin.valueOf(row.getString("origin")));
   }
 }

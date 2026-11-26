@@ -23,7 +23,7 @@ public class ClientProfileRules {
   ClientDetails prepareCreation(UUID companyId, ClientDetails details) {
     var profile = details.profile();
     if (profile == null) {
-      return details;
+      throw new InvalidClientPatch();
     }
     if (profile.categoryId() == null) {
       categories.initialize(companyId);

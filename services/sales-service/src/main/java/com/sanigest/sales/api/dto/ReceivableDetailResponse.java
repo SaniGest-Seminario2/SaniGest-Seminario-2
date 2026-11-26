@@ -1,8 +1,8 @@
 package com.sanigest.sales.api.dto;
 
+import com.sanigest.sales.application.dto.ReceivableDetail;
 import com.sanigest.sales.domain.enums.ReceivableOrigin;
 import com.sanigest.sales.domain.enums.ReceivableStatus;
-import com.sanigest.sales.domain.model.Receivable;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -15,9 +15,14 @@ public record ReceivableDetailResponse(
     String balance,
     String currency,
     LocalDate dueDate,
-    ReceivableStatus status) {
+    ReceivableStatus status,
+    String saleCode,
+    UUID invoiceId,
+    String invoiceNumber,
+    String outstandingBalance) {
 
-  public static ReceivableDetailResponse from(Receivable receivable) {
+  public static ReceivableDetailResponse from(ReceivableDetail detail) {
+    var receivable = detail.receivable();
     return new ReceivableDetailResponse(
         receivable.id(),
         receivable.saleId(),
@@ -27,7 +32,11 @@ public record ReceivableDetailResponse(
         receivable.balance().toPlainString(),
         receivable.currency(),
         receivable.dueDate(),
-        receivable.status());
+        receivable.status(),
+        detail.saleCode(),
+        detail.invoiceId(),
+        detail.invoiceNumber(),
+        receivable.balance().toPlainString());
   }
 
   public record Client(UUID id, String name) {}

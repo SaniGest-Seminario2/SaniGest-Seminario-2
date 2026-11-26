@@ -9,4 +9,6 @@ public record CompanyProfileResponse(
     String rnc,
     String location,
     String currency,
-    String status) {}
+    String status,
+    String email,
+    String phone) {}

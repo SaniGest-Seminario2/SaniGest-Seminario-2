@@ -19,14 +19,14 @@ class SupplierCommercialDtoTest {
   private final JsonMapper json = JsonMapper.shared();
 
   @Test
-  void distinguishesLegacyFromCommercialCreate() {
-    var legacy =
+  void defaultsPaymentTermsEvenForTheMinimalCreatePayload() {
+    var minimum =
         create(
             """
-            {"name":"Office","contact":"Alex","taxId":"OLD-3"}
+            {"name":"Office","contact":"Alex"}
             """);
-    assertThat(legacy.details().profile().paymentTerms()).isNull();
-    assertThat(legacy.details().taxId()).isEqualTo("OLD-3");
+    assertThat(minimum.details().profile().paymentTerms()).isEqualTo(SupplierPaymentTerms.CASH);
+    assertThat(minimum.details().profile().supplyType()).isNull();
 
     var expanded =
         create(

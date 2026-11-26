@@ -21,7 +21,7 @@ class CatalogItemDtoTest {
     var request =
         mapper.readValue(
             """
-            {"name":"Chair","type":"PRODUCT","price":999999999999.99}
+            {"name":"Chair","type":"PRODUCT","price":999999999999.99,"unitCode":"UNIT","taxClassificationCode":"EXEMPT"}
             """,
             CreateCatalogItemRequest.class);
     assertThat(request.name()).isEqualTo("Chair");
@@ -42,6 +42,8 @@ class CatalogItemDtoTest {
   @ValueSource(
       strings = {
         "[]",
+        "{\"name\":\"Chair\",\"type\":\"PRODUCT\",\"price\":1}",
+        "{\"name\":\"Chair\",\"type\":\"PRODUCT\",\"price\":1,\"unitCode\":null,\"taxClassificationCode\":\"EXEMPT\"}",
         "{\"price\":\"3200.00\"}",
         "{\"price\":\"invalid\"}",
         "{\"price\":null}",

@@ -10,8 +10,19 @@ paths:
       - $ref: '#/components/parameters/CompanySelector'
     get:
       summary: Lista ventas de la empresa con SALES_READ.
+      parameters:
+        - {name: search, in: query, schema: {type: string, maxLength: 250}}
+        - {name: status, in: query, schema: {type: string, enum: [REGISTERED, CANCELLED]}}
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}}
+        - {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}
+        - {name: size, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
       responses:
-        '200': {description: Operación completada.}
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SalePage'}
         '400': {$ref: '#/components/responses/InvalidContext'}
         '401': {description: JWT inválido o ausente.}
         '403': {description: Permiso empresarial insuficiente.}
@@ -35,7 +46,11 @@ paths:
     get:
       summary: Consulta una venta con SALES_READ.
       responses:
-        '200': {description: Operación completada.}
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SaleDetail'}
         '400': {$ref: '#/components/responses/InvalidContext'}
         '401': {description: JWT inválido o ausente.}
         '403': {description: Permiso empresarial insuficiente.}
@@ -61,7 +76,11 @@ paths:
     get:
       summary: Consulta una cuenta por cobrar con SALES_READ.
       responses:
-        '200': {description: Operación completada.}
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReceivableDetail'}
         '400': {$ref: '#/components/responses/InvalidContext'}
         '401': {description: JWT inválido o ausente.}
         '403': {description: Permiso empresarial insuficiente.}
@@ -146,6 +165,84 @@ components:
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
   schemas:
+    SalePage:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items: {$ref: '#/components/schemas/ListedSale'}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1}
+        totalElements: {type: integer, format: int64}
+        totalPages: {type: integer, format: int64}
+    ListedSale:
+      allOf:
+        - $ref: '#/components/schemas/SaleSummary'
+        - type: object
+          properties:
+            invoiceNumber: {type: string, nullable: true, example: FAC-2026-001}
+            paymentStatus: {$ref: '#/components/schemas/PaymentStatus'}
+    SaleSummary:
+      type: object
+      required: [id, code, client, saleDate, mode, status, total, currency]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string, example: V-2026-001}
+        client: {$ref: '#/components/schemas/Party'}
+        saleDate: {type: string, format: date}
+        mode: {type: string, enum: [CASH, CREDIT]}
+        status: {type: string, enum: [REGISTERED, CANCELLED]}
+        total: {$ref: '#/components/schemas/Amount'}
+        currency: {type: string, enum: [DOP]}
+    SaleDetail:
+      allOf:
+        - $ref: '#/components/schemas/ListedSale'
+        - type: object
+          required: [lines]
+          properties:
+            lines: {type: array, items: {$ref: '#/components/schemas/Line'}}
+            invoiceId: {type: string, format: uuid, nullable: true}
+            dueDate: {type: string, format: date, nullable: true}
+            outstandingBalance: {$ref: '#/components/schemas/NullableAmount'}
+            collectedAmount: {$ref: '#/components/schemas/NullableAmount'}
+            cancellation:
+              type: object
+              required: [cancelledBy, cancelledAt, cancelReason]
+              properties:
+                cancelledBy: {type: string, format: uuid}
+                cancelledAt: {type: string, format: date-time}
+                cancelReason: {type: string}
+    ReceivableDetail:
+      type: object
+      required: [id, client, origin, totalAmount, balance, outstandingBalance, currency, dueDate, status]
+      properties:
+        id: {type: string, format: uuid}
+        saleId: {type: string, format: uuid, nullable: true}
+        saleCode: {type: string, nullable: true}
+        invoiceId: {type: string, format: uuid, nullable: true}
+        invoiceNumber: {type: string, nullable: true}
+        client: {$ref: '#/components/schemas/Party'}
+        origin: {type: string, enum: [SALE, OPENING_BALANCE]}
+        totalAmount: {$ref: '#/components/schemas/Amount'}
+        balance:
+          allOf:
+            - {$ref: '#/components/schemas/Amount'}
+          deprecated: true
+          description: Alias histórico de outstandingBalance.
+        outstandingBalance: {$ref: '#/components/schemas/Amount'}
+        currency: {type: string, enum: [DOP]}
+        dueDate: {type: string, format: date}
+        status: {type: string, enum: [OPEN, PARTIALLY_PAID, PAID, CANCELLED]}
+    PaymentStatus:
+      type: string
+      nullable: true
+      enum: [OPEN, PARTIALLY_PAID, PAID, CANCELLED, null]
+      description: Estado de la obligación vinculada. Null si no existe obligación.
+    NullableAmount:
+      type: string
+      nullable: true
+      pattern: '^[0-9]+\.[0-9]{2}$'
     Invoice:
       type: object
       required: [id, number, saleId, documentType, fiscalClassification, status, issuedAt, saleDate, company, client, lines, total, currency]

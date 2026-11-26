@@ -117,7 +117,12 @@ class CatalogItemCommercialController {
   record Tax(
       String code, String name, String rate, LocalDate effectiveFrom, LocalDate effectiveUntil) {}
 
-  record History(List<HistoryEntry> content, int page, int size, long totalElements) {}
+  record History(
+      List<HistoryEntry> content, int page, int size, long totalElements, long totalPages) {
+    History(List<HistoryEntry> content, int page, int size, long totalElements) {
+      this(content, page, size, totalElements, Math.ceilDiv(totalElements, size));
+    }
+  }
 
   record HistoryEntry(
       long id,

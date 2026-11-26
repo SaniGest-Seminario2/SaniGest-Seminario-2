@@ -1,10 +1,10 @@
 package com.sanigest.sales.application.usecase.receivable;
 
+import com.sanigest.sales.application.dto.ReceivableDetail;
 import com.sanigest.sales.application.exception.ReceivableNotFound;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission;
 import com.sanigest.sales.application.port.out.persistence.ReceivableRepository;
-import com.sanigest.sales.domain.model.Receivable;
 import java.util.UUID;
 
 public final class GetReceivable {
@@ -16,7 +16,7 @@ public final class GetReceivable {
     this.receivables = receivables;
   }
 
-  public Receivable execute(UUID id) {
+  public ReceivableDetail execute(UUID id) {
     return receivables
         .findByCompanyIdAndId(authorization.requireMembership(Permission.SALES_READ), id)
         .orElseThrow(ReceivableNotFound::new);

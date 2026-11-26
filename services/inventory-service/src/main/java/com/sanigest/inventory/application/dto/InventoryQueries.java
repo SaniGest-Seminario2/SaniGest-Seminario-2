@@ -3,6 +3,7 @@ package com.sanigest.inventory.application.dto;
 import com.sanigest.inventory.domain.InventoryViolation;
 import com.sanigest.inventory.domain.StockAvailability;
 import com.sanigest.inventory.domain.StockMovement;
+import com.sanigest.inventory.domain.StockPosition;
 import com.sanigest.inventory.domain.Warehouse;
 import java.time.Instant;
 import java.util.List;
@@ -41,13 +42,27 @@ public final class InventoryQueries {
 
   public record Warehouses(String search, Warehouse.Status status, Paging paging) {}
 
+  public record StockEntry(StockPosition position, String warehouseName) {}
+
   public record Stock(
       UUID warehouseId,
       UUID catalogItemId,
       StockAvailability availability,
       Boolean trackingEnabled,
       String search,
-      Paging paging) {}
+      Paging paging,
+      List<UUID> catalogItemIds) {
+    public Stock {
+      if (catalogItemIds != null && catalogItemIds.stream().anyMatch(java.util.Objects::isNull)) {
+        throw InventoryViolation.invalid("INVALID_STOCK_BATCH");
+      }
+      catalogItemIds = catalogItemIds == null ? List.of() : List.copyOf(catalogItemIds);
+      if (!catalogItemIds.isEmpty()
+          && (warehouseId == null || catalogItemId != null || catalogItemIds.size() > 100)) {
+        throw InventoryViolation.invalid("INVALID_STOCK_BATCH");
+      }
+    }
+  }
 
   public record Movements(
       UUID warehouseId,

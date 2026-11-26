@@ -359,7 +359,7 @@ class JdbcMembershipRepository implements MembershipRepository {
     return jdbc.query(
         """
         SELECT m.status AS membership_status, c.id, c.name, c.business_name,
-               c.rnc, c.location, c.currency, c.status
+               c.rnc, c.location, c.currency, c.status, c.email, c.phone
         FROM company_memberships m
         JOIN companies c ON c.id = m.company_id
         WHERE m.user_id = ? %s AND m.status = 'ACTIVE' AND c.status = 'ACTIVE'
@@ -376,7 +376,9 @@ class JdbcMembershipRepository implements MembershipRepository {
                     rs.getString("rnc"),
                     rs.getString("location"),
                     rs.getString("currency"),
-                    rs.getString("status"))),
+                    rs.getString("status"),
+                    rs.getString("email"),
+                    rs.getString("phone"))),
         companyId == null ? new Object[] {userId} : new Object[] {userId, companyId});
   }
 
