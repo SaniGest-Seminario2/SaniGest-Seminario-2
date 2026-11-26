@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: expense-service
+  datasource:
+    url: jdbc:postgresql://${EXPENSE_DB_HOST}:${EXPENSE_DB_PORT:5432}/sanigest_expense
+    username: sanigest_expense
+    password: ${EXPENSE_DB_PASSWORD}
+    hikari:
+      connection-timeout: 5000
+      data-source-properties:
+        logServerErrorDetail: false
+        options: "-c lock_timeout=3000"
+      connection-init-sql: >-
+        DO $expense$
+        BEGIN
+          IF current_database() <> 'sanigest_expense' OR session_user <> 'sanigest_expense'
+             OR current_user <> 'sanigest_expense' THEN
+            RAISE EXCEPTION 'Expense requires the sanigest_expense database and role';
+          END IF;
+        END;
+        $expense$;
+  flyway:
+    locations: classpath:db/migration
+    validate-migration-naming: true
+    clean-disabled: true
+  web:
+    error:
+      include-stacktrace: never
+      include-message: never
+
+server:
+  port: ${SERVER_PORT:${EXPENSE_SERVICE_PORT:8087}}
+  shutdown: graceful
+
+sanigest:
+  jwt:
+    issuer: ${JWT_ISSUER}
+    audience: ${JWT_AUDIENCE}
+    public-key: ${JWT_PUBLIC_KEY_LOCATION}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-components: never
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
