@@ -10,6 +10,7 @@ infrastructure/*
 libraries/*
 !libraries/common-security/
 !libraries/common-company-access/
+!libraries/common-events/
 **/.project
 **/.settings
 **/*.md
