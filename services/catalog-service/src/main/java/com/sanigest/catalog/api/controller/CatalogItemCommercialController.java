@@ -6,24 +6,14 @@ import com.sanigest.catalog.application.dto.CatalogItemSummary;
 import com.sanigest.catalog.application.usecase.catalogitem.CatalogItemCommercialQueries;
 import com.sanigest.catalog.application.usecase.catalogitem.ListCatalogItems;
 import com.sanigest.catalog.domain.model.CatalogItemCategory;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -42,17 +32,6 @@ class CatalogItemCommercialController {
   @GetMapping("/categories")
   List<Category> categories() {
     return commercial.categories().stream().map(Category::from).toList();
-  }
-
-  @PostMapping("/categories")
-  @ResponseStatus(HttpStatus.CREATED)
-  Category createCategory(@RequestBody @Valid CreateCategory request) {
-    return Category.from(commercial.createCategory(request.code(), request.name()));
-  }
-
-  @PutMapping("/categories/{id}")
-  Category updateCategory(@PathVariable UUID id, @RequestBody @Valid UpdateCategory request) {
-    return Category.from(commercial.updateCategory(id, request.name(), request.active()));
   }
 
   @GetMapping("/units")
@@ -101,12 +80,6 @@ class CatalogItemCommercialController {
   private JsonNode parse(String value) {
     return value == null ? null : json.readTree(value);
   }
-
-  record CreateCategory(
-      @NotNull @Pattern(regexp = "[A-Z][A-Z0-9_]{0,31}") String code,
-      @NotBlank @Size(max = 100) String name) {}
-
-  record UpdateCategory(@NotBlank @Size(max = 100) String name, @NotNull Boolean active) {}
 
   record Category(UUID id, String code, String name, boolean active) {
     static Category from(CatalogItemCategory category) {

@@ -2,7 +2,6 @@ package com.sanigest.catalog.application.usecase.catalogitem;
 
 import static com.sanigest.catalog.application.exception.CatalogItemAccessException.Reason.CATALOG_ITEM_NOT_FOUND;
 import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
 
 import com.sanigest.catalog.application.dto.CatalogItemCommercialData;
 import com.sanigest.catalog.application.dto.CatalogItemHistory;
@@ -57,24 +56,6 @@ public class CatalogItemCommercialQueries {
     var tenant = company.require(CATALOG_READ);
     commercial.initializeCategories(tenant);
     return commercial.categories(tenant);
-  }
-
-  @Transactional
-  public CatalogItemCategory createCategory(String code, String name) {
-    var tenant = company.require(CATALOG_WRITE);
-    commercial.initializeCategories(tenant);
-    var category = new CatalogItemCategory(UUID.randomUUID(), tenant, code, name, true);
-    commercial.insertCategory(category);
-    return category;
-  }
-
-  @Transactional
-  public CatalogItemCategory updateCategory(UUID id, String name, boolean active) {
-    var tenant = company.require(CATALOG_WRITE);
-    var current = commercial.lockCategory(tenant, id, true);
-    var category = new CatalogItemCategory(id, tenant, current.code(), name, active);
-    commercial.updateCategory(category);
-    return category;
   }
 
   public List<Unit> units() {

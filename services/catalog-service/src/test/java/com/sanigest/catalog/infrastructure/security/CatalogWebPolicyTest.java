@@ -176,7 +176,7 @@ class CatalogWebPolicyTest {
             profile);
     given(authorization.membership(CATALOG_READ)).willReturn(Optional.of(tenant));
     given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.of(tenant));
-    given(itemCommercial.lockCategory(tenant, category, false))
+    given(itemCommercial.lockCategory(tenant, category))
         .willReturn(new CatalogItemCategory(category, tenant, "TECHNOLOGY", "Tecnología", true));
     given(itemCommercial.activeUnit("UNIT")).willReturn(true);
     given(itemCommercial.currentTax(eq("ITBIS_18"), any())).willReturn(true);
@@ -252,7 +252,6 @@ class CatalogWebPolicyTest {
     given(authorization.membership(CATALOG_READ)).willReturn(Optional.of(tenant));
     given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.of(tenant));
     given(itemCommercial.categories(tenant)).willReturn(List.of(category));
-    given(itemCommercial.lockCategory(tenant, id, true)).willReturn(category);
     given(itemCommercial.units()).willReturn(List.of(new Unit("UNIT", "Unidad", true, false)));
     given(itemCommercial.taxes(any()))
         .willReturn(
@@ -277,20 +276,6 @@ class CatalogWebPolicyTest {
     mvc.perform(get(base + "/categories").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].id").value(id.toString()));
-    mvc.perform(
-            post(base + "/categories")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"code\":\"CUSTOM\",\"name\":\"Local\"}"))
-        .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.active").value(true));
-    mvc.perform(
-            put(base + "/categories/{id}", id)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Nuevo\",\"active\":false}"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.active").value(false));
     mvc.perform(get(base + "/units").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].divisible").value(false));
@@ -314,24 +299,17 @@ class CatalogWebPolicyTest {
   }
 
   @Test
-  void authorizesCommercialReferenceWritesIndependentlyOfReads() throws Exception {
-    var tenant = UUID.randomUUID();
-    given(authorization.membership(CATALOG_READ)).willReturn(Optional.of(tenant));
-    given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.empty());
+  void deniesWritesToReadOnlyCategoryEndpoints() throws Exception {
     validToken();
-
-    mvc.perform(
-            get("/api/v1/catalog-items/categories")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
-        .andExpect(status().isOk());
-    mvc.perform(
-            post("/api/v1/catalog-items/categories")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"code\":\"CUSTOM\",\"name\":\"Local\"}"))
-        .andExpect(status().isForbidden());
-    mvc.perform(get("/api/v1/catalog-items/{id}/history", UUID.randomUUID()))
-        .andExpect(status().isUnauthorized());
+    for (String resource : List.of("clients", "suppliers", "catalog-items")) {
+      String path = "/api/v1/" + resource + "/categories";
+      mvc.perform(post(path).header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+          .andExpect(status().isForbidden());
+      mvc.perform(
+              put(path + "/{id}", UUID.randomUUID())
+                  .header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+          .andExpect(status().isForbidden());
+    }
   }
 
   @Test
@@ -415,50 +393,6 @@ class CatalogWebPolicyTest {
     given(authorization.membership(CATALOG_READ)).willReturn(Optional.empty());
     mvc.perform(get("/api/v1/clients/categories").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
         .andExpect(status().isForbidden());
-  }
-
-  @Test
-  void managesCompanyCategoriesAndKeepsReservedDefaultActive() throws Exception {
-    var tenant = UUID.randomUUID();
-    var id = UUID.randomUUID();
-    given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.of(tenant));
-    given(clientCategories.insert(any())).willReturn(true, false);
-    given(clientCategories.lockForEdit(tenant, id))
-        .willReturn(
-            Optional.of(new ClientCategory(id, tenant, "VIP", "VIP", ClientStatus.ACTIVE)),
-            Optional.of(new ClientCategory(id, tenant, "REGULAR", "Regular", ClientStatus.ACTIVE)));
-    validToken();
-
-    var payload = "{\"code\":\"VIP\",\"name\":\"Preferencial\"}";
-    mvc.perform(
-            post("/api/v1/clients/categories")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(payload))
-        .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.status").value("ACTIVE"));
-    mvc.perform(
-            post("/api/v1/clients/categories")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(payload))
-        .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.errorCode").value("DUPLICATE_CLIENT_CATEGORY"));
-
-    var change = "{\"name\":\"Preferencial\",\"status\":\"INACTIVE\"}";
-    mvc.perform(
-            put("/api/v1/clients/categories/{id}", id)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(change))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("INACTIVE"));
-    mvc.perform(
-            put("/api/v1/clients/categories/{id}", id)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(change))
-        .andExpect(status().isBadRequest());
   }
 
   @Test

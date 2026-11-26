@@ -52,7 +52,7 @@ public class CatalogItemWritePolicy {
       CatalogItem current, CatalogItemProfile before, CatalogItemProfile profile) {
     if (profile.categoryId() != null
         && !Objects.equals(profile.categoryId(), before.categoryId())
-        && !references.lockCategory(current.companyId(), profile.categoryId(), false).active()) {
+        && !references.lockCategory(current.companyId(), profile.categoryId()).active()) {
       throw new InvalidCatalogItem("Inactive item category");
     }
     if (profile.unitCode() != null

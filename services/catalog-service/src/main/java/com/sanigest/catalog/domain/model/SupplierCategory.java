@@ -18,8 +18,4 @@ public record SupplierCategory(
     }
     name = name.strip();
   }
-
-  public SupplierCategory revise(String label, SupplierStatus target) {
-    return new SupplierCategory(id, companyId, code, label, target);
-  }
 }

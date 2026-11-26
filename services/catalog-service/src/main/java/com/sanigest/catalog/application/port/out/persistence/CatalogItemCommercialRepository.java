@@ -16,11 +16,7 @@ public interface CatalogItemCommercialRepository {
 
   List<CatalogItemCategory> categories(UUID companyId);
 
-  CatalogItemCategory lockCategory(UUID companyId, UUID id, boolean exclusive);
-
-  void insertCategory(CatalogItemCategory category);
-
-  void updateCategory(CatalogItemCategory category);
+  CatalogItemCategory lockCategory(UUID companyId, UUID id);
 
   boolean activeUnit(String code);
 

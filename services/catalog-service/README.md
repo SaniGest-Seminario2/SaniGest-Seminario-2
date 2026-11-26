@@ -136,11 +136,7 @@ duplicado o una revisión obsoleta produce `409`.
 - `GET /api/v1/clients/categories` devuelve ID, código, nombre y estado.
   Las categorías `REGULAR`, `FREQUENT`, `WHOLESALE` y `CORPORATE` se
   inicializan localmente de forma idempotente por empresa.
-- `POST /api/v1/clients/categories` crea una categoría activa por código y
-  nombre. `PUT /api/v1/clients/categories/{id}` actualiza nombre y estado.
-  Los códigos son estables y únicos por empresa. `REGULAR` admite cambios
-  de nombre y permanece activa para el alta predeterminada. Desactivar
-  otra categoría conserva los vínculos históricos.
+  La lectura incluye las categorías existentes para preservar los vínculos históricos.
 - `GET /api/v1/clients/reference-data/{countries,provinces,municipalities,receipt-types}`
   publica códigos y etiquetas. Provincias recibe `countryCode` y
   municipios recibe además `provinceCode`. Países usa ISO 3166-1. La
@@ -179,10 +175,7 @@ predeterminado 20. El máximo configurable
 
 - `GET /api/v1/suppliers/categories` inicializa las siete categorías por
   empresa de forma idempotente y devuelve ID, código, nombre y estado.
-- `POST /api/v1/suppliers/categories` crea una categoría activa con código
-  estable y único. `PUT /api/v1/suppliers/categories/{id}` actualiza nombre y
-  estado. Una baja conserva las referencias existentes. Una nueva asignación
-  requiere una categoría activa de la misma empresa.
+  Una nueva asignación requiere una categoría activa de la misma empresa.
 - `GET /api/v1/suppliers/{id}/items` y `GET
   /api/v1/catalog-items/{id}/suppliers` consultan en ambas direcciones.
   Admiten `search`, `status` del vínculo, `page` y `size`. Sin filtro de
@@ -231,7 +224,7 @@ Estas operaciones usan la membresía empresarial de Catalog. El acceso delegado 
 | --- | --- |
 | `GET /`, `POST /` | Listar y crear PRODUCT o SERVICE. |
 | `GET /{id}`, `PATCH /{id}`, `PATCH /{id}/status` | Consultar y editar la ficha, activar o desactivar. |
-| `GET /categories`, `POST /categories`, `PUT /categories/{id}` | Gestionar categorías propias de la empresa. |
+| `GET /categories` | Consultar categorías propias de la empresa. |
 | `GET /units`, `GET /tax-classifications` | Consultar referencias globales con CATALOG_READ. |
 | `GET /summary` | Contar productos, servicios, activos e inactivos de toda la empresa. |
 | `GET /{id}/history` | Consultar cambios en orden descendente, paginados. |
