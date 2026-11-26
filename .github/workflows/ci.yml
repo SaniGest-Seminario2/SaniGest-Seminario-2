@@ -58,7 +58,7 @@ jobs:
     uses: ./.github/workflows/ci-infrastructure.yml
   multi-company:
     name: Multi-company smoke through Gateway
-    needs: [code, company, identity, catalog, sales, inventory, infrastructure]
+    needs: syntax
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

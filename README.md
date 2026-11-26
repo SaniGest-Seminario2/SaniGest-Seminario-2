@@ -70,8 +70,8 @@ manual desde Actions. Primero valida y compila el reactor. Después ejecuta en
 paralelo las unitarias con cobertura, la integración HTTP de Gateway, smoke y
 regresión de Company, Identity, Catalog, Sales e Inventory, y las verificaciones
 de Compose, infraestructura e imágenes.
-El smoke multiempresa entra al final y verifica los seis servicios a través de
-Gateway. Los reportes de pruebas y cobertura se conservan durante siete días.
+El smoke multiempresa arranca después de la compilación, construye su propio
+stack y verifica los seis servicios a través de Gateway en paralelo. Los reportes de pruebas y cobertura se conservan durante siete días.
 
 En la protección de `main` de GitHub, usa `CI required` como check obligatorio.
 Ese check reúne los resultados de todos los jobs, incluido el smoke multiempresa.

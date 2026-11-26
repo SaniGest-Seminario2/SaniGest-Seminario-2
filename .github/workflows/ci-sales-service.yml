@@ -12,4 +12,3 @@ jobs:
     uses: ./.github/workflows/reusable-service-ci.yml
     with:
       service: sales-service
-      service-unit: false

@@ -21,7 +21,6 @@ jobs:
     env:
       UNIT_ARTIFACT: unit-test-reports-${{ github.run_id }}-${{ github.run_attempt }}
       COVERAGE_ARTIFACT: coverage-reports-${{ github.run_id }}-${{ github.run_attempt }}
-      GATEWAY_ARTIFACT: api-gateway-integration-reports-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       maven: ${{ steps.unit.outcome }}
       reports: ${{ steps.coverage.outcome }}
@@ -35,6 +34,7 @@ jobs:
 
       - name: Run unit tests and enforce JaCoCo coverage
         id: unit
+        timeout-minutes: 6
         run: >-
           sh scripts/ci/run-stage.sh 'Maven reactor' 'Unit tests and coverage'
           sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true --fail-at-end -Pcoverage -DskipITs verify
@@ -51,19 +51,6 @@ jobs:
         env:
           OUTCOME: ${{ steps.unit.outcome }}
         run: python3 scripts/ci/report.py 'Maven reactor' coverage "$OUTCOME" "$COVERAGE_ARTIFACT" $COVERED_MODULES
-
-      - name: Verify API Gateway against a local HTTP backend
-        id: gateway
-        if: ${{ !cancelled() && (steps.unit.outcome == 'success' || steps.unit.outcome == 'failure') }}
-        run: >-
-          sh scripts/ci/run-stage.sh 'API Gateway' 'HTTP integration tests'
-          sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true -pl services/api-gateway -am -Pintegration-only verify
-
-      - name: Validate and summarize Gateway integration reports
-        if: ${{ !cancelled() && steps.gateway.outcome != '' }}
-        env:
-          OUTCOME: ${{ steps.gateway.outcome }}
-        run: python3 scripts/ci/report.py 'API Gateway' gateway "$OUTCOME" "$GATEWAY_ARTIFACT" services/api-gateway
 
       - name: Publish unit test reports
         if: always()
@@ -87,8 +74,33 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  gateway:
+    name: Gateway HTTP integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      GATEWAY_ARTIFACT: api-gateway-integration-reports-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java 21 and Maven cache
+        uses: ./.github/actions/setup-maven
+
+      - name: Verify API Gateway against a local HTTP backend
+        id: gateway
+        run: >-
+          sh scripts/ci/run-stage.sh 'API Gateway' 'HTTP integration tests'
+          sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true -pl services/api-gateway -am -Pintegration-only verify
+
+      - name: Validate and summarize Gateway integration reports
+        if: ${{ !cancelled() && steps.gateway.outcome != '' }}
+        env:
+          OUTCOME: ${{ steps.gateway.outcome }}
+        run: python3 scripts/ci/report.py 'API Gateway' gateway "$OUTCOME" "$GATEWAY_ARTIFACT" services/api-gateway
+
       - name: Publish Gateway integration reports
-        if: always()
+        if: ${{ !cancelled() && steps.gateway.outcome != '' }}
         uses: actions/upload-artifact@v7
         with:
           name: ${{ env.GATEWAY_ARTIFACT }}
