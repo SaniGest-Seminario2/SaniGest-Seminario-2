@@ -2,6 +2,7 @@ package com.sanigest.sales.api.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.sanigest.sales.application.dto.SalePage;
+import com.sanigest.sales.domain.enums.ReceivableStatus;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.enums.SaleStatus;
 import java.math.BigDecimal;
@@ -28,7 +29,9 @@ public record SalePageResponse(
       SaleMode mode,
       SaleStatus status,
       @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal total,
-      String currency) {
+      String currency,
+      String invoiceNumber,
+      ReceivableStatus paymentStatus) {
     private static Item from(SalePage.Item item) {
       return new Item(
           item.id(),
@@ -38,7 +41,9 @@ public record SalePageResponse(
           item.mode(),
           item.status(),
           item.total(),
-          "DOP");
+          "DOP",
+          item.invoiceNumber(),
+          item.paymentStatus());
     }
   }
 }

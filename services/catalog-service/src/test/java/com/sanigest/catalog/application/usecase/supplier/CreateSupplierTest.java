@@ -12,8 +12,10 @@ import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailabl
 import com.sanigest.catalog.application.exception.SupplierCreationException;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
 import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
+import com.sanigest.catalog.domain.enums.SupplierPaymentTerms;
 import com.sanigest.catalog.domain.enums.SupplierStatus;
 import com.sanigest.catalog.domain.model.SupplierDetails;
+import com.sanigest.catalog.domain.model.SupplierProfile;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -23,7 +25,13 @@ class CreateSupplierTest {
   private final SupplierRepository suppliers = mock(SupplierRepository.class);
   private final CreateSupplier create = new CreateSupplier(Optional.of(authorization), suppliers);
   private final SupplierDetails details =
-      new SupplierDetails("Supplier", null, "Contact", null, null);
+      new SupplierDetails(
+          "Supplier",
+          null,
+          "Contact",
+          null,
+          null,
+          new SupplierProfile(null, null, SupplierPaymentTerms.CASH, null, null, null));
 
   @Test
   void registersAnActiveSupplierInTheAuthorizedCompanyWithAGeneratedId() {

@@ -35,7 +35,8 @@ public record CatalogItemDetailResponse(
     boolean eligibleForSale,
     boolean eligibleForPurchase,
     UUID primarySupplierId,
-    Boolean unitDivisible) {
+    Boolean unitDivisible,
+    String primarySupplierName) {
   public static CatalogItemDetailResponse from(CatalogItem item) {
     return from(item, CatalogItemCommercialData.EMPTY);
   }
@@ -70,7 +71,8 @@ public record CatalogItemDetailResponse(
         item.active() && profile.availableForSale(),
         item.active() && Boolean.TRUE.equals(profile.availableForPurchase()),
         data.primarySupplierId(),
-        data.unitDivisible());
+        data.unitDivisible(),
+        data.primarySupplierName());
   }
 
   public static String decimal(BigDecimal value) {

@@ -1,6 +1,7 @@
 package com.sanigest.sales.api.controller;
 
 import com.sanigest.sales.api.dto.CancelSaleRequest;
+import com.sanigest.sales.api.dto.SaleDetailResponse;
 import com.sanigest.sales.api.dto.SaleResponse;
 import com.sanigest.sales.application.exception.InvalidSaleRequest;
 import com.sanigest.sales.application.usecase.sale.CancelSale;
@@ -28,8 +29,8 @@ public class SaleLifecycleController {
   }
 
   @GetMapping
-  public SaleResponse detail(@PathVariable String id) {
-    return SaleResponse.from(getSaleDetail.execute(saleId(id)));
+  public SaleDetailResponse detail(@PathVariable String id) {
+    return SaleDetailResponse.from(getSaleDetail.execute(saleId(id)));
   }
 
   @PostMapping(path = "/cancel", consumes = MediaType.APPLICATION_JSON_VALUE)

@@ -9,9 +9,16 @@ import static org.mockito.Mockito.when;
 
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository;
+import com.sanigest.catalog.application.port.out.persistence.ClientReferenceRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
+import com.sanigest.catalog.domain.enums.ClientPaymentTerms;
 import com.sanigest.catalog.domain.enums.ClientStatus;
+import com.sanigest.catalog.domain.enums.ClientType;
+import com.sanigest.catalog.domain.exception.InvalidClientPatch;
+import com.sanigest.catalog.domain.model.ClientCategory;
 import com.sanigest.catalog.domain.model.ClientDetails;
+import com.sanigest.catalog.domain.model.ClientProfile;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -19,13 +26,10 @@ import org.junit.jupiter.api.Test;
 
 class CreateClientTest {
   private final UUID companyId = UUID.randomUUID();
+  private final UUID categoryId = UUID.randomUUID();
+  private final ClientCategoryRepository categories = mock(ClientCategoryRepository.class);
   private final ClientProfileRules profiles =
-      new ClientProfileRules(
-          mock(
-              com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository.class),
-          mock(
-              com.sanigest.catalog.application.port.out.persistence.ClientReferenceRepository
-                  .class));
+      new ClientProfileRules(categories, mock(ClientReferenceRepository.class));
   private final ClientRepository clients = mock(ClientRepository.class);
 
   @Test
@@ -36,32 +40,42 @@ class CreateClientTest {
           return Optional.of(companyId);
         });
 
+    when(categories.defaultId(companyId)).thenReturn(categoryId);
+    when(categories.lockForAssignment(companyId, categoryId))
+        .thenReturn(
+            Optional.of(
+                new ClientCategory(
+                    categoryId, companyId, "REGULAR", "Regular", ClientStatus.ACTIVE)));
+    var profile =
+        new ClientProfile(ClientType.LEGAL, null, "US", null, null, null, null, null, null, null);
     var client =
         useCase.execute(
             new ClientDetails(
-                " Taller ", " \tAb-012 ", "a@b.com", "809-555-1234", "Santo Domingo"));
+                " Taller ", " \tAb-012 ", "a@b.com", "809-555-1234", "Santo Domingo", profile));
 
     assertThat(client.id()).isNotNull();
     assertThat(client.companyId()).isEqualTo(companyId);
     assertThat(client.status()).isEqualTo(ClientStatus.ACTIVE);
     assertThat(client.details())
         .isEqualTo(
-            new ClientDetails("Taller", "Ab-012", "a@b.com", "809-555-1234", "Santo Domingo"));
+            new ClientDetails(
+                "Taller",
+                "Ab-012",
+                "a@b.com",
+                "809-555-1234",
+                "Santo Domingo",
+                profile.defaults(categoryId)));
+    assertThat(client.details().profile().paymentTerms()).isEqualTo(ClientPaymentTerms.CASH);
     assertThat(client.details().taxId()).isEqualTo("Ab-012");
     verify(clients).insert(client);
   }
 
   @Test
-  void createsDistinctClientsWithOnlyAName() {
+  void rejectsCreationWithoutACommercialProfile() {
     var useCase = useCase(permission -> Optional.of(companyId));
-    var first = useCase.execute(new ClientDetails("First", null, null, null, null));
-    var second = useCase.execute(new ClientDetails("Second", " \t ", null, null, null));
-
-    assertThat(first.details().taxId()).isNull();
-    assertThat(second.details().taxId()).isNull();
-    assertThat(first.id()).isNotEqualTo(second.id());
-    verify(clients).insert(first);
-    verify(clients).insert(second);
+    assertThatThrownBy(() -> useCase.execute(new ClientDetails("First", null, null, null, null)))
+        .isInstanceOf(InvalidClientPatch.class);
+    verifyNoInteractions(clients);
   }
 
   @Test

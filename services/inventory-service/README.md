@@ -48,14 +48,18 @@ emisor `inventory-company-access` y audiencia del protocolo v2.
   conserva su unidad histórica. Para un artículo inactivo se permiten ajustes
   de salida auditados, con el mismo permiso de ajuste y un motivo de hasta 500
   caracteres.
-- Una posición sin configuración devuelve `configured: false`, `NOT_TRACKED`
-  y cantidades nulas. Una configuración guardada con seguimiento deshabilitado
+- Una posición sin configuración devuelve `configured: false` y cantidades
+  nulas. El detalle verifica el artículo en Catalog y devuelve `NOT_TRACKED`
+  para PRODUCT o `NOT_APPLICABLE` para SERVICE. Una configuración guardada con seguimiento deshabilitado
   tiene `configured: true`. Para posiciones controladas, `OUT` significa
   disponible igual a cero, `LOW` indica disponible mayor que cero y menor o igual
   al mínimo, y `AVAILABLE` indica disponible superior al mínimo. El máximo es
   informativo. El estado operativo del almacén se consulta en `/warehouses/{id}`.
 - Los listados aplican filtros antes de paginar, con 20 elementos por defecto,
-  hasta 100. La búsqueda de stock usa SKU y nombre obtenidos en la última
+  hasta 100. Para obtener posiciones de una página de Catalog, usa `warehouseId`,
+  `catalogItemIds` (hasta 100 UUID separados por coma) y un `size` suficiente.
+  El lote devuelve las posiciones configuradas del almacén elegido e incluye
+  `warehouseName`. La búsqueda de stock usa SKU y nombre obtenidos en la última
   escritura validada por Catalog. `catalogVerifiedAt` indica la frescura de la
   copia local. Las escrituras consultan al propietario. El resumen cuenta
   combinaciones artículo–almacén e incluye las configuraciones explícitamente

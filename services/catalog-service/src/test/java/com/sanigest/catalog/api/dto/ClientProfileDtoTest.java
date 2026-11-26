@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sanigest.catalog.domain.exception.InvalidClientPatch;
 import com.sanigest.catalog.domain.model.Client;
+import com.sanigest.catalog.domain.model.ClientDetails;
 import jakarta.validation.Validation;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -44,11 +45,7 @@ class ClientProfileDtoTest {
             """);
     assertThat(foreign.withProfile(foreign.profile().defaults(UUID.randomUUID())).taxId())
         .isEqualTo("AB-0012");
-    var legacy =
-        create(
-            """
-            {"name":"Cliente","taxId":"Ab-012","companyId":"ignored","status":"INACTIVE"}
-            """);
+    var legacy = new ClientDetails("Cliente", "Ab-012", null, null, null);
     assertThat(legacy.taxId()).isEqualTo("Ab-012");
     assertThat(legacy.profile()).isNull();
   }
@@ -57,6 +54,7 @@ class ClientProfileDtoTest {
   @ValueSource(
       strings = {
         "{\"name\":\" \"}",
+        "{\"name\":\"X\"}",
         "{\"name\":\"X\",\"clientType\":\"PERSON\"}",
         "{\"name\":\"X\",\"alternatePhone\":null}",
         "{\"name\":\"X\",\"clientType\":null}",

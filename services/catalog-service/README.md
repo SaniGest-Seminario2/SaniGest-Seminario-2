@@ -81,17 +81,15 @@ clientes y sus referencias requieren autorización por membresía.
 | VIEWER | Permitido | Denegado |
 
 `POST /api/v1/clients` devuelve `201` con la ficha. El servidor asigna UUID,
-empresa y estado `ACTIVE`. El alta ampliada requiere `name` y `clientType`.
+empresa y estado `ACTIVE`. El alta requiere `name` y `clientType`.
 v0.8 usa `NATURAL` para nombre completo y `LEGAL` para razón social. Jira
 propuso `PERSON` y `LEGAL_ENTITY`. Por defecto se asignan `DO`, `CASH` y la
 categoría empresarial `REGULAR`.
 
-El alta anterior sigue disponible en la misma ruta con `name`, `taxId`,
-`email`, `phone` y `address`. En esa variante se ignoran los metadatos
-legados `id`, `companyId`, `status` y `userId`. Cualquier campo ampliado
-activa la validación del alta ampliada. Altas antiguas y filas anteriores a V10
-conservan el perfil en `null`. Para completarlo mediante PATCH, envía juntos
-`clientType`, `countryCode`, `paymentTerms` y `categoryId`.
+Los registros previos pueden conservar el perfil en `null`. Para completarlo
+mediante PATCH, envía juntos `clientType`, `countryCode`, `paymentTerms` y
+`categoryId`. El alta valida los campos de entrada y asigna identidad, empresa y
+estado en el servidor.
 
 El `taxId` es texto. Catalog recorta espacios exteriores y guarda vacío como
 `null`. Para DO, elimina espacios y guiones entre dígitos y valida el
@@ -157,10 +155,9 @@ duplicado o una revisión obsoleta produce `409`.
 ### Ficha comercial y artículos de proveedores (S2-458)
 
 Se conservan las cinco rutas de proveedores. `POST` usa `201` y asigna
-empresa, UUID y estado `ACTIVE`. El alta histórica conserva el perfil
-comercial sin configurar. Incluir un campo ampliado aplica `paymentTerms=CASH`
-por defecto. `supplyType` y `categoryId` son opcionales. La cédula y el RNC
-del alta ampliada admiten 11 y 9 dígitos respectivamente. Se quitan espacios y
+empresa, UUID y estado `ACTIVE`. Omitir `paymentTerms` aplica `CASH`.
+`supplyType` y `categoryId` son opcionales. La cédula y el RNC admiten
+11 y 9 dígitos respectivamente. Se quitan espacios y
 guiones y se conservan los ceros iniciales. Los identificadores históricos
 retienen su formato y se comprueban como posibles colisiones antes de asignar
 un documento dominicano normalizado.
@@ -242,14 +239,15 @@ Estas operaciones usan la membresía empresarial de Catalog. El acceso delegado 
 - SKU y código de barras admiten 64 caracteres. Ambos recortan espacios exteriores.
   El SKU se convierte a mayúsculas y el código de barras conserva texto y ceros
   iniciales. La unicidad empresarial incluye artículos inactivos.
-- Las altas con campos ampliados o precio en cadena requieren clasificación
-  vigente. La forma histórica con nombre, tipo y precio numérico conserva su
-  comportamiento. PATCH conserva lo omitido y permite limpiar campos opcionales
-  con null. El tipo permanece estable.
+- Las altas requieren unidad activa y clasificación vigente, tanto con precio
+  numérico como en cadena. PATCH conserva lo omitido y permite limpiar campos
+  opcionales con null. El tipo permanece estable. Cuando existe un proveedor
+  principal, el detalle y el listado incluyen `primarySupplierId` y
+  `primarySupplierName`. La creación también devuelve `unitDivisible`.
 - Las cinco categorías iniciales se crean idempotentemente por empresa.
   Las categorías inactivas conservan sus artículos y se excluyen de nuevas
   asignaciones. El filtro `categoryId` puede combinarse con tipo, estado,
-  disponibilidad y búsqueda literal por nombre, SKU o código de barras.
+  disponibilidad y búsqueda literal por nombre, SKU, código de barras o categoría.
 - UNIT, BOX y PACK son indivisibles. LB, KG, L y M admiten fracciones.
   Catalog publica esa propiedad para la validación futura de cantidades.
 - ITBIS_18, ITBIS_16 y EXEMPT tienen versiones con inicio inclusivo y fin
@@ -262,10 +260,10 @@ Estas operaciones usan la membresía empresarial de Catalog. El acceso delegado 
   con cuatro decimales. El margen es beneficio dividido entre precio neto por
   cien, con dos decimales. Costo desconocido implica beneficio y margen nulos,
   y precio cero implica margen nulo. Sales calculará importes por línea en S2-461.
-- Las altas ampliadas venden por defecto y requieren activar compras
+- Las altas habilitan ventas por defecto y requieren activar compras
   explícitamente. Un artículo activo es elegible para cada operación cuando
   su flag correspondiente es true. Compras desconocidas se representan como
-  null en artículos históricos y altas históricas. Los vínculos de S2-458
+  null en artículos históricos. Los vínculos de S2-458
   conservan su compatibilidad con esa forma histórica. Deshabilitar compras
   retira el proveedor principal en la misma transacción y mantiene consultable
   el vínculo. Volver a habilitarlas requiere una nueva designación explícita.

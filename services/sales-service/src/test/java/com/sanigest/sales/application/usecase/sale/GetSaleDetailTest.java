@@ -8,9 +8,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.sanigest.sales.application.dto.SaleDetail;
+import com.sanigest.sales.application.dto.SaleFinancials;
 import com.sanigest.sales.application.exception.SaleNotFound;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.sales.application.port.out.persistence.SaleRepository;
+import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.enums.SaleStatus;
 import com.sanigest.sales.domain.model.CatalogCustomerSnapshot;
@@ -27,7 +29,7 @@ import org.junit.jupiter.api.Test;
 
 class GetSaleDetailTest {
   private final SalesAuthorization authorization = mock(SalesAuthorization.class);
-  private final SaleRepository sales = mock(SaleRepository.class);
+  private final SaleQueryRepository sales = mock(SaleQueryRepository.class);
   private final GetSaleDetail useCase = new GetSaleDetail(authorization, sales);
   private final UUID company = UUID.randomUUID();
   private final UUID id = UUID.randomUUID();
@@ -51,9 +53,12 @@ class GetSaleDetailTest {
             .withCode("V-2026-001")
             .cancel(cancellation);
     when(authorization.requireMembership(SALES_READ)).thenReturn(company);
-    when(sales.findByCompanyIdAndId(company, id)).thenReturn(Optional.of(historical));
-
-    Sale result = useCase.execute(id);
+    when(sales.detail(company, id))
+        .thenReturn(
+            Optional.of(
+                new SaleDetail(
+                    historical, new SaleFinancials(null, null, null, null, null, null))));
+    Sale result = useCase.execute(id).sale();
 
     assertThat(result.clientId()).isEqualTo(client.id());
     assertThat(result.clientName()).isEqualTo("Cliente original");
@@ -63,7 +68,7 @@ class GetSaleDetailTest {
     assertThat(result.status()).isEqualTo(SaleStatus.CANCELLED);
     assertThat(result.cancellation()).isEqualTo(cancellation);
     verify(authorization).requireMembership(SALES_READ);
-    verify(sales).findByCompanyIdAndId(company, id);
+    verify(sales).detail(company, id);
     verifyNoMoreInteractions(sales);
   }
 
@@ -74,8 +79,8 @@ class GetSaleDetailTest {
 
     assertThatThrownBy(() -> useCase.execute(id)).isInstanceOf(SaleNotFound.class);
     assertThatThrownBy(() -> useCase.execute(foreign)).isInstanceOf(SaleNotFound.class);
-    verify(sales).findByCompanyIdAndId(company, id);
-    verify(sales).findByCompanyIdAndId(company, foreign);
+    verify(sales).detail(company, id);
+    verify(sales).detail(company, foreign);
     verifyNoMoreInteractions(sales);
   }
 

@@ -32,8 +32,8 @@ class SaleUseCaseConfiguration {
   }
 
   @Bean
-  GetSaleDetail getSaleDetail(SalesAuthorization authorization, SaleRepository sales) {
-    return new GetSaleDetail(authorization, sales);
+  GetSaleDetail getSaleDetail(SalesAuthorization authorization, SaleQueryRepository query) {
+    return new GetSaleDetail(authorization, query);
   }
 
   @Bean

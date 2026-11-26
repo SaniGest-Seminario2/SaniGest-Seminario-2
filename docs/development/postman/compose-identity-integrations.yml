@@ -1,0 +1,20 @@
+services:
+  company-service:
+    environment:
+      MEMBER_DIRECTORY_ISSUER: company-member-directory-local
+      MEMBER_DIRECTORY_PRIVATE_KEY_LOCATION: file:/run/secrets/member-directory-private.pem
+      ADVISOR_ELIGIBILITY_ISSUER: company-advisor-eligibility-local
+      ADVISOR_ELIGIBILITY_PRIVATE_KEY_LOCATION: file:/run/secrets/advisor-eligibility-private.pem
+    volumes:
+      - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/member-directory-private.pem:/run/secrets/member-directory-private.pem:ro
+      - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/advisor-eligibility-private.pem:/run/secrets/advisor-eligibility-private.pem:ro
+
+  identity-service:
+    environment:
+      IDENTITY_MEMBER_DIRECTORY_ISSUER: company-member-directory-local
+      IDENTITY_MEMBER_DIRECTORY_PUBLIC_KEY_LOCATION: file:/run/secrets/member-directory-public.pem
+      IDENTITY_ADVISOR_ELIGIBILITY_ISSUER: company-advisor-eligibility-local
+      IDENTITY_ADVISOR_ELIGIBILITY_PUBLIC_KEY_LOCATION: file:/run/secrets/advisor-eligibility-public.pem
+    volumes:
+      - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/member-directory-public.pem:/run/secrets/member-directory-public.pem:ro
+      - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/advisor-eligibility-public.pem:/run/secrets/advisor-eligibility-public.pem:ro

@@ -30,8 +30,6 @@ public final class ClientPatchRequest {
           "categoryId",
           "creditLimit",
           "observations");
-  private static final Set<String> LEGACY_FIELDS =
-      Set.of("name", "taxId", "email", "phone", "address", "id", "companyId", "userId", "status");
 
   private ClientPatchRequest() {}
 
@@ -43,14 +41,7 @@ public final class ClientPatchRequest {
   }
 
   static ClientPatch creation(JsonNode body) {
-    if (!body.isObject()) {
-      throw new InvalidClientPatch();
-    }
-    var patch = parse(body);
-    if (!(patch.hasProfileFields() ? FIELDS : LEGACY_FIELDS).containsAll(body.propertyNames())) {
-      throw new InvalidClientPatch();
-    }
-    return patch;
+    return details(body);
   }
 
   private static ClientPatch parse(JsonNode body) {

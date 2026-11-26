@@ -23,7 +23,8 @@ class GetMyCompanyUseCaseTest {
   private final MembershipRepository memberships = mock(MembershipRepository.class);
   private final GetMyCompanyUseCase useCase = new GetMyCompanyUseCase(memberships);
   private final CompanyProfile profile =
-      new CompanyProfile(UUID.randomUUID(), "Clinic SRL", "Clinic", null, "SD", "DOP", "ACTIVE");
+      new CompanyProfile(
+          UUID.randomUUID(), "Clinic SRL", "Clinic", null, "SD", "DOP", "ACTIVE", null, null);
 
   @Test
   void resolvesTheCompanyThroughTheAuthenticatedUsersMembership() {

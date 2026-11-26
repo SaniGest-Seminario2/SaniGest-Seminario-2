@@ -2,6 +2,7 @@ package com.sanigest.inventory.api.dto;
 
 import com.sanigest.inventory.application.dto.InventoryQueries.Page;
 import com.sanigest.inventory.application.dto.InventoryQueries.Summary;
+import com.sanigest.inventory.application.port.out.integration.CatalogInventoryClient.Item;
 import com.sanigest.inventory.domain.StockAvailability;
 import com.sanigest.inventory.domain.StockKey;
 import com.sanigest.inventory.domain.StockMovement;
@@ -55,8 +56,13 @@ public final class InventoryResponses {
       String itemName,
       Instant catalogVerifiedAt,
       Instant updatedAt,
-      Long revision) {
+      Long revision,
+      String warehouseName) {
     public static StockView from(StockPosition value) {
+      return from(value, null);
+    }
+
+    public static StockView from(StockPosition value, String warehouseName) {
       return new StockView(
           value.key().catalogItemId(),
           value.key().warehouseId(),
@@ -74,10 +80,11 @@ public final class InventoryResponses {
           value.itemName(),
           value.catalogVerifiedAt(),
           value.updatedAt(),
-          value.revision());
+          value.revision(),
+          warehouseName);
     }
 
-    public static StockView absent(StockKey key) {
+    public static StockView absent(StockKey key, String warehouseName, Item item) {
       return new StockView(
           key.catalogItemId(),
           key.warehouseId(),
@@ -89,13 +96,16 @@ public final class InventoryResponses {
           null,
           null,
           null,
-          StockAvailability.NOT_TRACKED,
+          "SERVICE".equals(item.type())
+              ? StockAvailability.NOT_APPLICABLE
+              : StockAvailability.NOT_TRACKED,
+          item.unitCode(),
+          item.sku(),
+          item.name(),
           null,
           null,
           null,
-          null,
-          null,
-          null);
+          warehouseName);
     }
   }
 

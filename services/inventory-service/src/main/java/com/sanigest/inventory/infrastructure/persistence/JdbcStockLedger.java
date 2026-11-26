@@ -5,6 +5,7 @@ import static com.sanigest.inventory.infrastructure.persistence.InventorySql.tim
 import static com.sanigest.inventory.infrastructure.persistence.InventorySql.uuid;
 
 import com.sanigest.inventory.application.dto.InventoryQueries;
+import com.sanigest.inventory.application.dto.InventoryQueries.StockEntry;
 import com.sanigest.inventory.application.port.out.persistence.StockLedger;
 import com.sanigest.inventory.domain.InventoryViolation;
 import com.sanigest.inventory.domain.StockBalance;
@@ -113,8 +114,11 @@ class JdbcStockLedger implements StockLedger {
 
   @Override
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-  public InventoryQueries.Page<StockPosition> list(UUID company, InventoryQueries.Stock query) {
+  public InventoryQueries.Page<StockEntry> list(UUID company, InventoryQueries.Stock query) {
     var sql = byPosition(company, query.warehouseId(), query.catalogItemId());
+    if (!query.catalogItemIds().isEmpty()) {
+      sql.filter("catalog_item_id IN (:items)", "items", query.catalogItemIds());
+    }
     sql.filter("(" + AVAILABILITY + ") = :state", "state", query.availability());
     sql.filter("tracking_enabled=:tracking", "tracking", query.trackingEnabled());
     sql.search(
@@ -128,10 +132,14 @@ class JdbcStockLedger implements StockLedger {
         };
     return sql.page(
         db,
-        "inventory.stock_positions",
+        """
+        (SELECT p.*, w.name AS warehouse_name
+         FROM inventory.stock_positions p JOIN inventory.warehouses w
+           ON w.company_id = p.company_id AND w.id = p.warehouse_id) positions
+        """,
         column + " " + query.paging().order() + ", warehouse_id, catalog_item_id",
         query.paging(),
-        JdbcStockLedger::position);
+        (row, index) -> new StockEntry(position(row, index), row.getString("warehouse_name")));
   }
 
   @Override

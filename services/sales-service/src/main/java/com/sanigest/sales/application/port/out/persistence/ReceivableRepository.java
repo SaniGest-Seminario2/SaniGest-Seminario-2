@@ -1,9 +1,9 @@
 package com.sanigest.sales.application.port.out.persistence;
 
-import com.sanigest.sales.domain.model.Receivable;
+import com.sanigest.sales.application.dto.ReceivableDetail;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface ReceivableRepository {
-  Optional<Receivable> findByCompanyIdAndId(UUID companyId, UUID id);
+  Optional<ReceivableDetail> findByCompanyIdAndId(UUID companyId, UUID id);
 }

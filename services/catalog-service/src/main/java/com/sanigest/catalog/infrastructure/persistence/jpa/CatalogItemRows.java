@@ -23,7 +23,12 @@ interface CatalogItemRows extends Repository<CatalogItemRow, UUID> {
         AND (CAST(:#{#criteria.availableForPurchase()} AS boolean) IS NULL
           OR available_for_purchase = :#{#criteria.availableForPurchase()})
         AND (:pattern = '' OR name ILIKE :pattern ESCAPE '!'
-            OR sku ILIKE :pattern ESCAPE '!' OR barcode ILIKE :pattern ESCAPE '!')
+            OR sku ILIKE :pattern ESCAPE '!' OR barcode ILIKE :pattern ESCAPE '!'
+            OR EXISTS (
+              SELECT 1 FROM catalog.catalog_item_categories c
+              WHERE c.company_id = catalog_items.company_id AND c.id = catalog_items.category_id
+                AND (c.name ILIKE :pattern ESCAPE '!' OR c.code ILIKE :pattern ESCAPE '!')
+            ))
       """;
 
   <S extends CatalogItemRow> S saveAndFlush(S row);

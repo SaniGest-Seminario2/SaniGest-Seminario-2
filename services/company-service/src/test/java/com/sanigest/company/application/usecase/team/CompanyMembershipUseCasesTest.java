@@ -175,7 +175,8 @@ class CompanyMembershipUseCasesTest {
 
   private void actor(CompanyRole role, MembershipStatus status) {
     var profile =
-        new CompanyProfile(company, "Legal SRL", "Comercial", null, null, "DOP", "ACTIVE");
+        new CompanyProfile(
+            company, "Legal SRL", "Comercial", null, null, "DOP", "ACTIVE", null, null);
     when(memberships.findCompanyByUserId(actor))
         .thenReturn(Optional.of(new CompanyMembership(status, profile)));
     member(actor, role, status);

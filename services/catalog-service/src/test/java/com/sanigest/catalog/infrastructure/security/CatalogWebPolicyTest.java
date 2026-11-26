@@ -301,7 +301,8 @@ class CatalogWebPolicyTest {
             get(base + "/{id}/history", item.id())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.content[0].operation").value("CREATE"));
+        .andExpect(jsonPath("$.content[0].operation").value("CREATE"))
+        .andExpect(jsonPath("$.totalPages").value(1));
     mvc.perform(
             get(base + "/{id}/history", UUID.randomUUID())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
@@ -470,7 +471,7 @@ class CatalogWebPolicyTest {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
                 .header("X-Company-Id", "61fe639e-5460-4ca9-8e79-c3bd7ec6190d")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Client\",\"companyId\":\"other\",\"userId\":\"other\"}"))
+                .content("{\"name\":\"Client\",\"clientType\":\"LEGAL\"}"))
         .andExpect(status().isServiceUnavailable())
         .andExpect(jsonPath("$.errorCode").value("AUTHORIZATION_UNAVAILABLE"));
     verifyNoInteractions(clients);
@@ -483,7 +484,9 @@ class CatalogWebPolicyTest {
         new String[] {
           "{}",
           "{\"name\":\"  \"}",
-          "{\"name\":\"Client\",\"email\":\"invalid\"}",
+          "{\"name\":\"Client\"}",
+          "{\"name\":\"Client\",\"clientType\":null}",
+          "{\"name\":\"Client\",\"clientType\":\"LEGAL\",\"email\":\"invalid\"}",
           "{\"name\":\"Client\",\"phone\":\"invalid\"}",
           "{\"name\":\"" + "a".repeat(161) + "\"}",
           "{"
@@ -588,14 +591,15 @@ class CatalogWebPolicyTest {
     given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.of(companyId));
     var body =
         """
-        {"name":"Office","contact":"Laura","taxId":"  123 "}
+        {"name":"Office","contact":"Laura","taxId":"  012345678 "}
         """;
 
     registerSupplier(body)
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").isString())
         .andExpect(jsonPath("$.companyId").value(companyId.toString()))
-        .andExpect(jsonPath("$.taxId").value("123"))
+        .andExpect(jsonPath("$.taxId").value("012345678"))
+        .andExpect(jsonPath("$.paymentTerms").value("CASH"))
         .andExpect(jsonPath("$.status").value("ACTIVE"));
 
     doThrow(new SupplierCreationException(SupplierCreationException.Reason.DUPLICATE_TAX_ID))

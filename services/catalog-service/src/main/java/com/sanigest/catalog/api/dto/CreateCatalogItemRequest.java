@@ -13,8 +13,4 @@ public record CreateCatalogItemRequest(
     @NotNull CatalogItemType type,
     @NotNull BigDecimal price,
     String description,
-    CatalogItemProfile profile) {
-  public CreateCatalogItemRequest(String name, CatalogItemType type, BigDecimal price) {
-    this(name, type, price, null, CatalogItemProfile.LEGACY);
-  }
-}
+    CatalogItemProfile profile) {}

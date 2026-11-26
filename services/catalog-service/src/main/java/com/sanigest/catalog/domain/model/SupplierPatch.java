@@ -65,27 +65,16 @@ public record SupplierPatch(
     }
   }
 
-  public boolean hasProfileFields() {
-    return address != null
-        || supplyType != null
-        || paymentTerms != null
-        || categoryId != null
-        || creditDays != null
-        || observations != null;
-  }
-
   public SupplierDetails createDetails() {
     var profile =
-        hasProfileFields()
-            ? new SupplierProfile(
-                Value.resolve(address, null),
-                Value.resolve(supplyType, null),
-                Value.resolve(paymentTerms, SupplierPaymentTerms.CASH),
-                Value.resolve(categoryId, null),
-                Value.resolve(creditDays, null),
-                Value.resolve(observations, null))
-            : SupplierProfile.EMPTY;
-    if (hasProfileFields() && profile.paymentTerms() == null) {
+        new SupplierProfile(
+            Value.resolve(address, null),
+            Value.resolve(supplyType, null),
+            Value.resolve(paymentTerms, SupplierPaymentTerms.CASH),
+            Value.resolve(categoryId, null),
+            Value.resolve(creditDays, null),
+            Value.resolve(observations, null));
+    if (profile.paymentTerms() == null) {
       throw new InvalidSupplierPatch();
     }
     return new SupplierDetails(
@@ -99,6 +88,9 @@ public record SupplierPatch(
 
   SupplierDetails applyTo(SupplierDetails current) {
     var previous = current.profile();
+    if (paymentTerms != null && paymentTerms.value() == null) {
+      throw new InvalidSupplierPatch();
+    }
     var profile =
         new SupplierProfile(
             Value.resolve(address, previous.address()),

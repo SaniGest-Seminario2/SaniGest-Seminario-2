@@ -15,28 +15,24 @@ public record CreateClientRequest(ClientDetails details) {
     if (name == null || name.isBlank()) {
       throw new InvalidClientPatch();
     }
-    ClientProfile profile = null;
-    if (fields.hasProfileFields()) {
-      if (value(fields.clientType()) == null
-          || explicitNull(fields.countryCode())
-          || explicitNull(fields.paymentTerms())
-          || explicitNull(fields.categoryId())) {
-        throw new InvalidClientPatch();
-      }
-      // Defaults are applied by the use case after resolving the authorized company.
-      profile =
-          new ClientProfile(
-              value(fields.clientType()),
-              value(fields.alternatePhone()),
-              fields.countryCode() == null ? "DO" : value(fields.countryCode()),
-              value(fields.provinceCode()),
-              value(fields.municipalityCode()),
-              value(fields.preferredReceiptType()),
-              value(fields.paymentTerms()),
-              value(fields.categoryId()),
-              value(fields.creditLimit()),
-              value(fields.observations()));
+    if (value(fields.clientType()) == null
+        || explicitNull(fields.countryCode())
+        || explicitNull(fields.paymentTerms())
+        || explicitNull(fields.categoryId())) {
+      throw new InvalidClientPatch();
     }
+    var profile =
+        new ClientProfile(
+            value(fields.clientType()),
+            value(fields.alternatePhone()),
+            fields.countryCode() == null ? "DO" : value(fields.countryCode()),
+            value(fields.provinceCode()),
+            value(fields.municipalityCode()),
+            value(fields.preferredReceiptType()),
+            value(fields.paymentTerms()),
+            value(fields.categoryId()),
+            value(fields.creditLimit()),
+            value(fields.observations()));
     return new CreateClientRequest(
         new ClientDetails(
             name,

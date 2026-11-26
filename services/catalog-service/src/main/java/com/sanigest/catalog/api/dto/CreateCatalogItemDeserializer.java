@@ -11,9 +11,6 @@ import tools.jackson.databind.DeserializationContext;
 import tools.jackson.databind.ValueDeserializer;
 
 final class CreateCatalogItemDeserializer extends ValueDeserializer<CreateCatalogItemRequest> {
-  private static final java.util.Set<String> LEGACY_FIELDS =
-      java.util.Set.of("name", "type", "price");
-
   @Override
   public CreateCatalogItemRequest deserialize(JsonParser parser, DeserializationContext context) {
     if (!parser.hasToken(JsonToken.START_OBJECT)) {
@@ -36,14 +33,11 @@ final class CreateCatalogItemDeserializer extends ValueDeserializer<CreateCatalo
     if (!parser.hasToken(JsonToken.END_OBJECT)) {
       return invalid(context);
     }
-    return request(input, fields, context);
+    return request(input, context);
   }
 
-  private static CreateCatalogItemRequest request(
-      Fields input, java.util.Set<String> fields, DeserializationContext context) {
-    boolean expanded =
-        fields.stream().anyMatch(field -> !LEGACY_FIELDS.contains(field)) || input.textPrice;
-    if (expanded && input.taxClassificationCode == null) {
+  private static CreateCatalogItemRequest request(Fields input, DeserializationContext context) {
+    if (input.unitCode == null || input.taxClassificationCode == null) {
       return invalid(context);
     }
     return new CreateCatalogItemRequest(
@@ -51,17 +45,15 @@ final class CreateCatalogItemDeserializer extends ValueDeserializer<CreateCatalo
         input.type,
         input.price,
         input.description,
-        expanded
-            ? new CatalogItemProfile(
-                input.sku,
-                input.barcode,
-                input.categoryId,
-                input.unitCode,
-                input.estimatedCost,
-                input.taxClassificationCode,
-                input.availableForSale == null || input.availableForSale,
-                Boolean.TRUE.equals(input.availableForPurchase))
-            : CatalogItemProfile.LEGACY);
+        new CatalogItemProfile(
+            input.sku,
+            input.barcode,
+            input.categoryId,
+            input.unitCode,
+            input.estimatedCost,
+            input.taxClassificationCode,
+            input.availableForSale == null || input.availableForSale,
+            Boolean.TRUE.equals(input.availableForPurchase)));
   }
 
   private static CreateCatalogItemRequest invalid(DeserializationContext context) {
@@ -82,16 +74,12 @@ final class CreateCatalogItemDeserializer extends ValueDeserializer<CreateCatalo
     String taxClassificationCode = null;
     Boolean availableForSale = null;
     Boolean availableForPurchase = null;
-    boolean textPrice = false;
 
     private void read(String field, JsonParser parser) {
       switch (field) {
         case "name" -> name = CatalogItemJson.text(parser);
         case "type" -> type = CatalogItemType.valueOf(CatalogItemJson.text(parser));
-        case "price" -> {
-          textPrice = parser.hasToken(JsonToken.VALUE_STRING);
-          price = CatalogItemJson.decimal(parser);
-        }
+        case "price" -> price = CatalogItemJson.decimal(parser);
         case "description" -> description = CatalogItemJson.nullable(parser, CatalogItemJson::text);
         case "sku" -> sku = CatalogItemJson.nullable(parser, CatalogItemJson::text);
         case "barcode" -> barcode = CatalogItemJson.nullable(parser, CatalogItemJson::text);

@@ -114,6 +114,11 @@ public class InviteCompanyUserUseCase {
               }
             }));
     return new CreatedInvitation(
-        invitation.id(), role, InvitationStatus.PENDING, invitation.expiresAt());
+        invitation.id(),
+        role,
+        InvitationStatus.PENDING,
+        invitation.expiresAt(),
+        invitation.name(),
+        recipient);
   }
 }

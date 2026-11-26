@@ -1,6 +1,7 @@
 package com.sanigest.inventory.application.port.out.persistence;
 
 import com.sanigest.inventory.application.dto.InventoryQueries;
+import com.sanigest.inventory.application.dto.InventoryQueries.StockEntry;
 import com.sanigest.inventory.domain.StockKey;
 import com.sanigest.inventory.domain.StockMovement;
 import com.sanigest.inventory.domain.StockPosition;
@@ -15,7 +16,7 @@ public interface StockLedger {
 
   void append(StockMovement movement);
 
-  InventoryQueries.Page<StockPosition> list(UUID company, InventoryQueries.Stock query);
+  InventoryQueries.Page<StockEntry> list(UUID company, InventoryQueries.Stock query);
 
   InventoryQueries.Page<StockMovement> movements(UUID company, InventoryQueries.Movements query);
 

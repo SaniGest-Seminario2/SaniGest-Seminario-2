@@ -2,6 +2,7 @@ package com.sanigest.inventory.application.usecase;
 
 import com.sanigest.inventory.application.dto.InventoryQueries;
 import com.sanigest.inventory.application.port.out.integration.CatalogInventoryClient;
+import com.sanigest.inventory.application.port.out.integration.CatalogInventoryClient.Item;
 import com.sanigest.inventory.application.port.out.persistence.StockLedger;
 import com.sanigest.inventory.domain.StockKey;
 import com.sanigest.inventory.domain.StockPosition;
@@ -22,18 +23,22 @@ public class InventoryReads {
     this.catalog = catalog;
   }
 
-  public Optional<StockPosition> get(StockKey key) {
-    warehouses.get(key.companyId(), key.warehouseId());
+  public PositionDetail get(StockKey key) {
+    var warehouse = warehouses.get(key.companyId(), key.warehouseId());
     var existing = ledger.find(key);
-    if (existing.isEmpty()) {
-      catalog.find(key.companyId(), key.catalogItemId());
-    }
-    return existing;
+    var item = existing.isEmpty() ? catalog.find(key.companyId(), key.catalogItemId()) : null;
+    return new PositionDetail(warehouse.name(), existing, item);
   }
 
-  public InventoryQueries.Page<StockPosition> list(UUID company, InventoryQueries.Stock query) {
+  public InventoryQueries.Page<InventoryQueries.StockEntry> list(
+      UUID company, InventoryQueries.Stock query) {
+    if (!query.catalogItemIds().isEmpty()) {
+      warehouses.get(company, query.warehouseId());
+    }
     return ledger.list(company, query);
   }
+
+  public record PositionDetail(String warehouseName, Optional<StockPosition> position, Item item) {}
 
   public InventoryQueries.Page<com.sanigest.inventory.domain.StockMovement> movements(
       UUID company, InventoryQueries.Movements query) {

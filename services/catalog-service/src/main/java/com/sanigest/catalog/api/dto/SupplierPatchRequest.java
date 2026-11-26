@@ -29,40 +29,30 @@ public final class SupplierPatchRequest {
           "observations");
 
   public static SupplierPatch details(JsonNode body) {
-    return parse(body, false);
+    return parse(body);
   }
 
   static SupplierPatch creation(JsonNode body) {
-    return parse(body, true);
+    return parse(body);
   }
 
-  private static SupplierPatch parse(JsonNode body, boolean creation) {
-    if (!body.isObject()
-        || body.isEmpty()
-        || !body.propertyNames().stream()
-            .allMatch(key ->
-                FIELDS.contains(key)
-                    || (creation && Set.of("id", "companyId", "status", "userId").contains(key)))) {
+  private static SupplierPatch parse(JsonNode body) {
+    if (!body.isObject() || body.isEmpty() || !FIELDS.containsAll(body.propertyNames())) {
       throw new InvalidSupplierPatch();
     }
     try {
-      var patch =
-          new SupplierPatch(
-              read(body, "name", SupplierPatchRequest::text),
-              read(body, "taxId", SupplierPatchRequest::text),
-              read(body, "contact", SupplierPatchRequest::text),
-              read(body, "phone", SupplierPatchRequest::text),
-              read(body, "email", SupplierPatchRequest::text),
-              read(body, "address", SupplierPatchRequest::text),
-              read(body, "supplyType", node -> SupplierSupplyType.valueOf(text(node))),
-              read(body, "paymentTerms", node -> SupplierPaymentTerms.valueOf(text(node))),
-              read(body, "categoryId", SupplierPatchRequest::uuid),
-              read(body, "creditDays", SupplierPatchRequest::integer),
-              read(body, "observations", SupplierPatchRequest::text));
-      if (creation && patch.hasProfileFields() && !FIELDS.containsAll(body.propertyNames())) {
-        throw new InvalidSupplierPatch();
-      }
-      return patch;
+      return new SupplierPatch(
+          read(body, "name", SupplierPatchRequest::text),
+          read(body, "taxId", SupplierPatchRequest::text),
+          read(body, "contact", SupplierPatchRequest::text),
+          read(body, "phone", SupplierPatchRequest::text),
+          read(body, "email", SupplierPatchRequest::text),
+          read(body, "address", SupplierPatchRequest::text),
+          read(body, "supplyType", node -> SupplierSupplyType.valueOf(text(node))),
+          read(body, "paymentTerms", node -> SupplierPaymentTerms.valueOf(text(node))),
+          read(body, "categoryId", SupplierPatchRequest::uuid),
+          read(body, "creditDays", SupplierPatchRequest::integer),
+          read(body, "observations", SupplierPatchRequest::text));
     } catch (IllegalArgumentException invalid) {
       throw new InvalidSupplierPatch();
     }

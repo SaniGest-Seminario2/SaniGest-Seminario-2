@@ -139,7 +139,8 @@ class CompanyAuditUseCasesTest {
   }
 
   private Membership stubMembership(CompanyRole role, MembershipStatus status) {
-    var profile = new CompanyProfile(company, "Legal", "Business", null, null, "DOP", "ACTIVE");
+    var profile =
+        new CompanyProfile(company, "Legal", "Business", null, null, "DOP", "ACTIVE", null, null);
     var membership = new Membership(UUID.randomUUID(), company, actor, role, status);
     when(memberships.findCompanyByUserId(actor))
         .thenReturn(Optional.of(new CompanyMembership(status, profile)));

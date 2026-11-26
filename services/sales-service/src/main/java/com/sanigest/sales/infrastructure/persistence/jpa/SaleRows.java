@@ -45,28 +45,65 @@ interface SaleRows extends Repository<SaleRow, UUID> {
       nativeQuery = true)
   int recordCancellation(UUID companyId, UUID saleId, UUID actor, Instant at, String reason);
 
-  String FILTER =
+  String DOCUMENT_JOINS =
       """
-      FROM sales.sales
-      WHERE company_id = :companyId
-        AND sale_date BETWEEN :fromDate AND :toDate
-        AND (:status = '' OR status = :status)
-        AND (:pattern = '' OR lower(client_name) LIKE lower(:pattern) ESCAPE '!')
+      LEFT JOIN sales.internal_invoices i
+        ON i.company_id = s.company_id AND i.sale_id = s.id AND i.status = 'ISSUED'
+      LEFT JOIN sales.receivables r ON r.company_id = s.company_id AND r.sale_id = s.id
       """;
 
-  @Query(value = "SELECT count(*) " + FILTER, nativeQuery = true)
+  @Query(
+      value =
+          """
+          SELECT i.id AS "invoiceId", i.number AS "invoiceNumber",
+                 r.due_date AS "dueDate",
+                 r.status AS "paymentStatus", r.balance AS "balance",
+                 r.total_amount - r.balance AS "collected"
+          FROM sales.sales s
+          """
+              + DOCUMENT_JOINS
+              + " WHERE s.company_id = :companyId AND s.id = :saleId",
+      nativeQuery = true)
+  Optional<SaleFinancialRow> financials(UUID companyId, UUID saleId);
+
+  interface SaleFinancialRow {
+    UUID getInvoiceId();
+
+    String getInvoiceNumber();
+
+    LocalDate getDueDate();
+
+    String getPaymentStatus();
+
+    BigDecimal getBalance();
+
+    BigDecimal getCollected();
+  }
+
+  String FILTER =
+      """
+      WHERE s.company_id = :companyId
+        AND s.sale_date BETWEEN :fromDate AND :toDate
+        AND (:status = '' OR s.status = :status)
+        AND (:pattern = '' OR lower(s.client_name) LIKE lower(:pattern) ESCAPE '!')
+      """;
+
+  @Query(value = "SELECT count(*) FROM sales.sales s " + FILTER, nativeQuery = true)
   long countMatching(
       UUID companyId, String pattern, String status, LocalDate fromDate, LocalDate toDate);
 
   @Query(
       value =
           """
-          SELECT id, code, client_id AS "clientId", client_name AS "clientName",
-                 sale_date AS "saleDate", mode, status, total
+          SELECT s.id, s.code, s.client_id AS "clientId", s.client_name AS "clientName",
+                 s.sale_date AS "saleDate", s.mode, s.status, s.total,
+                 i.number AS "invoiceNumber", r.status AS "paymentStatus"
+          FROM sales.sales s
           """
+              + DOCUMENT_JOINS
               + FILTER
               + """
-              ORDER BY sale_date DESC, id DESC
+              ORDER BY s.sale_date DESC, s.id DESC
               LIMIT :size OFFSET :offset
               """,
       nativeQuery = true)
@@ -95,5 +132,9 @@ interface SaleRows extends Repository<SaleRow, UUID> {
     String getStatus();
 
     BigDecimal getTotal();
+
+    String getInvoiceNumber();
+
+    String getPaymentStatus();
   }
 }

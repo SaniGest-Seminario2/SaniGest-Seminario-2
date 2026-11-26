@@ -902,8 +902,8 @@ class SalesServiceIT {
                     com.sanigest.sales.application.port.out.persistence.ReceivableRepository.class)
                 .findByCompanyIdAndId(original.company(), id)
                 .orElseThrow();
-        assertThat(stored.status().name()).isEqualTo("OPEN");
-        assertThat(stored.balance()).isEqualTo(new BigDecimal("12601.50"));
+        assertThat(stored.receivable().status().name()).isEqualTo("OPEN");
+        assertThat(stored.receivable().balance()).isEqualTo(new BigDecimal("12601.50"));
         CATALOG.verify(
             1, WireMock.getRequestedFor(WireMock.urlPathEqualTo(original.productPath())));
       }
@@ -1176,7 +1176,7 @@ class SalesServiceIT {
       fixture.customer("INACTIVE");
       fixture.membership("VIEWER", false, "READ");
 
-      assertThat(page(getSales(http, fixture.bearer(), "/" + id))).isEqualTo(registered);
+      assertSaleDetail(page(getSales(http, fixture.bearer(), "/" + id)), registered);
       assertThat(registered.has("payments")).isFalse();
       assertThat(registered.path("lines").size()).isEqualTo(2);
       assertThat(registered.path("total").asString()).isEqualTo("12601.50");
@@ -1205,7 +1205,7 @@ class SalesServiceIT {
           .isEqualTo(cancelled);
 
       fixture.membership("VIEWER", false, "READ");
-      assertThat(page(getSales(http, fixture.bearer(), "/" + id))).isEqualTo(cancelled);
+      assertSaleDetail(page(getSales(http, fixture.bearer(), "/" + id)), cancelled);
       assertThat(listIds(page(getSales(http, fixture.bearer(), "?status=CANCELLED"))))
           .containsExactly(id);
       assertThat(
@@ -1439,6 +1439,14 @@ class SalesServiceIT {
       owner.membership("OWNER", false, "READ");
       var receivable = page(getReceivable(http, owner.bearer(), id));
       assertThat(receivable.path("saleId").asString()).isEqualTo(id);
+      assertThat(receivable.path("saleCode")).isEqualTo(sale.path("code"));
+      assertThat(receivable.path("outstandingBalance")).isEqualTo(sale.path("total"));
+      assertThat(receivable.path("invoiceNumber").isNull()).isTrue();
+      var detail = page(getSales(http, owner.bearer(), "/" + id));
+      assertThat(detail.path("paymentStatus").asString()).isEqualTo("OPEN");
+      assertThat(detail.path("dueDate").asString()).isEqualTo("2026-12-23");
+      assertThat(detail.path("outstandingBalance")).isEqualTo(sale.path("total"));
+      assertThat(detail.path("collectedAmount").asString()).isEqualTo("0.00");
       assertThat(receivable.path("origin").asString()).isEqualTo("SALE");
       assertThat(receivable.path("currency").asString()).isEqualTo("DOP");
       assertThat(receivable.path("dueDate").asString()).isEqualTo("2026-12-23");
@@ -1608,6 +1616,13 @@ class SalesServiceIT {
       assertThat(created.statusCode()).withFailMessage(created.body()).isEqualTo(201);
       var document = new ObjectMapper().readTree(created.body());
       assertThat(document.path("number").asString()).matches("FAC-[0-9]{4}-001");
+      owner.membership("OWNER", false, "READ");
+      var listed = page(getSales(http, owner.bearer(), "")).at("/content/0");
+      assertThat(listed.path("invoiceNumber")).isEqualTo(document.path("number"));
+      assertThat(listed.path("paymentStatus").isNull()).isTrue();
+      var detail = page(getSales(http, owner.bearer(), "/" + id));
+      assertThat(detail.path("invoiceId")).isEqualTo(document.path("id"));
+      assertThat(detail.path("invoiceNumber")).isEqualTo(document.path("number"));
       assertThat(document.path("documentType").asString()).isEqualTo("INTERNAL");
       assertThat(document.path("fiscalClassification").asString()).isEqualTo("NOT_FISCAL");
       assertThat(document.path("status").asString()).isEqualTo("ISSUED");
@@ -1838,6 +1853,15 @@ class SalesServiceIT {
       request.header("Idempotency-Key", key);
     }
     return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static void assertSaleDetail(JsonNode detail, JsonNode snapshot) {
+    for (var field : snapshot.propertyNames()) {
+      assertThat(detail.path(field)).isEqualTo(snapshot.path(field));
+    }
+    assertThat(detail.path("paymentStatus").isNull()).isTrue();
+    assertThat(detail.path("outstandingBalance").isNull()).isTrue();
+    assertThat(detail.path("invoiceNumber").isNull()).isTrue();
   }
 
   private static <T> List<T> race(Callable<T> first, Callable<T> second) throws Exception {

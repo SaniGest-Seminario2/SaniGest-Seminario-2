@@ -34,7 +34,9 @@ public record CatalogItemResponse(
     Boolean availableForPurchase,
     boolean eligibleForSale,
     boolean eligibleForPurchase,
-    UUID primarySupplierId) {
+    UUID primarySupplierId,
+    Boolean unitDivisible,
+    String primarySupplierName) {
   public static CatalogItemResponse from(CatalogItem item) {
     return from(item, CatalogItemCommercialData.EMPTY);
   }
@@ -49,7 +51,8 @@ public record CatalogItemResponse(
       boolean active) {
     this(
         id, companyId, name, type, price, currency, active, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null, null, true, null, active, false, null);
+        null, null, null, null, null, null, null, null, null, true, null, active, false, null, null,
+        null);
   }
 
   public static CatalogItemResponse from(CatalogItem item, CatalogItemCommercialData data) {
@@ -81,6 +84,8 @@ public record CatalogItemResponse(
         detail.availableForPurchase(),
         detail.eligibleForSale(),
         detail.eligibleForPurchase(),
-        detail.primarySupplierId());
+        detail.primarySupplierId(),
+        detail.unitDivisible(),
+        detail.primarySupplierName());
   }
 }

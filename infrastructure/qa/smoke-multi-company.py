@@ -6,6 +6,7 @@ import urllib.error
 import urllib.request
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date, timedelta
 
 
 def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200, origin=None, method=None):
@@ -53,12 +54,34 @@ def main():
     a, b = create_company("A"), create_company("B")
     assert {row["companyId"] for row in exchange("companies", token=token)} == {a, b}
     exchange("companies/me", token=token, status=409)
-    client_a = exchange("clients", token=token, tenant=a, data={"name": "Cliente A"}, status=201)["id"]
-    client_b = exchange("clients", token=token, tenant=b, data={"name": "Cliente B"}, status=201)["id"]
+    for invalid in ({"name": "Sin tipo"}, {"name": "Tipo nulo", "clientType": None}):
+        problem = exchange("clients", token=token, tenant=a, data=invalid, status=400)
+        assert problem["status"] == 400 and problem["errorCode"] == "INVALID_REQUEST"
+    client = exchange("clients", token=token, tenant=a, data={
+        "name": "Cliente A", "clientType": "NATURAL", "paymentTerms": "BOTH",
+    }, status=201)
+    client_a = client["id"]
+    assert client["countryCode"] == "DO" and client["paymentTerms"] == "BOTH" and client["categoryId"]
+    assert exchange(f"clients/{client_a}", token=token, tenant=a)["clientType"] == "NATURAL"
+    edited = exchange(f"clients/{client_a}", token=token, tenant=a, method="PATCH",
+                      data={"phone": "8095550100"})
+    assert edited["phone"] == "8095550100" and edited["categoryId"] == client["categoryId"]
+    assert exchange("clients?clientType=NATURAL", token=token, tenant=a)["content"][0]["phone"] == edited["phone"]
+    supplier = exchange("suppliers", token=token, tenant=a, status=201,
+                        data={"name": "Proveedor A", "contact": "Contacto", "supplyType": "PRODUCT"})
+    assert supplier["paymentTerms"] == "CASH"
+    exchange("catalog-items", token=token, tenant=a, status=400,
+             data={"name": "Sin unidad", "type": "PRODUCT", "price": "25.00"})
+    client_b = exchange("clients", token=token, tenant=b, data={"name": "Cliente B", "clientType": "LEGAL"}, status=201)["id"]
     item_a = exchange("catalog-items", token=token, tenant=a, status=201, data={
         "name": "Artículo A", "type": "PRODUCT", "price": "25.00", "unitCode": "UNIT",
-        "taxClassificationCode": "ITBIS_18",
+        "taxClassificationCode": "ITBIS_18", "availableForPurchase": True,
     })["id"]
+
+    exchange(f"suppliers/{supplier['id']}/items", token=token, tenant=a, method="PUT", status=204,
+             data={"items": [{"catalogItemId": item_a, "offeredCost": "15.0000", "primary": True}]})
+    product = exchange(f"catalog-items/{item_a}", token=token, tenant=a)
+    assert product["primarySupplierName"] == supplier["name"] and product["unitDivisible"] is False
 
     barrier = threading.Barrier(2)
 
@@ -71,9 +94,19 @@ def main():
         assert first.result(timeout=15) == {client_a}
         assert second.result(timeout=15) == {client_b}
 
-    sale = {"clientId": client_a, "lines": [{"catalogItemId": item_a, "quantity": 1}], "mode": "CASH"}
-    sale_id = exchange("sales", token=token, tenant=a, data=sale,
-                       key=uuid.uuid4().hex, status=201)["id"]
+    sale = {"clientId": client_a, "lines": [{"catalogItemId": item_a, "quantity": 1}],
+            "mode": "CREDIT", "dueDate": (date.today() + timedelta(days=30)).isoformat()}
+    sale_key = uuid.uuid4().hex
+    created = exchange("sales", token=token, tenant=a, data=sale, key=sale_key, status=201)
+    sale_id = created["id"]
+    assert exchange("sales", token=token, tenant=a, data=sale, key=sale_key, status=201) == created
+    invoice = exchange(f"sales/{sale_id}/invoices", token=token, tenant=a,
+                       key=uuid.uuid4().hex, method="POST", status=201)
+    detail = exchange(f"sales/{sale_id}", token=token, tenant=a)
+    assert detail["invoiceNumber"] == invoice["number"] and detail["paymentStatus"] == "OPEN"
+    receivable = exchange(f"receivables/{sale_id}", token=token, tenant=a)
+    assert receivable["saleCode"] == created["code"] and receivable["invoiceId"] == invoice["id"]
+    assert receivable["outstandingBalance"] == created["total"]
     exchange("sales", token=token, tenant=a, data={**sale, "clientId": client_b},
              key=uuid.uuid4().hex, status=404)
     assert exchange("sales", token=token, tenant=a)["totalElements"] == 1
@@ -104,11 +137,15 @@ def verify_inventory(token, company, other, item):
     inbound = adjust(item, "IN", "5", retry_key)
     adjust(item, "OUT", "3", uuid.uuid4().hex)
     assert inventory(position)["onHand"] == "22.000"
+    batch = inventory(f"inventory/stock?warehouseId={warehouse}&catalogItemIds={item}")
+    assert batch["totalElements"] == 1 and batch["content"][0]["warehouseName"] == "Principal"
     assert adjust(item, "IN", "5.000", retry_key) == inbound
     assert inventory(f"inventory/movements?warehouseId={warehouse}")["totalElements"] == 3
     summary = inventory(f"inventory/summary?warehouseId={warehouse}")
     assert summary["activeWarehouses"] == summary["trackedPositions"] == summary["availablePositions"] == 1
-    service = inventory("catalog-items", data={"name": "Servicio", "type": "SERVICE", "price": 0}, status=201)["id"]
+    service = inventory("catalog-items", data={"name": "Servicio", "type": "SERVICE", "price": 0,
+                                                "unitCode": "UNIT", "taxClassificationCode": "EXEMPT"}, status=201)["id"]
+    assert inventory(f"inventory/stock/{service}/{warehouse}")["availability"] == "NOT_APPLICABLE"
     adjust(service, "IN", "1", uuid.uuid4().hex, 400)
     exchange(position, token=token, tenant=other, status=404)
     exchange("inventory/stock", status=401, origin=INVENTORY)

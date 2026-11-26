@@ -91,9 +91,11 @@ class InventoryWebTest {
           1);
   private MockMvc mvc;
 
+  private final CatalogInventoryClient catalog = mock(CatalogInventoryClient.class);
+
   @BeforeEach
   void configure() throws Exception {
-    var reads = new InventoryReads(storage, ledger, mock(CatalogInventoryClient.class));
+    var reads = new InventoryReads(storage, ledger, catalog);
     mvc =
         MockMvcBuilders.standaloneSetup(
                 new WarehouseController(access, storage),
@@ -107,6 +109,9 @@ class InventoryWebTest {
                         .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                         .build()))
             .build();
+    when(catalog.find(company, item))
+        .thenReturn(
+            new CatalogInventoryClient.Item(item, "PRODUCT", true, "KG", true, "SKU", "Article"));
     when(access.authorize(eq(company), any())).thenReturn(actor);
     when(warehouses.find(company, warehouse, false)).thenReturn(Optional.of(warehouseModel));
     when(warehouses.find(company, warehouse, true)).thenReturn(Optional.of(warehouseModel));
@@ -153,7 +158,17 @@ class InventoryWebTest {
     mvc.perform(get(path).header(COMPANY, company))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.availability").value("NOT_TRACKED"))
+        .andExpect(jsonPath("$.warehouseName").value("Main"))
         .andExpect(jsonPath("$.onHand").isEmpty());
+    when(catalog.find(company, item))
+        .thenReturn(
+            new CatalogInventoryClient.Item(
+                item, "SERVICE", true, "UNIT", false, null, "Consulting"));
+    mvc.perform(get(path).header(COMPANY, company))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.availability").value("NOT_APPLICABLE"))
+        .andExpect(jsonPath("$.itemName").value("Consulting"))
+        .andExpect(jsonPath("$.available").isEmpty());
     when(ledger.find(key)).thenReturn(Optional.of(position));
     when(stock.configure(eq(key), eq(actor), eq("start"), any())).thenReturn(position);
     var movement =
@@ -175,7 +190,9 @@ class InventoryWebTest {
             new BigDecimal("2.500"));
     when(stock.adjust(eq(key), eq(actor), eq("start"), any())).thenReturn(movement);
     when(ledger.list(eq(company), any()))
-        .thenReturn(new InventoryQueries.Page<>(List.of(position), 1, 0, 20));
+        .thenReturn(
+            new InventoryQueries.Page<>(
+                List.of(new InventoryQueries.StockEntry(position, "Main")), 1, 0, 20));
     when(ledger.movements(eq(company), any()))
         .thenReturn(new InventoryQueries.Page<>(List.of(movement), 1, 0, 20));
     when(ledger.summary(company, warehouse))

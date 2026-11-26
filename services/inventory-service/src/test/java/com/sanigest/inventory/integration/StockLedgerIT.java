@@ -87,6 +87,15 @@ class StockLedgerIT extends InventoryHttpFixture {
     var low =
         expect("GET", STOCK + "?availability=LOW&size=1&search=sku-001", company, null, null, 200);
     assertThat(low.get("totalElements").asInt()).isEqualTo(1);
+    var batch =
+        STOCK + "?warehouseId=" + first + "&catalogItemIds=" + item + "," + UUID.randomUUID();
+    var selected = expect("GET", batch + "&availability=LOW&size=1", company, null, null, 200);
+    assertThat(selected.path("totalElements").asInt()).isEqualTo(1);
+    assertThat(selected.at("/content/0/catalogItemId").asString()).isEqualTo(item.toString());
+    assertThat(selected.at("/content/0/warehouseName").isString()).isTrue();
+    expect("GET", STOCK + "?catalogItemIds=" + item, company, null, null, 400);
+    expect("GET", batch, other, null, null, 404);
+    expect("GET", batch, UUID.randomUUID(), null, null, 403);
     assertThat(low.get("content").get(0).get("warehouseId").asString()).isEqualTo(first.toString());
     assertThat(
             expect("GET", STOCK + "?size=1&page=2", company, null, null, 200)

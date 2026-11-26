@@ -276,7 +276,8 @@ class CompanyInvitationUseCasesTest {
   }
 
   private void authorize(CompanyRole role, MembershipStatus status) {
-    var profile = new CompanyProfile(companyId, "Clinic", "Clinic", null, null, "DOP", "ACTIVE");
+    var profile =
+        new CompanyProfile(companyId, "Clinic", "Clinic", null, null, "DOP", "ACTIVE", null, null);
     when(members.findCompanyByUserId(owner))
         .thenReturn(Optional.of(new CompanyMembership(status, profile)));
     when(members.findByCompanyIdAndUserId(companyId, owner))

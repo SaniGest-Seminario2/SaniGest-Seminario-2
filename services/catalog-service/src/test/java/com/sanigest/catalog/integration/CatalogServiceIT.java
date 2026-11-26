@@ -48,6 +48,7 @@ import com.sanigest.catalog.domain.enums.ClientStatus;
 import com.sanigest.catalog.domain.enums.SupplierStatus;
 import com.sanigest.catalog.domain.model.CatalogItem;
 import com.sanigest.catalog.domain.model.CatalogItemPatch;
+import com.sanigest.catalog.domain.model.CatalogItemProfile;
 import com.sanigest.catalog.domain.model.Client;
 import com.sanigest.catalog.domain.model.ClientDetails;
 import com.sanigest.catalog.domain.model.Supplier;
@@ -157,11 +158,13 @@ class CatalogServiceIT {
   private static final String CATALOG_ITEMS = "/api/v1/catalog-items";
   private static final String SERVICE_ITEM =
       """
-      {"name":"Consultoría","type":"SERVICE","price":15000.00}
+      {"name":"Consultoría","type":"SERVICE","price":15000.00,"unitCode":"UNIT",
+       "taxClassificationCode":"EXEMPT","availableForPurchase":true}
       """;
   private static final String PRODUCT_ITEM =
       """
-      {"name":"Silla","type":"PRODUCT","price":3200.00}
+      {"name":"Silla","type":"PRODUCT","price":3200.00,"unitCode":"UNIT",
+       "taxClassificationCode":"EXEMPT","availableForPurchase":true}
       """;
 
   @Autowired CreateCatalogItem createCatalogItem;
@@ -357,7 +360,8 @@ class CatalogServiceIT {
             "V13__create_supplier_item_relationships.sql",
             "V14__create_catalog_item_reference_data.sql",
             "V15__extend_catalog_item_commercial_profile.sql",
-            "V16__create_catalog_item_history.sql");
+            "V16__create_catalog_item_history.sql",
+            "V17__preserve_required_commercial_fields.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -408,9 +412,9 @@ class CatalogServiceIT {
                   token,
                   """
                   {"name":" Client ","taxId":" %s ","email":"sample@example.org","phone":"809-555-1234",
-                   "address":"Santo Domingo","companyId":"%s","userId":"%s","status":"DISABLED","id":"%s"}
+                   "address":"Santo Domingo","clientType":"LEGAL","countryCode":"US"}
                   """
-                      .formatted(taxId, otherCompanyId, UUID.randomUUID(), UUID.randomUUID()),
+                      .formatted(taxId),
                   otherCompanyId),
               HttpResponse.BodyHandlers.ofString());
       assertThat(response.statusCode()).isEqualTo(201);
@@ -420,7 +424,9 @@ class CatalogServiceIT {
       assertThat(body.path("name").asString()).isEqualTo("Client");
       assertThat(body.path("taxId").asString()).isEqualTo(taxId);
       assertThat(body.path("status").asString()).isEqualTo("ACTIVE");
-      assertThat(body.path("clientType").isNull()).isTrue();
+      assertThat(body.path("clientType").asString()).isEqualTo("LEGAL");
+      assertThat(body.path("paymentTerms").asString()).isEqualTo("CASH");
+      assertThat(body.path("categoryId").isString()).isTrue();
       var row =
           new JdbcTemplate(dataSource)
               .queryForMap(
@@ -476,8 +482,13 @@ class CatalogServiceIT {
       assertThat(postStatus(http, authorizedToken(UUID.randomUUID()), withTaxId(taxId)))
           .isEqualTo(201);
       var nullTaxIdToken = authorizedToken(companyId);
-      assertThat(postStatus(http, nullTaxIdToken, "{\"name\":\"First\"}")).isEqualTo(201);
-      assertThat(postStatus(http, nullTaxIdToken, "{\"name\":\"Second\",\"taxId\":null}"))
+      assertThat(postStatus(http, nullTaxIdToken, "{\"name\":\"First\",\"clientType\":\"LEGAL\"}"))
+          .isEqualTo(201);
+      assertThat(
+              postStatus(
+                  http,
+                  nullTaxIdToken,
+                  "{\"name\":\"Second\",\"clientType\":\"LEGAL\",\"taxId\":null}"))
           .isEqualTo(201);
       var jdbc = new JdbcTemplate(dataSource);
       assertThat(
@@ -510,7 +521,7 @@ class CatalogServiceIT {
     var taxId = UUID.randomUUID().toString();
     var body =
         """
-        {"name":"Denied","taxId":"%s","companyId":"%s","userId":"%s"}
+        {"name":"Denied","taxId":"%s","clientType":"LEGAL","countryCode":"US"}
         """
             .formatted(taxId, companyId, UUID.randomUUID());
     try (var http = HttpClient.newHttpClient()) {
@@ -1021,13 +1032,6 @@ class CatalogServiceIT {
             Flyway.configure().dataSource(source).target("13").load().migrate().migrationsExecuted)
         .isEqualTo(3);
     verifyCommercialItemMigration(source, jdbc, companyId, supplierId, itemId);
-    assertThat(
-            jdbc.queryForMap(
-                "SELECT supply_type, payment_terms, category_id FROM catalog.suppliers WHERE id = ?",
-                supplierId))
-        .containsEntry("supply_type", null)
-        .containsEntry("payment_terms", null)
-        .containsEntry("category_id", null);
 
     assertThat(
             jdbc.queryForMap(
@@ -1067,6 +1071,27 @@ class CatalogServiceIT {
     assertThatThrownBy(
             () -> jdbc.update("UPDATE catalog.clients SET status = 'DELETED' WHERE id = ?", id))
         .isInstanceOf(DataIntegrityViolationException.class);
+    verifyRequiredCommercialFieldsCannotBeCleared(jdbc, supplierId, itemId);
+  }
+
+  private static void verifyRequiredCommercialFieldsCannotBeCleared(
+      JdbcTemplate jdbc, UUID supplierId, UUID itemId) {
+    assertThat(
+            jdbc.queryForMap(
+                "SELECT supply_type, payment_terms, category_id FROM catalog.suppliers WHERE id = ?",
+                supplierId))
+        .containsEntry("supply_type", null)
+        .containsEntry("payment_terms", null)
+        .containsEntry("category_id", null);
+    jdbc.update("UPDATE catalog.catalog_items SET unit_code = 'UNIT' WHERE id = ?", itemId);
+    jdbc.update("UPDATE catalog.suppliers SET payment_terms = 'CASH' WHERE id = ?", supplierId);
+    assertThatThrownBy(() ->
+            jdbc.update("UPDATE catalog.catalog_items SET unit_code = NULL WHERE id = ?", itemId))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    assertThatThrownBy(() ->
+            jdbc.update(
+                "UPDATE catalog.suppliers SET payment_terms = NULL WHERE id = ?", supplierId))
+        .isInstanceOf(DataIntegrityViolationException.class);
   }
 
   private static void verifyCommercialItemMigration(
@@ -1082,7 +1107,7 @@ class CatalogServiceIT {
         supplierId,
         itemId);
     assertThat(Flyway.configure().dataSource(source).load().migrate().migrationsExecuted)
-        .isEqualTo(3);
+        .isEqualTo(4);
     assertThat(
             jdbc.queryForObject(
                 "SELECT is_primary FROM catalog.supplier_items WHERE catalog_item_id = ?",
@@ -1474,7 +1499,13 @@ class CatalogServiceIT {
 
   private String createForListing(HttpClient http, String token, String name, String taxId)
       throws Exception {
-    var body = JsonMapper.shared().createObjectNode().put("name", name).put("taxId", taxId);
+    var body =
+        JsonMapper.shared()
+            .createObjectNode()
+            .put("name", name)
+            .put("taxId", taxId)
+            .put("clientType", "LEGAL")
+            .put("countryCode", "US");
     var response =
         http.send(
             clientRequest(token, body.toString(), null), HttpResponse.BodyHandlers.ofString());
@@ -1555,7 +1586,8 @@ class CatalogServiceIT {
   }
 
   private static String withTaxId(String taxId) {
-    return "{\"name\":\"Client\",\"taxId\":\"%s\"}".formatted(taxId);
+    return "{\"name\":\"Client\",\"taxId\":\"%s\",\"clientType\":\"LEGAL\",\"countryCode\":\"US\"}"
+        .formatted(taxId);
   }
 
   private int postStatus(HttpClient http, String token, String body)
@@ -1592,10 +1624,9 @@ class CatalogServiceIT {
     var viewer = membershipToken(company, MembershipRole.VIEWER, true);
     var body =
         """
-        {"name":" Office ","taxId":"  A-123  ","contact":" Laura ","phone":"+1 (809) 555-0118",
-         "email":"sales@example.do","companyId":"%s","id":"%s","status":"INACTIVE"}
-        """
-            .formatted(otherCompany, forgedId);
+        {"name":" Office ","taxId":"  012345678  ","contact":" Laura ","phone":"+1 (809) 555-0118",
+         "email":"sales@example.do"}
+        """;
 
     try (var http = HttpClient.newHttpClient()) {
       var created = postSupplier(http, owner, body, otherCompany);
@@ -1615,7 +1646,7 @@ class CatalogServiceIT {
                       id))
           .containsEntry("company_id", company)
           .containsEntry("name", "Office")
-          .containsEntry("tax_id", "A-123")
+          .containsEntry("tax_id", "012345678")
           .containsEntry("contact", "Laura")
           .containsEntry("phone", "+1 (809) 555-0118")
           .containsEntry("email", "sales@example.do")
@@ -1639,14 +1670,14 @@ class CatalogServiceIT {
         """;
 
     try (var http = HttpClient.newHttpClient()) {
-      assertThat(postSupplier(http, a, withTax.formatted(" TAX-1 "), null).statusCode())
+      assertThat(postSupplier(http, a, withTax.formatted(" 012345679 "), null).statusCode())
           .isEqualTo(201);
-      var duplicate = postSupplier(http, a, withTax.formatted("TAX-1"), null);
+      var duplicate = postSupplier(http, a, withTax.formatted("012345679"), null);
       assertThat(duplicate.statusCode()).isEqualTo(409);
       assertThat(JsonMapper.shared().readTree(duplicate.body()).path("errorCode").asString())
           .isEqualTo("DUPLICATE_TAX_ID");
-      assertThat(duplicate.body()).doesNotContain("TAX-1", "uq_suppliers_company_tax_id");
-      assertThat(postSupplier(http, b, withTax.formatted("TAX-1"), null).statusCode())
+      assertThat(duplicate.body()).doesNotContain("012345679", "uq_suppliers_company_tax_id");
+      assertThat(postSupplier(http, b, withTax.formatted("012345679"), null).statusCode())
           .isEqualTo(201);
       assertThat(postSupplier(http, a, SUPPLIER_JSON, null).statusCode()).isEqualTo(201);
       assertThat(postSupplier(http, a, withTax.formatted("   "), null).statusCode()).isEqualTo(201);
@@ -1775,7 +1806,7 @@ class CatalogServiceIT {
               http,
               owner,
               """
-              {"name":"Office North","taxId":"ABC-101","contact":"Laura","phone":"8095550101"}
+              {"name":"Office North","taxId":"012345680","contact":"Laura","phone":"8095550101"}
               """,
               null);
       assertThat(created.statusCode()).as(created.body()).isEqualTo(201);
@@ -1811,7 +1842,7 @@ class CatalogServiceIT {
       var inactive =
           successfulBody(patch(http, path + "/status", owner, "{\"status\":\"INACTIVE\"}", null));
       assertThat(successfulBody(get(http, path, viewer))).isEqualTo(inactive);
-      var page = successfulBody(get(http, SUPPLIERS + "?search=bc-10&status=inactive", viewer));
+      var page = successfulBody(get(http, SUPPLIERS + "?search=345680&status=inactive", viewer));
       assertThat(page.path("totalElements").asLong()).isEqualTo(1);
       assertThat(page.path("content").get(0).path("id").asString()).isEqualTo(id.toString());
       assertThat(page.path("content").get(0).path("status").asString()).isEqualTo("INACTIVE");
@@ -2070,6 +2101,10 @@ class CatalogServiceIT {
       assertThat(forward.path("catalogItemId").asString()).isEqualTo(item);
       assertThat(forward.path("offeredCost").asString()).isEqualTo("25.1234");
       assertThat(forward.path("primary").asBoolean()).isTrue();
+      var itemDetail = successfulBody(get(http, CATALOG_ITEMS + "/" + item, owner));
+      assertThat(itemDetail.path("primarySupplierId").asString()).isEqualTo(a);
+      assertThat(itemDetail.path("primarySupplierName").asString()).isEqualTo("A");
+      assertThat(itemDetail.path("unitDivisible").isBoolean()).isTrue();
       assertThat(putSupplier(http, linksB, owner, offer(item, false, false)).statusCode())
           .isEqualTo(204);
       assertThat(
@@ -2549,8 +2584,9 @@ class CatalogServiceIT {
 
   @Test
   void catalogItemUseCaseRequiresAuthenticationOutsideTheWebFilter() {
-    assertThatThrownBy(
-            () -> createCatalogItem.execute("Chair", CatalogItemType.PRODUCT, BigDecimal.ONE))
+    assertThatThrownBy(() ->
+            createCatalogItem.execute(
+                "Chair", CatalogItemType.PRODUCT, BigDecimal.ONE, null, CatalogItemProfile.LEGACY))
         .isInstanceOf(AccessDeniedException.class);
   }
 
@@ -2897,11 +2933,8 @@ class CatalogServiceIT {
     var owner = scopedCatalogOwner(UUID.randomUUID());
     var outsider = scopedCatalogOwner(UUID.randomUUID());
     try (var http = HttpClient.newHttpClient()) {
-      var category =
-          successfulBody(get(http, CATALOG_ITEMS + "/categories", owner))
-              .get(0)
-              .path("id")
-              .asString();
+      var categoryRef = successfulBody(get(http, CATALOG_ITEMS + "/categories", owner)).get(0);
+      var category = categoryRef.path("id").asString();
       assertThat(successfulBody(get(http, CATALOG_ITEMS + "/units", owner)).size()).isEqualTo(7);
       var tax = successfulBody(get(http, CATALOG_ITEMS + "/tax-classifications", owner));
       assertThat(tax)
@@ -2920,6 +2953,12 @@ class CatalogServiceIT {
                       null)
                   .statusCode())
           .isEqualTo(201);
+      var byCategory = CATALOG_ITEMS + "?search=" + categoryRef.path("code").asString() + "&size=1";
+      var categoryPage = successfulBody(get(http, byCategory, owner));
+      assertThat(categoryPage.path("totalElements").asInt()).isEqualTo(2);
+      assertThat(categoryPage.path("content").size()).isEqualTo(1);
+      assertThat(successfulBody(get(http, byCategory, outsider)).path("totalElements").asInt())
+          .isZero();
       var path = CATALOG_ITEMS + "/" + id;
       var filtered =
           successfulBody(

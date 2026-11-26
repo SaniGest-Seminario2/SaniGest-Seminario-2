@@ -1,5 +1,6 @@
 package com.sanigest.sales.application.dto;
 
+import com.sanigest.sales.domain.enums.ReceivableStatus;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.enums.SaleStatus;
 import java.math.BigDecimal;
@@ -20,5 +21,7 @@ public record SalePage(List<Item> content, int page, int size, long totalElement
       LocalDate saleDate,
       SaleMode mode,
       SaleStatus status,
-      BigDecimal total) {}
+      BigDecimal total,
+      String invoiceNumber,
+      ReceivableStatus paymentStatus) {}
 }

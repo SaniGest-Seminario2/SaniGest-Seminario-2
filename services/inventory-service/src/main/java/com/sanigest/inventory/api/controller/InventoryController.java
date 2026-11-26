@@ -46,7 +46,11 @@ public class InventoryController {
     var company = RequestContext.company(request);
     access.authorize(company, Operation.READ);
     var key = new StockKey(company, itemId, warehouseId);
-    return reads.get(key).map(StockView::from).orElseGet(() -> StockView.absent(key));
+    var detail = reads.get(key);
+    return detail
+        .position()
+        .map(position -> StockView.from(position, detail.warehouseName()))
+        .orElseGet(() -> StockView.absent(key, detail.warehouseName(), detail.item()));
   }
 
   @PutMapping("/stock/{itemId}/{warehouseId}")
@@ -83,7 +87,9 @@ public class InventoryController {
   PageView<StockView> list(HttpServletRequest request, @ModelAttribute StockFilters filters) {
     var company = RequestContext.company(request);
     access.authorize(company, Operation.READ);
-    return PageView.from(reads.list(company, filters.query()), StockView::from);
+    return PageView.from(
+        reads.list(company, filters.query()),
+        entry -> StockView.from(entry.position(), entry.warehouseName()));
   }
 
   @GetMapping("/movements")

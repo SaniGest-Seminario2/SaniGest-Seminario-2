@@ -251,7 +251,7 @@
           {
             "name": "search",
             "in": "query",
-            "description": "Coincidencia parcial por nombre, SKU o código de barras, sin distinguir mayúsculas.",
+            "description": "Coincidencia parcial por nombre, SKU, código de barras, nombre o código de categoría.",
             "schema": {
               "type": "string",
               "example": "silla"
@@ -355,14 +355,18 @@
                   "value": {
                     "name": "Silla",
                     "type": "PRODUCT",
-                    "price": 3200
+                    "price": 3200,
+                    "unitCode": "UNIT",
+                    "taxClassificationCode": "ITBIS_18"
                   }
                 },
                 "service": {
                   "value": {
                     "name": "Consultoría",
                     "type": "SERVICE",
-                    "price": 15000
+                    "price": 15000,
+                    "unitCode": "UNIT",
+                    "taxClassificationCode": "ITBIS_18"
                   }
                 }
               }
@@ -594,7 +598,7 @@
       "post": {
         "operationId": "createSupplier",
         "summary": "Registrar un proveedor",
-        "description": "Requiere CATALOG_WRITE. Catalog asigna UUID, empresa autorizada y estado ACTIVE. El alta de cinco campos conserva compatibilidad con los metadatos históricos ignorados.",
+        "description": "Requiere CATALOG_WRITE. Catalog asigna UUID, empresa autorizada y estado ACTIVE. Al omitir paymentTerms se aplica CASH.",
         "security": [
           {
             "bearerAuth": []
@@ -3091,7 +3095,7 @@
           "price": {
             "type": "number",
             "minimum": 0,
-            "maximum": 999999999999999.9999,
+            "maximum": 1000000000000000.0,
             "multipleOf": 0.0001,
             "description": "Precio unitario neto en DOP como número JSON. La transición limita nuevas escrituras a dos decimales significativos y al rango NUMERIC(14,2)."
           },
@@ -3128,8 +3132,7 @@
           },
           "unitDivisible": {
             "type": "boolean",
-            "nullable": true,
-            "description": "Divisibilidad de la unidad de medida. Nulo si el artículo carece de unidad."
+            "nullable": true
           },
           "unitCode": {
             "type": "string",
@@ -3206,6 +3209,11 @@
             "type": "string",
             "nullable": true,
             "description": "Porcentaje sobre precio neto con dos decimales. Null si falta costo o el precio es cero."
+          },
+          "primarySupplierName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Nombre actual del proveedor principal del artículo."
           }
         }
       },
@@ -3268,7 +3276,7 @@
               {
                 "type": "number",
                 "minimum": 0,
-                "maximum": 999999999999999.9999,
+                "maximum": 1000000000000000.0,
                 "multipleOf": 0.0001
               },
               {
@@ -3299,14 +3307,14 @@
           "unitCode": {
             "type": "string",
             "maxLength": 32,
-            "nullable": true
+            "description": "Código activo y válido para esta operación."
           },
           "estimatedCost": {
             "oneOf": [
               {
                 "type": "number",
                 "minimum": 0,
-                "maximum": 999999999999999.9999,
+                "maximum": 1000000000000000.0,
                 "multipleOf": 0.0001
               },
               {
@@ -3320,8 +3328,7 @@
           "taxClassificationCode": {
             "type": "string",
             "maxLength": 32,
-            "nullable": true,
-            "description": "Código global. Null representa clasificación desconocida."
+            "description": "Código activo y válido para esta operación."
           },
           "availableForSale": {
             "type": "boolean",
@@ -3352,7 +3359,9 @@
         "required": [
           "name",
           "type",
-          "price"
+          "price",
+          "unitCode",
+          "taxClassificationCode"
         ],
         "properties": {
           "name": {
@@ -3372,7 +3381,7 @@
               {
                 "type": "number",
                 "minimum": 0,
-                "maximum": 999999999999999.9999,
+                "maximum": 1000000000000000.0,
                 "multipleOf": 0.0001
               },
               {
@@ -3403,14 +3412,14 @@
           "unitCode": {
             "type": "string",
             "maxLength": 32,
-            "nullable": true
+            "description": "Código activo y válido para esta operación."
           },
           "estimatedCost": {
             "oneOf": [
               {
                 "type": "number",
                 "minimum": 0,
-                "maximum": 999999999999999.9999,
+                "maximum": 1000000000000000.0,
                 "multipleOf": 0.0001
               },
               {
@@ -3424,7 +3433,7 @@
           "taxClassificationCode": {
             "type": "string",
             "maxLength": 32,
-            "description": "Obligatorio en altas ampliadas."
+            "description": "Código activo y válido para esta operación."
           },
           "availableForSale": {
             "type": "boolean",
@@ -3440,7 +3449,7 @@
             "nullable": true
           }
         },
-        "description": "La forma histórica {name, type, price numérico} sigue vigente. Las altas ampliadas requieren clasificación tributaria vigente."
+        "description": "Requiere una unidad activa y clasificación tributaria vigente. DOP y estado activo son asignados por el servidor."
       },
       "CatalogItemResponse": {
         "type": "object",
@@ -3477,7 +3486,7 @@
           "price": {
             "type": "number",
             "minimum": 0,
-            "maximum": 999999999999999.9999,
+            "maximum": 1000000000000000.0,
             "multipleOf": 0.0001,
             "description": "Precio unitario neto en DOP como número JSON. La transición limita nuevas escrituras a dos decimales significativos y al rango NUMERIC(14,2)."
           },
@@ -3587,6 +3596,15 @@
             "type": "string",
             "nullable": true,
             "description": "Porcentaje sobre precio neto con dos decimales. Null si falta costo o el precio es cero."
+          },
+          "unitDivisible": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "primarySupplierName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Nombre actual del proveedor principal del artículo."
           }
         }
       },
@@ -3625,7 +3643,7 @@
             "type": "string",
             "nullable": true,
             "maxLength": 64,
-            "description": "En el alta ampliada, cédula de 11 dígitos o RNC de 9 dígitos. Se conservan los ceros iniciales y se retiran espacios y guiones. El alta histórica admite identificadores textuales."
+            "description": "Cédula de 11 dígitos o RNC de 9 dígitos. Se conservan los ceros iniciales y se retiran espacios y guiones."
           },
           "contact": {
             "type": "string",
@@ -3668,7 +3686,8 @@
               "CREDIT",
               "BOTH"
             ],
-            "description": "Predeterminado CASH para un alta con campos comerciales. El alta histórica conserva el perfil vacío."
+            "description": "Al omitir el campo se aplica CASH. Null explícito es inválido.",
+            "default": "CASH"
           },
           "categoryId": {
             "type": "string",
@@ -3687,7 +3706,8 @@
             "maxLength": 1000,
             "nullable": true
           }
-        }
+        },
+        "additionalProperties": false
       },
       "SupplierCreated": {
         "type": "object",
@@ -4055,8 +4075,7 @@
               "CASH",
               "CREDIT",
               "BOTH"
-            ],
-            "nullable": true
+            ]
           },
           "categoryId": {
             "type": "string",
@@ -4091,14 +4110,7 @@
         }
       },
       "CreateClientRequest": {
-        "oneOf": [
-          {
-            "$ref": "#/components/schemas/CreateExpandedClientRequest"
-          },
-          {
-            "$ref": "#/components/schemas/CreateLegacyClientRequest"
-          }
-        ]
+        "$ref": "#/components/schemas/CreateExpandedClientRequest"
       },
       "Problem": {
         "type": "object",
@@ -4469,59 +4481,6 @@
           }
         }
       },
-      "CreateLegacyClientRequest": {
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 160
-          },
-          "taxId": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 64,
-            "description": "Texto con ceros iniciales. Espacios externos y valor vacío se normalizan. Para DO, se quitan espacios internos y guiones y se requieren 11 dígitos para NATURAL o 9 para LEGAL. La validación es de formato. El contrato anterior conserva el formato histórico."
-          },
-          "email": {
-            "type": "string",
-            "nullable": true,
-            "format": "email",
-            "maxLength": 320
-          },
-          "phone": {
-            "type": "string",
-            "nullable": true,
-            "pattern": "^[0-9+() .-]{7,32}$"
-          },
-          "address": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 255
-          },
-          "id": {
-            "description": "Campo legado ignorado. El servidor asigna el contexto y el estado.",
-            "deprecated": true
-          },
-          "userId": {
-            "description": "Campo legado ignorado. El servidor asigna el contexto y el estado.",
-            "deprecated": true
-          },
-          "companyId": {
-            "description": "Campo legado ignorado. El servidor asigna el contexto y el estado.",
-            "deprecated": true
-          },
-          "status": {
-            "description": "Campo legado ignorado. El servidor asigna el contexto y el estado.",
-            "deprecated": true
-          }
-        },
-        "description": "Transición para consumidores del contrato anterior de cinco campos. Sin campos ampliados.",
-        "additionalProperties": false
-      },
       "CreateExpandedClientRequest": {
         "type": "object",
         "required": [
@@ -4618,7 +4577,8 @@
             "nullable": true
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "El tipo es explícito. Omitir país, condición de pago o categoría aplica DO, CASH o la categoría empresarial REGULAR, respectivamente."
       },
       "ClientCategory": {
         "type": "object",
@@ -5207,8 +5167,20 @@
                 }
               }
             }
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
-        }
+        },
+        "required": [
+          "content",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ]
       }
     },
     "securitySchemes": {
