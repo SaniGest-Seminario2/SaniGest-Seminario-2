@@ -9,4 +9,8 @@ public interface CatalogClient {
   CatalogCustomerSnapshot getCustomer(UUID customerId, UUID expectedCompanyId);
 
   CatalogItemSnapshot getItem(UUID catalogItemId, UUID expectedCompanyId);
+
+  default CatalogItemSnapshot getInvoiceItem(UUID itemId, UUID companyId) {
+    return getItem(itemId, companyId);
+  }
 }

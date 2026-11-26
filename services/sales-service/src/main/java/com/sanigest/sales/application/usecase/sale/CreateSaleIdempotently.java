@@ -4,6 +4,7 @@ import static com.sanigest.sales.application.port.out.integration.SalesAuthoriza
 
 import com.sanigest.sales.application.dto.CreateSaleCommand;
 import com.sanigest.sales.application.dto.CreatedSaleResponse;
+import com.sanigest.sales.application.exception.InvalidSaleRequest;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Claim;
@@ -15,6 +16,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class CreateSaleIdempotently {
+  private static final String INVOICE_OPERATION = "POST /api/v1/invoices";
   private final SalesAuthorization authorization;
   private final Supplier<UUID> actor;
   private final CreateSale createSale;
@@ -33,20 +35,45 @@ public final class CreateSaleIdempotently {
 
   public CreatedSaleResponse execute(
       String key, CreateSaleCommand command, Function<Sale, CreatedSaleResponse> response) {
-    UUID company = authorization.requireMembership(SALES_WRITE);
+    return executeForCompany(
+        authorization.requireMembership(SALES_WRITE),
+        SaleRequestFingerprint.OPERATION,
+        key,
+        command,
+        response);
+  }
+
+  public CreatedSaleResponse createForInvoice(
+      UUID company,
+      String key,
+      CreateSaleCommand command,
+      Function<Sale, CreatedSaleResponse> response) {
+    return executeForCompany(company, INVOICE_OPERATION, key, command, response);
+  }
+
+  private CreatedSaleResponse executeForCompany(
+      UUID company,
+      String operation,
+      String key,
+      CreateSaleCommand command,
+      Function<Sale, CreatedSaleResponse> response) {
     UUID actorId = actor.get();
     CreateSale.validate(command);
+    boolean invoice = INVOICE_OPERATION.equals(operation);
+    if (!invoice && command.lines().stream().anyMatch(line -> line.discount() != null)) {
+      throw new InvalidSaleRequest();
+    }
     var request =
         new Request(
             company,
             actorId,
-            SaleRequestFingerprint.OPERATION,
+            operation,
             key,
             SaleRequestFingerprint.version(command),
-            SaleRequestFingerprint.hash(command));
+            SaleRequestFingerprint.hash(command, invoice));
     return switch (idempotency.resolve(request)) {
       case Replay replay -> replay.response();
-      case Claim claim -> create(request, claim, command, response);
+      case Claim claim -> create(request, claim, command, response, invoice);
     };
   }
 
@@ -54,11 +81,23 @@ public final class CreateSaleIdempotently {
       Request request,
       Claim claim,
       CreateSaleCommand command,
-      Function<Sale, CreatedSaleResponse> response) {
+      Function<Sale, CreatedSaleResponse> response,
+      boolean invoice) {
     try {
-      Sale prepared = createSale.prepare(command, request.companyId());
+      Sale prepared =
+          invoice
+              ? createSale.prepare(command, request.companyId(), true)
+              : createSale.prepare(command, request.companyId());
       return idempotency.complete(
-          request, claim, () -> response.apply(createSale.register(prepared, command.dueDate())));
+          request,
+          claim,
+          () -> {
+            Sale registered =
+                invoice
+                    ? createSale.registerForInvoice(prepared, command.dueDate())
+                    : createSale.register(prepared, command.dueDate());
+            return response.apply(registered);
+          });
     } catch (RuntimeException failure) {
       try {
         idempotency.release(request, claim);

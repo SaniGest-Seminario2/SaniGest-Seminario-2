@@ -1,10 +1,13 @@
 package com.sanigest.sales.application.usecase.invoice;
 
+import com.sanigest.sales.application.dto.CreateSaleCommand;
+import com.sanigest.sales.application.dto.CreatedSaleResponse;
 import com.sanigest.sales.application.exception.InvoiceCompanyUnavailable;
 import com.sanigest.sales.application.exception.InvoiceConflict;
 import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess;
 import com.sanigest.sales.application.port.out.persistence.InvoiceRepository;
 import com.sanigest.sales.application.port.out.persistence.InvoiceRepository.Request;
+import com.sanigest.sales.application.usecase.sale.CreateSaleIdempotently;
 import com.sanigest.sales.domain.model.InternalInvoice;
 import com.sanigest.sales.domain.model.InternalInvoice.CompanySnapshot;
 import java.time.Clock;
@@ -30,6 +33,30 @@ public final class IssueInvoice {
     this.clock = clock;
   }
 
+  public CreatedSaleResponse create(
+      CreateSaleIdempotently sales,
+      String key,
+      CreateSaleCommand command,
+      Function<InternalInvoice, String> response) {
+    var company = companyAccess.requireInvoiceCompany();
+    var snapshot = snapshot(company.id(), company.name());
+    var issuedBy = actor.get();
+    return sales.createForInvoice(
+        company.id(),
+        key,
+        command,
+        sale -> {
+          var at = clock.instant().truncatedTo(ChronoUnit.MICROS);
+          String body =
+              invoices.issueForNewSale(
+                  sale,
+                  at.atZone(InternalInvoice.BUSINESS_ZONE).getYear(),
+                  number -> InternalInvoice.issue(sale, snapshot, number, at, issuedBy),
+                  response);
+          return new CreatedSaleResponse(sale.id(), 201, body);
+        });
+  }
+
   public String execute(UUID saleId, String key, Function<InternalInvoice, String> response) {
     var company = companyAccess.requireInvoiceCompany();
     var issuedBy = actor.get();
@@ -47,14 +74,17 @@ public final class IssueInvoice {
           if (!InternalInvoice.isEligible(sale)) {
             throw new InvoiceConflict();
           }
-          CompanySnapshot snapshot;
-          try {
-            snapshot = new CompanySnapshot(company.id(), company.name());
-          } catch (IllegalArgumentException invalid) {
-            throw new InvoiceCompanyUnavailable();
-          }
-          return InternalInvoice.issue(sale, snapshot, number.get(), at, issuedBy);
+          return InternalInvoice.issue(
+              sale, snapshot(company.id(), company.name()), number.get(), at, issuedBy);
         },
         response);
+  }
+
+  private static CompanySnapshot snapshot(UUID id, String name) {
+    try {
+      return new CompanySnapshot(id, name);
+    } catch (IllegalArgumentException invalid) {
+      throw new InvoiceCompanyUnavailable();
+    }
   }
 }

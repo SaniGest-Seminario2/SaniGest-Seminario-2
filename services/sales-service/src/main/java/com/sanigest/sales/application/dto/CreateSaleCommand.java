@@ -14,5 +14,9 @@ public record CreateSaleCommand(
 
   public static final int MAX_LINES = 100;
 
-  public record Line(UUID catalogItemId, BigDecimal quantity) {}
+  public record Line(UUID catalogItemId, BigDecimal quantity, BigDecimal discount) {
+    public Line(UUID catalogItemId, BigDecimal quantity) {
+      this(catalogItemId, quantity, null);
+    }
+  }
 }

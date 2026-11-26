@@ -49,12 +49,12 @@ public record Receivable(
   }
 
   public static Receivable fromSale(Sale sale, LocalDate dueDate, Instant createdAt) {
-    if (sale.mode() != SaleMode.CREDIT
-        || sale.status() != SaleStatus.REGISTERED
+    if (sale.status() != SaleStatus.REGISTERED
         || dueDate == null
-        || dueDate.isBefore(sale.saleDate())) {
+        || dueDate.isBefore(sale.saleDate())
+        || (sale.mode() == SaleMode.CASH && !dueDate.equals(sale.saleDate()))) {
       throw new IllegalArgumentException(
-          "Receivable requires a registered credit sale and a valid due date");
+          "Receivable requires a registered sale and a valid due date");
     }
     return new Receivable(
         sale.id(),

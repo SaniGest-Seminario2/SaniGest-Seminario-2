@@ -49,7 +49,10 @@ public record InvoiceResponse(
                     line.itemDescription(),
                     line.unitPrice(),
                     line.quantity(),
-                    line.subtotal()))
+                    line.subtotal(),
+                    line.discount(),
+                    line.taxRate(),
+                    line.taxRate() == null ? null : line.taxAmount()))
             .toList(),
         invoice.total(),
         invoice.currency());

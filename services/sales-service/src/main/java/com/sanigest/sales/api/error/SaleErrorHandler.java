@@ -2,6 +2,7 @@ package com.sanigest.sales.api.error;
 
 import static com.sanigest.sales.api.error.SalesProblems.problem;
 
+import com.sanigest.sales.api.controller.CreateInvoiceController;
 import com.sanigest.sales.api.controller.InvalidIdempotencyKey;
 import com.sanigest.sales.api.controller.SaleController;
 import com.sanigest.sales.application.exception.CatalogAccessDeniedException;
@@ -10,6 +11,7 @@ import com.sanigest.sales.application.exception.CatalogUnavailableException;
 import com.sanigest.sales.application.exception.IdempotencyConflict;
 import com.sanigest.sales.application.exception.IdempotencyInProgress;
 import com.sanigest.sales.application.exception.InvalidSaleRequest;
+import com.sanigest.sales.application.exception.InvoiceCompanyUnavailable;
 import com.sanigest.sales.application.exception.SaleAmountNotRepresentable;
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -20,11 +22,19 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @Order(0)
-@RestControllerAdvice(assignableTypes = SaleController.class)
+@RestControllerAdvice(assignableTypes = {SaleController.class, CreateInvoiceController.class})
 class SaleErrorHandler {
   @ExceptionHandler(InvalidSaleRequest.class)
   ProblemDetail invalidRequest() {
     return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The sale request is invalid");
+  }
+
+  @ExceptionHandler(InvoiceCompanyUnavailable.class)
+  ProblemDetail companyUnavailable() {
+    return problem(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "INVOICE_COMPANY_UNAVAILABLE",
+        "Company snapshot could not be verified");
   }
 
   @ExceptionHandler(CatalogResourceInvalidException.class)

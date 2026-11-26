@@ -12,4 +12,5 @@ public record CatalogItemResponse(
     BigDecimal price,
     String currency,
     Boolean active,
-    Boolean availableForSale) {}
+    Boolean availableForSale,
+    BigDecimal taxRate) {}

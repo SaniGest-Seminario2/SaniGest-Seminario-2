@@ -33,7 +33,7 @@ public record Sale(
       LocalDate date,
       SaleMode mode,
       List<SaleLine> lines) {
-    var total = lines.stream().map(SaleLine::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+    var total = lines.stream().map(SaleLine::total).reduce(BigDecimal.ZERO, BigDecimal::add);
     return new Sale(
         id,
         companyId,
@@ -112,10 +112,10 @@ public record Sale(
       if (!id.equals(line.saleId()) || !lineIds.add(line.id())) {
         throw new IllegalArgumentException("lines must belong to the sale and have distinct IDs");
       }
-      sum = sum.add(line.subtotal());
+      sum = sum.add(line.total());
     }
     if (total.compareTo(sum) != 0) {
-      throw new IllegalArgumentException("total must equal the sum of line subtotals");
+      throw new IllegalArgumentException("total must equal the sum of line totals");
     }
   }
 

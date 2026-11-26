@@ -198,6 +198,65 @@ paths:
         '403': {description: Permiso empresarial insuficiente.}
         '404': {description: Recurso ausente o fuera de la empresa autorizada.}
         '503': {description: Autorización o dependencia indisponible.}
+  /api/v1/invoices:
+    post:
+      summary: Crea una factura interna multilínea con SALES_WRITE.
+      description: >
+        Registra la venta, la factura y la obligación positiva en una transacción.
+        Aplica el precio y el ITBIS de Catalog al emitir y redondea base e impuesto
+        por línea a dos decimales. La obligación CASH vence en la fecha comercial
+        y la CREDIT usa dueDate. La misma clave y solicitud recuperan el mismo
+        documento durante la ventana de idempotencia de Sales.
+      parameters:
+        - $ref: '#/components/parameters/CompanySelector'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9._~-]{1,128}$'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, mode, lines]
+              properties:
+                clientId: {type: string, format: uuid}
+                mode: {type: string, enum: [CASH, CREDIT]}
+                saleDate: {type: string, format: date}
+                dueDate:
+                  type: string
+                  format: date
+                  description: Obligatoria para CREDIT y ausente para CASH.
+                lines:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [catalogItemId, quantity]
+                    properties:
+                      catalogItemId: {type: string, format: uuid}
+                      quantity: {type: number, minimum: 0, exclusiveMinimum: true, multipleOf: 0.001}
+                      discount:
+                        type: number
+                        description: Descuento en DOP sobre el importe bruto de la línea.
+                        minimum: 0
+                        multipleOf: 0.01
+                        default: 0
+      responses:
+        '201':
+          description: Factura emitida o recuperada por idempotencia.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Invoice'}
+        '400': {description: Selector, clave o cuerpo inválido.}
+        '401': {description: JWT inválido o ausente.}
+        '403': {description: Permiso empresarial insuficiente.}
+        '404': {description: Cliente o artículo ausente o fuera de la empresa.}
+        '409': {description: Conflicto de idempotencia o de registro.}
+        '422': {description: Cliente o artículo inactivo, o importes fuera de rango.}
+        '503': {description: Autorización o dependencia indisponible.}
   /api/v1/sales/{saleId}/invoices:
     post:
       operationId: issueInternalInvoice
@@ -403,9 +462,12 @@ components:
         catalogItemId: {type: string, format: uuid}
         itemName: {type: string}
         itemDescription: {type: string, nullable: true}
-        unitPrice: {$ref: '#/components/schemas/Amount'}
+        unitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2,4}$'}
         quantity: {type: number, minimum: 0, exclusiveMinimum: true, multipleOf: 0.001}
         subtotal: {$ref: '#/components/schemas/Amount'}
+        discount: {$ref: '#/components/schemas/Amount'}
+        taxRate: {type: string, example: '0.180000'}
+        taxAmount: {$ref: '#/components/schemas/Amount'}
     Amount:
       type: string
       pattern: '^[0-9]+\.[0-9]{2}$'
