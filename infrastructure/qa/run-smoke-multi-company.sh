@@ -61,10 +61,30 @@ curl -fsS --retry 20 --retry-connrefused --retry-delay 1 --max-time 4 \
 python3 infrastructure/qa/smoke-multi-company.py
 
 payables=$(qa_compose exec -T postgres sh -c '
-  psql -XAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d sanigest_expense     -c "SELECT original_amount, paid_amount FROM expense.payables"
-')
-if [ "$payables" != "29.50|0.00" ]; then
-  echo "Expected exactly one unpaid expense obligation for 29.50" >&2
+  psql -XAtq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d sanigest_expense
+' <<'SQL'
+SELECT original_amount, paid_amount, outstanding_amount, credit_days, status
+FROM expense.payable_balances;
+SELECT outstanding_amount FROM expense.supplier_payable_balances;
+
+BEGIN;
+UPDATE expense.payables SET paid_amount = 10;
+SELECT paid_amount, outstanding_amount, status FROM expense.payable_balances;
+SELECT outstanding_amount FROM expense.supplier_payable_balances;
+UPDATE expense.payables SET paid_amount = original_amount;
+SELECT paid_amount, outstanding_amount, status FROM expense.payable_balances;
+SELECT outstanding_amount FROM expense.supplier_payable_balances;
+ROLLBACK;
+SQL
+)
+expected_payables='29.50|0.00|29.50|30|OPEN
+29.50
+10.00|19.50|PARTIALLY_PAID
+19.50
+29.50|0.00|PAID
+0.00'
+if [ "$payables" != "$expected_payables" ]; then
+  echo "Unexpected expense obligation or supplier balance" >&2
   exit 1
 fi
-echo "Expense payable persisted once"
+echo "Expense payable persisted once and balances reflect persisted payments"
