@@ -57,7 +57,7 @@ La entrega es al menos una vez. El productor persiste el cambio de negocio
 y el registro del outbox en la misma transacción PostgreSQL. Finance deduplica
 por `eventId` y protege el movimiento con `(companyId, origin, sourceId)`.
 PostgreSQL y Kafka no ofrecen una garantía conjunta de exactly-once. Los
-contratos Java corresponden a S2-384 y la política de transporte compartida
+[contratos Java](../../libraries/common-events/README.md) corresponden a S2-384 y la política de transporte compartida
 para clientes, reintentos, DLQ y headers corresponde a S2-437.
 
 - [ADR de propiedad de datos y comunicación](../adr/ADR-001-propiedad-datos-comunicacion-servicios.md)
