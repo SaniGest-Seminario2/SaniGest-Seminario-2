@@ -1,6 +1,7 @@
 package com.sanigest.sales.infrastructure.security;
 
 import com.sanigest.security.AccessTokens;
+import com.sanigest.security.http.ServletSecurityProblems;
 import jakarta.servlet.DispatcherType;
 import java.io.IOException;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -17,6 +18,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
+import tools.jackson.databind.json.JsonMapper;
 
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
@@ -24,7 +26,9 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableConfigurationProperties(SecurityConfiguration.JwtProperties.class)
 class SecurityConfiguration {
   @Bean
-  SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+  SecurityFilterChain filterChain(HttpSecurity http, JsonMapper json) throws Exception {
+    var problems = new ServletSecurityProblems(json, "FORBIDDEN");
+    problems.configure(http);
     return http.csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -52,7 +56,10 @@ class SecurityConfiguration {
                 .authenticated()
                 .anyRequest()
                 .denyAll())
-        .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
+        .oauth2ResourceServer(resource -> {
+          problems.configure(resource);
+          resource.jwt(Customizer.withDefaults());
+        })
         .build();
   }
 

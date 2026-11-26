@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sanigest.company.api.routing.CompanyRoutes;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.servlet.HandlerMapping;
 
@@ -12,7 +14,6 @@ class ApiExceptionHandlerTest {
   void returnsSafeProblemDetails() {
     var handler = new ApiExceptionHandler();
     var request = new MockHttpServletRequest();
-    assertThat(handler.validation(request).getStatus()).isEqualTo(400);
     assertThat(handler.badRequest(request).getStatus()).isEqualTo(400);
     assertThat(handler.companyAccessDenied(request).getStatus()).isEqualTo(403);
     assertThat(handler.authorizationUnavailable(request).getStatus()).isEqualTo(503);
@@ -20,9 +21,11 @@ class ApiExceptionHandlerTest {
     assertThat(handler.conflict(request).getDetail()).doesNotContain("SQL", "password");
   }
 
-  @Test
-  void redactsTheTokenFromInvitationProblemDetails() {
-    var request = new MockHttpServletRequest("POST", "/api/v1/invitations/secret/accept");
+  @ParameterizedTest
+  @ValueSource(
+      strings = {"/api/v1/invitations/secret/accept", "/api/v1/%69nvitations/secret/accept"})
+  void redactsTheTokenFromInvitationProblemDetails(String uri) {
+    var request = new MockHttpServletRequest("POST", uri);
     request.setAttribute(
         HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, CompanyRoutes.ACCEPT_INVITATION);
 

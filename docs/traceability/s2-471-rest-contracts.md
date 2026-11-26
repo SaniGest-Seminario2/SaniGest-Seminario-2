@@ -2,6 +2,13 @@
 
 La auditoría parte de `feat/S2-471` sobre `0df3ea2`, que incluye S2-460. La rama todavía usa venta con precios históricos de dos decimales, factura interna desde una venta y obligación automática para CREDIT. Se consultaron [Jira](https://devjoanvasquez-1791077375328.atlassian.net/browse/S2-471), sus tickets relacionados, [Figma](https://www.figma.com/design/yiN50lVICR3jfeiZWGcNmG/SANIGEST), el [contrato v0.8](../SaniGest_T1001_Contrato_Funcional_v0.8.md) y la [matriz UI/API](ui-backend-matrix-v0.8.md).
 
+
+## Errores HTTP transversales
+
+Los códigos de negocio de esta matriz se conservan. El formato, los estados HTTP y el
+comportamiento de listados vacíos se especifican en el
+[contrato funcional vigente](../SaniGest_T1001_Contrato_Funcional_v0.9.md#errores-http-comunes--s2-302).
+
 ## Rutas disponibles
 
 Las rutas de negocio son relativas a `/api/v1`. En Company, `{empresa}` representa `{companyId}` y la variante histórica `me`. Los permisos efectivos se detallan en la [guía de contexto empresarial](../development/company-context.md). En la columna Estado, COMPLETE describe el alcance implementado de la ruta.

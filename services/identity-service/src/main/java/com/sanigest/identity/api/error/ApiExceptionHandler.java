@@ -4,19 +4,23 @@ import com.sanigest.identity.application.exception.AuthenticatedUserNotFoundExce
 import com.sanigest.identity.application.exception.DuplicateEmailException;
 import com.sanigest.identity.application.exception.InvalidCredentialsException;
 import com.sanigest.identity.application.exception.InvalidRefreshTokenException;
+import com.sanigest.security.http.MvcProblems;
 import java.net.URI;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
 
 @RestControllerAdvice
-@Profile({"local", "test"})
-final class ApiExceptionHandler {
+final class ApiExceptionHandler extends MvcProblems {
+  ApiExceptionHandler() {
+    super("INVALID_REQUEST");
+  }
 
   private static final URI VALIDATION_TYPE = URI.create("urn:sanigest:problem:validation");
   private static final URI DUPLICATE_EMAIL_TYPE =
@@ -51,35 +55,33 @@ final class ApiExceptionHandler {
     return problem;
   }
 
-  @ExceptionHandler(MethodArgumentNotValidException.class)
-  ProblemDetail handleValidation(MethodArgumentNotValidException exception) {
-    ProblemDetail problem =
-        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "The request is invalid");
-    problem.setType(VALIDATION_TYPE);
-    problem.setTitle("Validation failed");
-
-    Map<String, String> errors = new LinkedHashMap<>();
-    exception
-        .getBindingResult()
-        .getFieldErrors()
-        .forEach(error -> errors.putIfAbsent(error.getField(), error.getDefaultMessage()));
-    problem.setProperty("errors", errors);
-    return problem;
+  @Override
+  protected ResponseEntity<Object> handleMethodArgumentNotValid(
+      MethodArgumentNotValidException failure,
+      HttpHeaders headers,
+      HttpStatusCode status,
+      WebRequest request) {
+    var response = super.handleMethodArgumentNotValid(failure, headers, status, request);
+    if (response != null && response.getBody() instanceof ProblemDetail problem) {
+      problem.setType(VALIDATION_TYPE);
+      problem.setTitle("Validation failed");
+    }
+    return response;
   }
 
   @ExceptionHandler(IllegalArgumentException.class)
-  ProblemDetail handleInvalidArgument(IllegalArgumentException exception) {
+  ProblemDetail handleInvalidArgument() {
     ProblemDetail problem =
-        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "The request is invalid");
     problem.setType(VALIDATION_TYPE);
     problem.setTitle("Validation failed");
     return problem;
   }
 
   @ExceptionHandler(DuplicateEmailException.class)
-  ProblemDetail handleDuplicateEmail(DuplicateEmailException exception) {
+  ProblemDetail handleDuplicateEmail() {
     ProblemDetail problem =
-        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "Email already registered");
     problem.setType(DUPLICATE_EMAIL_TYPE);
     problem.setTitle("Email already registered");
     return problem;

@@ -46,6 +46,19 @@ final class CompanyTeamOpenApi {
     pending.put("email", EMAIL);
     pending.put("createdAt", DATE);
     return Map.of(
+        "Problem",
+            object(
+                Map.of(
+                    "type", Map.of("type", "string"),
+                    "title", Map.of("type", "string"),
+                    "status", Map.of("type", "integer"),
+                    "detail", Map.of("type", "string"),
+                    "errorCode", Map.of("type", "string"),
+                    "timestamp", DATE,
+                    "traceId", Map.of("type", "string"),
+                    "errors",
+                        Map.of("type", "object", "additionalProperties", Map.of("type", "string"))),
+                List.of("type", "title", "status", "detail", "errorCode", "timestamp", "traceId")),
         "CompanyMember", object(member, List.copyOf(member.keySet())),
         "CompanyMemberSummary", object(summary, List.copyOf(summary.keySet())),
         "CompanyMemberPage",

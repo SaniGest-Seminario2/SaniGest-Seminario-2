@@ -1,8 +1,10 @@
 package com.sanigest.identity.api.controller.registration;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,6 +14,8 @@ import com.sanigest.identity.application.exception.DuplicateEmailException;
 import com.sanigest.identity.application.usecase.registration.RegisterUserUseCase;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -47,6 +51,32 @@ class RegistrationControllerTest {
         .andExpect(jsonPath("$.email").value("person@example.com"));
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"", "{", "null", "{\"email\":{}}"})
+  void rejectsMissingOrUnreadableBodiesBeforeCallingTheUseCase(String body) throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.traceId").isNotEmpty())
+        .andExpect(jsonPath("$.timestamp").isNotEmpty())
+        .andExpect(jsonPath("$.detail").isNotEmpty());
+    verifyNoInteractions(registerUserService);
+  }
+
+  @Test
+  void rejectsIncompatibleMediaTypeBeforeCallingTheUseCase() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/auth/register").contentType(MediaType.TEXT_PLAIN).content("not json"))
+        .andExpect(status().isUnsupportedMediaType())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.errorCode").value("UNSUPPORTED_MEDIA_TYPE"));
+    verifyNoInteractions(registerUserService);
+  }
+
   @Test
   void returnsBadRequestWhenEmailIsMissing() throws Exception {
     mockMvc
@@ -58,7 +88,11 @@ class RegistrationControllerTest {
                     {"password":"a-secure-password","name":"Person"}
                     """))
         .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.traceId").isNotEmpty())
         .andExpect(jsonPath("$.errors.email").exists());
+    verifyNoInteractions(registerUserService);
   }
 
   @Test

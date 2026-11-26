@@ -8,11 +8,13 @@ import com.sanigest.catalog.application.exception.DuplicateCatalogItemCode;
 import com.sanigest.catalog.application.exception.InvalidCatalogItemQuery;
 import com.sanigest.catalog.application.exception.InventoryLookupFailed;
 import com.sanigest.catalog.domain.exception.InvalidCatalogItem;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+@Order(0)
 @RestControllerAdvice
 class CatalogItemErrorHandler {
   @ExceptionHandler({InvalidCatalogItem.class, InvalidCatalogItemQuery.class})

@@ -1,6 +1,7 @@
 package com.sanigest.inventory.infrastructure.security;
 
 import com.sanigest.security.AccessTokens;
+import com.sanigest.security.http.ServletSecurityProblems;
 import jakarta.servlet.DispatcherType;
 import java.io.IOException;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -17,7 +18,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
@@ -25,8 +26,9 @@ import tools.jackson.databind.ObjectMapper;
 @EnableConfigurationProperties(SecurityConfiguration.JwtProperties.class)
 class SecurityConfiguration {
   @Bean
-  SecurityFilterChain filterChain(HttpSecurity http, ObjectMapper json) throws Exception {
-    var problems = new SecurityProblems(json);
+  SecurityFilterChain filterChain(HttpSecurity http, JsonMapper json) throws Exception {
+    var problems = new ServletSecurityProblems(json, "INVENTORY_ACCESS_DENIED");
+    problems.configure(http);
     return http.csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -60,14 +62,10 @@ class SecurityConfiguration {
                 .authenticated()
                 .anyRequest()
                 .denyAll())
-        .exceptionHandling(exceptions ->
-            exceptions
-                .authenticationEntryPoint(problems.unauthorized())
-                .accessDeniedHandler(problems.forbidden()))
-        .oauth2ResourceServer(resourceServer ->
-            resourceServer
-                .authenticationEntryPoint(problems.unauthorized())
-                .jwt(Customizer.withDefaults()))
+        .oauth2ResourceServer(resource -> {
+          problems.configure(resource);
+          resource.jwt(Customizer.withDefaults());
+        })
         .build();
   }
 

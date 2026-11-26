@@ -18,6 +18,7 @@ class CorrelationConfiguration {
     return (exchange, chain) -> {
       String id = UUID.randomUUID().toString();
       String traceId = id.replace("-", "");
+      exchange.getAttributes().put(TraceHeaders.TRACE_ID, traceId);
       String spanId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
       var request =
           exchange

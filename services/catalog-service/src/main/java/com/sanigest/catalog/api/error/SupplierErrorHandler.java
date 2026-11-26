@@ -5,11 +5,13 @@ import com.sanigest.catalog.application.exception.SupplierAccessException;
 import com.sanigest.catalog.application.exception.SupplierCommercialException;
 import com.sanigest.catalog.application.exception.SupplierCreationException;
 import com.sanigest.catalog.domain.exception.InvalidSupplierPatch;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+@Order(0)
 @RestControllerAdvice
 class SupplierErrorHandler {
   @ExceptionHandler({InvalidSupplierQueryException.class, InvalidSupplierPatch.class})

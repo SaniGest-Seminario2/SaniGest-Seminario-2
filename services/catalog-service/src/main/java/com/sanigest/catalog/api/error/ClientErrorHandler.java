@@ -6,11 +6,13 @@ import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.ClientListingForbiddenException;
 import com.sanigest.catalog.application.exception.DuplicateClientCategory;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+@Order(0)
 @RestControllerAdvice
 class ClientErrorHandler {
   @ExceptionHandler(DuplicateClientCategory.class)

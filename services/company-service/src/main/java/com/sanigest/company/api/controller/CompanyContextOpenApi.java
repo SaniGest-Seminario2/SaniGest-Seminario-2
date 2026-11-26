@@ -1,5 +1,7 @@
 package com.sanigest.company.api.controller;
 
+import static com.sanigest.company.api.controller.CompanyOpenApi.error;
+
 import com.sanigest.company.api.routing.CompanyRoutes;
 import com.sanigest.security.CompanySelector;
 import java.util.LinkedHashMap;
@@ -135,19 +137,18 @@ final class CompanyContextOpenApi {
                 success,
                 Map.of("description", "Operación completada."),
                 "400",
-                Map.of("description", "Petición o selector inválido o discordante."),
+                error("Petición o selector inválido o discordante."),
                 "401",
-                Map.of("description", "JWT inválido o ausente."),
+                error("JWT inválido o ausente."),
                 "403",
-                Map.of("description", "Permiso empresarial insuficiente."),
+                error("Permiso empresarial insuficiente."),
                 "404",
-                Map.of("description", "Recurso ausente o invisible."),
+                error("Recurso ausente o invisible."),
                 "503",
-                Map.of("description", "Autorización indisponible.")));
+                error("Autorización indisponible.")));
     responses.put(
         "409",
-        Map.of(
-            "description",
+        error(
             legacy
                 ? "Conflicto de estado o COMPANY_SELECTION_REQUIRED si hay varias empresas activas."
                 : "Conflicto de estado, invitación cerrada o último OWNER activo."));
