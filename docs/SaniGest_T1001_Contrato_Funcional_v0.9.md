@@ -2,6 +2,25 @@
 
 La especificación Jira del 26/11/2026 rige el objetivo. La [matriz v0.9](traceability/ui-backend-matrix-v0.9.md) vincula rutas, disponibilidad y tickets. El [inventario y plan](traceability/s2-472-endpoint-lifecycle.md) registra la base main `454eb69`. Para los DTO publicados aplican [S2-471 y sus correcciones](traceability/s2-471-rest-contracts.md). [Contrato v0.8](SaniGest_T1001_Contrato_Funcional_v0.8.md) · [S2-472](https://devjoanvasquez-1791077375328.atlassian.net/browse/S2-472).
 
+
+## Errores HTTP comunes · S2-302
+
+Gateway y servicios devuelven `application/problem+json` según RFC 9457. El cuerpo incluye
+`type`, `title`, `status`, `detail`, `errorCode`, `timestamp` UTC y `traceId`. Si se identifica
+un campo o parámetro inválido, `errors` contiene un mapa de nombres a mensajes seguros.
+
+| HTTP | Condición |
+|---|---|
+| 400 | Cuerpo obligatorio ausente, JSON malformado, campo o parámetro inválido o selector de empresa incorrecto |
+| 401 / 403 | Autenticación requerida o permisos insuficientes. Se conserva el desafío Bearer cuando corresponde |
+| 404 / 405 / 415 | Recurso o ruta inexistente, método incompatible o tipo de contenido no admitido |
+| 409 | Conflicto con el estado del recurso |
+| 500 / 503 / 504 | Error interno, dependencia indisponible o timeout de Gateway |
+
+Los códigos publicados por operación se conservan. Los listados sin filtros opcionales aplican
+sus valores por defecto y devuelven `200` con un array o una página vacíos cuando no hay registros.
+Las operaciones que completan con `204` conservan el cuerpo vacío.
+
 ## Reglas comunes
 
 - Rutas públicas relativas a `/api/v1`. UUID para referencias, fechas comerciales ISO en America/Santo_Domingo e instantes de auditoría UTC. Las tablas describen campos funcionales de entrada y salida. Las extensiones futuras se publican con su ticket, OpenAPI, Postman y pruebas de contrato. Los formatos vigentes se conservan durante la transición.

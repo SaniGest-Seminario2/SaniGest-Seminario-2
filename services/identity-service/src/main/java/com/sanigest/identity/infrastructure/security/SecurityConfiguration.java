@@ -2,6 +2,7 @@ package com.sanigest.identity.infrastructure.security;
 
 import com.sanigest.identity.application.port.out.security.TokenIssuer;
 import com.sanigest.security.AccessTokens;
+import com.sanigest.security.http.ServletSecurityProblems;
 import java.io.IOException;
 import java.security.interfaces.RSAPublicKey;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -18,6 +19,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import tools.jackson.databind.json.JsonMapper;
 
 @Configuration(proxyBeanMethods = false)
 @EnableScheduling
@@ -25,7 +27,9 @@ import org.springframework.security.web.SecurityFilterChain;
 class SecurityConfiguration {
 
   @Bean
-  SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+  SecurityFilterChain securityFilterChain(HttpSecurity http, JsonMapper json) throws Exception {
+    var problems = new ServletSecurityProblems(json, "FORBIDDEN");
+    problems.configure(http);
     return http.csrf(csrf -> csrf.disable())
         .sessionManagement(
             sessions -> sessions.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -47,7 +51,10 @@ class SecurityConfiguration {
                 .permitAll()
                 .anyRequest()
                 .authenticated())
-        .oauth2ResourceServer(resource -> resource.jwt(Customizer.withDefaults()))
+        .oauth2ResourceServer(resource -> {
+          problems.configure(resource);
+          resource.jwt(Customizer.withDefaults());
+        })
         .build();
   }
 

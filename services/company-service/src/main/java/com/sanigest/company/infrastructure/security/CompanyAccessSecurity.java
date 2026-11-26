@@ -4,6 +4,7 @@ import com.sanigest.companyaccess.CompanyAccess.Module;
 import com.sanigest.companyaccess.CompanyAccessProtocol;
 import com.sanigest.companyaccess.CompanyAccessProtocol.Query;
 import com.sanigest.security.AccessTokens;
+import com.sanigest.security.http.ServletSecurityProblems;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Duration;
@@ -33,6 +34,7 @@ import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import tools.jackson.databind.json.JsonMapper;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(CompanyAccessSecurity.Trust.class)
@@ -41,10 +43,13 @@ class CompanyAccessSecurity {
   @Bean
   @Order(1)
   SecurityFilterChain companyAccessChain(
-      HttpSecurity http, Trust trust, SecurityConfiguration.JwtProperties users) throws Exception {
+      HttpSecurity http, JsonMapper json, Trust trust, SecurityConfiguration.JwtProperties users)
+      throws Exception {
     var decoders = serviceDecoders(trust, users);
     var paths = PathPatternRequestMatcher.withDefaults();
     var endpoint = CompanyAccessProtocol.PATH;
+    var problems = new ServletSecurityProblems(json, "FORBIDDEN");
+    problems.configure(http);
     return http.securityMatcher(paths.matcher(endpoint))
         .csrf(csrf -> csrf.disable())
         .sessionManagement(
@@ -55,16 +60,18 @@ class CompanyAccessSecurity {
                 .authenticated()
                 .anyRequest()
                 .denyAll())
-        .oauth2ResourceServer(resource ->
-            resource.jwt(jwt ->
-                jwt.decoder(token -> {
-                  // Select only among locally configured issuers. The assertion is verified below.
-                  var decoder = decoders.get(unverifiedIssuer(token));
-                  if (decoder == null) {
-                    throw new BadJwtException("Invalid Company service assertion");
-                  }
-                  return decoder.decode(token);
-                })))
+        .oauth2ResourceServer(resource -> {
+          problems.configure(resource);
+          resource.jwt(jwt ->
+              jwt.decoder(token -> {
+                // Select only among locally configured issuers. The assertion is verified below.
+                var decoder = decoders.get(unverifiedIssuer(token));
+                if (decoder == null) {
+                  throw new BadJwtException("Invalid Company service assertion");
+                }
+                return decoder.decode(token);
+              }));
+        })
         .build();
   }
 

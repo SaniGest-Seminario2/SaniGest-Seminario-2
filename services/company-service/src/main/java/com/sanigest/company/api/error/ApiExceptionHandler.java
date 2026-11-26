@@ -11,26 +11,19 @@ import com.sanigest.company.application.exception.LastOwnerException;
 import com.sanigest.company.application.exception.MemberNotFoundException;
 import com.sanigest.companyaccess.TraceIds;
 import com.sanigest.security.CompanySelector.InvalidContext;
+import com.sanigest.security.http.MvcProblems;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
-class ApiExceptionHandler {
-  @ExceptionHandler({
-    MethodArgumentNotValidException.class,
-    HttpMessageNotReadableException.class,
-    MethodArgumentTypeMismatchException.class
-  })
-  ProblemDetail validation(HttpServletRequest request) {
-    return problem(request, HttpStatus.BAD_REQUEST, "The request is invalid");
+class ApiExceptionHandler extends MvcProblems {
+  ApiExceptionHandler() {
+    super("INVALID_REQUEST");
   }
 
   @ExceptionHandler(InvalidContext.class)

@@ -3,6 +3,7 @@ package com.sanigest.inventory.api.error;
 import com.sanigest.inventory.domain.InventoryViolation;
 import com.sanigest.inventory.observability.InventoryRequestTrace;
 import com.sanigest.security.CompanySelector;
+import com.sanigest.security.http.MvcProblems;
 import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,14 +11,15 @@ import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
-public class InventoryErrors {
+public class InventoryErrors extends MvcProblems {
+  public InventoryErrors() {
+    super("INVALID_REQUEST");
+  }
+
   private static final Logger LOG = LoggerFactory.getLogger(InventoryErrors.class);
 
   @ExceptionHandler(InventoryViolation.class)
@@ -36,15 +38,6 @@ public class InventoryErrors {
   @ExceptionHandler(CompanySelector.InvalidContext.class)
   ProblemDetail selector(CompanySelector.InvalidContext problem) {
     return response(HttpStatus.BAD_REQUEST, problem.getMessage());
-  }
-
-  @ExceptionHandler({
-    HttpMessageNotReadableException.class,
-    MethodArgumentNotValidException.class,
-    MethodArgumentTypeMismatchException.class
-  })
-  ProblemDetail invalid() {
-    return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST");
   }
 
   @ExceptionHandler(ConcurrencyFailureException.class)

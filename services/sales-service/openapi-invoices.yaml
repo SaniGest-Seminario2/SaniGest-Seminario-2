@@ -300,6 +300,7 @@ components:
       example: '3500.00'
     Problem:
       type: object
+      required: [type, title, status, detail, errorCode, timestamp, traceId]
       properties:
         type: {type: string}
         title: {type: string}
@@ -309,3 +310,7 @@ components:
         errorCode: {type: string}
         timestamp: {type: string, format: date-time}
         traceId: {type: string}
+        errors:
+          type: object
+          description: Mensajes de validación por campo o parámetro.
+          additionalProperties: {type: string}

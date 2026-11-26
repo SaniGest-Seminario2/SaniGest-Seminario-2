@@ -1,6 +1,7 @@
 package com.sanigest.identity.infrastructure.security;
 
 import com.sanigest.security.AccessTokens;
+import com.sanigest.security.http.ServletSecurityProblems;
 import java.io.IOException;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
@@ -32,10 +33,17 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.header.writers.StaticHeadersWriter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import tools.jackson.databind.json.JsonMapper;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(AdvisorEligibilitySecurity.MemberDirectoryCredentials.class)
 class AdvisorEligibilitySecurity {
+  private final ServletSecurityProblems problems;
+
+  AdvisorEligibilitySecurity(JsonMapper json) {
+    this.problems = new ServletSecurityProblems(json, "FORBIDDEN");
+  }
+
   private static final String PATH = "/internal/v1/accounts/{userId}/advisor-eligibility";
   private static final String SUBJECT = "company-service";
   private static final String DIRECTORY_PATH = "/internal/v1/member-directory";
@@ -96,7 +104,7 @@ class AdvisorEligibilitySecurity {
         new Endpoint(DIRECTORY_PATH, HttpMethod.POST, DIRECTORY_AUDIENCE, DIRECTORY_SCOPE));
   }
 
-  private static SecurityFilterChain internalChain(
+  private SecurityFilterChain internalChain(
       HttpSecurity http,
       JwtDecoder userDecoder,
       JwtProperties userProperties,
@@ -122,6 +130,7 @@ class AdvisorEligibilitySecurity {
 
     JwtDecoder endpointDecoder = decoder;
     var paths = PathPatternRequestMatcher.withDefaults();
+    problems.configure(http);
     return http.securityMatcher(paths.matcher(endpoint.path()))
         .csrf(csrf -> csrf.disable())
         .sessionManagement(
@@ -140,11 +149,13 @@ class AdvisorEligibilitySecurity {
                             && canRead(token.getToken(), issuer, endpoint.scope())))
                 .anyRequest()
                 .denyAll())
-        .oauth2ResourceServer(resource ->
-            resource.jwt(jwt ->
-                jwt.decoder(endpointDecoder)
-                    .jwtAuthenticationConverter(
-                        token -> new JwtAuthenticationToken(token, List.of()))))
+        .oauth2ResourceServer(resource -> {
+          problems.configure(resource);
+          resource.jwt(jwt ->
+              jwt.decoder(endpointDecoder)
+                  .jwtAuthenticationConverter(
+                      token -> new JwtAuthenticationToken(token, List.of())));
+        })
         .build();
   }
 

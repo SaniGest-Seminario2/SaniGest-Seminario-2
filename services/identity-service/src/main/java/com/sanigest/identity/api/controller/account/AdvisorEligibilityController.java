@@ -1,6 +1,7 @@
 package com.sanigest.identity.api.controller.account;
 
 import com.sanigest.identity.application.usecase.account.CheckAdvisorEligibilityUseCase;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
@@ -35,7 +36,20 @@ final class AdvisorEligibilityController {
     } catch (IllegalArgumentException invalidUuid) {
       // Use a fixed error message for both malformed and non-canonical IDs.
     }
-    throw new IllegalArgumentException("userId must be a UUID");
+    throw new InvalidUserId();
+  }
+
+  @ExceptionHandler(InvalidUserId.class)
+  ProblemDetail invalidUserId(InvalidUserId failure) {
+    var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, failure.getMessage());
+    problem.setProperty("errors", Map.of("userId", "Invalid UUID"));
+    return problem;
+  }
+
+  private static final class InvalidUserId extends IllegalArgumentException {
+    InvalidUserId() {
+      super("userId must be a UUID");
+    }
   }
 
   @ExceptionHandler({DataAccessException.class, TransactionException.class})

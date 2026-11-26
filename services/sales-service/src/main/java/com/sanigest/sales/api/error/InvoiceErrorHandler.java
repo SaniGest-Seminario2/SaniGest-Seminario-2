@@ -9,11 +9,13 @@ import com.sanigest.sales.application.exception.InvalidSaleRequest;
 import com.sanigest.sales.application.exception.InvoiceCompanyUnavailable;
 import com.sanigest.sales.application.exception.InvoiceConflict;
 import com.sanigest.sales.application.exception.SaleNotFound;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+@Order(0)
 @RestControllerAdvice(assignableTypes = InvoiceController.class)
 class InvoiceErrorHandler {
   @ExceptionHandler(InvalidSaleRequest.class)

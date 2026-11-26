@@ -106,7 +106,12 @@ class IdentityRegistrationSmokeIT {
 
     assertThat(response.status()).isEqualTo(400);
     assertThat(response.body())
-        .contains("urn:sanigest:problem:validation", "\"email\"", "\"password\"");
+        .contains(
+            "urn:sanigest:problem:validation",
+            "\"email\"",
+            "\"password\"",
+            "\"errorCode\":\"INVALID_REQUEST\"",
+            "\"traceId\"");
     assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM users", Integer.class)).isZero();
   }
 

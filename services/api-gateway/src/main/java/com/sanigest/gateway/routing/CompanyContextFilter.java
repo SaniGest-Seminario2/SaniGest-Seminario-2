@@ -3,11 +3,9 @@ package com.sanigest.gateway.routing;
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR;
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.URI_TEMPLATE_VARIABLES_ATTRIBUTE;
 
-import com.sanigest.gateway.observability.TraceHeaders;
+import com.sanigest.gateway.error.GatewayProblems;
 import com.sanigest.security.CompanySelector;
 import com.sanigest.security.CompanySelector.InvalidContext;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -17,7 +15,6 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.gateway.route.Route;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.server.PathContainer.PathSegment;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
@@ -25,6 +22,12 @@ import reactor.core.publisher.Mono;
 
 @Component
 class CompanyContextFilter implements GlobalFilter, Ordered {
+  private final GatewayProblems problems;
+
+  CompanyContextFilter(GatewayProblems problems) {
+    this.problems = problems;
+  }
+
   private static final Set<String> BUSINESS_ROUTES = Set.of("catalog", "sales", "inventory");
   private static final List<String> INTERNAL_HEADERS =
       List.of(
@@ -50,8 +53,7 @@ class CompanyContextFilter implements GlobalFilter, Ordered {
     if (exchange.getRequest().getPath().elements().stream()
         .anyMatch(element ->
             element instanceof PathSegment segment && invalidSegment(segment.valueToMatch()))) {
-      exchange.getResponse().setStatusCode(HttpStatus.NOT_FOUND);
-      return exchange.getResponse().setComplete();
+      return problems.write(exchange, HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND");
     }
     Route route = exchange.getRequiredAttribute(GATEWAY_ROUTE_ATTR);
     Map<String, String> variables =
@@ -68,7 +70,12 @@ class CompanyContextFilter implements GlobalFilter, Ordered {
               pathCompany,
               BUSINESS_ROUTES.contains(route.getId()));
     } catch (InvalidContext invalid) {
-      return problem(exchange, invalid.getMessage());
+      return problems.write(
+          exchange,
+          HttpStatus.BAD_REQUEST,
+          invalid.getMessage(),
+          "Provide a valid company selection",
+          CompanySelector.HEADER);
     }
     var request =
         exchange
@@ -90,19 +97,5 @@ class CompanyContextFilter implements GlobalFilter, Ordered {
         || "..".equals(value)
         || value.indexOf('/') >= 0
         || value.indexOf('\\') >= 0;
-  }
-
-  private Mono<Void> problem(ServerWebExchange exchange, String code) {
-    var response = exchange.getResponse();
-    response.setStatusCode(HttpStatus.BAD_REQUEST);
-    response.getHeaders().setContentType(MediaType.APPLICATION_PROBLEM_JSON);
-    String traceId = exchange.getRequest().getHeaders().getFirst(TraceHeaders.TRACE_ID);
-    byte[] body =
-        """
-        {"type":"about:blank","title":"Bad Request","status":400,"errorCode":"%s","timestamp":"%s","traceId":"%s"}
-        """
-            .formatted(code, Instant.now(), traceId)
-            .getBytes(StandardCharsets.UTF_8);
-    return response.writeWith(Mono.just(response.bufferFactory().wrap(body)));
   }
 }

@@ -11,22 +11,18 @@ import com.sanigest.sales.application.exception.IdempotencyConflict;
 import com.sanigest.sales.application.exception.IdempotencyInProgress;
 import com.sanigest.sales.application.exception.InvalidSaleRequest;
 import com.sanigest.sales.application.exception.SaleAmountNotRepresentable;
+import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+@Order(0)
 @RestControllerAdvice(assignableTypes = SaleController.class)
 class SaleErrorHandler {
-  @ExceptionHandler({
-    InvalidSaleRequest.class,
-    MethodArgumentNotValidException.class,
-    HttpMessageNotReadableException.class
-  })
+  @ExceptionHandler(InvalidSaleRequest.class)
   ProblemDetail invalidRequest() {
     return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The sale request is invalid");
   }

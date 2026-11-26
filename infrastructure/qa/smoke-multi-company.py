@@ -9,7 +9,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 
 
-def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200, origin=None, method=None):
+def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200,
+             origin=None, method=None, content_type="application/json"):
     headers = {}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -19,14 +20,16 @@ def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200, 
         headers["Idempotency-Key"] = key
     body = None
     if data is not None:
-        headers["Content-Type"] = "application/json"
+        headers["Content-Type"] = content_type
         body = json.dumps(data).encode()
     request = urllib.request.Request(f"{origin or GATEWAY}/api/v1/{path}", body, headers, method=method)
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             actual, payload = response.status, response.read()
+            response_headers = response.headers
     except urllib.error.HTTPError as response:
         actual, payload = response.code, response.read()
+        response_headers = response.headers
     if actual != status:
         try:
             problem = json.loads(payload)
@@ -34,7 +37,16 @@ def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200, 
         except (UnicodeError, ValueError):
             code = None
         raise AssertionError(f"{request.get_method()} {path}: expected {status}, got {actual} ({code})")
-    return json.loads(payload) if payload else None
+    decoded = json.loads(payload) if payload else None
+    if status >= 400:
+        assert response_headers.get_content_type() == "application/problem+json"
+        assert decoded["status"] == status
+        required = ("type", "title", "detail", "errorCode", "timestamp", "traceId")
+        missing = [field for field in required if not decoded.get(field)]
+        assert not missing, f"HTTP {status}: missing problem fields {missing}"
+    if status == 204:
+        assert not payload
+    return decoded
 
 
 def main():
@@ -57,6 +69,14 @@ def main():
     for invalid in ({"name": "Sin tipo"}, {"name": "Tipo nulo", "clientType": None}):
         problem = exchange("clients", token=token, tenant=a, data=invalid, status=400)
         assert problem["status"] == 400 and problem["errorCode"] == "INVALID_REQUEST"
+    assert exchange("clients", token=token, tenant=a)["content"] == []
+    assert exchange("clients", token=token, tenant=a, origin=CATALOG)["content"] == []
+    assert exchange("sales", token=token, tenant=a)["content"] == []
+    exchange("clients", status=401)
+    exchange("missing-s2-302-route", token=token, status=404)
+    exchange("auth/register", method="POST", status=400)
+    exchange("auth/register", token=token, status=405)
+    exchange("auth/register", data={}, content_type="text/plain", status=415)
     client = exchange("clients", token=token, tenant=a, data={
         "name": "Cliente A", "clientType": "NATURAL", "paymentTerms": "BOTH",
     }, status=201)

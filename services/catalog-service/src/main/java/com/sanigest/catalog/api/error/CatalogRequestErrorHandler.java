@@ -7,14 +7,13 @@ import com.sanigest.catalog.application.exception.InvalidClientQueryException;
 import com.sanigest.catalog.domain.exception.InvalidClientPatch;
 import com.sanigest.catalog.domain.exception.InvalidSupplierDetails;
 import com.sanigest.security.CompanySelector.InvalidContext;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+@Order(0)
 @RestControllerAdvice
 class CatalogRequestErrorHandler {
   @ExceptionHandler(InvalidContext.class)
@@ -23,9 +22,6 @@ class CatalogRequestErrorHandler {
   }
 
   @ExceptionHandler({
-    MethodArgumentNotValidException.class,
-    HttpMessageNotReadableException.class,
-    MethodArgumentTypeMismatchException.class,
     InvalidClientQueryException.class,
     InvalidClientPatch.class,
     InvalidSupplierDetails.class

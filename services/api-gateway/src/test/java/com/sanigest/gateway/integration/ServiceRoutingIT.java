@@ -21,12 +21,18 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.reactive.server.WebTestClient;
 
 @Tag("smoke")
 @Tag("regression")
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ServiceRoutingIT {
+  private static final String BACKEND_PROBLEM =
+      """
+      {"type":"about:blank","title":"Bad Request","status":400,"detail":"Backend failure",
+      "errorCode":"BACKEND_CODE","traceId":"aabbccddeeff00112233445566778899","timestamp":"2026-11-26T00:00:00Z"}
+      """;
   private static final String ORIGIN = "https://frontend.example";
   private static final String COMPANY_ME = "/api/v1/companies/me";
   private static final String TENANT = "e3fc1fd0-42ea-4a0d-9c14-6cbd44592b42";
@@ -107,6 +113,66 @@ class ServiceRoutingIT {
                     .GET())
                 .statusCode())
         .isEqualTo(404);
+  }
+
+  @Test
+  void writesGatewayProblemsAndPreservesBackendProblems() throws Exception {
+    var client = WebTestClient.bindToServer().baseUrl(gateway()).build();
+    client
+        .get()
+        .uri(COMPANY_ME)
+        .exchange()
+        .expectStatus()
+        .isUnauthorized()
+        .expectHeader()
+        .valueEquals("WWW-Authenticate", "Bearer")
+        .expectHeader()
+        .contentType("application/problem+json")
+        .expectBody()
+        .jsonPath("$.errorCode")
+        .isEqualTo("AUTHENTICATION_REQUIRED")
+        .jsonPath("$.traceId")
+        .isNotEmpty();
+    String token = "Bearer " + GatewayTestTokens.validToken();
+    client
+        .get()
+        .uri("/api/v1/catalog-items")
+        .header("Authorization", token)
+        .exchange()
+        .expectStatus()
+        .isBadRequest()
+        .expectHeader()
+        .contentType("application/problem+json")
+        .expectBody()
+        .jsonPath("$.errorCode")
+        .isEqualTo("COMPANY_CONTEXT_REQUIRED")
+        .jsonPath("$.errors['X-Company-Id']")
+        .isNotEmpty();
+    client
+        .get()
+        .uri("/api/v1/catalog-items/empty-error")
+        .header("Authorization", token)
+        .header("X-Company-Id", TENANT)
+        .exchange()
+        .expectStatus()
+        .isNotFound()
+        .expectHeader()
+        .contentType("application/problem+json")
+        .expectBody()
+        .jsonPath("$.errorCode")
+        .isEqualTo("RESOURCE_NOT_FOUND");
+    client
+        .get()
+        .uri("/api/v1/catalog-items/backend-problem")
+        .header("Authorization", token)
+        .header("X-Company-Id", TENANT)
+        .exchange()
+        .expectStatus()
+        .isBadRequest()
+        .expectHeader()
+        .contentType("application/problem+json")
+        .expectBody(String.class)
+        .isEqualTo(BACKEND_PROBLEM);
   }
 
   @Test
@@ -361,6 +427,17 @@ class ServiceRoutingIT {
           Thread.currentThread().interrupt();
           return;
         }
+      }
+      if (path.endsWith("/empty-error")) {
+        exchange.sendResponseHeaders(404, -1);
+        return;
+      }
+      if (path.endsWith("/backend-problem")) {
+        byte[] problem = BACKEND_PROBLEM.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/problem+json");
+        exchange.sendResponseHeaders(400, problem.length);
+        exchange.getResponseBody().write(problem);
+        return;
       }
       echoHeaders(exchange);
       String method = exchange.getRequestMethod();

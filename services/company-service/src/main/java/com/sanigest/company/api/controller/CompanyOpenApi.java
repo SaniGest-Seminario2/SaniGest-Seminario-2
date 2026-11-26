@@ -206,7 +206,13 @@ final class CompanyOpenApi {
     return Map.of("application/json", Map.of("schema", schema, "example", example));
   }
 
-  private static Map<String, String> error(String description) {
-    return Map.of("description", description);
+  static Map<String, Object> error(String description) {
+    return Map.of(
+        "description",
+        description,
+        "content",
+        Map.of(
+            "application/problem+json",
+            Map.of("schema", Map.of("$ref", "#/components/schemas/Problem"))));
   }
 }
