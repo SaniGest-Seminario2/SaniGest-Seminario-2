@@ -15,6 +15,8 @@ class StockLedgerIT extends InventoryHttpFixture {
   void tracksInitialStockAndAdjustmentsThroughSecuredHttp() throws Exception {
     var warehouse = warehouse();
     var initial = initialize(warehouse, "20");
+    assertThat(initial.path("warehouseName").asString()).isEqualTo("Warehouse");
+    assertThat(expect("GET", position(warehouse), company, null, null, 200)).isEqualTo(initial);
     assertThat(initial.get("onHand").asString()).isEqualTo("20.000");
     assertThat(initial.get("updatedAt").isString()).isTrue();
     assertThat(

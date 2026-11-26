@@ -57,7 +57,8 @@ interface SaleRows extends Repository<SaleRow, UUID> {
           """
           SELECT i.id AS "invoiceId", i.number AS "invoiceNumber",
                  r.due_date AS "dueDate",
-                 r.status AS "paymentStatus", r.balance AS "balance",
+                 r.status AS "paymentStatus",
+                 CASE WHEN r.status = 'CANCELLED' THEN 0.00 ELSE r.balance END AS "outstandingBalance",
                  r.total_amount - r.balance AS "collected"
           FROM sales.sales s
           """
@@ -75,7 +76,7 @@ interface SaleRows extends Repository<SaleRow, UUID> {
 
     String getPaymentStatus();
 
-    BigDecimal getBalance();
+    BigDecimal getOutstandingBalance();
 
     BigDecimal getCollected();
   }

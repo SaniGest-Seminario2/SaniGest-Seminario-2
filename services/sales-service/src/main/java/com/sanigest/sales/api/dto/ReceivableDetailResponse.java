@@ -36,7 +36,7 @@ public record ReceivableDetailResponse(
         detail.saleCode(),
         detail.invoiceId(),
         detail.invoiceNumber(),
-        receivable.balance().toPlainString());
+        receivable.collectibleBalance().toPlainString());
   }
 
   public record Client(UUID id, String name) {}

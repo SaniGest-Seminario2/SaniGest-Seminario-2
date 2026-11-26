@@ -46,7 +46,7 @@ Las rutas de negocio son relativas a `/api/v1`. En Company, `{empresa}` represen
 | GET /suppliers/{id}/items · GET /catalog-items/{id}/suppliers | Relaciones | Búsqueda, estado y página → artículo o proveedor, costo ofertado, referencia y designación principal. | COMPLETE · CatalogServiceIT |
 | PUT /suppliers/{id}/items | Relaciones | Sustitución transaccional de ofertas → 204. | COMPLETE · CatalogServiceIT |
 | POST /catalog-items | Alta | Nombre, tipo, precio, unidad y clasificación fiscal → artículo, divisibilidad y proyección comercial. | FIX_REQUIRED → corregido · CatalogWebPolicyTest, CatalogServiceIT |
-| GET /catalog-items | Tabla | Búsqueda por artículo, SKU, código de barras o categoría, filtros comerciales y página → datos comerciales y proveedor principal legible. Filtro de stock combinado pendiente. | FIX_REQUIRED → parcial · CatalogWebPolicyTest, CatalogServiceIT |
+| GET /catalog-items | Tabla | Búsqueda por artículo, SKU, código de barras o categoría, filtros comerciales y página → datos comerciales y proveedor principal legible. El filtro combinado usa `warehouseId` y `availability` antes de paginar. | FIX_REQUIRED → corregido · CatalogWebPolicyTest, CatalogServiceIT |
 | GET /catalog-items/{id} | Ficha e integraciones | UUID, selector, `expectedCompanyId` en integraciones → detalle y proveedor principal legible. | FIX_REQUIRED → corregido · CatalogWebPolicyTest, CatalogServiceIT |
 | PATCH /catalog-items/{id} | Edición | PATCH tipado → detalle. Unidad y clasificación explícitamente nulas se rechazan. | FIX_REQUIRED → corregido · CatalogWebPolicyTest, CatalogServiceIT |
 | PATCH /catalog-items/{id}/status | Tabla | Flag `active` → detalle comercial. | FIX_REQUIRED → corregido · CatalogWebPolicyTest |
@@ -57,7 +57,7 @@ Las rutas de negocio son relativas a `/api/v1`. En Company, `{empresa}` represen
 | GET, POST /warehouses · GET, PATCH /warehouses/{id} | Almacenes | Página o metadatos → código, nombre, ubicación, estado y revisión. | COMPLETE · InventoryWebTest |
 | GET /inventory/stock | Existencias | Filtros de almacén, disponibilidad, texto e IDs. Lote acotado de un almacén → posiciones y nombre del almacén. | FIX_REQUIRED → corregido · StockLedgerIT |
 | GET /inventory/stock/{itemId}/{warehouseId} | Existencia | Posición o referencia verificada. `NOT_APPLICABLE` para SERVICE y `NOT_TRACKED` para producto sin configuración. | FIX_REQUIRED → corregido · InventoryWebTest |
-| PUT /inventory/stock/{itemId}/{warehouseId} | Configuración | Tracking, umbrales, ubicación y existencia inicial permitida una vez → posición. | COMPLETE · StockLedgerIT |
+| PUT /inventory/stock/{itemId}/{warehouseId} | Configuración | Tracking, umbrales, ubicación y existencia inicial permitida una vez → posición con `warehouseName`. | COMPLETE · StockLedgerIT |
 | GET /inventory/summary | Inventario | Almacén opcional → conteos de posiciones. | COMPLETE · StockLedgerIT |
 | GET /inventory/movements | Kardex | Filtros y página → movimiento inmutable, unidad, motivo, actor y origen. | COMPLETE · StockLedgerIT |
 | POST /inventory/adjustments | Ajustes | Artículo, almacén, dirección, cantidad y motivo → movimiento. Clave idempotente en despliegue normal. | COMPLETE · StockLedgerIT |
@@ -90,11 +90,14 @@ Los clientes que escribían payloads históricos deben enviar `clientType`, y la
 
 Para la tabla general de productos, consultar una página de Catalog y consultar Inventory una sola vez con `warehouseId`, `catalogItemIds` (hasta 100) y `size` suficiente para la página. Asociar por `catalogItemId`. El lote contiene posiciones configuradas, incluidas las deshabilitadas, y sus filtros se aplican en PostgreSQL antes del cálculo de la página. Con una respuesta satisfactoria, la ausencia de una posición para un producto de la página indica NOT_TRACKED en ese almacén; para SERVICE la UI puede mostrar «No aplica» con el tipo de Catalog. Un fallo HTTP de Inventory deja el dato indisponible. Los permisos de Catalog e Inventory se verifican en cada consulta.
 
+Para filtrar el catálogo completo, usa `GET /catalog-items?warehouseId={uuid}&availability=OUT&size=20` combinando los filtros comerciales habituales. Catalog recorre por nombre e ID con lotes de hasta 100 y solicita las posiciones a Inventory con el JWT original y el tenant autorizado. Cada lote lee la disponibilidad vigente. Catalog mantiene una sola página de salida y devuelve el total después del filtro. Se devuelve 503 si la composición no termina dentro de su presupuesto o Inventory falla. El almacén ajeno o ausente produce 404.
+
+En ventas y CxC, `outstandingBalance` representa saldo cobrable y es `"0.00"` cuando la obligación está cancelada. `balance` conserva el histórico y `collectedAmount` deriva del importe original menos el balance histórico.
+
 ## Dependencias y pendientes
 
 | Clasificación | Capacidad | Jira |
 | --- | --- | --- |
-| FIX_REQUIRED | Combinar filtros globales de stock y filtros comerciales antes de paginar el catálogo. El lote actual compone una página sin ofrecer ese filtro global. | S2-471 |
 | BLOCKED_BY_DEPENDENCY | Saldo por cliente, métricas, crédito disponible y estado de cuenta. | S2-457 |
 | BLOCKED_BY_DEPENDENCY | Precisión comercial de cuatro decimales en venta, descuentos e ITBIS congelados por línea. | S2-461 |
 | NOT_IMPLEMENTED | Factura desde formulario, listado y ficha. | S2-462, S2-336 |
@@ -127,4 +130,4 @@ Detalle de una venta con obligación y factura interna, campos relevantes:
 {"code":"V-2026-001","invoiceNumber":"FAC-2026-001","mode":"CREDIT","status":"REGISTERED","paymentStatus":"OPEN","dueDate":"2026-12-23","total":"3500.00","collectedAmount":"0.00","outstandingBalance":"3500.00","currency":"DOP"}
 ```
 
-La migración V17 preserva los registros existentes y protege contra el borrado de unidad, clasificación, flag de compras y condición de pago previamente conocidos. Las altas HTTP y los casos de uso aplican la obligatoriedad prospectiva, con las restricciones de referencias existentes. La base todavía puede admitir inserciones directas en formato histórico.
+La migración V17 preserva los registros existentes y protege contra el borrado de unidad, clasificación, flag de compras y condición de pago previamente conocidos. Las altas HTTP y los casos de uso aplican la obligatoriedad prospectiva, con las restricciones de referencias existentes. V18 aplica estas reglas también a las inserciones directas. Las filas históricas conservan sus datos y admiten las actualizaciones válidas bajo V17.

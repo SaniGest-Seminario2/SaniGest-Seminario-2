@@ -10,6 +10,7 @@ import com.sanigest.catalog.application.exception.InvalidCatalogItemQuery;
 import com.sanigest.catalog.application.usecase.catalogitem.CatalogItemCommercialQueries;
 import com.sanigest.catalog.application.usecase.catalogitem.ChangeCatalogItemStatus;
 import com.sanigest.catalog.application.usecase.catalogitem.CreateCatalogItem;
+import com.sanigest.catalog.application.usecase.catalogitem.FilterCatalogStock;
 import com.sanigest.catalog.application.usecase.catalogitem.ListCatalogItems;
 import com.sanigest.catalog.application.usecase.catalogitem.UpdateCatalogItem;
 import com.sanigest.catalog.domain.model.CatalogItem;
@@ -67,9 +68,10 @@ class CatalogItemController {
       @RequestParam(required = false) String active,
       @org.springframework.web.bind.annotation.ModelAttribute
           ListCatalogItems.CommercialFilters filters,
+      @org.springframework.web.bind.annotation.ModelAttribute FilterCatalogStock.Selection stock,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = ListCatalogItems.DEFAULT_SIZE) int size) {
-    var result = commercial.list(type, search, active, filters, page, size);
+    var result = commercial.list(type, search, active, filters, page, size, stock);
     return CatalogItemPageResponse.from(result.page(), result.data());
   }
 

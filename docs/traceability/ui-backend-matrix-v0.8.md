@@ -70,3 +70,5 @@ Los listados de clientes y proveedores admiten search, status, page, size, categ
 Los selectores, permisos y mecanismos de autorización por ruta se detallan en la [matriz de contexto empresarial](../development/company-context.md).
 
 El inventario de rutas, la nulabilidad y la composición por almacén de S2-471 están en la [auditoría de contratos REST](s2-471-rest-contracts.md).
+
+Productos y servicios admite filtros comerciales y disponibilidad física global mediante `warehouseId` y `availability` en `GET /catalog-items`. Véase la [auditoría S2-471](s2-471-rest-contracts.md).

@@ -23,6 +23,10 @@ public class InventoryReads {
     this.catalog = catalog;
   }
 
+  public String warehouseName(StockKey key) {
+    return warehouses.get(key.companyId(), key.warehouseId()).name();
+  }
+
   public PositionDetail get(StockKey key) {
     var warehouse = warehouses.get(key.companyId(), key.warehouseId());
     var existing = ledger.find(key);

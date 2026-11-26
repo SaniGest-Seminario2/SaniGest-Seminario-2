@@ -1490,8 +1490,51 @@ class SalesServiceIT {
       assertThat(stored.path("status").asString()).isEqualTo("CANCELLED");
       assertThat(stored.path("totalAmount")).isEqualTo(receivable.path("totalAmount"));
       assertThat(stored.path("balance")).isEqualTo(receivable.path("balance"));
+      assertThat(stored.path("outstandingBalance").asString()).isEqualTo("0.00");
+      assertFinancialRead(http, owner, id, "CANCELLED", "0.00", "0.00");
       assertThat(countReceivables(owner.company())).isEqualTo(1);
     }
+  }
+
+  @Test
+  void readsPartialAndPaidObligationsFromBothContracts() throws Exception {
+    var owner = fixture();
+    owner.membership("OWNER", false);
+    try (var http = HttpClient.newHttpClient()) {
+      var created =
+          post(http, owner, owner.bearer(), creditBody(owner), UUID.randomUUID().toString());
+      assertThat(created.statusCode()).isEqualTo(201);
+      var id = new ObjectMapper().readTree(created.body()).path("id").asString();
+      owner.membership("OWNER", false, "READ");
+      for (var state : List.of("PARTIALLY_PAID", "PAID")) {
+        var balance = state.equals("PAID") ? "0.00" : "101.50";
+        jdbc.update(
+            "UPDATE sales.receivables SET status = ?, balance = ? WHERE id = ? AND company_id = ?",
+            state,
+            new BigDecimal(balance),
+            UUID.fromString(id),
+            owner.company());
+        var collected = state.equals("PAID") ? "12601.50" : "12500.00";
+        assertFinancialRead(http, owner, id, state, balance, collected);
+      }
+    }
+  }
+
+  private void assertFinancialRead(
+      HttpClient http,
+      Fixture owner,
+      String id,
+      String status,
+      String outstanding,
+      String collected)
+      throws Exception {
+    var sale = page(getSales(http, owner.bearer(), "/" + id));
+    var account = page(getReceivable(http, owner.bearer(), id));
+    assertThat(sale.path("paymentStatus").asString()).isEqualTo(status);
+    assertThat(account.path("status")).isEqualTo(sale.path("paymentStatus"));
+    assertThat(sale.path("outstandingBalance").asString()).isEqualTo(outstanding);
+    assertThat(account.path("outstandingBalance")).isEqualTo(sale.path("outstandingBalance"));
+    assertThat(sale.path("collectedAmount").asString()).isEqualTo(collected);
   }
 
   @Test

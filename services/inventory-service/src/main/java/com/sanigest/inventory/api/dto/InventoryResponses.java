@@ -58,10 +58,6 @@ public final class InventoryResponses {
       Instant updatedAt,
       Long revision,
       String warehouseName) {
-    public static StockView from(StockPosition value) {
-      return from(value, null);
-    }
-
     public static StockView from(StockPosition value, String warehouseName) {
       return new StockView(
           value.key().catalogItemId(),

@@ -212,6 +212,7 @@ services:
         {"sanigest":{"company-access":{"enabled":true,"origin":"http://company-service:8080",
         "issuer":"catalog-company-access","private-key-location":"file:/run/secrets/catalog-company-private.pem"}}}
       CATALOG_DB_HOST: postgres
+      CATALOG_INVENTORY_ORIGIN: ${CATALOG_INVENTORY_ORIGIN:-http://inventory-service:8080}
       CATALOG_DB_PORT: 5432
       CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Define CATALOG_DB_PASSWORD in .env}
     volumes:

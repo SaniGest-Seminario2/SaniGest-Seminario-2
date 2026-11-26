@@ -10,6 +10,7 @@ import com.sanigest.catalog.application.exception.DuplicateCatalogItemCode;
 import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
 import com.sanigest.catalog.domain.enums.CatalogItemType;
 import com.sanigest.catalog.domain.model.CatalogItem;
+import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,7 +27,11 @@ class JpaCatalogItemRepository implements CatalogItemRepository {
 
   private final CatalogHistoryActor historyActor;
 
-  JpaCatalogItemRepository(CatalogItemRows rows, CatalogHistoryActor historyActor) {
+  private final EntityManager entityManager;
+
+  JpaCatalogItemRepository(
+      CatalogItemRows rows, CatalogHistoryActor historyActor, EntityManager entityManager) {
+    this.entityManager = entityManager;
     this.rows = rows;
     this.historyActor = historyActor;
   }
@@ -102,11 +107,7 @@ class JpaCatalogItemRepository implements CatalogItemRepository {
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public CatalogItemPage search(
       UUID companyId, CatalogItemSearchCriteria criteria, int page, int size) {
-    var search = criteria.search();
-    var pattern =
-        search == null
-            ? ""
-            : "%" + search.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+    var pattern = pattern(criteria.search());
     var itemType = criteria.type() == null ? "" : criteria.type().name();
     long offset = (long) page * size;
     long total = rows.countMatching(companyId, itemType, pattern, criteria);
@@ -117,5 +118,21 @@ class JpaCatalogItemRepository implements CatalogItemRepository {
                 .map(CatalogItemRow::toDomain)
                 .toList();
     return new CatalogItemPage(content, page, size, total);
+  }
+
+  @Override
+  public List<CatalogItem> scan(
+      UUID companyId, CatalogItemSearchCriteria criteria, UUID afterId, int size) {
+    var type = criteria.type() == null ? "" : criteria.type().name();
+    var batch = rows.scan(companyId, type, pattern(criteria.search()), criteria, afterId, size);
+    var items = batch.stream().map(CatalogItemRow::toDomain).toList();
+    batch.forEach(entityManager::detach);
+    return items;
+  }
+
+  private static String pattern(String search) {
+    return search == null
+        ? ""
+        : "%" + search.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
   }
 }

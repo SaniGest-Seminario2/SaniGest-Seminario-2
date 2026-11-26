@@ -34,6 +34,20 @@ class ReceivableTest {
 
   @ParameterizedTest
   @CsvSource({
+    "OPEN,10.00,10.00",
+    "PARTIALLY_PAID,4.00,4.00",
+    "PAID,0.00,0.00",
+    "CANCELLED,10.00,0.00"
+  })
+  void projectsCollectibleBalanceWithoutChangingTheHistoricalBalance(
+      ReceivableStatus status, String historical, String collectible) {
+    var account = receivable("10.00", historical, status, DUE);
+    assertThat(account.collectibleBalance()).isEqualTo(new BigDecimal(collectible));
+    assertThat(account.balance()).isEqualTo(new BigDecimal(historical));
+  }
+
+  @ParameterizedTest
+  @CsvSource({
     "0,0,OPEN",
     "-1,0,PAID",
     "10.001,10.001,OPEN",

@@ -204,8 +204,14 @@ components:
             lines: {type: array, items: {$ref: '#/components/schemas/Line'}}
             invoiceId: {type: string, format: uuid, nullable: true}
             dueDate: {type: string, format: date, nullable: true}
-            outstandingBalance: {$ref: '#/components/schemas/NullableAmount'}
-            collectedAmount: {$ref: '#/components/schemas/NullableAmount'}
+            outstandingBalance:
+              allOf:
+                - {$ref: '#/components/schemas/NullableAmount'}
+              description: Saldo cobrable. Una obligación cancelada devuelve '0.00'.
+            collectedAmount:
+              allOf:
+                - {$ref: '#/components/schemas/NullableAmount'}
+              description: Importe original menos balance histórico de la obligación.
             cancellation:
               type: object
               required: [cancelledBy, cancelledAt, cancelReason]
@@ -228,9 +234,11 @@ components:
         balance:
           allOf:
             - {$ref: '#/components/schemas/Amount'}
-          deprecated: true
-          description: Alias histórico de outstandingBalance.
-        outstandingBalance: {$ref: '#/components/schemas/Amount'}
+          description: Balance histórico, incluido el de una obligación cancelada.
+        outstandingBalance:
+          allOf:
+            - {$ref: '#/components/schemas/Amount'}
+          description: Saldo cobrable. Una obligación cancelada devuelve '0.00'.
         currency: {type: string, enum: [DOP]}
         dueDate: {type: string, format: date}
         status: {type: string, enum: [OPEN, PARTIALLY_PAID, PAID, CANCELLED]}

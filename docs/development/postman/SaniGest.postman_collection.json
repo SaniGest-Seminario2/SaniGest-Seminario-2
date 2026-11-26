@@ -2851,6 +2851,68 @@
           "response": []
         },
         {
+          "name": "GET /api/v1/catalog-items (disponibilidad por almacén)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/catalog-items?page=0&size=20&type=PRODUCT&warehouseId={{warehouseId}}&availability=AVAILABLE",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog-items"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "type",
+                  "value": "PRODUCT"
+                },
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                },
+                {
+                  "key": "availability",
+                  "value": "AVAILABLE"
+                }
+              ]
+            },
+            "description": "Combina tipo y disponibilidad antes de paginar. Ejecutar tras crear un almacén y configurar existencias."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
           "name": "GET /api/v1/catalog-items/{{itemId}}",
           "request": {
             "method": "GET",
@@ -3646,7 +3708,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test(\"Nombre del almacén\", () => pm.expect(pm.response.json().warehouseName).to.be.a(\"string\").and.not.empty);"
                 ]
               }
             }
@@ -4327,7 +4390,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test(\"Obligación cancelada sin saldo cobrable\", () => { const r = pm.response.json(); pm.expect(r.status).to.eql(\"CANCELLED\"); pm.expect(r.outstandingBalance).to.eql(\"0.00\"); pm.expect(r.balance).to.eql(r.totalAmount); });"
                 ]
               }
             }
