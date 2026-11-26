@@ -4,11 +4,13 @@ Backend de SaniGest basado en microservicios con Java, Spring Boot y PostgreSQL.
 
 ## Documentación arquitectónica
 
-El [contrato funcional v0.8](docs/SaniGest_T1001_Contrato_Funcional_v0.8.md)
-y el [ADR-002](docs/adr/ADR-002-evolucion-arquitectonica-multiempresa-inventario-finanzas.md)
-definen el objetivo de evolución. Consulta la
-[matriz de pantallas y APIs](docs/traceability/ui-backend-matrix-v0.8.md)
-para conocer el estado de las rutas.
+El [contrato funcional v0.9](docs/SaniGest_T1001_Contrato_Funcional_v0.9.md)
+define el objetivo por pantallas. La [matriz UI/API](docs/traceability/ui-backend-matrix-v0.9.md)
+y el [inventario REST](docs/traceability/s2-472-endpoint-lifecycle.md) indican
+qué rutas están disponibles y cuáles requieren cambios. El
+[contrato v0.8](docs/SaniGest_T1001_Contrato_Funcional_v0.8.md) conserva la
+revisión anterior. El [ADR-002](docs/adr/ADR-002-evolucion-arquitectonica-multiempresa-inventario-finanzas.md)
+define la evolución arquitectónica.
 
 El [contrato v0.7](docs/SaniGest_T1001_Contrato_Funcional_v0.7.md)
 registra el alcance histórico. El
