@@ -156,7 +156,8 @@ def main():
     exchange("clients", token=token, status=400)
     exchange("clients", token=token, status=400, origin=CATALOG)
     exchange(f"clients/{client_a}", token=token, tenant=b, status=404, origin=CATALOG)
-    verify_inventory(token, a, b, item_a)
+    warehouse = verify_inventory(token, a, b, item_a)
+    verify_expenses(token, a, b, item_a, warehouse)
     exchange("invoices", token=token, tenant=a, data=sale, key=uuid.uuid4().hex, status=422)
     assert exchange("sales", token=token, tenant=a)["totalElements"] == 1
     print("Multi-company HTTP smoke passed")
@@ -206,6 +207,50 @@ def verify_inventory(token, company, other, item):
     exchange("inventory/stock", status=401, origin=INVENTORY)
     exchange("inventory/stock", token=token, status=400, origin=INVENTORY)
     assert inventory(f"inventory/movements?warehouseId={warehouse}")["totalElements"] == 3
+
+    return warehouse
+
+
+def verify_expenses(token, company, other, item, warehouse):
+    supplier = exchange("suppliers", token=token, tenant=company, status=201, data={
+        "name": "Proveedor a crédito", "contact": "Compras", "supplyType": "PRODUCT",
+        "paymentTerms": "BOTH", "creditDays": 30,
+    })
+    issue_date = date.today()
+    request = {
+        "operationType": "PURCHASE", "documentDate": issue_date.isoformat(),
+        "receiptType": "FISCAL_CREDIT", "mode": "CREDIT", "supplierId": supplier["id"],
+        "supplierInvoiceNumber": "COMPRA-001", "warehouseId": warehouse, "receiptStatus": "PARTIAL",
+        "lines": [{"itemId": item, "quantity": "3", "unitCost": "10.00",
+                   "taxClassification": "ITBIS_18", "discount": "5.00", "receivedQuantity": "2"}],
+    }
+    key = uuid.uuid4().hex
+    exchange("expenses", token=token, data=request, key=key, status=400)
+    exchange("expenses", token=token, tenant=other, data=request, key=key, status=400)
+    def register():
+        return exchange("expenses", token=token, tenant=company, data=request, key=key, status=201)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(register)
+        second = executor.submit(register)
+        created, concurrent_replay = first.result(), second.result()
+    assert created == concurrent_replay
+    assert created["receiptStatus"] == "PARTIAL" and created["financialStatus"] == "OPEN"
+    assert created["subtotal"] == 25 and created["tax"] == 4.5 and created["total"] == 29.5
+    assert created["dueDate"] == (issue_date + timedelta(days=30)).isoformat()
+    assert register() == created
+    conflict = exchange("expenses", token=token, tenant=company, data={**request, "notes": "Cambiada"},
+                        key=key, status=409)
+    assert conflict["errorCode"] == "EXPENSE_IDEMPOTENCY_CONFLICT"
+    cash = exchange("expenses", token=token, tenant=company, key=uuid.uuid4().hex, status=201,
+                    data={**request, "mode": "CASH", "receiptStatus": "PENDING",
+                          "supplierInvoiceNumber": "COMPRA-002",
+                          "lines": [{**request["lines"][0], "receivedQuantity": "0"}]})
+    assert cash["financialStatus"] == "PAYMENT_UNRECORDED" and cash["dueDate"] is None
+    stock = exchange(f"inventory/stock/{item}/{warehouse}", token=token, tenant=company)
+    assert stock["onHand"] == "24.000"
+    movements = exchange(f"inventory/movements?warehouseId={warehouse}", token=token, tenant=company)
+    assert movements["totalElements"] == 4
 
 
 if __name__ == "__main__":

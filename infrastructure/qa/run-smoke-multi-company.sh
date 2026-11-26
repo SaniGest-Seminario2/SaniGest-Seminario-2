@@ -21,6 +21,7 @@ export IDENTITY_SERVICE_PORT="${IDENTITY_SERVICE_PORT:-18081}"
 export CATALOG_SERVICE_PORT="${CATALOG_SERVICE_PORT:-18083}"
 export SALES_SERVICE_PORT="${SALES_SERVICE_PORT:-18084}"
 export GATEWAY_PORT="${GATEWAY_PORT:-18085}"
+export EXPENSE_SERVICE_PORT="${EXPENSE_SERVICE_PORT:-18087}"
 export INVENTORY_SERVICE_PORT="${INVENTORY_SERVICE_PORT:-18086}"
 export SMOKE_GATEWAY_URL="http://127.0.0.1:$GATEWAY_PORT"
 export SMOKE_CATALOG_URL="http://127.0.0.1:$CATALOG_SERVICE_PORT"
@@ -47,7 +48,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-for pair in jwt catalog-company sales-company inventory-company; do
+for pair in jwt catalog-company sales-company inventory-company expense-company; do
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$keys/$pair-private.pem" 2>/dev/null
   openssl pkey -in "$keys/$pair-private.pem" -pubout -out "$keys/$pair-public.pem"
   # The host directory remains mode 0700. Compose mounts individual files for UID 10001.
@@ -58,3 +59,12 @@ qa_compose up -d --build --wait --wait-timeout 120
 curl -fsS --retry 20 --retry-connrefused --retry-delay 1 --max-time 4 \
   "$SMOKE_GATEWAY_URL/actuator/health" >/dev/null
 python3 infrastructure/qa/smoke-multi-company.py
+
+payables=$(qa_compose exec -T postgres sh -c '
+  psql -XAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d sanigest_expense     -c "SELECT original_amount, paid_amount FROM expense.payables"
+')
+if [ "$payables" != "29.50|0.00" ]; then
+  echo "Expected exactly one unpaid expense obligation for 29.50" >&2
+  exit 1
+fi
+echo "Expense payable persisted once"

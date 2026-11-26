@@ -13,6 +13,7 @@ services:
       IDENTITY_SERVICE_URL: http://identity-service:8080
       COMPANY_SERVICE_URL: http://company-service:8080
       CATALOG_SERVICE_URL: http://catalog-service:8080
+      EXPENSE_SERVICE_URL: http://expense-service:8080
       SALES_SERVICE_URL: http://sales-service:8080
       INVENTORY_SERVICE_URL: ${INVENTORY_SERVICE_URL:-http://inventory-service:8080}
       GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-}
@@ -29,6 +30,8 @@ services:
         condition: service_healthy
       inventory-service:
         condition: service_healthy
+      expense-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health/readiness"]
       interval: 5s
@@ -43,9 +46,11 @@ services:
       SPRING_APPLICATION_JSON: >-
         {"sanigest":{"company-access":{"callers":{"catalog":{"issuer":"catalog-company-access","public-key":"file:/run/secrets/catalog-company-public.pem"},
         "inventory":{"issuer":"inventory-company-access","public-key":"file:/run/secrets/inventory-company-public.pem"},
-        "sales":{"issuer":"sales-company-access","public-key":"file:/run/secrets/sales-company-public.pem"}}}}}
+        "sales":{"issuer":"sales-company-access","public-key":"file:/run/secrets/sales-company-public.pem"},
+        "expense":{"issuer":"expense-company-access","public-key":"file:/run/secrets/expense-company-public.pem"}}}}}
     volumes:
       - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/sales-company-public.pem:/run/secrets/sales-company-public.pem:ro
+      - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/expense-company-public.pem:/run/secrets/expense-company-public.pem:ro
 
   catalog-service:
     environment:
@@ -62,3 +67,12 @@ services:
       SALES_COMPANY_ACCESS_PRIVATE_KEY_LOCATION: file:/run/secrets/sales-company-private.pem
     volumes:
       - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/sales-company-private.pem:/run/secrets/sales-company-private.pem:ro
+
+  expense-service:
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      EXPENSE_COMPANY_ACCESS_ENABLED: "true"
+      EXPENSE_COMPANY_ACCESS_ORIGIN: http://company-service:8080
+      EXPENSE_COMPANY_ACCESS_PRIVATE_KEY_LOCATION: file:/run/secrets/expense-company-private.pem
+    volumes:
+      - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/expense-company-private.pem:/run/secrets/expense-company-private.pem:ro

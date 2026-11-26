@@ -36,6 +36,7 @@ class ServiceRoutingIT {
   private static final String ORIGIN = "https://frontend.example";
   private static final String COMPANY_ME = "/api/v1/companies/me";
   private static final String TENANT = "e3fc1fd0-42ea-4a0d-9c14-6cbd44592b42";
+  private static final HttpServer EXPENSE = backend("expense");
   private static final HttpServer INVENTORY = backend("inventory");
   private static final HttpServer SALES = backend("sales");
   private static final HttpServer IDENTITY = backend("identity");
@@ -52,6 +53,7 @@ class ServiceRoutingIT {
     registry.add("COMPANY_SERVICE_URL", () -> origin(COMPANY));
     registry.add("CATALOG_SERVICE_URL", () -> origin(CATALOG));
     registry.add("INVENTORY_SERVICE_URL", () -> origin(INVENTORY));
+    registry.add("EXPENSE_SERVICE_URL", () -> origin(EXPENSE));
     registry.add("SALES_SERVICE_URL", () -> origin(SALES));
     registry.add("GATEWAY_CORS_ALLOWED_ORIGINS", () -> ORIGIN + ",https://another.example");
   }
@@ -63,6 +65,7 @@ class ServiceRoutingIT {
     CATALOG.stop(0);
     SALES.stop(0);
     INVENTORY.stop(0);
+    EXPENSE.stop(0);
   }
 
   @Test
@@ -219,6 +222,40 @@ class ServiceRoutingIT {
                 .GET());
     assertThat(forwarded.statusCode()).isEqualTo(200);
     assertThat(forwarded.headers().firstValue("X-Backend-X-Company-User-Assertion")).isEmpty();
+  }
+
+  @Test
+  void routesExpenseRegistrationWithCompanyAndIdempotencyKey() throws Exception {
+    String path = "/api/v1/expenses";
+    String token = "Bearer " + GatewayTestTokens.validToken();
+    var body = HttpRequest.BodyPublishers.ofString("{}");
+
+    var missingCompany = send(request(gateway(), path).header("Authorization", token).POST(body));
+    assertThat(missingCompany.statusCode()).isEqualTo(400);
+    assertThat(missingCompany.body()).contains("COMPANY_CONTEXT_REQUIRED");
+
+    var forwarded =
+        send(
+            request(gateway(), path)
+                .header("Authorization", token)
+                .header("X-Company-Id", TENANT)
+                .header("Idempotency-Key", "registration-1")
+                .header("X-Company-Role", "OWNER")
+                .POST(body));
+    assertThat(forwarded.statusCode()).isEqualTo(422);
+    assertThat(forwarded.body()).isEqualTo("expense POST " + path + " {}");
+    assertThat(forwarded.headers().firstValue("X-Backend-X-Company-Id")).contains(TENANT);
+    assertThat(forwarded.headers().firstValue("X-Backend-Idempotency-Key"))
+        .contains("registration-1");
+    assertThat(forwarded.headers().firstValue("X-Backend-X-Company-Role")).isEmpty();
+
+    var get =
+        send(
+            request(gateway(), path)
+                .header("Authorization", token)
+                .header("X-Company-Id", TENANT)
+                .GET());
+    assertThat(get.statusCode()).isEqualTo(404);
   }
 
   @Test
@@ -486,6 +523,7 @@ class ServiceRoutingIT {
           "X-Company-Id",
           "X-Company-User-Assertion",
           "X-Company-Role",
+          "Idempotency-Key",
           "X-User-Id"
         }) {
       if (headers.containsKey(header)) {

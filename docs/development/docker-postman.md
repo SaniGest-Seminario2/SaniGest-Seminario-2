@@ -13,7 +13,7 @@ En `.env`, establece `SANIGEST_NETWORK_INTERNAL=false` para acceder a los puerto
 ```sh
 mkdir -p .secrets
 chmod 700 .secrets
-for pair in jwt catalog-company inventory-company sales-company member-directory advisor-eligibility; do
+for pair in jwt catalog-company inventory-company sales-company expense-company member-directory advisor-eligibility; do
   if [ ! -f ".secrets/$pair-private.pem" ]; then
     openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out ".secrets/$pair-private.pem"
   fi
@@ -40,7 +40,7 @@ sanigest ps
 curl -fsS http://127.0.0.1:8085/actuator/health/readiness
 ```
 
-El Compose base inicia PostgreSQL, Valkey, Kafka y cinco servicios de negocio. El archivo de QA añade el Gateway, habilita el selector de empresa para Catalog y Sales, y configura las llamadas de autorización de Sales a Company. El tercer archivo configura el directorio de miembros y la consulta de elegibilidad de asesores entre Company e Identity.
+El Compose base inicia PostgreSQL, Valkey, Kafka y seis servicios de negocio. El archivo de QA añade el Gateway, habilita el selector de empresa para Catalog y Sales, y configura las llamadas de autorización de Sales y Expense a Company. El tercer archivo configura el directorio de miembros y la consulta de elegibilidad de asesores entre Company e Identity.
 
 | Componente | Dirección local | Uso |
 | --- | --- | --- |
@@ -50,9 +50,10 @@ El Compose base inicia PostgreSQL, Valkey, Kafka y cinco servicios de negocio. E
 | Catalog | `http://127.0.0.1:8083` | Clientes, proveedores, artículos y sus referencias |
 | Sales | `http://127.0.0.1:8084` | Ventas, cuentas por cobrar y facturas internas |
 | Inventory | `http://127.0.0.1:8086` | Almacenes, existencias y movimientos |
+| Expense | `http://127.0.0.1:8087` | Registro de compras y gastos |
 | PostgreSQL, Valkey y Kafka | `5432`, `6379`, `9092` | Dependencias de infraestructura |
 
-Expense y Finance aparecen en el esquema de bases de desarrollo. El repositorio aún carece de aplicaciones HTTP ejecutables para esos módulos.
+Finance cuenta con un esquema de desarrollo para su futura aplicación HTTP.
 
 Si ya tienes un volumen de PostgreSQL anterior a Inventory, añade sus variables de `.env.example` a `.env` y ejecuta el [bootstrap dirigido de Inventory](../../services/inventory-service/README.md) antes de iniciar las aplicaciones. PostgreSQL ejecuta los scripts de inicialización automáticamente al crear un volumen nuevo.
 
@@ -107,10 +108,10 @@ Copia el UUID de `RETURNING` a `advisorId`. Para obtener su token, duplica el lo
 
 ## 4. Verificación automática
 
-El smoke del repositorio levanta su propio stack desechable en puertos alternativos y verifica registro, login, creación de empresas, aislamiento de clientes y ventas, almacenes, existencias y ajustes.
+El smoke del repositorio levanta su propio stack desechable en puertos alternativos y verifica registro, login, creación de empresas, aislamiento de clientes y ventas, almacenes, existencias, ajustes y registro de compras.
 
 ```sh
 sh infrastructure/qa/run-smoke-multi-company.sh
 ```
 
-Consulta los contratos para validar filtros y campos adicionales. [Catalog](../../services/catalog-service/src/main/resources/catalog-openapi.json) · [Inventory](../../services/inventory-service/src/main/resources/static/inventory-openapi.json) · [Sales](../../services/sales-service/openapi-invoices.yaml).
+Consulta los contratos para validar filtros y campos adicionales. [Catalog](../../services/catalog-service/src/main/resources/catalog-openapi.json) · [Inventory](../../services/inventory-service/src/main/resources/static/inventory-openapi.json) · [Sales](../../services/sales-service/openapi-invoices.yaml) · [Expense](../../services/expense-service/openapi-expenses.yaml).

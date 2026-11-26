@@ -9,10 +9,21 @@ docker compose --env-file .env --profile apps up -d --build expense-service
 curl --fail http://localhost:8087/actuator/health/readiness
 ```
 
-El [contrato funcional](../SaniGest_T1001_Contrato_Funcional_v0.8.md) asigna
-`/api/v1/expenses` y `/api/v1/payables` a Expense. Las operaciones de registro,
-consulta y pago se incorporan en S2-343 a S2-348 antes de habilitar sus rutas.
-Los puertos de aplicación definen la resolución de proveedores y artículos
-en Catalog y la coordinación de almacenes y entradas con Inventory (S2-465).
-S2-466 incorpora adjuntos privados. Finance recibe hechos de pago confirmado
-cuando estén implementados los pagos.
+[S2-343] habilita el alta `POST /api/v1/expenses` para OWNER y ADMIN con
+membresía activa. Gateway habilita la ruta cuando se configura
+`EXPENSE_SERVICE_URL`. Expense verifica la membresía con las credenciales
+dedicadas de `EXPENSE_COMPANY_ACCESS_*` y valida las referencias con Catalog e
+Inventory. La configuración de QA incluye estas conexiones.
+
+El alta congela las líneas y sus totales en DOP. Una compra a crédito con saldo
+positivo crea su obligación en la misma transacción. La recepción afecta solo
+las posiciones con seguimiento activo en el almacén y usa la clave de cada
+línea para que Inventory aplique la entrada una vez. Si la sincronización falla,
+repite el POST con el mismo usuario, empresa, cuerpo e `Idempotency-Key`.
+`attachmentId` reserva la referencia opcional para el flujo de adjuntos de
+S2-466.
+
+Consulta el [OpenAPI](../../services/expense-service/openapi-expenses.yaml) y el
+[ejemplo Postman](../development/postman/SaniGest.postman_collection.json).
+
+[S2-343]: https://devjoanvasquez-1791077375328.atlassian.net/browse/S2-343
