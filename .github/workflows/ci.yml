@@ -14,6 +14,13 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Modules with unit tests and an instruction coverage gate.
+  COVERED_MODULES: >-
+    libraries/common-security libraries/common-company-access
+    services/company-service services/identity-service
+    services/catalog-service services/sales-service services/inventory-service
+
 jobs:
   syntax:
     name: Syntax and compilation
@@ -34,6 +41,90 @@ jobs:
         run: >-
           sh scripts/ci/run-stage.sh 'Maven reactor' Compilation
           sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true compile
+
+  # Branch protection matches these job names exactly. Keep them at the top level.
+  unit-tests:
+    name: Unit tests
+    needs: syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      UNIT_ARTIFACT: unit-test-reports-${{ github.run_id }}-${{ github.run_attempt }}
+      COVERAGE_ARTIFACT: coverage-reports-${{ github.run_id }}-${{ github.run_attempt }}
+    outputs:
+      maven: ${{ steps.unit.outcome }}
+      reports: ${{ steps.coverage.outcome }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java 21 and Maven cache
+        uses: ./.github/actions/setup-maven
+
+      - name: Run unit tests and enforce JaCoCo coverage
+        id: unit
+        timeout-minutes: 6
+        run: >-
+          sh scripts/ci/run-stage.sh 'Maven reactor' 'Unit tests and coverage'
+          sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true --fail-at-end -Pcoverage -DskipITs verify
+
+      - name: Validate and summarize unit test reports
+        if: ${{ !cancelled() && steps.unit.outcome != '' }}
+        env:
+          OUTCOME: ${{ steps.unit.outcome }}
+        run: python3 scripts/ci/report.py 'Maven reactor' unit "$OUTCOME" "$UNIT_ARTIFACT" $COVERED_MODULES
+
+      - name: Validate and summarize JaCoCo instruction coverage
+        id: coverage
+        if: ${{ !cancelled() && steps.unit.outcome != '' }}
+        env:
+          OUTCOME: ${{ steps.unit.outcome }}
+        run: python3 scripts/ci/report.py 'Maven reactor' coverage "$OUTCOME" "$COVERAGE_ARTIFACT" $COVERED_MODULES
+
+      - name: Publish unit test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.UNIT_ARTIFACT }}
+          path: |
+            libraries/*/target/surefire-reports/
+            services/*/target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Publish JaCoCo XML and HTML reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.COVERAGE_ARTIFACT }}
+          path: |
+            libraries/*/target/site/jacoco/
+            services/*/target/site/jacoco/
+          if-no-files-found: warn
+          retention-days: 7
+
+  coverage:
+    name: Coverage gate
+    needs: unit-tests
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check the upstream JaCoCo verdict and XML validation
+        env:
+          MAVEN: ${{ needs.unit-tests.outputs.maven }}
+          REPORTS: ${{ needs.unit-tests.outputs.reports }}
+        run: |
+          if [ "$MAVEN" = success ] && [ "$REPORTS" = success ]; then
+            printf '### Coverage gate\n\nPassed. See JaCoCo instruction coverage in **Unit tests**.\n' >> "$GITHUB_STEP_SUMMARY"
+            echo '::notice::JaCoCo verification and XML validation passed.'
+          else
+            printf '### Coverage gate\n\nFailed or unavailable (Maven: %s, XML validation: %s). See **Unit tests**.\n' "${MAVEN:-unavailable}" "${REPORTS:-unavailable}" >> "$GITHUB_STEP_SUMMARY"
+            echo '::error::Coverage verification did not pass. See Unit tests for module results and the coverage-reports artifact.'
+            exit 1
+          fi
 
   code:
     needs: syntax
@@ -67,11 +158,11 @@ jobs:
   required:
     name: CI required
     if: ${{ always() }}
-    needs: [syntax, code, company, identity, catalog, sales, inventory, infrastructure, multi-company]
+    needs: [syntax, unit-tests, coverage, code, company, identity, catalog, sales, inventory, infrastructure, multi-company]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     env:
       RESULTS: ${{ toJSON(needs.*.result) }}
     steps:
       - name: Verify all CI stages passed
-        run: jq -e 'length == 9 and all(.[]; . == "success")' <<< "$RESULTS"
+        run: jq -e 'all(.[]; . == "success")' <<< "$RESULTS"
