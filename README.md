@@ -314,13 +314,16 @@ La validación rápida comprueba perfiles, health checks, dependencias, red,
 puertos y política de persistencia con `jq` y sin arrancar contenedores.
 El smoke test
 levanta infraestructura desechable y además prueba aislamiento/persistencia de
-PostgreSQL, autenticación/volatilidad de Valkey y operaciones reales de topics
-en Kafka:
+PostgreSQL, autenticación/volatilidad de Valkey y publicación y consumo de un
+evento de prueba en Kafka.
 
 ```bash
 sh infrastructure/qa/validate-compose.sh
 sh infrastructure/qa/smoke-infrastructure.sh
 ```
+
+Consulta la [guía de Kafka local](docs/development/kafka.md) para topics, claves,
+grupos y diagnóstico.
 
 También se puede reiniciar Valkey con una cache vacía sin afectar PostgreSQL:
 

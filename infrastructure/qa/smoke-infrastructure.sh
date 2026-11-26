@@ -151,18 +151,32 @@ next_stage "Valkey health"
 wait_for_health valkey
 next_stage "Kafka health"
 wait_for_health kafka
-next_stage "Kafka listener and topic operations"
+next_stage "Kafka listener and event round trip"
 
 kafka_brokers="$(docker compose exec -T kafka \
   /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:29092)"
 printf '%s\n' "$kafka_brokers" | grep -q 'id: 1' || fail "Kafka did not expose its internal listener"
 
+smoke_topic=qa.smoke.v1
+smoke_group="${project_name}-smoke-v1"
+smoke_event='qa-company:{"type":"SmokeTest","version":1}'
+
 docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh \
   --bootstrap-server kafka:29092 --create --if-not-exists \
-  --topic qa.smoke.v1 --partitions 1 --replication-factor 1 >/dev/null
-kafka_topics="$(docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh \
-  --bootstrap-server kafka:29092 --list)"
-printf '%s\n' "$kafka_topics" | grep -Fxq 'qa.smoke.v1' || fail "Kafka could not create and list a topic"
+  --topic "$smoke_topic" --partitions 1 --replication-factor 1 \
+  --config cleanup.policy=delete --config retention.ms=3600000 >/dev/null
+
+printf '%s\n' "$smoke_event" | docker compose exec -T kafka \
+  /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka:29092 \
+  --topic "$smoke_topic" --producer-property acks=all \
+  --property parse.key=true --property key.separator=:
+
+consumed_event="$(docker compose exec -T kafka \
+  /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:29092 \
+  --topic "$smoke_topic" --group "$smoke_group" --from-beginning \
+  --max-messages 1 --timeout-ms 30000 \
+  --property print.key=true --property key.separator=:)"
+[ "$consumed_event" = "$smoke_event" ] || fail "Kafka returned an unexpected event key or payload"
 
 next_stage "PostgreSQL bootstrap and database isolation"
 # Re-running the bootstrap must converge without duplicate roles or databases.
@@ -240,4 +254,4 @@ business_rows="$(service_psql company "$COMPANY_DB_PASSWORD" \
 [ "$business_rows" = "1" ] || fail "PostgreSQL did not retain Company data"
 
 printf '%s\n' \
-  'QA smoke passed: PostgreSQL is isolated and persistent, Valkey is authenticated and disposable, and Kafka accepts topic operations.'
+  'QA smoke passed: PostgreSQL is isolated and persistent, Valkey is authenticated and disposable, and Kafka delivered the test event.'
