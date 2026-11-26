@@ -95,16 +95,14 @@ class JpaSaleRepository implements SaleRepository {
           if (rows.hasIssuedInvoice(companyId, saleId)) {
             throw new SaleCancellationConflict();
           }
-          if (sale.mode() == SaleMode.CREDIT) {
-            receivables
-                .lockBySale(companyId, saleId)
-                .ifPresent(receivable -> {
-                  if (receivable.status() != ReceivableStatus.OPEN) {
-                    throw new SaleCancellationConflict();
-                  }
-                  receivables.updateStatus(receivable.cancel());
-                });
-          }
+          receivables
+              .lockBySale(companyId, saleId)
+              .ifPresent(receivable -> {
+                if (receivable.status() != ReceivableStatus.OPEN) {
+                  throw new SaleCancellationConflict();
+                }
+                receivables.updateStatus(receivable.cancel());
+              });
           if (rows.recordCancellation(
                   companyId,
                   saleId,

@@ -48,7 +48,7 @@ interface SaleRows extends Repository<SaleRow, UUID> {
   String DOCUMENT_JOINS =
       """
       LEFT JOIN sales.internal_invoices i
-        ON i.company_id = s.company_id AND i.sale_id = s.id AND i.status = 'ISSUED'
+        ON i.company_id = s.company_id AND i.sale_id = s.id
       LEFT JOIN sales.receivables r ON r.company_id = s.company_id AND r.sale_id = s.id
       """;
 

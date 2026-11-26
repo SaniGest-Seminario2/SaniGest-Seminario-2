@@ -60,7 +60,9 @@ public final class CreateSaleIdempotently {
     UUID actorId = actor.get();
     CreateSale.validate(command);
     boolean invoice = INVOICE_OPERATION.equals(operation);
-    if (!invoice && command.lines().stream().anyMatch(line -> line.discount() != null)) {
+    if (!invoice
+        && (command.hasInvoiceFields()
+            || command.lines().stream().anyMatch(line -> line.discount() != null))) {
       throw new InvalidSaleRequest();
     }
     var request =

@@ -9,6 +9,7 @@ import com.sanigest.sales.application.exception.CatalogResourceInvalidException;
 import com.sanigest.sales.application.exception.InvalidSaleRequest;
 import com.sanigest.sales.application.exception.SaleAmountNotRepresentable;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
+import com.sanigest.sales.application.port.out.integration.InvoiceStock;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.sanigest.sales.domain.enums.SaleMode;
@@ -27,13 +28,19 @@ public class CreateSale {
   private final CatalogClient catalog;
   private final SaleRepository sales;
   private final Clock clock;
+  private final InvoiceStock stock;
 
   public CreateSale(
-      SalesAuthorization authorization, CatalogClient catalog, SaleRepository sales, Clock clock) {
+      SalesAuthorization authorization,
+      CatalogClient catalog,
+      SaleRepository sales,
+      Clock clock,
+      InvoiceStock stock) {
     this.authorization = authorization;
     this.catalog = catalog;
     this.sales = sales;
     this.clock = clock;
+    this.stock = stock;
   }
 
   public Sale execute(CreateSaleCommand command) {
@@ -115,6 +122,12 @@ public class CreateSale {
     if (!item.active()) {
       throw new CatalogResourceInvalidException(INACTIVE);
     }
+    if (invoice
+        && item.type() == CatalogItemSnapshot.Type.PRODUCT
+        && stock.isTracked(itemId, companyId)) {
+      throw new CatalogResourceInvalidException(
+          CatalogResourceInvalidException.Reason.NOT_ELIGIBLE);
+    }
     return item;
   }
 
@@ -122,8 +135,13 @@ public class CreateSale {
       UUID saleId, CreateSaleCommand.Line line, CatalogItemSnapshot item, boolean invoice) {
     try {
       if (invoice) {
+        var taxRate = item.taxRate() == null ? java.math.BigDecimal.ZERO : item.taxRate();
+        if (line.taxRate() != null && line.taxRate().compareTo(taxRate) != 0) {
+          throw new CatalogResourceInvalidException(
+              CatalogResourceInvalidException.Reason.NOT_ELIGIBLE);
+        }
         return SaleLine.forInvoice(
-            UUID.randomUUID(), saleId, item, line.quantity(), line.discount());
+            UUID.randomUUID(), saleId, item, line.quantity(), line.discount(), line.unitPrice());
       }
       if (line.discount() != null) {
         throw new InvalidSaleRequest();
@@ -140,7 +158,9 @@ public class CreateSale {
         || command.mode() == null
         || command.lines() == null
         || command.lines().isEmpty()
-        || command.lines().size() > CreateSaleCommand.MAX_LINES) {
+        || command.lines().size() > CreateSaleCommand.MAX_LINES
+        || (command.notes() != null
+            && (command.notes().length() > 1000 || command.notes().indexOf(0) >= 0))) {
       throw new InvalidSaleRequest();
     }
     try {

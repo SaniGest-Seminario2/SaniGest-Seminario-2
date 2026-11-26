@@ -53,7 +53,7 @@ class PostgresReceivableRepository implements ReceivableRepository {
             FROM sales.receivables r
             LEFT JOIN sales.sales s ON s.company_id = r.company_id AND s.id = r.sale_id
             LEFT JOIN sales.internal_invoices i
-              ON i.company_id = r.company_id AND i.sale_id = r.sale_id AND i.status = 'ISSUED'
+              ON i.company_id = r.company_id AND i.sale_id = r.sale_id
             WHERE r.company_id = :company AND r.id = :id
             """)
         .param("company", companyId)

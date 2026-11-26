@@ -54,8 +54,13 @@ public record SaleLine(
   }
 
   public static SaleLine forInvoice(
-      UUID id, UUID saleId, CatalogItemSnapshot item, BigDecimal quantity, BigDecimal discount) {
-    var price = SaleAmounts.unitPrice(item.price());
+      UUID id,
+      UUID saleId,
+      CatalogItemSnapshot item,
+      BigDecimal quantity,
+      BigDecimal discount,
+      BigDecimal unitPrice) {
+    var price = SaleAmounts.unitPrice(unitPrice == null ? item.price() : unitPrice);
     var appliedDiscount = discount == null ? BigDecimal.ZERO : discount;
     return new SaleLine(
         id,

@@ -122,6 +122,8 @@ class SalesServiceIT {
       CATALOG.start();
     }
     registry.add("sanigest.catalog.origin", CATALOG::baseUrl);
+    registry.add("sanigest.inventory.origin", CATALOG::baseUrl);
+    registry.add("sanigest.sales.legacy-creation-enabled", () -> true);
     registry.add("sanigest.catalog.response-timeout", () -> "2s");
     registry.add("sanigest.company-access.origin", CATALOG::baseUrl);
     registry.add("sanigest.company-access.enabled", () -> true);
@@ -201,7 +203,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("8");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("9");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -299,6 +301,7 @@ class SalesServiceIT {
             "invoice_company_number_key",
             "invoice_request_key",
             "invoice_one_issued_per_sale",
+            "invoice_company_date_idx",
             "internal_invoice_lines_pkey",
             "invoice_line_source_key");
     assertThat(
@@ -330,8 +333,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(8);
-    assertThat(history.getLast()).containsEntry("version", "8").containsEntry("success", true);
+    assertThat(history).hasSize(9);
+    assertThat(history.getLast()).containsEntry("version", "9").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -399,12 +402,12 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(1);
-    assertThat(current.migrate().migrationsExecuted).isEqualTo(3);
+    assertThat(current.migrate().migrationsExecuted).isEqualTo(4);
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
         .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("8");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("9");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
@@ -881,6 +884,7 @@ class SalesServiceIT {
                   "--sanigest.jwt.public-key="
                       + environment.getRequiredProperty("sanigest.jwt.public-key"),
                   "--sanigest.company-access.enabled=true",
+                  "--sanigest.sales.legacy-creation-enabled=true",
                   "--sanigest.company-access.origin=" + CATALOG.baseUrl(),
                   "--sanigest.company-access.private-key-location="
                       + environment.getRequiredProperty(
@@ -1628,16 +1632,28 @@ class SalesServiceIT {
   }
 
   @Test
-  void createsMultilineInvoiceAndOneObligationWithStableReplay() throws Exception {
+  @Tag("smoke")
+  void createsListsAndCancelsMultilineInvoiceWithStableReplay() throws Exception {
     var owner = fixture();
+    var other = fixture();
+    other.membership("OWNER", false, "READ");
     owner.membership("OWNER", false);
     owner.catalog(
         owner.productPath(),
         owner
             .itemJson(owner.product(), "PRODUCT", "10.1234", true)
             .replace("\"price\"", "\"taxRate\":\"0.18\",\"price\""));
+    mockUntrackedStock(owner);
     owner.item(owner.servicePath(), owner.service(), "SERVICE", "5.00", true);
-    String payload = owner.body().replace("\"quantity\":2", "\"quantity\":2,\"discount\":1");
+    String payload =
+        owner
+            .body()
+            .replace(
+                "\"saleDate\"",
+                "\"requestedReceiptType\":\"CONSUMPTION\",\"notes\":\"Entrega\",\"issueDate\"")
+            .replace(
+                "\"quantity\":2",
+                "\"quantity\":2,\"discount\":1,\"unitPrice\":10.1234,\"taxRate\":0.18");
     try (var http = HttpClient.newHttpClient()) {
       var request =
           HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/invoices"))
@@ -1656,6 +1672,9 @@ class SalesServiceIT {
       assertThat(invoice.path("lines").size()).isEqualTo(2);
       assertThat(invoice.at("/lines/0/taxAmount").asString()).isEqualTo("3.47");
       assertThat(invoice.path("total").asString()).isEqualTo("37.72");
+      assertThat(invoice.path("issueDate").asString()).isEqualTo("2026-11-23");
+      assertThat(invoice.path("requestedReceiptType").asString()).isEqualTo("CONSUMPTION");
+      assertThat(invoice.path("notes").asString()).isEqualTo("Entrega");
       assertThat(countInvoices(owner.company())).isOne();
       assertThat(countReceivables(owner.company())).isOne();
       assertThat(
@@ -1664,7 +1683,78 @@ class SalesServiceIT {
                   java.math.BigDecimal.class,
                   owner.company()))
           .isEqualByComparingTo("37.72");
+      var invoiceId = invoice.path("id").asString();
+      var saleId = invoice.path("saleId").asString();
+      owner.membership("OWNER", false, "READ");
+      var paginated = page(invoiceDocument(http, owner, "?search=Cliente&size=1", null));
+      assertThat(paginated.path("totalElements").asLong()).isOne();
+      assertThat(paginated.at("/content/0/id").asString()).isEqualTo(invoiceId);
+      assertThat(page(invoiceDocument(http, owner, "/all", null)).get(0).path("id").asString())
+          .isEqualTo(invoiceId);
+      assertThat(page(invoiceDocument(http, owner, "/collectible/all", null)).size()).isOne();
+      assertThat(invoiceDocument(http, other, "/" + invoiceId, null).statusCode()).isEqualTo(404);
+      owner.membership("OWNER", false);
+      jdbc.update(
+          "UPDATE sales.receivables SET status = 'PARTIALLY_PAID', balance = 30.00 WHERE id = ?",
+          UUID.fromString(saleId));
+      assertThat(
+              invoiceDocument(http, owner, "/" + invoiceId + "/cancel", "{\"reason\":\"Error\"}")
+                  .statusCode())
+          .isEqualTo(409);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT status FROM sales.internal_invoices WHERE id = ?",
+                  String.class,
+                  UUID.fromString(invoiceId)))
+          .isEqualTo("ISSUED");
+      jdbc.update(
+          "UPDATE sales.receivables SET status = 'OPEN', balance = total_amount WHERE id = ?",
+          UUID.fromString(saleId));
+      var closed =
+          invoiceDocument(http, owner, "/" + invoiceId + "/cancel", "{\"reason\":\"Error\"}");
+      assertThat(closed.statusCode()).withFailMessage(closed.body()).isEqualTo(200);
+      var cancelled = page(closed);
+      assertThat(cancelled.path("status").asString()).isEqualTo("CANCELLED");
+      assertThat(cancelled.path("cancelReason").asString()).isEqualTo("Error");
+      assertThat(cancelled.path("total")).isEqualTo(invoice.path("total"));
+      assertThat(cancelled.path("lines")).isEqualTo(invoice.path("lines"));
+      assertThat(
+              page(
+                  invoiceDocument(
+                      http, owner, "/" + invoiceId + "/cancel", "{\"reason\":\"Otro\"}")))
+          .isEqualTo(cancelled);
+      assertThat(countInvoices(owner.company())).isOne();
+      owner.membership("OWNER", false, "READ");
+      assertThat(page(invoiceDocument(http, owner, "/" + invoiceId, null))).isEqualTo(cancelled);
+      assertThat(page(invoiceDocument(http, owner, "/collectible/all", null))).isEmpty();
+      assertThat(page(invoiceDocument(http, owner, "/all?status=CANCELLED", null)).size()).isOne();
+      assertFinancialRead(http, owner, saleId, "CANCELLED", "0.00", "0.00");
     }
+  }
+
+  private static void mockUntrackedStock(Fixture owner) {
+    CATALOG.stubFor(
+        WireMock.get(WireMock.urlPathEqualTo("/api/v1/inventory/stock"))
+            .withHeader("X-Company-Id", WireMock.equalTo(owner.company().toString()))
+            .withQueryParam("catalogItemId", WireMock.equalTo(owner.product().toString()))
+            .withQueryParam("trackingEnabled", WireMock.equalTo("true"))
+            .willReturn(okJson("{\"totalElements\":0}")));
+  }
+
+  private HttpResponse<String> invoiceDocument(
+      HttpClient http, Fixture owner, String path, String body) throws Exception {
+    var request =
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/invoices" + path))
+            .header("X-Company-Id", owner.company().toString())
+            .header("Authorization", "Bearer " + owner.bearer());
+    if (body == null) {
+      request.GET();
+    } else {
+      request
+          .header("Content-Type", "application/json")
+          .POST(HttpRequest.BodyPublishers.ofString(body));
+    }
+    return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
   }
 
   @Test

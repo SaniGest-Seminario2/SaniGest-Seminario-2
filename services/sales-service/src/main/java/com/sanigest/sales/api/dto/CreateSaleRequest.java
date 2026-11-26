@@ -1,7 +1,9 @@
 package com.sanigest.sales.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.sanigest.sales.application.dto.CreateSaleCommand;
 import com.sanigest.sales.application.exception.InvalidSaleRequest;
+import com.sanigest.sales.domain.enums.RequestedReceiptType;
 import com.sanigest.sales.domain.enums.SaleMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
@@ -16,9 +18,20 @@ import java.util.regex.Pattern;
 public record CreateSaleRequest(
     @NotNull UUID clientId,
     @NotEmpty @Size(max = CreateSaleCommand.MAX_LINES) List<@NotNull @Valid CreateSaleLineRequest> lines,
-    LocalDate saleDate,
+    @JsonAlias("issueDate") LocalDate saleDate,
     @NotNull SaleMode mode,
-    String dueDate) {
+    String dueDate,
+    RequestedReceiptType requestedReceiptType,
+    @Size(max = 1000) String notes) {
+  public CreateSaleRequest(
+      UUID clientId,
+      List<CreateSaleLineRequest> lines,
+      LocalDate saleDate,
+      SaleMode mode,
+      String dueDate) {
+    this(clientId, lines, saleDate, mode, dueDate, null, null);
+  }
+
   private static final Pattern ISO_DATE = Pattern.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}");
 
   public CreateSaleCommand toCommand() {
@@ -27,7 +40,9 @@ public record CreateSaleRequest(
         lines.stream().map(CreateSaleLineRequest::toCommand).toList(),
         saleDate,
         mode,
-        parseDueDate());
+        parseDueDate(),
+        requestedReceiptType,
+        notes);
   }
 
   private LocalDate parseDueDate() {

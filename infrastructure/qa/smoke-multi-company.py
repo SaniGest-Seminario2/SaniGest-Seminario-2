@@ -131,29 +131,34 @@ def main():
 
     sale = {"clientId": client_a, "lines": [{"catalogItemId": item_a, "quantity": 1}],
             "mode": "CREDIT", "dueDate": (date.today() + timedelta(days=30)).isoformat()}
-    sale_key = uuid.uuid4().hex
-    created = exchange("sales", token=token, tenant=a, data=sale, key=sale_key, status=201)
-    sale_id = created["id"]
-    assert exchange("sales", token=token, tenant=a, data=sale, key=sale_key, status=201) == created
-    invoice = exchange(f"sales/{sale_id}/invoices", token=token, tenant=a,
-                       key=uuid.uuid4().hex, method="POST", status=201)
-    detail = exchange(f"sales/{sale_id}", token=token, tenant=a)
-    assert detail["invoiceNumber"] == invoice["number"] and detail["paymentStatus"] == "OPEN"
-    receivable = exchange(f"receivables/{sale_id}", token=token, tenant=a)
-    assert receivable["saleCode"] == created["code"] and receivable["invoiceId"] == invoice["id"]
-    assert receivable["outstandingBalance"] == created["total"]
-    exchange("sales", token=token, tenant=a, data={**sale, "clientId": client_b},
-             key=uuid.uuid4().hex, status=404)
-    assert exchange("sales", token=token, tenant=a)["totalElements"] == 1
     invoice_key = uuid.uuid4().hex
     direct = exchange("invoices", token=token, tenant=a, data=sale, key=invoice_key, status=201)
+    sale_id = direct["saleId"]
     assert exchange("invoices", token=token, tenant=a, data=sale, key=invoice_key, status=201) == direct
-    assert exchange(f"receivables/{direct['saleId']}", token=token, tenant=a)["invoiceId"] == direct["id"]
+    detail = exchange(f"sales/{sale_id}", token=token, tenant=a)
+    assert detail["invoiceNumber"] == direct["number"] and detail["paymentStatus"] == "OPEN"
+    receivable = exchange(f"receivables/{sale_id}", token=token, tenant=a)
+    assert receivable["invoiceId"] == direct["id"] and receivable["outstandingBalance"] == direct["total"]
+    exchange("invoices", token=token, tenant=a, data={**sale, "clientId": client_b},
+             key=uuid.uuid4().hex, status=404)
+    exchange("sales", token=token, tenant=a, data=sale, key=uuid.uuid4().hex, status=405)
+    assert exchange("sales", token=token, tenant=a)["totalElements"] == 1
+    direct_path = f"invoices/{direct['id']}"
+    assert exchange(direct_path, token=token, tenant=a)["number"] == direct["number"]
+    exchange(direct_path, token=token, tenant=b, status=404)
+    listed = exchange("invoices/collectible/all", token=token, tenant=a)
+    assert direct["id"] in {row["id"] for row in listed}
+    cancelled = exchange(f"{direct_path}/cancel", token=token, tenant=a,
+                         data={"reason": "Smoke multiempresa"})
+    assert cancelled["status"] == "CANCELLED" and cancelled["total"] == direct["total"]
+    assert exchange(f"receivables/{direct['saleId']}", token=token, tenant=a)["outstandingBalance"] == "0.00"
     exchange(f"sales/{sale_id}", token=token, tenant=b, status=404)
     exchange("clients", token=token, status=400)
     exchange("clients", token=token, status=400, origin=CATALOG)
     exchange(f"clients/{client_a}", token=token, tenant=b, status=404, origin=CATALOG)
     verify_inventory(token, a, b, item_a)
+    exchange("invoices", token=token, tenant=a, data=sale, key=uuid.uuid4().hex, status=422)
+    assert exchange("sales", token=token, tenant=a)["totalElements"] == 1
     print("Multi-company HTTP smoke passed")
 
 

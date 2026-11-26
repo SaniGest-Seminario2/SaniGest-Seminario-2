@@ -1,6 +1,10 @@
 package com.sanigest.sales.api.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.sanigest.sales.application.dto.CreateSaleCommand;
+import com.sanigest.sales.domain.enums.RequestedReceiptType;
+import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.model.InternalInvoice;
 import com.sanigest.sales.domain.model.InternalInvoice.DocumentType;
 import com.sanigest.sales.domain.model.InternalInvoice.FiscalClassification;
@@ -24,11 +28,19 @@ public record InvoiceResponse(
     Party client,
     List<SaleLineResponse> lines,
     @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal total,
-    String currency) {
+    String currency,
+    @JsonInclude(JsonInclude.Include.NON_NULL) LocalDate issueDate,
+    @JsonInclude(JsonInclude.Include.NON_NULL) SaleMode mode,
+    @JsonInclude(JsonInclude.Include.NON_NULL) RequestedReceiptType requestedReceiptType,
+    @JsonInclude(JsonInclude.Include.NON_NULL) String notes) {
 
   public record Party(UUID id, String name) {}
 
   public static InvoiceResponse from(InternalInvoice invoice) {
+    return from(invoice, null);
+  }
+
+  public static InvoiceResponse from(InternalInvoice invoice, CreateSaleCommand form) {
     return new InvoiceResponse(
         invoice.id(),
         invoice.number(),
@@ -55,6 +67,10 @@ public record InvoiceResponse(
                     line.taxRate() == null ? null : line.taxAmount()))
             .toList(),
         invoice.total(),
-        invoice.currency());
+        invoice.currency(),
+        form == null ? null : invoice.saleDate(),
+        form == null ? null : form.mode(),
+        form == null ? null : form.requestedReceiptType(),
+        form == null ? null : form.notes());
   }
 }

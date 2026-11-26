@@ -12,6 +12,7 @@ import com.sanigest.sales.application.exception.IdempotencyConflict;
 import com.sanigest.sales.application.exception.IdempotencyInProgress;
 import com.sanigest.sales.application.exception.InvalidSaleRequest;
 import com.sanigest.sales.application.exception.InvoiceCompanyUnavailable;
+import com.sanigest.sales.application.exception.InvoiceStockUnavailable;
 import com.sanigest.sales.application.exception.SaleAmountNotRepresentable;
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -35,6 +36,14 @@ class SaleErrorHandler {
         HttpStatus.SERVICE_UNAVAILABLE,
         "INVOICE_COMPANY_UNAVAILABLE",
         "Company snapshot could not be verified");
+  }
+
+  @ExceptionHandler(InvoiceStockUnavailable.class)
+  ProblemDetail stockUnavailable() {
+    return problem(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "INVOICE_STOCK_UNAVAILABLE",
+        "Inventory tracking could not be verified");
   }
 
   @ExceptionHandler(CatalogResourceInvalidException.class)

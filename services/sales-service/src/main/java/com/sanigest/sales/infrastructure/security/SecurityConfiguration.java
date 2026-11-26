@@ -46,13 +46,19 @@ class SecurityConfiguration {
                     HttpMethod.GET,
                     "/api/v1/sales",
                     "/api/v1/sales/{id}",
-                    "/api/v1/receivables/{id}")
+                    "/api/v1/receivables/{id}",
+                    "/api/v1/invoices",
+                    "/api/v1/invoices/all",
+                    "/api/v1/invoices/collectible",
+                    "/api/v1/invoices/collectible/all",
+                    "/api/v1/invoices/{id}")
                 .authenticated()
                 .requestMatchers(
                     HttpMethod.POST,
                     "/api/v1/sales",
                     "/api/v1/sales/{id}/cancel",
                     "/api/v1/invoices",
+                    "/api/v1/invoices/{id}/cancel",
                     "/api/v1/sales/{id}/invoices")
                 .authenticated()
                 .anyRequest()

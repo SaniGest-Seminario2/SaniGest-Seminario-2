@@ -10,12 +10,18 @@ import java.util.UUID;
 public record CreateSaleLineRequest(
     @NotNull UUID catalogItemId,
     @NotNull @Positive BigDecimal quantity,
-    @PositiveOrZero BigDecimal discount) {
+    @PositiveOrZero BigDecimal discount,
+    @PositiveOrZero BigDecimal unitPrice,
+    @PositiveOrZero BigDecimal taxRate) {
+  public CreateSaleLineRequest(UUID catalogItemId, BigDecimal quantity, BigDecimal discount) {
+    this(catalogItemId, quantity, discount, null, null);
+  }
+
   public CreateSaleLineRequest(UUID catalogItemId, BigDecimal quantity) {
     this(catalogItemId, quantity, null);
   }
 
   CreateSaleCommand.Line toCommand() {
-    return new CreateSaleCommand.Line(catalogItemId, quantity, discount);
+    return new CreateSaleCommand.Line(catalogItemId, quantity, discount, unitPrice, taxRate);
   }
 }

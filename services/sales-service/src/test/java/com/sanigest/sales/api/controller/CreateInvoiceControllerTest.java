@@ -22,6 +22,7 @@ import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.sanigest.sales.application.usecase.invoice.IssueInvoice;
 import com.sanigest.sales.application.usecase.sale.CreateSale;
 import com.sanigest.sales.application.usecase.sale.CreateSaleIdempotently;
+import com.sanigest.sales.domain.enums.RequestedReceiptType;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.model.CatalogCustomerSnapshot;
 import com.sanigest.sales.domain.model.CatalogItemSnapshot;
@@ -89,6 +90,9 @@ class CreateInvoiceControllerTest {
     assertThat(response.getStatusCode().value()).isEqualTo(201);
     assertThat(body.path("number").asString()).isEqualTo("FAC-2026-001");
     assertThat(body.path("total").asString()).isEqualTo("22.72");
+    assertThat(body.path("requestedReceiptType").asString()).isEqualTo("FISCAL_CREDIT");
+    assertThat(body.path("notes").asString()).isEqualTo("Entrega");
+    assertThat(body.path("issueDate").asString()).isEqualTo("2026-11-23");
     assertThat(body.at("/lines/0/unitPrice").asString()).isEqualTo("10.1234");
     assertThat(body.at("/lines/0/discount").asString()).isEqualTo("1.00");
     assertThat(body.at("/lines/0/taxAmount").asString()).isEqualTo("3.47");
@@ -118,7 +122,7 @@ class CreateInvoiceControllerTest {
   private CreateInvoiceController controller() {
     var clock = Clock.fixed(Instant.parse("2026-11-23T20:00:00Z"), ZoneOffset.UTC);
     var authorization = mock(SalesAuthorization.class);
-    var register = new CreateSale(authorization, catalog, sales, clock);
+    var register = new CreateSale(authorization, catalog, sales, clock, (item, tenant) -> false);
     return new CreateInvoiceController(
         new CreateSaleIdempotently(authorization, () -> actor, register, keys),
         new IssueInvoice(
@@ -129,10 +133,18 @@ class CreateInvoiceControllerTest {
   private CreateSaleRequest request() {
     return new CreateSaleRequest(
         client,
-        List.of(new CreateSaleLineRequest(item, new BigDecimal("2"), BigDecimal.ONE)),
+        List.of(
+            new CreateSaleLineRequest(
+                item,
+                new BigDecimal("2"),
+                BigDecimal.ONE,
+                new BigDecimal("10.1234"),
+                new BigDecimal("0.18"))),
         LocalDate.of(2026, 11, 23),
         SaleMode.CASH,
-        null);
+        null,
+        RequestedReceiptType.FISCAL_CREDIT,
+        "Entrega");
   }
 
   private static HttpHeaders headers(String key) {
