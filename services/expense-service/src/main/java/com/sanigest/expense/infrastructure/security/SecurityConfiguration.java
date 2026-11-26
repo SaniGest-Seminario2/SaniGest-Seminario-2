@@ -46,6 +46,12 @@ class SecurityConfiguration {
                 .permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/expenses")
                 .authenticated()
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/v1/payables",
+                    "/api/v1/payables/all",
+                    "/api/v1/payables/supplier-balances")
+                .authenticated()
                 .anyRequest()
                 .denyAll())
         .oauth2ResourceServer(resource -> {
