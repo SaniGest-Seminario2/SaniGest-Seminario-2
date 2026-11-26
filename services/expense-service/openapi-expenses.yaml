@@ -1,0 +1,117 @@
+openapi: 3.1.0
+info:
+  title: SaniGest Expense API
+  version: 0.1.0
+paths:
+  /api/v1/expenses:
+    post:
+      operationId: registerExpense
+      summary: Registrar una compra, gasto operativo o adquisición de activo
+      security: [{bearerAuth: []}]
+      parameters:
+        - in: header
+          name: X-Company-Id
+          required: true
+          schema: {type: string, format: uuid}
+        - in: header
+          name: Idempotency-Key
+          required: true
+          description: Reutilizar con el mismo usuario, empresa y cuerpo al reintentar.
+          schema: {type: string, pattern: '^[A-Za-z0-9._:-]{1,128}$'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Registration'}
+      responses:
+        '201':
+          description: Documento registrado o reproducido con la misma clave.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
+        '400': {description: Empresa, referencia comercial, recepción o valor inválido.}
+        '401': {description: Autenticación requerida.}
+        '403': {description: Membresía o permiso insuficiente.}
+        '409': {description: La clave ya fue usada con un cuerpo diferente.}
+        '503': {description: Dependencia indisponible. Si hay recepción pendiente de sincronizar, reintentar con la misma clave.}
+        '504': {description: Tiempo de espera del Gateway agotado. Reintentar con la misma clave.}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  schemas:
+    Decimal:
+      description: Decimal en DOP para importes. Se aceptan números o cadenas decimales en el alta.
+      oneOf:
+        - {type: number}
+        - {type: string, pattern: '^[0-9]+(\.[0-9]+)?$'}
+    OperationType:
+      enum: [PURCHASE, OPERATING_EXPENSE, ASSET_ACQUISITION]
+    ReceiptType:
+      enum: [FISCAL_CREDIT, CONSUMPTION, PURCHASE, MINOR_EXPENSES, OTHER, NOT_APPLICABLE]
+    ReceiptStatus:
+      enum: [PENDING, COMPLETE, PARTIAL]
+    Registration:
+      type: object
+      required: [operationType, documentDate, receiptType, mode, supplierId, supplierInvoiceNumber, receiptStatus, lines]
+      properties:
+        operationType: {$ref: '#/components/schemas/OperationType'}
+        documentDate: {type: string, format: date}
+        receiptType: {$ref: '#/components/schemas/ReceiptType'}
+        mode: {enum: [CASH, CREDIT]}
+        supplierId: {type: string, format: uuid}
+        supplierInvoiceNumber: {type: string, minLength: 1, maxLength: 100}
+        warehouseId:
+          type: [string, 'null']
+          format: uuid
+          description: Requerido cuando el documento incluye productos.
+        receiptStatus: {$ref: '#/components/schemas/ReceiptStatus'}
+        ncf: {type: [string, 'null'], maxLength: 30}
+        attachmentId: {type: [string, 'null'], format: uuid}
+        notes: {type: [string, 'null'], maxLength: 1000}
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: {$ref: '#/components/schemas/Line'}
+    Line:
+      type: object
+      required: [itemId, quantity, unitCost, taxClassification]
+      properties:
+        itemId: {type: string, format: uuid}
+        quantity: {$ref: '#/components/schemas/Decimal'}
+        unitCost: {$ref: '#/components/schemas/Decimal'}
+        taxClassification: {enum: [ITBIS_18, ITBIS_16, EXEMPT]}
+        discount:
+          $ref: '#/components/schemas/Decimal'
+          default: 0
+        receivedQuantity:
+          $ref: '#/components/schemas/Decimal'
+          description: Si se omite, se toma la cantidad completa para COMPLETE o cero para PENDING y PARTIAL.
+    Document:
+      allOf:
+        - $ref: '#/components/schemas/Registration'
+        - type: object
+          required: [id, companyId, supplierName, subtotal, tax, total, financialStatus]
+          properties:
+            id: {type: string, format: uuid}
+            companyId: {type: string, format: uuid}
+            supplierName: {type: string}
+            subtotal: {type: number}
+            tax: {type: number}
+            total: {type: number}
+            dueDate: {type: [string, 'null'], format: date}
+            financialStatus: {enum: [OPEN, PAYMENT_UNRECORDED, NO_BALANCE]}
+            lines:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Line'
+                  - type: object
+                    required: [id, itemName, stockTracked, subtotal, tax, total]
+                    properties:
+                      id: {type: string, format: uuid}
+                      itemName: {type: string}
+                      stockTracked: {type: boolean}
+                      subtotal: {type: number}
+                      tax: {type: number}
+                      total: {type: number}

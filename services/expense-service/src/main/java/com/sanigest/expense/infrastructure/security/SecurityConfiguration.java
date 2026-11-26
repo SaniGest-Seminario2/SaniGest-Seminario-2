@@ -44,6 +44,8 @@ class SecurityConfiguration {
                 .permitAll()
                 .requestMatchers(HttpMethod.GET, "/actuator/info")
                 .permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/expenses")
+                .authenticated()
                 .anyRequest()
                 .denyAll())
         .oauth2ResourceServer(resource -> {

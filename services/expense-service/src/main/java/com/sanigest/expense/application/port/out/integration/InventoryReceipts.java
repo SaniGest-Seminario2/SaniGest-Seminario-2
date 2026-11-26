@@ -8,6 +8,8 @@ import java.util.UUID;
 public interface InventoryReceipts {
   Optional<Warehouse> findWarehouse(UUID companyId, UUID warehouseId);
 
+  boolean tracksStock(UUID companyId, UUID warehouseId, UUID itemId);
+
   /** Records a stock entry with the receipt line ID as its idempotency key. */
   UUID recordEntry(Entry entry);
 

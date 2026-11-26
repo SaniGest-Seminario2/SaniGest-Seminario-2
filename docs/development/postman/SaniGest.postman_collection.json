@@ -6211,6 +6211,69 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Compras y gastos S2-343",
+      "item": [
+        {
+          "name": "POST /api/v1/expenses",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{requestKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operationType\": \"PURCHASE\",\n  \"documentDate\": \"{{expenseDocumentDate}}\",\n  \"receiptType\": \"PURCHASE\",\n  \"mode\": \"CASH\",\n  \"supplierId\": \"{{supplierId}}\",\n  \"supplierInvoiceNumber\": \"COMPRA-001\",\n  \"warehouseId\": \"{{warehouseId}}\",\n  \"receiptStatus\": \"COMPLETE\",\n  \"lines\": [\n    {\n      \"itemId\": \"{{itemId}}\",\n      \"quantity\": \"2\",\n      \"unitCost\": \"10.00\",\n      \"taxClassification\": \"ITBIS_18\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/expenses",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expenses"
+              ]
+            },
+            "description": "Usa un proveedor habilitado para contado, un producto comprable y un almacén de la empresa. Para probar reintentos, fija idempotencyOverride en el entorno."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set(\"requestKey\", pm.environment.get(\"idempotencyOverride\") || pm.variables.replaceIn(\"{{$guid}}\"));",
+                  "pm.variables.set(\"expenseDocumentDate\", new Date().toLocaleDateString(\"sv-SE\", {timeZone: \"America/Santo_Domingo\"}));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
     }
   ]
 }

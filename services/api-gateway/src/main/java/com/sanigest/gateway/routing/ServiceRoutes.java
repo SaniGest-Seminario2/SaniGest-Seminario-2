@@ -1,5 +1,7 @@
 package com.sanigest.gateway.routing;
 
+import static org.springframework.cloud.gateway.support.RouteMetadataUtils.RESPONSE_TIMEOUT_ATTR;
+
 import java.net.URI;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.gateway.config.HttpClientCustomizer;
@@ -8,6 +10,7 @@ import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpMethod;
 
 @Configuration(proxyBeanMethods = false)
 class ServiceRoutes {
@@ -131,6 +134,23 @@ class ServiceRoutes {
                         "/api/v1/inventory/movements",
                         "/api/v1/inventory/adjustments")
                     .uri(destination(environment, "INVENTORY_SERVICE_URL")))
+        .build();
+  }
+
+  @Bean
+  @ConditionalOnProperty("EXPENSE_SERVICE_URL")
+  RouteLocator expenseRoutes(RouteLocatorBuilder builder, Environment environment) {
+    return builder
+        .routes()
+        .route(
+            "expense",
+            route ->
+                route
+                    .path("/api/v1/expenses")
+                    .and()
+                    .method(HttpMethod.POST)
+                    .metadata(RESPONSE_TIMEOUT_ATTR, 15_000)
+                    .uri(destination(environment, "EXPENSE_SERVICE_URL")))
         .build();
   }
 

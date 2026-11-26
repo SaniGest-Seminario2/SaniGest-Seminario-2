@@ -9,7 +9,13 @@ public interface CatalogReferences {
 
   Optional<Item> findItem(UUID companyId, UUID itemId);
 
-  record Supplier(UUID id, String name, boolean active) {}
+  record Supplier(UUID id, String name, boolean active, String paymentTerms, Integer creditDays) {}
 
-  record Item(UUID id, String name, boolean active, boolean stockControlled) {}
+  record Item(
+      UUID id,
+      String name,
+      boolean active,
+      boolean purchasable,
+      boolean product,
+      boolean divisible) {}
 }
