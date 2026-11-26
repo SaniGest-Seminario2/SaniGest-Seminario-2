@@ -10,7 +10,6 @@ infrastructure/*
 libraries/*
 !libraries/common-security/
 !libraries/common-company-access/
-services/api-gateway/src
 **/.project
 **/.settings
 **/*.md

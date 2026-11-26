@@ -68,11 +68,11 @@ no habilita la lectura en Catalog y la venta se rechaza si falla esa consulta.
 
 Para un stack local descartable, preparar `.env` con los valores de desarrollo
 de `.env.example` y las claves JWT de la [guía de seguridad](../seguridad-s2-317.md).
-Generar claves distintas para Catalog y Sales. El usuario 10001 de los
+Generar claves distintas para Catalog, Sales e Inventory. El usuario 10001 de los
 contenedores necesita acceso de lectura a los archivos montados.
 
 ```sh
-for consumer in catalog sales; do
+for consumer in catalog sales inventory; do
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out ".secrets/${consumer}-company-private.pem"
   openssl pkey -in ".secrets/${consumer}-company-private.pem" -pubout -out ".secrets/${consumer}-company-public.pem"
   setfacl -m "u:10001:r" ".secrets/${consumer}-company-private.pem"
@@ -82,7 +82,9 @@ COMPANY_MULTIPLE_MEMBERSHIPS_ENABLED=true docker compose -f docker-compose.yml \
 python3 infrastructure/qa/smoke-multi-company.py
 ```
 
-Expense, Finance e Inventory deberán aplicar el mismo selector por petición,
+Inventory usa el selector en cada petición y verifica `INVENTORY` con alcance `READ` o `WRITE`. Solo admite membresías; Company rechaza las solicitudes delegadas para ese módulo. Catalog verifica `CATALOG_READ` de forma independiente. Consulta la [matriz de Inventory](../../services/inventory-service/README.md).
+
+Expense y Finance deberán aplicar el mismo selector por petición,
 verificar módulo y alcance ante Company, comprobar la pertenencia en su
 persistencia y transportar el tenant autorizado en eventos, snapshots y claves
 idempotentes. Cualquier lectura cacheada deberá estar aislada por empresa y por

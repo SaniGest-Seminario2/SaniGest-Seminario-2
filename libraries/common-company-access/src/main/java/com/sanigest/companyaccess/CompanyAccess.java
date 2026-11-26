@@ -9,6 +9,7 @@ public interface CompanyAccess {
     CATALOG,
     SALES,
     EXPENSE,
+    INVENTORY,
     FINANCE
   }
 

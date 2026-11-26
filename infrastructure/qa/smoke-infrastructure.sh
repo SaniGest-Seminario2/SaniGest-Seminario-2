@@ -20,6 +20,7 @@ export POSTGRES_PORT="$postgres_port"
 export IDENTITY_DB_PASSWORD="${IDENTITY_DB_PASSWORD:-qa-identity-password}"
 export COMPANY_DB_PASSWORD="${COMPANY_DB_PASSWORD:-qa-company-password}"
 export CATALOG_DB_PASSWORD="${CATALOG_DB_PASSWORD:-qa-catalog-password}"
+export INVENTORY_DB_PASSWORD="${INVENTORY_DB_PASSWORD:-qa-inventory-password}"
 export SALES_DB_PASSWORD="${SALES_DB_PASSWORD:-qa-sales-password}"
 export EXPENSE_DB_PASSWORD="${EXPENSE_DB_PASSWORD:-qa-expense-password}"
 export FINANCE_DB_PASSWORD="${FINANCE_DB_PASSWORD:-qa-finance-password}"
@@ -169,14 +170,14 @@ docker compose exec -T postgres \
   /docker-entrypoint-initdb.d/10-create-service-databases.sh >/dev/null
 
 role_count="$(admin_psql -Atc \
-  "SELECT count(*) FROM pg_roles WHERE rolname ~ '^sanigest_(identity|company|catalog|sales|expense|finance)$';")"
-[ "$role_count" = "6" ] || fail "expected 6 service roles, found $role_count"
+  "SELECT count(*) FROM pg_roles WHERE rolname ~ '^sanigest_(identity|company|catalog|sales|inventory|expense|finance)$';")"
+[ "$role_count" = "7" ] || fail "expected 7 service roles, found $role_count"
 
 database_count="$(admin_psql -Atc \
-  "SELECT count(*) FROM pg_database WHERE datname ~ '^sanigest_(identity|company|catalog|sales|expense|finance)$';")"
-[ "$database_count" = "6" ] || fail "expected 6 service databases, found $database_count"
+  "SELECT count(*) FROM pg_database WHERE datname ~ '^sanigest_(identity|company|catalog|sales|inventory|expense|finance)$';")"
+[ "$database_count" = "7" ] || fail "expected 7 service databases, found $database_count"
 
-for service in identity company catalog sales expense finance; do
+for service in identity company catalog sales inventory expense finance; do
   upper_service="$(printf '%s' "$service" | tr '[:lower:]' '[:upper:]')"
   eval "password=\${${upper_service}_DB_PASSWORD}"
   service_psql "$service" "$password" \
@@ -195,6 +196,20 @@ case "$cross_database_response" in
     fail "Expected a CONNECT privilege rejection for Company on the Sales database"
     ;;
 esac
+
+# Exercise the targeted bootstrap against an existing volume with a missing Inventory database.
+admin_psql -c 'DROP DATABASE sanigest_inventory;' >/dev/null
+docker compose exec -T postgres /docker-entrypoint-initdb.d/10-create-service-databases.sh inventory >/dev/null
+[ "$(service_psql company "$COMPANY_DB_PASSWORD" -Atc 'SELECT count(*) FROM qa_own_record;')" = "1" ] ||
+  fail "Inventory bootstrap modified existing Company data"
+for other in identity company catalog sales expense finance; do
+  denied="$(docker compose exec -T -e PGPASSWORD="$INVENTORY_DB_PASSWORD" postgres \
+    psql -X -h 127.0.0.1 -U sanigest_inventory -d "sanigest_$other" -c 'SELECT 1;' 2>&1 || true)"
+  case "$denied" in
+    *'does not have CONNECT privilege'*) ;;
+    *) fail "Inventory unexpectedly connected to $other" ;;
+  esac
+done
 
 next_stage "Valkey authentication"
 unauthenticated_response="$(docker compose exec -T valkey valkey-cli ping 2>&1 || true)"

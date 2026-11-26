@@ -175,9 +175,11 @@ class JdbcCatalogItemCommercialRepository implements CatalogItemCommercialReposi
     return jdbc
         .sql(
             """
-            SELECT i.id, c.name AS category_name, s.supplier_id, r.rate, r.effective_from, r.effective_until
+            SELECT i.id, c.name AS category_name, s.supplier_id, r.rate,
+                   r.effective_from, r.effective_until, u.divisible
             FROM catalog.catalog_items i
             LEFT JOIN catalog.catalog_item_categories c ON c.company_id = i.company_id AND c.id = i.category_id
+            LEFT JOIN catalog.units_of_measure u ON u.code = i.unit_code
             LEFT JOIN catalog.supplier_items s ON s.company_id = i.company_id AND s.catalog_item_id = i.id
                 AND s.is_primary AND s.valid_until IS NULL
             LEFT JOIN catalog.tax_rate_versions r ON r.classification_code = i.tax_classification_code AND
@@ -195,7 +197,8 @@ class JdbcCatalogItemCommercialRepository implements CatalogItemCommercialReposi
                     r.getObject("supplier_id", UUID.class),
                     r.getBigDecimal("rate"),
                     r.getObject("effective_from", LocalDate.class),
-                    r.getObject("effective_until", LocalDate.class))))
+                    r.getObject("effective_until", LocalDate.class),
+                    r.getObject("divisible", Boolean.class))))
         .list()
         .stream()
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

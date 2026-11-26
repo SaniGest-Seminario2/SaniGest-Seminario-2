@@ -5,6 +5,7 @@ import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.access.ResolveCompanyAccess;
 import com.sanigest.company.domain.model.AdvisorPermission;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
+import com.sanigest.companyaccess.CompanyAccess.Module;
 import com.sanigest.companyaccess.CompanyAccessProtocol;
 import com.sanigest.companyaccess.CompanyAccessProtocol.AccessMode;
 import com.sanigest.companyaccess.CompanyAccessProtocol.Query;
@@ -57,7 +58,7 @@ class CompanyAccessController {
                   ? membership.companyName()
                   : null));
     }
-    if (session != null) {
+    if (session != null || query.module() == Module.INVENTORY) {
       throw new CompanyAccessDeniedException();
     }
     access.requireDelegation(

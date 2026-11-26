@@ -1,0 +1,9 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+sanigest:
+  company-access:
+    origin: ${INVENTORY_COMPANY_ACCESS_ORIGIN:http://localhost:8080}
+  catalog:
+    origin: ${INVENTORY_CATALOG_ORIGIN:http://localhost:8083}

@@ -3126,6 +3126,11 @@
             "format": "uuid",
             "nullable": true
           },
+          "unitDivisible": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Divisibilidad de la unidad de medida. Nulo si el artículo carece de unidad."
+          },
           "unitCode": {
             "type": "string",
             "maxLength": 32,

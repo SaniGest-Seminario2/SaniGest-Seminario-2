@@ -1,0 +1,1812 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SaniGest Inventory API",
+    "version": "0.8"
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/v1/warehouses": {
+      "get": {
+        "summary": "Listar almacenes",
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "Empresa seleccionada y autorizada por Company."
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "INACTIVE"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CODE",
+                "NAME",
+                "UPDATED_AT"
+              ],
+              "default": "CODE"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ],
+              "default": "ASC"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Warehouses"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud, cantidad, unidad, selector, filtros o umbrales inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente en Inventory o Catalog.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la empresa seleccionada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Código duplicado, revisión obsoleta, almacén inactivo o con stock, seguimiento incompatible, existencia inicial consumida, saldo insuficiente o conflicto de clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Company o Catalog indisponible.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Crear almacén",
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "Empresa seleccionada y autorizada por Company."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Warehouse"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud, cantidad, unidad, selector, filtros o umbrales inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente en Inventory o Catalog.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la empresa seleccionada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Código duplicado, revisión obsoleta, almacén inactivo o con stock, seguimiento incompatible, existencia inicial consumida, saldo insuficiente o conflicto de clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Company o Catalog indisponible.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWarehouse"
+              }
+            }
+          }
+        },
+        "description": "Código normalizado a mayúsculas, único por empresa. Se crea ACTIVE."
+      }
+    },
+    "/api/v1/warehouses/{id}": {
+      "get": {
+        "summary": "Consultar almacén",
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "Empresa seleccionada y autorizada por Company."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Warehouse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud, cantidad, unidad, selector, filtros o umbrales inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente en Inventory o Catalog.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la empresa seleccionada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Código duplicado, revisión obsoleta, almacén inactivo o con stock, seguimiento incompatible, existencia inicial consumida, saldo insuficiente o conflicto de clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Company o Catalog indisponible.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Editar o cambiar el estado",
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "Empresa seleccionada y autorizada por Company."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Warehouse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud, cantidad, unidad, selector, filtros o umbrales inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente en Inventory o Catalog.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la empresa seleccionada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Código duplicado, revisión obsoleta, almacén inactivo o con stock, seguimiento incompatible, existencia inicial consumida, saldo insuficiente o conflicto de clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Company o Catalog indisponible.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchWarehouse"
+              }
+            }
+          }
+        },
+        "description": "Los campos omitidos se conservan. Ubicación admite null. Solo se desactiva un almacén sin cantidades físicas ni reservadas."
+      }
+    },
+    "/api/v1/inventory/stock": {
+      "get": {
+        "summary": "Listar existencias configuradas",
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "Empresa seleccionada y autorizada por Company."
+          },
+          {
+            "name": "catalogItemId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "availability",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "NOT_TRACKED",
+                "OUT",
+                "LOW",
+                "AVAILABLE"
+              ]
+            }
+          },
+          {
+            "name": "trackingEnabled",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "UPDATED_AT",
+                "AVAILABLE",
+                "NAME"
+              ],
+              "default": "UPDATED_AT"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ],
+              "default": "DESC"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud, cantidad, unidad, selector, filtros o umbrales inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente en Inventory o Catalog.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la empresa seleccionada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Código duplicado, revisión obsoleta, almacén inactivo o con stock, seguimiento incompatible, existencia inicial consumida, saldo insuficiente o conflicto de clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Company o Catalog indisponible.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "description": "La búsqueda usa el último SKU y nombre verificados en Catalog. catalogVerifiedAt indica frescura."
+      }
+    },
+    "/api/v1/inventory/stock/{itemId}/{warehouseId}": {
+      "get": {
+        "summary": "Consultar posición de stock",
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "Empresa seleccionada y autorizada por Company."
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "name": "warehouseId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stock"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud, cantidad, unidad, selector, filtros o umbrales inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente en Inventory o Catalog.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la empresa seleccionada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Código duplicado, revisión obsoleta, almacén inactivo o con stock, seguimiento incompatible, existencia inicial consumida, saldo insuficiente o conflicto de clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Company o Catalog indisponible.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "description": "Una referencia válida sin configuración se devuelve como NOT_TRACKED, con cantidades nulas."
+      },
+      "put": {
+        "summary": "Reemplazar configuración de stock",
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "Empresa seleccionada y autorizada por Company."
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "name": "warehouseId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Reutilizar con el mismo contenido tras un timeout. Requerida para ajustes y para alta inicial con cantidad positiva."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stock"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud, cantidad, unidad, selector, filtros o umbrales inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente en Inventory o Catalog.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la empresa seleccionada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Código duplicado, revisión obsoleta, almacén inactivo o con stock, seguimiento incompatible, existencia inicial consumida, saldo insuficiente o conflicto de clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Company o Catalog indisponible.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureStock"
+              }
+            }
+          }
+        },
+        "description": "Solo PRODUCT con unidad conocida. Mínimo omitido o nulo equivale a 0. Máximo y ubicación omitidos o nulos se limpian. La primera habilitación consume la oportunidad de inicializar incluso en cero. La existencia inicial positiva genera un movimiento único. Las ediciones conservan el saldo."
+      }
+    },
+    "/api/v1/inventory/summary": {
+      "get": {
+        "summary": "Consultar indicadores",
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "Empresa seleccionada y autorizada por Company."
+          },
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Summary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud, cantidad, unidad, selector, filtros o umbrales inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente en Inventory o Catalog.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la empresa seleccionada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Código duplicado, revisión obsoleta, almacén inactivo o con stock, seguimiento incompatible, existencia inicial consumida, saldo insuficiente o conflicto de clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Company o Catalog indisponible.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "description": "Los conteos de stock representan combinaciones artículo-almacén en el conjunto autorizado completo. Untracked cuenta configuraciones guardadas con seguimiento deshabilitado."
+      }
+    },
+    "/api/v1/inventory/movements": {
+      "get": {
+        "summary": "Consultar kardex",
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "Empresa seleccionada y autorizada por Company."
+          },
+          {
+            "name": "catalogItemId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "movementType",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "INITIAL_STOCK",
+                "MANUAL_ADJUSTMENT"
+              ]
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "IN",
+                "OUT"
+              ]
+            }
+          },
+          {
+            "name": "originType",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "STOCK_CONFIGURATION",
+                "MANUAL_ADJUSTMENT"
+              ]
+            }
+          },
+          {
+            "name": "originId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "dateFrom",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "dateTo",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OCCURRED_AT",
+                "QUANTITY"
+              ],
+              "default": "OCCURRED_AT"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ],
+              "default": "DESC"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovementPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud, cantidad, unidad, selector, filtros o umbrales inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente en Inventory o Catalog.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la empresa seleccionada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Código duplicado, revisión obsoleta, almacén inactivo o con stock, seguimiento incompatible, existencia inicial consumida, saldo insuficiente o conflicto de clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Company o Catalog indisponible.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "description": "Intervalo UTC con inicio inclusivo y fin exclusivo. La secuencia ordena movimientos de una misma posición. La reconciliación interna compara entradas menos salidas con el saldo físico persistido."
+      }
+    },
+    "/api/v1/inventory/adjustments": {
+      "post": {
+        "summary": "Registrar ajuste manual",
+        "parameters": [
+          {
+            "name": "X-Company-Id",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "Empresa seleccionada y autorizada por Company."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "required": true,
+            "description": "Reutilizar con el mismo contenido tras un timeout. Requerida para ajustes y para alta inicial con cantidad positiva."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Movement"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud, cantidad, unidad, selector, filtros o umbrales inválidos.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT ausente o inválido.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente en Inventory o Catalog.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente en la empresa seleccionada.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Código duplicado, revisión obsoleta, almacén inactivo o con stock, seguimiento incompatible, existencia inicial consumida, saldo insuficiente o conflicto de clave.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Company o Catalog indisponible.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustStock"
+              }
+            }
+          }
+        },
+        "description": "Cantidad estrictamente positiva y compatible con la unidad. Requiere seguimiento habilitado y motivo. Para productos inactivos se permiten salidas que preserven reservas. El resultado de un reintento legítimo conserva el balance original."
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "CreateWarehouse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "example": "ALM-001"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "location": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 240
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "PatchWarehouse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "example": "ALM-001"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "location": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 240
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "Warehouse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "example": "ALM-001"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "location": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 240
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ConfigureStock": {
+        "type": "object",
+        "properties": {
+          "trackingEnabled": {
+            "type": "boolean"
+          },
+          "minimumStock": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000",
+            "nullable": true
+          },
+          "maximumStock": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 240
+          },
+          "initialQuantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000",
+            "nullable": true
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "trackingEnabled"
+        ],
+        "additionalProperties": false
+      },
+      "AdjustStock": {
+        "type": "object",
+        "properties": {
+          "catalogItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "IN",
+              "OUT"
+            ]
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "catalogItemId",
+          "warehouseId",
+          "direction",
+          "quantity",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "Stock": {
+        "type": "object",
+        "properties": {
+          "catalogItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "trackingEnabled": {
+            "type": "boolean"
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "NOT_TRACKED",
+              "OUT",
+              "LOW",
+              "AVAILABLE"
+            ]
+          },
+          "minimumStock": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000",
+            "nullable": true
+          },
+          "maximumStock": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000",
+            "nullable": true
+          },
+          "onHand": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000",
+            "nullable": true
+          },
+          "reserved": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000",
+            "nullable": true
+          },
+          "available": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 240
+          },
+          "unitCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "sku": {
+            "type": "string",
+            "nullable": true
+          },
+          "itemName": {
+            "type": "string",
+            "nullable": true
+          },
+          "catalogVerifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "nullable": true
+          }
+        }
+      },
+      "Movement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "catalogItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "movementType": {
+            "type": "string",
+            "enum": [
+              "INITIAL_STOCK",
+              "MANUAL_ADJUSTMENT"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "IN",
+              "OUT"
+            ]
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000"
+          },
+          "unitCode": {
+            "type": "string"
+          },
+          "originType": {
+            "type": "string",
+            "enum": [
+              "STOCK_CONFIGURATION",
+              "MANUAL_ADJUSTMENT"
+            ]
+          },
+          "originId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "effectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sequence": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "balanceAfter": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000"
+          }
+        }
+      },
+      "Summary": {
+        "type": "object",
+        "properties": {
+          "activeWarehouses": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "trackedPositions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "availablePositions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "lowPositions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "outPositions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "untrackedConfigurations": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "traceId": {
+            "type": "string"
+          }
+        }
+      },
+      "Warehouses": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Warehouse"
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "StockPage": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Stock"
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "MovementPage": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Movement"
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

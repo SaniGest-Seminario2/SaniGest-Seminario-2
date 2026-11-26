@@ -8,6 +8,11 @@ on:
         required: true
         type: string
 
+      service-unit:
+        description: Publish the separate service unit status
+        type: boolean
+        default: true
+
 permissions:
   contents: read
 
@@ -42,6 +47,7 @@ jobs:
           sh scripts/ci/maven-build.sh -e -pl "services/$SERVICE" -am -Pci-warm-test-runtime -DskipTests -DskipITs verify
 
   unit-tests:
+    if: ${{ inputs.service-unit }}
     # This service-specific status check is kept independently of Code CI.
     name: Unit tests
     needs: syntax
@@ -102,6 +108,10 @@ jobs:
         run: >-
           sh scripts/ci/run-stage.sh "$SERVICE" 'Smoke tests'
           sh scripts/ci/maven-build.sh -e -Dspotless.skip=true -Dcheckstyle.skip=true -pl "services/$SERVICE" -am -Psmoke verify
+
+      - name: Run the multi-company flow through Gateway
+        if: inputs.service == 'inventory-service'
+        run: sh infrastructure/qa/run-smoke-multi-company.sh
 
       - name: Validate and summarize smoke reports
         if: ${{ !cancelled() && steps.tests.outcome != '' }}

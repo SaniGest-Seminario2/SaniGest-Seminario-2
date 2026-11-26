@@ -3,7 +3,11 @@ set -eu
 
 # The official PostgreSQL image runs this file on a new data volume. It is also
 # safe to execute again manually, which makes upgrades and QA deterministic.
-services="identity company catalog sales expense finance"
+case "${1:-}" in
+  "") services="identity company catalog sales inventory expense finance" ;;
+  inventory) services="inventory" ;;
+  *) printf '%s\n' 'Usage: 10-create-service-databases.sh [inventory]' >&2; exit 2 ;;
+esac
 
 for service in $services; do
   upper_service="$(printf '%s' "$service" | tr '[:lower:]' '[:upper:]')"
