@@ -12,6 +12,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
@@ -222,6 +223,29 @@ class ServiceRoutingIT {
                 .GET());
     assertThat(forwarded.statusCode()).isEqualTo(200);
     assertThat(forwarded.headers().firstValue("X-Backend-X-Company-User-Assertion")).isEmpty();
+  }
+
+  @Test
+  void routesPayableReadsWithCompanyAndPreservesQueries() throws Exception {
+    String token = "Bearer " + GatewayTestTokens.validToken();
+    for (String path :
+        List.of(
+            "/api/v1/payables?status=PENDING&page=1",
+            "/api/v1/payables/all?search=paper",
+            "/api/v1/payables/supplier-balances?supplierIds=" + TENANT)) {
+      assertThat(send(request(gateway(), path).GET()).statusCode()).isEqualTo(401);
+      assertThat(send(request(gateway(), path).header("Authorization", token).GET()).statusCode())
+          .isEqualTo(400);
+      var response =
+          send(
+              request(gateway(), path)
+                  .header("Authorization", token)
+                  .header("X-Company-Id", TENANT)
+                  .GET());
+      assertThat(response.statusCode()).isEqualTo(200);
+      assertThat(response.body()).isEqualTo("expense GET " + path + " ");
+      assertThat(response.headers().firstValue("X-Backend-X-Company-Id")).contains(TENANT);
+    }
   }
 
   @Test

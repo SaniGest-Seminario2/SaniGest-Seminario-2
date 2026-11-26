@@ -151,6 +151,17 @@ class ServiceRoutes {
                     .method(HttpMethod.POST)
                     .metadata(RESPONSE_TIMEOUT_ATTR, 15_000)
                     .uri(destination(environment, "EXPENSE_SERVICE_URL")))
+        .route(
+            "payables",
+            route ->
+                route
+                    .path(
+                        "/api/v1/payables",
+                        "/api/v1/payables/all",
+                        "/api/v1/payables/supplier-balances")
+                    .and()
+                    .method(HttpMethod.GET)
+                    .uri(destination(environment, "EXPENSE_SERVICE_URL")))
         .build();
   }
 
