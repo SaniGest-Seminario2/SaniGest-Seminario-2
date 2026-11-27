@@ -3,6 +3,7 @@ package com.sanigest.sales.api.controller;
 import com.sanigest.sales.api.dto.CancelSaleRequest;
 import com.sanigest.sales.application.exception.InvalidSaleRequest;
 import com.sanigest.sales.application.usecase.invoice.ManageInvoices;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -49,6 +50,13 @@ public class InvoiceDocumentsController {
   }
 
   @GetMapping({"/all", "/collectible/all"})
+  @ApiResponse(responseCode = "200", description = "Matching invoices in paginated order")
+  @ApiResponse(
+      responseCode = "422",
+      description =
+          "INVOICE_LIST_LIMIT_EXCEEDED when more than "
+              + ManageInvoices.MAX_UNPAGED_RESULTS
+              + " invoices match")
   public List<JsonNode> all(
       @RequestParam(required = false) String search,
       @RequestParam(required = false) String status,

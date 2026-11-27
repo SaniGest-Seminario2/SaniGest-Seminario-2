@@ -71,6 +71,9 @@ def business_date():
     return datetime.now(ZoneInfo("America/Santo_Domingo")).date()
 
 
+INVOICE_LISTS = ("invoices", "invoices/all", "invoices/collectible", "invoices/collectible/all")
+
+
 def verify_roles(compose, owner, company, other):
     audit = f"companies/{company}/audit-log"
     for role in ("ADMIN", "OPERATOR", "VIEWER"):
@@ -101,6 +104,8 @@ def verify_roles(compose, owner, company, other):
         exchange(f"companies/{company}/members/{user}/status", token=owner, method="PATCH",
                  data={"status": "SUSPENDED"})
         exchange(f"companies/{company}", token=member, status=403)
+        for path in INVOICE_LISTS:
+            exchange(path, token=member, tenant=company, status=403)
         entries = exchange(f"{audit}?size=20", token=owner)["content"]
         assert any(entry["companyId"] == company and entry["targetUserId"] == str(user)
                    and entry["newStatus"] == "SUSPENDED" for entry in entries), entries
@@ -126,7 +131,8 @@ def verify_payment(compose, token, owner, company, other, invoice, sale, client)
 
     invoice_path = f"invoices/{invoice['id']}"
     path = f"{invoice_path}/payments"
-    number = urlencode({"search": invoice["number"]})
+    number = urlencode({"search": invoice["number"].lower()})
+    customer = urlencode({"search": client.lower()})
 
     def assert_state(invoice_status, sales_status, outstanding, collected, collectible):
         document = get(invoice_path)
@@ -134,6 +140,10 @@ def verify_payment(compose, token, owner, company, other, invoice, sale, client)
         query = f"{number}&status={invoice_status}"
         invoice_rows = get(f"invoices/all?{query}")
         assert invoice_rows == get(f"invoices?{query}")["content"] == [document]
+        by_customer = f"{customer}&status={invoice_status}"
+        assert get(f"invoices/all?{by_customer}") == get(f"invoices?{by_customer}")["content"] == [document]
+        for status in {"ISSUED", "PARTIALLY_PAID", "PAID"} - {invoice_status}:
+            assert get(f"invoices?{number}&status={status}")["totalElements"] == 0
         listed_sale = next(row for row in get("sales")["content"] if row["id"] == sale)
         for row, status in ((document, invoice_status), (get(f"sales/{sale}"), sales_status),
                             (listed_sale, sales_status)):
@@ -147,6 +157,8 @@ def verify_payment(compose, token, owner, company, other, invoice, sale, client)
         cash_rows = get(f"invoices/collectible/all?{number}")
         assert cash_rows == get(f"invoices/collectible?{number}")["content"]
         assert cash_rows == ([document] if collectible else [])
+        assert get(f"invoices/collectible/all?{customer}") == get(
+            f"invoices/collectible?{customer}")["content"] == cash_rows
 
     total = Decimal(invoice["total"])
     assert_state("ISSUED", "OPEN", total, Decimal(0), True)
@@ -200,6 +212,58 @@ def verify_payment(compose, token, owner, company, other, invoice, sale, client)
         payment["paymentId"], settled[0]["paymentId"]}
 
 
+def verify_invoice_list_limit(compose, token, company, other, source_invoice):
+    source = uuid.UUID(source_invoice["id"])
+    # Bulk fixtures exercise the real PostgreSQL query without 1,001 invoice issuance requests.
+    fixture(compose, "sanigest_sales", f"""
+        BEGIN;
+        CREATE TEMP TABLE invoice_list_fixture ON COMMIT DROP AS
+        SELECT gen_random_uuid() AS invoice_id, gen_random_uuid() AS sale_id,
+               'FAC-' || substring(i.number FROM 5 FOR 4) || '-' || (910000 + n) AS number
+        FROM sales.internal_invoices i CROSS JOIN generate_series(0, 1000) n
+        WHERE i.id = '{source}';
+
+        INSERT INTO sales.sales
+        SELECT (jsonb_populate_record(s, jsonb_build_object('id', f.sale_id, 'code', NULL))).*
+        FROM invoice_list_fixture f CROSS JOIN sales.sales s
+        JOIN sales.internal_invoices i ON i.sale_id = s.id WHERE i.id = '{source}';
+
+        INSERT INTO sales.internal_invoices
+        SELECT (jsonb_populate_record(i, jsonb_build_object(
+            'id', f.invoice_id, 'sale_id', f.sale_id, 'number', f.number,
+            'idempotency_key', NULL,
+            'response_body', (i.response_body::jsonb || jsonb_build_object(
+                'id', f.invoice_id, 'saleId', f.sale_id, 'number', f.number))::text))).*
+        FROM invoice_list_fixture f CROSS JOIN sales.internal_invoices i WHERE i.id = '{source}';
+
+        INSERT INTO sales.receivables
+        SELECT (jsonb_populate_record(r, jsonb_build_object(
+            'id', gen_random_uuid(), 'sale_id', f.sale_id, 'balance', r.total_amount, 'status', 'OPEN'))).*
+        FROM invoice_list_fixture f CROSS JOIN sales.receivables r
+        JOIN sales.internal_invoices i ON i.sale_id = r.sale_id WHERE i.id = '{source}';
+        COMMIT;
+    """)
+    for path in ("invoices", "invoices/collectible"):
+        def get(suffix, **kwargs):
+            return exchange(f"{path}{suffix}", token=token, tenant=company, **kwargs)
+
+        # All fixture rows share the same date. UUID order must break the tie across pages.
+        search = urlencode({"search": "-910"})
+        rows = get(f"/all?{search}")
+        assert len(rows) == 1000
+        assert [row["id"] for row in rows] == sorted((row["id"] for row in rows), reverse=True)
+        page0 = get(f"?{search}&size=10")
+        page1 = get(f"?{search}&size=10&page=1")
+        assert page0["totalElements"] == 1000 and page0["totalPages"] == 100
+        assert page0["content"] + page1["content"] == rows[:20]
+
+        search = urlencode({"search": "-91"})
+        assert get(f"?{search}&size=1")["totalElements"] == 1001
+        problem = get(f"/all?{search}", status=422)
+        assert problem["errorCode"] == "INVOICE_LIST_LIMIT_EXCEEDED"
+        assert exchange(f"{path}/all?{search}", token=token, tenant=other) == []
+
+
 def main(compose):
     suffix = uuid.uuid4().hex
     credentials = {"email": f"tenant-{suffix}@example.test", "password": "Disposable-smoke-454!"}
@@ -228,7 +292,7 @@ def main(compose):
     assert exchange("clients", token=token, tenant=a, origin=CATALOG)["content"] == []
     assert exchange("sales", token=token, tenant=a)["content"] == []
     for path in ("auth/me", "companies", "advisor/companies", "clients", "catalog-items",
-                 "sales", "invoices", "receivables", "expenses", "payables", "warehouses",
+                 "sales", *INVOICE_LISTS, "receivables", "expenses", "payables", "warehouses",
                  "inventory/stock", "cash-sessions/active/summary",
                  "cash-sessions/active/payments", "reports/projection"):
         exchange(path, tenant=a, status=401)
@@ -423,6 +487,9 @@ def main(compose):
     assert cancelled["outstandingBalance"] == cancelled["collectedAmount"] == "0.00"
     assert exchange("invoices/collectible/all", token=token, tenant=a) == []
     assert exchange(f"receivables/{direct['saleId']}", token=token, tenant=a)["outstandingBalance"] == "0.00"
+    cancelled_query = urlencode({"search": direct["number"], "status": "ALL"})
+    assert exchange(f"invoices/all?{cancelled_query}", token=token, tenant=a) == [cancelled]
+    assert exchange(f"invoices?{cancelled_query}", token=token, tenant=b)["totalElements"] == 0
     for path in (f"sales/{sale_id}", f"receivables/{sale_id}", f"clients/{client_a}"):
         exchange(path, token=token, tenant=b, status=404)
     exchange(f"{direct_path}/payments", token=token, tenant=b, method="POST",
@@ -464,6 +531,7 @@ def main(compose):
         zero_sale = exchange(f"sales/{zero['saleId']}", token=token, tenant=a)
         assert zero_sale["paymentStatus"] == "PAID" and zero_sale["outstandingBalance"] == "0.00"
         assert exchange("invoices/collectible/all", token=token, tenant=a) == []
+        verify_invoice_list_limit(compose, token, a, b, payable_invoice)
     refresh = {"refreshToken": session["refreshToken"]}
     exchange("auth/logout", data=refresh, status=204)
     exchange("auth/refresh", data=refresh, status=401)
