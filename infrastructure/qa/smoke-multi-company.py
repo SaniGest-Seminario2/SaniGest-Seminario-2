@@ -124,7 +124,32 @@ def verify_payment(compose, token, owner, company, other, invoice, sale, client)
     def get(path, tenant=company):
         return exchange(path, token=token, tenant=tenant)
 
-    path = f"invoices/{invoice['id']}/payments"
+    invoice_path = f"invoices/{invoice['id']}"
+    path = f"{invoice_path}/payments"
+    number = urlencode({"search": invoice["number"]})
+
+    def assert_state(invoice_status, sales_status, outstanding, collected, collectible):
+        document = get(invoice_path)
+        assert document["status"] == "ISSUED"
+        query = f"{number}&status={invoice_status}"
+        invoice_rows = get(f"invoices/all?{query}")
+        assert invoice_rows == get(f"invoices?{query}")["content"] == [document]
+        listed_sale = next(row for row in get("sales")["content"] if row["id"] == sale)
+        for row, status in ((document, invoice_status), (get(f"sales/{sale}"), sales_status),
+                            (listed_sale, sales_status)):
+            assert row["paymentStatus"] == status
+            assert Decimal(row["outstandingBalance"]) == outstanding
+            assert Decimal(row["collectedAmount"]) == collected
+        receivable = get(f"receivables/{sale}")
+        assert receivable["status"] == sales_status
+        assert Decimal(receivable["outstandingBalance"]) == outstanding
+        assert Decimal(receivable["collectedAmount"]) == collected
+        cash_rows = get(f"invoices/collectible/all?{number}")
+        assert cash_rows == get(f"invoices/collectible?{number}")["content"]
+        assert cash_rows == ([document] if collectible else [])
+
+    total = Decimal(invoice["total"])
+    assert_state("ISSUED", "OPEN", total, Decimal(0), True)
     key = uuid.uuid4().hex
     data = {"clientName": client, "balance": invoice["total"],
             "lines": [{"amount": "1.00", "method": "CASH"}]}
@@ -133,7 +158,7 @@ def verify_payment(compose, token, owner, company, other, invoice, sale, client)
     assert payment["shiftId"] == str(shift) and payment["operatorId"] == str(owner)
     balance = Decimal(str(invoice["total"])) - Decimal("1.00")
     assert Decimal(str(payment["balance"])) == balance
-    assert Decimal(str(get(f"receivables/{sale}")["outstandingBalance"])) == balance
+    assert_state("PARTIALLY_PAID", "PARTIALLY_PAID", balance, Decimal("1.00"), True)
     page = get("receivables?status=PARTIALLY_PAID&size=1")
     assert page["totalElements"] == 1 and page["content"] == get("receivables/all?status=PARTIALLY_PAID")
     assert get("receivables/all?status=PENDING") == []
@@ -152,6 +177,27 @@ def verify_payment(compose, token, owner, company, other, invoice, sale, client)
         time.sleep(0.5)
     assert summary["shiftId"] == str(shift) and Decimal(str(summary["netCash"])) == Decimal("1.00")
     exchange("cash-sessions/active/summary", token=token, tenant=other, status=404)
+
+    remainder = {**data, "balance": str(balance),
+                 "lines": [{"amount": str(balance), "method": "CASH"}]}
+    start = threading.Barrier(2)
+
+    def finish(_):
+        key = uuid.uuid4().hex
+        start.wait(timeout=10)
+        try:
+            return exchange(path, token=token, tenant=company, data=remainder, key=key, status=201)
+        except AssertionError as unexpected:
+            assert "got 409 (INVOICE_PAYMENT_CONFLICT)" in str(unexpected), unexpected
+            return None
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        settled = [entry for entry in executor.map(finish, range(2)) if entry is not None]
+    assert len(settled) == 1 and Decimal(str(settled[0]["balance"])) == 0
+    assert_state("PAID", "PAID", Decimal(0), total, False)
+    assert get("receivables/all?status=PARTIALLY_PAID") == []
+    assert {line["paymentId"] for line in get("cash-sessions/active/payments")} == {
+        payment["paymentId"], settled[0]["paymentId"]}
 
 
 def main(compose):
@@ -270,6 +316,9 @@ def main(compose):
     cancelled = exchange(f"{direct_path}/cancel", token=token, tenant=a,
                          data={"reason": "Smoke multiempresa"})
     assert cancelled["status"] == "CANCELLED" and cancelled["total"] == direct["total"]
+    assert cancelled["paymentStatus"] == "CANCELLED"
+    assert cancelled["outstandingBalance"] == cancelled["collectedAmount"] == "0.00"
+    assert exchange("invoices/collectible/all", token=token, tenant=a) == []
     assert exchange(f"receivables/{direct['saleId']}", token=token, tenant=a)["outstandingBalance"] == "0.00"
     for path in (f"sales/{sale_id}", f"receivables/{sale_id}", f"clients/{client_a}"):
         exchange(path, token=token, tenant=b, status=404)
@@ -301,6 +350,17 @@ def main(compose):
         verify_payment(compose, token, owner, a, b, payable_invoice,
                        payable_invoice["saleId"], client["name"])
         verify_payable_payment(compose, token, owner, a, b, payable)
+        zero_payload = {**sale, "mode": "CASH", "lines": [
+            {"catalogItemId": service["id"], "quantity": 1, "discount": "25.00"}]}
+        del zero_payload["dueDate"]
+        zero = exchange("invoices", token=token, tenant=a, data=zero_payload,
+                        key=uuid.uuid4().hex, status=201)
+        zero_detail = exchange(f"invoices/{zero['id']}", token=token, tenant=a)
+        assert zero_detail["status"] == "ISSUED" and zero_detail["paymentStatus"] == "PAID"
+        assert zero_detail["total"] == zero_detail["outstandingBalance"] == zero_detail["collectedAmount"] == "0.00"
+        zero_sale = exchange(f"sales/{zero['saleId']}", token=token, tenant=a)
+        assert zero_sale["paymentStatus"] == "PAID" and zero_sale["outstandingBalance"] == "0.00"
+        assert exchange("invoices/collectible/all", token=token, tenant=a) == []
     refresh = {"refreshToken": session["refreshToken"]}
     exchange("auth/logout", data=refresh, status=204)
     exchange("auth/refresh", data=refresh, status=401)

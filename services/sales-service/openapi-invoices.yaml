@@ -452,6 +452,14 @@ components:
           properties:
             invoiceNumber: {type: string, nullable: true, example: FAC-2026-001}
             paymentStatus: {$ref: '#/components/schemas/PaymentStatus'}
+            outstandingBalance:
+              allOf:
+                - {$ref: '#/components/schemas/NullableAmount'}
+              description: Saldo pendiente. Una obligación cancelada devuelve '0.00'.
+            collectedAmount:
+              allOf:
+                - {$ref: '#/components/schemas/NullableAmount'}
+              description: Importe original menos saldo histórico.
     SaleSummary:
       type: object
       required: [id, code, client, saleDate, mode, status, total, currency]
@@ -473,14 +481,6 @@ components:
             lines: {type: array, items: {$ref: '#/components/schemas/Line'}}
             invoiceId: {type: string, format: uuid, nullable: true}
             dueDate: {type: string, format: date, nullable: true}
-            outstandingBalance:
-              allOf:
-                - {$ref: '#/components/schemas/NullableAmount'}
-              description: Saldo cobrable. Una obligación cancelada devuelve '0.00'.
-            collectedAmount:
-              allOf:
-                - {$ref: '#/components/schemas/NullableAmount'}
-              description: Importe original menos balance histórico de la obligación.
             cancellation:
               type: object
               required: [cancelledBy, cancelledAt, cancelReason]
@@ -490,7 +490,7 @@ components:
                 cancelReason: {type: string}
     ReceivableDetail:
       type: object
-      required: [id, client, origin, totalAmount, balance, outstandingBalance, currency, dueDate, status]
+      required: [id, client, origin, totalAmount, balance, outstandingBalance, collectedAmount, currency, dueDate, status]
       properties:
         id: {type: string, format: uuid}
         saleId: {type: string, format: uuid, nullable: true}
@@ -500,6 +500,7 @@ components:
         client: {$ref: '#/components/schemas/Party'}
         origin: {type: string, enum: [SALE, OPENING_BALANCE]}
         totalAmount: {$ref: '#/components/schemas/Amount'}
+        collectedAmount: {$ref: '#/components/schemas/Amount'}
         balance:
           allOf:
             - {$ref: '#/components/schemas/Amount'}
@@ -515,7 +516,7 @@ components:
       type: string
       nullable: true
       enum: [OPEN, PARTIALLY_PAID, PAID, CANCELLED, null]
-      description: Estado de la obligación vinculada. Null si no existe obligación.
+      description: OPEN equivale a ISSUED en facturación. Null si la venta no tiene factura ni obligación.
     NullableAmount:
       type: string
       nullable: true
@@ -540,8 +541,12 @@ components:
         cancelledAt: {type: string, format: date-time}
         cancelledBy: {type: string, format: uuid}
         cancelReason: {type: string}
-        paymentStatus: {type: string, enum: [OPEN, PARTIALLY_PAID, PAID, CANCELLED]}
+        paymentStatus:
+          type: string
+          enum: [ISSUED, PARTIALLY_PAID, PAID, CANCELLED]
+          description: Clasificación de pago expuesta en las consultas de facturación y caja. ISSUED equivale a OPEN en ventas y cartera.
         outstandingBalance: {$ref: '#/components/schemas/Amount'}
+        collectedAmount: {$ref: '#/components/schemas/Amount'}
         issuedAt: {type: string, format: date-time}
         saleDate: {type: string, format: date}
         company: {$ref: '#/components/schemas/Party'}

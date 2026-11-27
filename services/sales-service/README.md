@@ -301,7 +301,8 @@ Las líneas incluyen `id`, `catalogItemId`, `itemName`, `itemDescription`,
 cuando hay metadatos persistidos. La consulta también incluye `invoiceId`,
 `invoiceNumber`, `dueDate`, `paymentStatus`, `outstandingBalance` y
 `collectedAmount` cuando existe el documento u obligación correspondiente.
-Los listados incluyen `invoiceNumber` y `paymentStatus`. El detalle de
+Los listados incluyen `invoiceNumber`, `paymentStatus`, `outstandingBalance`
+y `collectedAmount`. El detalle de
 obligación conserva `balance` y agrega `outstandingBalance`, `saleCode`,
 `invoiceId` e `invoiceNumber`. Para una obligación CANCELLED, `balance` conserva el saldo histórico,
 `outstandingBalance` devuelve `"0.00"` y `collectedAmount` se calcula
@@ -500,6 +501,28 @@ El puerto `PaymentAdmission` requiere que Finance valide el turno activo del
 operador y resuelva la cuenta destino de cada línea. La ruta devuelve 503
 hasta que exista un adaptador de admisión de Finance.
 
+### Estados de pago (S2-378)
+
+En facturación y caja, `status` describe el documento y `paymentStatus`
+clasifica su saldo. Ventas y cartera exponen los códigos equivalentes.
+
+| Saldo y cobros del documento activo | Facturación y caja | Ventas y cartera |
+| --- | --- | --- |
+| Saldo cero, incluido un total de cero | `PAID` | `PAID` |
+| Saldo positivo y algún cobro aplicado | `PARTIALLY_PAID` | `PARTIALLY_PAID` |
+| Saldo positivo y cero cobrado | `ISSUED` | `OPEN` |
+
+`CASH` y `CREDIT` identifican la condición de venta. Un cobro confirmado
+reduce el saldo persistido. Para una factura histórica sin cuenta por cobrar,
+las lecturas usan el total como saldo y cero como cobrado. Caja exige una
+cuenta por cobrar activa con saldo positivo. Si una venta carece tanto de
+factura como de cuenta por cobrar, sus campos financieros son nulos.
+
+Los documentos anulados conservan su historial, se identifican con
+`CANCELLED` y exponen saldo pendiente cero. Sales aún carece de una operación
+de reversión de cobros confirmados. La clasificación se recalcula al cambiar
+el saldo persistido.
+
 ### Cartera abierta (S2-338)
 
 `GET /api/v1/receivables` devuelve `content`, `page`, `size`,
@@ -511,7 +534,7 @@ Ambas rutas requieren JWT y permiso `SALES_READ` en la empresa seleccionada.
 Aceptan `search` para buscar por nombre del cliente, número o UUID del documento,
 y `status=ALL|PENDING|PARTIALLY_PAID`. Devuelven cuentas abiertas con saldo positivo,
 ordenadas por vencimiento e ID. Cada fila incluye `id`, `client {id, name}`,
-`documentId`, `documentNumber`, `dueDate`, `totalAmount`, `balance` y
+`documentId`, `documentNumber`, `dueDate`, `totalAmount`, `balance`, `collectedAmount` y
 `status` (`OPEN` o `PARTIALLY_PAID`). Se usa la factura si existe y la venta
 en los demás casos asociados a una venta. Para un saldo inicial ambos campos
 de documento son nulos.

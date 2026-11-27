@@ -19,7 +19,8 @@ public record ReceivableDetailResponse(
     String saleCode,
     UUID invoiceId,
     String invoiceNumber,
-    String outstandingBalance) {
+    String outstandingBalance,
+    String collectedAmount) {
 
   public static ReceivableDetailResponse from(ReceivableDetail detail) {
     var receivable = detail.receivable();
@@ -36,7 +37,8 @@ public record ReceivableDetailResponse(
         detail.saleCode(),
         detail.invoiceId(),
         detail.invoiceNumber(),
-        receivable.collectibleBalance().toPlainString());
+        receivable.collectibleBalance().toPlainString(),
+        receivable.collectedAmount().toPlainString());
   }
 
   public record Client(UUID id, String name) {}

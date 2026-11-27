@@ -27,7 +27,9 @@ class SalePageResponseTest {
             SaleStatus.REGISTERED,
             new BigDecimal("99999999999999999.99"),
             "FAC-000001",
-            ReceivableStatus.OPEN);
+            ReceivableStatus.OPEN,
+            new BigDecimal("99999999999999999.99"),
+            new BigDecimal("0.00"));
     var json =
         new ObjectMapper().valueToTree(SalePageResponse.from(new SalePage(List.of(item), 2, 2, 5)));
     var summary = json.path("content").get(0);
