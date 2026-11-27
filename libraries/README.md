@@ -5,7 +5,7 @@
 | [common-security](common-security) | En reactor | Validación JWT. Consumidores Gateway, Identity, Company, Catalog, Sales e Inventory. |
 | [common-company-access](common-company-access) | En reactor | Protocolo técnico Company, Catalog, Sales e Inventory. S2-454 evoluciona el selector. |
 | common-web | Planificado en S2-302/371 | RFC 9457, serialización y paginación técnicas. |
-| common-events | Planificado en S2-384 | Esquemas/envelopes de eventos versionados con compatibilidad. |
+| [common-events](common-events) | En reactor | Contratos versionados de pagos confirmados y reversos. |
 | common-cache | Candidato | TTL, convenciones de claves y métricas sin política de negocio. |
 | common-messaging | Candidato | Adaptación Kafka, instrumentación y utilidades técnicas de publicación/consumo. |
 | common-observability | Candidato | Correlación, métricas y configuración técnica compartida. |

@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaymentEventV1",
+  "type": "object",
+  "required": [
+    "eventId",
+    "eventType",
+    "version",
+    "occurredAt",
+    "companyId",
+    "sourceId",
+    "traceId",
+    "paymentId",
+    "accountId",
+    "method",
+    "amount",
+    "currency"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "enum": [
+        "ReceivablePaymentRegisteredV1",
+        "PayablePaymentRegisteredV1",
+        "ReceivablePaymentReversedV1",
+        "PayablePaymentReversedV1"
+      ]
+    },
+    "version": {
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "companyId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sourceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "traceId": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "paymentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "shiftId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "accountId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "method": {
+      "enum": [
+        "CASH",
+        "CREDIT_CARD",
+        "DEBIT_CARD",
+        "TRANSFER",
+        "CHECK"
+      ]
+    },
+    "amount": {
+      "type": "string",
+      "pattern": "^(?=[0-9.]*[1-9])[0-9]+(\\.[0-9]+)?([Ee][+-]?[0-9]+)?$"
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "originalEventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "originalSourceId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "if": {
+    "properties": {
+      "eventType": {
+        "enum": [
+          "ReceivablePaymentReversedV1",
+          "PayablePaymentReversedV1"
+        ]
+      }
+    }
+  },
+  "then": {
+    "required": [
+      "originalEventId",
+      "originalSourceId"
+    ]
+  },
+  "else": {
+    "not": {
+      "anyOf": [
+        {
+          "required": [
+            "originalEventId"
+          ]
+        },
+        {
+          "required": [
+            "originalSourceId"
+          ]
+        }
+      ]
+    }
+  }
+}
