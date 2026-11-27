@@ -9,7 +9,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.sanigest.sales.api.dto.CreateInvoiceRequest;
-import com.sanigest.sales.api.dto.CreateInvoiceRequest.Line;
+import com.sanigest.sales.api.dto.CreateInvoiceRequest.InvoiceLine;
 import com.sanigest.sales.application.dto.CreatedSaleResponse;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess.CompanyContext;
@@ -134,7 +134,7 @@ class CreateInvoiceControllerTest {
     return new CreateInvoiceRequest(
         client,
         List.of(
-            new Line(
+            new InvoiceLine(
                 item,
                 new BigDecimal("2"),
                 new BigDecimal("10.1234"),

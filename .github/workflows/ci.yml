@@ -40,7 +40,7 @@ jobs:
 
   dependencies:
     name: Runtime dependency scan
-    needs: syntax
+    needs: unit-tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -48,6 +48,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-maven
+        with:
+          cache-scope: reactor-unit
       - name: Package the service runtime dependencies
         run: sh scripts/ci/maven-build.sh -Dmaven.test.skip=true -Dspotless.skip=true -Dcheckstyle.skip=true package
       - name: Scan executable service jars and block critical vulnerabilities
@@ -123,6 +125,8 @@ jobs:
 
       - name: Set up Java 21 and Maven cache
         uses: ./.github/actions/setup-maven
+        with:
+          cache-scope: reactor-unit
 
       - name: Run unit tests and enforce JaCoCo coverage
         id: unit
@@ -251,7 +255,15 @@ jobs:
           printf '%s  %s\n' 96365453163118e6503eb71742643d9ee67f91aedbaadd1a1ce9c6213e3b71c7 "$archive" | sha256sum -c -
           tar -xzf "$archive" -C "$RUNNER_TEMP" oasdiff
           for baseline in "$RUNNER_TEMP/openapi-base/"*.json; do
-            "$RUNNER_TEMP/oasdiff" breaking "$baseline" "$RUNNER_TEMP/openapi/${baseline##*/}" --fail-on ERR
+            if [ "${baseline##*/}" = sales.json ]; then
+              # S2-483 requires explicit unit prices for newly created invoices.
+              printf '%s\n' 'POST /api/v1/invoices the request property `lines/items/unitPrice` became required' \
+                > "$RUNNER_TEMP/sales-oasdiff-err-ignore"
+              set -- --err-ignore "$RUNNER_TEMP/sales-oasdiff-err-ignore"
+            else
+              set --
+            fi
+            "$RUNNER_TEMP/oasdiff" breaking "$baseline" "$RUNNER_TEMP/openapi/${baseline##*/}" --fail-on ERR "$@"
           done
       - name: Publish the validated contracts
         uses: actions/upload-artifact@v7

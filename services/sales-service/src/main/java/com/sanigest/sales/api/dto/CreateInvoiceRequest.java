@@ -18,9 +18,10 @@ import java.util.UUID;
 
 public record CreateInvoiceRequest(
     @NotNull UUID clientId,
-    @NotEmpty @Size(max = CreateSaleCommand.MAX_LINES) List<@NotNull @Valid Line> lines,
-    @Schema(description = "Fecha comercial. Acepta saleDate como alias.") @JsonAlias("saleDate")
-        LocalDate issueDate,
+    @NotEmpty @Size(max = CreateSaleCommand.MAX_LINES) List<@NotNull @Valid InvoiceLine> lines,
+    @Schema(description = "Fecha comercial. Puede enviarse como issueDate o saleDate.")
+        @JsonAlias("issueDate")
+        LocalDate saleDate,
     @NotNull SaleMode mode,
     String dueDate,
     RequestedReceiptType requestedReceiptType,
@@ -28,15 +29,15 @@ public record CreateInvoiceRequest(
   public CreateSaleCommand toCommand() {
     return new CreateSaleCommand(
         clientId,
-        lines.stream().map(Line::toCommand).toList(),
-        issueDate,
+        lines.stream().map(InvoiceLine::toCommand).toList(),
+        saleDate,
         mode,
         CreateSaleRequest.parseDueDate(dueDate),
         requestedReceiptType,
         notes);
   }
 
-  public record Line(
+  public record InvoiceLine(
       @NotNull UUID catalogItemId,
       @NotNull @Positive BigDecimal quantity,
       @NotNull @PositiveOrZero BigDecimal unitPrice,
