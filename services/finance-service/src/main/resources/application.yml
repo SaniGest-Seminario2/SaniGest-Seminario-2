@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: finance-service
+  datasource:
+    url: jdbc:postgresql://${FINANCE_DB_HOST}:${FINANCE_DB_PORT:5432}/sanigest_finance
+    username: sanigest_finance
+    password: ${FINANCE_DB_PASSWORD}
+    hikari:
+      connection-timeout: 5000
+      data-source-properties:
+        logServerErrorDetail: false
+        options: "-c lock_timeout=3000"
+      connection-init-sql: >-
+        DO $finance$
+        BEGIN
+          IF current_database() <> 'sanigest_finance' OR session_user <> 'sanigest_finance'
+             OR current_user <> 'sanigest_finance' THEN
+            RAISE EXCEPTION 'Finance requires the sanigest_finance database and role';
+          END IF;
+        END;
+        $finance$;
+  flyway:
+    locations: classpath:db/migration
+    validate-migration-naming: true
+    clean-disabled: true
+  web:
+    error:
+      include-stacktrace: never
+      include-message: never
+
+server:
+  port: ${SERVER_PORT:${FINANCE_SERVICE_PORT:8088}}
+  shutdown: graceful
+
+sanigest:
+  finance:
+    admission-token: ${FINANCE_ADMISSION_TOKEN:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-components: never
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
