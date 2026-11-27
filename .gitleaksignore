@@ -1,0 +1,8 @@
+# Historical test-only RSA key copies and the classpath fixture reference.
+b3c9d87bdf5ccab70d56c91ee67290db18e21782:services/company-service/src/test/resources/jwt-test-private.pem:private-key:1
+b3c9d87bdf5ccab70d56c91ee67290db18e21782:services/identity-service/src/test/resources/jwt-test-private.pem:private-key:1
+b0e4f334a6f1b2302c204966273899a3f2c74517:services/identity-service/src/test/resources/application-test.yml:generic-api-key:13
+# The same fixtures appear in the corresponding merge diffs.
+1abd5c983dafa5e10e5f0a9293451d0c63bfdac7:services/company-service/src/test/resources/jwt-test-private.pem:private-key:1
+1abd5c983dafa5e10e5f0a9293451d0c63bfdac7:services/identity-service/src/test/resources/jwt-test-private.pem:private-key:1
+79709f042c00e72b7d2cb2d405f636f10799af1d:services/identity-service/src/test/resources/application-test.yml:generic-api-key:13

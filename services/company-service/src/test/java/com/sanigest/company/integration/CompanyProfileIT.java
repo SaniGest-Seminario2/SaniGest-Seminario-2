@@ -431,15 +431,25 @@ class CompanyProfileIT {
                 .statusCode())
         .isEqualTo(200);
 
-    assertThat(internalAccess(read, null, UUID.randomUUID()).statusCode()).isEqualTo(200);
+    var other = newOwner("Unrelated delegation");
+    assertThat(internalAccess(read, null, other.companyId()).statusCode()).isEqualTo(200);
+    assertThat(
+            internalAccess(
+                    companyAssertion(advisor, "CATALOG", "READ", other.companyId()), null, target)
+                .statusCode())
+        .isEqualTo(403);
     assertThat(
             internalAccess(companyAssertion(advisor, "CATALOG", "WRITE", target), null, target)
                 .statusCode())
         .isEqualTo(403);
     assertThat(
-            internalAccess(companyAssertion(advisor, "SALES", "READ", target), null, target)
+            internalAccess(
+                    companyAssertion(
+                        advisor, "SALES", "READ", target, SALES_ISSUER, SALES_KEYS, "DELEGATED"),
+                    null,
+                    target)
                 .statusCode())
-        .isEqualTo(401);
+        .isEqualTo(403);
     assertThat(
             internalAccess(companyAssertion(advisor, "CATALOG", "UNKNOWN", target), null, target)
                 .statusCode())

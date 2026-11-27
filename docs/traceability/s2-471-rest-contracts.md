@@ -138,3 +138,14 @@ Detalle de una venta con obligación y factura interna, campos relevantes:
 ```
 
 La migración V17 preserva los registros existentes y protege contra el borrado de unidad, clasificación, flag de compras y condición de pago previamente conocidos. Las altas HTTP y los casos de uso aplican la obligatoriedad prospectiva, con las restricciones de referencias existentes. V18 aplica estas reglas también a las inserciones directas. Las filas históricas conservan sus datos y admiten las actualizaciones válidas bajo V17.
+
+## Regresión de seguridad S2-363
+
+| Pantalla o consumidor | Evidencia automatizada |
+|---|---|
+| Empresa, miembros y acceso delegado | `CompanyProfileIT` verifica la selección explícita, el listado del mismo usuario con OWNER y VIEWER, los miembros enriquecidos y la revocación. La prueba de delegación verifica que un permiso CATALOG para A no habilita SALES ni el acceso a B. |
+| Catálogo e inventario | `CatalogServiceIT` comprueba paginación tras aplicar el filtro combinado y respuestas 403, 404 y 503 de la composición. El smoke verifica el almacén ajeno por Gateway y por acceso directo a Catalog. `InventorySecurityIT` cubre roles, existencias y reintentos por empresa. |
+| Ventas, facturas, cobros y cuentas por cobrar | El smoke verifica que las referencias ajenas se rechazan. `SalesServiceIT` comprueba reintentos por empresa y actor. `SalesAuthorizationIntegrationTest` verifica los permisos vigentes. |
+| Compras, gastos y cuentas por pagar | El smoke comprueba el detalle del gasto, la referencia al adjunto y los filtros de obligaciones por proveedor, tanto por Gateway como por acceso directo a Expense. |
+| Caja, Dashboard y Reportes | El smoke verifica autenticación y rechazo de un contexto sin acceso. `FinancialProjectionsIT` comprueba que una denegación conserva el snapshot anterior y que los movimientos y reintentos se aíslan por empresa. |
+| Servicios REST y despliegue | `AccessTokensTest` comprueba issuer, audience y firma en los decodificadores servlet y reactivo. CI analiza los JAR de ejecución y el historial Git. El despliegue de dev requiere CI exitoso. |

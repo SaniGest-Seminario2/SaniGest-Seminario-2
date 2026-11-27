@@ -23,6 +23,64 @@ env:
     services/finance-service
 
 jobs:
+  secrets:
+    name: Versioned secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan the complete history reachable from the build
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo:ro" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git --gitleaks-ignore-path /repo/.gitleaksignore --verbose --redact=100 --no-banner --log-opts='HEAD --full-history -m' /repo
+
+  dependencies:
+    name: Runtime dependency scan
+    needs: syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-maven
+      - name: Package the service runtime dependencies
+        run: sh scripts/ci/maven-build.sh -Dmaven.test.skip=true -Dspotless.skip=true -Dcheckstyle.skip=true package
+      - name: Scan executable service jars and block critical vulnerabilities
+        run: |
+          mkdir -p "$RUNNER_TEMP/runtime-jars"
+          for service in services/*; do
+            set -- "$service"/target/*.jar
+            test "$#" -eq 1
+            cp "$1" "$RUNNER_TEMP/runtime-jars/"
+          done
+          set -- "$RUNNER_TEMP"/runtime-jars/*.jar
+          docker run --rm -v "$RUNNER_TEMP/runtime-jars:/scan:ro" \
+            ghcr.io/aquasecurity/trivy@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb \
+            rootfs --no-progress --scanners vuln --pkg-types library --list-all-pkgs \
+            --format json /scan > "$RUNNER_TEMP/runtime-vulnerabilities.json"
+          jq -e --argjson expected "$#" '
+            [.Results[]? | select(.Type == "jar") | .Packages[]?.FilePath
+             | strings | select(contains("/BOOT-INF/lib/")) | split("/")[0]]
+            | unique | length == $expected
+          ' "$RUNNER_TEMP/runtime-vulnerabilities.json"
+          jq -e '
+            [.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")
+             | {VulnerabilityID, PkgName, InstalledVersion, FixedVersion}]
+            | unique | debug | length == 0
+          ' "$RUNNER_TEMP/runtime-vulnerabilities.json"
+      - name: Publish dependency scan
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: runtime-vulnerabilities
+          path: ${{ runner.temp }}/runtime-vulnerabilities.json
+          if-no-files-found: ignore
+
   syntax:
     name: Syntax and compilation
     runs-on: ubuntu-latest
@@ -159,7 +217,7 @@ jobs:
   required:
     name: CI required
     if: ${{ always() }}
-    needs: [syntax, unit-tests, coverage, code, company, identity, catalog, sales, inventory, infrastructure, multi-company]
+    needs: [syntax, unit-tests, coverage, code, company, identity, catalog, sales, inventory, infrastructure, multi-company, secrets, dependencies]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     env:

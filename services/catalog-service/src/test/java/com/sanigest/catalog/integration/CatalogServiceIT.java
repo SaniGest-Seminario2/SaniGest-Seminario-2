@@ -3587,6 +3587,11 @@ class CatalogServiceIT {
       COMPANY.verify(6, getRequestedFor(WireMock.urlPathEqualTo(stock)));
       COMPANY.stubFor(
           WireMock.get(WireMock.urlPathEqualTo(stock))
+              .atPriority(2)
+              .willReturn(aResponse().withStatus(403)));
+      assertThat(get(http, path, reader).statusCode()).isEqualTo(403);
+      COMPANY.stubFor(
+          WireMock.get(WireMock.urlPathEqualTo(stock))
               .atPriority(1)
               .willReturn(aResponse().withStatus(503)));
       var failure = get(http, path, reader);
