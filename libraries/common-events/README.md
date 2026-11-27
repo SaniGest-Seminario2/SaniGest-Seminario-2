@@ -4,7 +4,7 @@ El [esquema JSON V1](src/main/resources/schemas/payment-event-v1.schema.json)
 se distribuye con `common-events`.
 
 Sales emite `ReceivablePaymentRegisteredV1` en `sales.receivable-payment.v1`.
-Expense emite `PayablePaymentRegisteredV1` en `expense.payable-payment.v1`.
+El contrato prevé `PayablePaymentRegisteredV1` de Expense en `expense.payable-payment.v1`.
 Cada evento representa una aplicación confirmada de un solo medio. Un pago mixto
 comparte `paymentId` y emite un hecho por línea confirmada, con `sourceId` propio.
 Finance usa `companyId` como clave Kafka, deduplica por `eventId` y protege el
@@ -24,7 +24,9 @@ efecto por `(companyId, origin, sourceId)`. Los reintentos conservan esos IDs.
   "accountId": "00000000-0000-4000-8000-000000000006",
   "method": "CASH",
   "amount": "55.00",
-  "currency": "DOP"
+  "currency": "DOP",
+  "documentId": "00000000-0000-4000-8000-000000000009",
+  "actorId": "00000000-0000-4000-8000-000000000010"
 }
 ```
 
@@ -32,6 +34,8 @@ efecto por `(companyId, origin, sourceId)`. Los reintentos conservan esos IDs.
   `currency`, representado como cadena JSON. En efectivo se descuenta el cambio.
 - `occurredAt` es el instante UTC de confirmación del hecho. `shiftId` se omite
   para aplicaciones fuera de turno. `accountId` identifica la cuenta financiera.
+- `documentId` y `actorId` identifican la factura y el operador autenticado
+  del cobro. Los eventos V1 históricos pueden omitirlos.
 - Cuando exista el flujo, `ReceivablePaymentReversedV1` y
   `PayablePaymentReversedV1` usan el topic y la clave del original. Conservan el
   `paymentId` del pago, añaden `originalEventId` y `originalSourceId`, y tienen

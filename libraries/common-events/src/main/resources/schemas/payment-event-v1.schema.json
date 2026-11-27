@@ -78,6 +78,14 @@
       "type": "string",
       "pattern": "^[A-Z]{3}$"
     },
+    "documentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "actorId": {
+      "type": "string",
+      "format": "uuid"
+    },
     "originalEventId": {
       "type": "string",
       "format": "uuid"

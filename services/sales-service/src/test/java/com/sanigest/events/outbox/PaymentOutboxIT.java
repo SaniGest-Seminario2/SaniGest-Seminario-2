@@ -183,7 +183,9 @@ class PaymentOutboxIT {
         new BigDecimal("50.00"),
         "DOP",
         original == null ? null : original.eventId(),
-        original == null ? null : original.sourceId());
+        original == null ? null : original.sourceId(),
+        null,
+        null);
   }
 
   @EnableTransactionManagement

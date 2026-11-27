@@ -67,6 +67,8 @@ class JdbcPaymentOutboxTest {
         new BigDecimal("10.00"),
         "DOP",
         null,
+        null,
+        null,
         null);
   }
 }
