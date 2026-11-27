@@ -64,6 +64,50 @@ class StockLedgerIT extends InventoryHttpFixture {
 
   @Test
   @Tag("regression")
+  void postsPurchaseReceiptsAndReplaysLegacyAdjustments() throws Exception {
+    var warehouse = warehouse();
+    initialize(warehouse, "20");
+    var expense = UUID.randomUUID();
+    var line = UUID.randomUUID().toString();
+    var legacyLine = UUID.randomUUID().toString();
+    var path = "/internal/v1/inventory/purchase-receipts";
+    var receipt =
+        """
+        {"expenseId":"%s","catalogItemId":"%s","warehouseId":"%s","quantity":"2"}
+        """
+            .formatted(expense, item, warehouse);
+    var legacy =
+        adjustment(warehouse, "IN", "2")
+            .replace("Corrección", "Expense receipt line " + legacyLine);
+
+    var legacyMovement = expect("POST", ADJUST, company, legacyLine, legacy, 201);
+    assertThat(expect("POST", path, company, legacyLine, receipt, 201).get("id"))
+        .isEqualTo(legacyMovement.get("id"));
+
+    var created = expect("POST", path, company, line, receipt, 201);
+    assertThat(
+            expect("POST", ADJUST, company, line, legacy.replace(legacyLine, line), 201).get("id"))
+        .isEqualTo(created.get("id"));
+    assertThat(expect("POST", path, company, line, receipt, 201)).isEqualTo(created);
+    expect("POST", path, company, line, receipt.replace("\"2\"", "\"3\""), 409);
+    var movements =
+        expect(
+            "GET",
+            MOVEMENTS + "?originType=PURCHASE_RECEIPT&originId=" + expense,
+            company,
+            null,
+            null,
+            200);
+    assertThat(movements.get("totalElements").asInt()).isEqualTo(1);
+    var movement = movements.get("content").get(0);
+    assertThat(movement.get("id")).isEqualTo(created.get("id"));
+    assertThat(movement.get("movementType").asString()).isEqualTo("PURCHASE_RECEIPT");
+    assertThat(movement.get("effectId").asString()).isEqualTo(line);
+    assertThat(physical(warehouse)).isEqualTo("24.000");
+  }
+
+  @Test
+  @Tag("regression")
   void filtersBeforePaginationAndMaintainsHistoricalBalances() throws Exception {
     var first = warehouse();
     var second =

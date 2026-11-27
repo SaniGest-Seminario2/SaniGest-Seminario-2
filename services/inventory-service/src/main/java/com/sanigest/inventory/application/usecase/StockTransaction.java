@@ -60,7 +60,14 @@ class StockTransaction {
     ledger.save(result);
     if (initial != null && initial.signum() > 0) {
       ledger.append(
-          movement(result, actor, Type.INITIAL_STOCK, Direction.IN, initial, "Existencia inicial"));
+          movement(
+              result,
+              actor,
+              Type.INITIAL_STOCK,
+              Direction.IN,
+              initial,
+              "Existencia inicial",
+              null));
     }
     if (key != null) {
       idempotency.complete(key, result);
@@ -69,11 +76,26 @@ class StockTransaction {
   }
 
   @Transactional
-  public StockMovement adjust(
-      StockKey stock, UUID actor, Key key, String hash, StockCommands.Adjust command, Item item) {
+  public StockMovement recordMovement(
+      StockKey stock,
+      UUID actor,
+      Key key,
+      String hash,
+      StockCommands.Adjust command,
+      Item item,
+      PurchaseOrigin purchase) {
     var warehouse = warehouses.require(stock.companyId(), stock.warehouseId(), true);
     if (!idempotency.claim(key, hash)) {
       return idempotency.replay(key, hash, StockMovement.class).orElseThrow();
+    }
+    // The legacy key also fences off an older Expense instance retrying during rollout.
+    if (purchase != null && !idempotency.claim(purchase.legacyKey(), purchase.legacyHash())) {
+      var previous =
+          idempotency
+              .replay(purchase.legacyKey(), purchase.legacyHash(), StockMovement.class)
+              .orElseThrow();
+      idempotency.complete(key, previous);
+      return previous;
     }
     warehouse.requireActive();
     var old =
@@ -106,13 +128,17 @@ class StockTransaction {
         movement(
             updated,
             actor,
-            Type.MANUAL_ADJUSTMENT,
+            purchase == null ? Type.MANUAL_ADJUSTMENT : Type.PURCHASE_RECEIPT,
             command.direction(),
             command.quantity(),
-            command.reason());
+            command.reason(),
+            purchase);
     ledger.save(updated);
     ledger.append(movement);
     idempotency.complete(key, movement);
+    if (purchase != null) {
+      idempotency.complete(purchase.legacyKey(), movement);
+    }
     return movement;
   }
 
@@ -170,15 +196,23 @@ class StockTransaction {
   private record PositionAudit(
       Instant created, long revision, long sequence, boolean initialized) {}
 
+  record PurchaseOrigin(UUID expenseId, UUID lineId, Key legacyKey, String legacyHash) {}
+
   private static StockMovement movement(
       StockPosition position,
       UUID actor,
       Type type,
       Direction direction,
       BigDecimal quantity,
-      String reason) {
+      String reason,
+      PurchaseOrigin purchase) {
     var id = UUID.randomUUID();
-    var origin = type == Type.INITIAL_STOCK ? Origin.STOCK_CONFIGURATION : Origin.MANUAL_ADJUSTMENT;
+    var origin =
+        switch (type) {
+          case INITIAL_STOCK -> Origin.STOCK_CONFIGURATION;
+          case MANUAL_ADJUSTMENT -> Origin.MANUAL_ADJUSTMENT;
+          case PURCHASE_RECEIPT -> Origin.PURCHASE_RECEIPT;
+        };
     return new StockMovement(
         id,
         position.key(),
@@ -187,8 +221,8 @@ class StockTransaction {
         quantity,
         position.unitCode(),
         origin,
-        id,
-        id,
+        purchase == null ? id : purchase.expenseId(),
+        purchase == null ? id : purchase.lineId(),
         actor,
         reason,
         position.updatedAt(),

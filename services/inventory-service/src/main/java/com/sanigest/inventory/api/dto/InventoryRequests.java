@@ -51,6 +51,16 @@ public final class InventoryRequests {
     }
   }
 
+  public record PurchaseReceipt(
+      @NotNull UUID expenseId,
+      @NotNull UUID catalogItemId,
+      @NotNull UUID warehouseId,
+      @NotNull JsonNode quantity) {
+    public BigDecimal receivedQuantity() {
+      return decimal(quantity);
+    }
+  }
+
   public static WarehouseOperations.Patch patch(ObjectNode body) {
     if (body.isEmpty()
         || !Set.of("code", "name", "location", "status", "revision")

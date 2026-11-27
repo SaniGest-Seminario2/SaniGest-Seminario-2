@@ -84,7 +84,7 @@ class ExpenseReferences implements CatalogReferences, InventoryReceipts {
       var movement =
           inventory
               .post()
-              .uri("/api/v1/inventory/adjustments")
+              .uri("/internal/v1/inventory/purchase-receipts")
               .headers(headers -> headers.setBearerAuth(token()))
               .header(CompanySelector.HEADER, entry.companyId().toString())
               .header("Idempotency-Key", entry.receiptLineId().toString())
@@ -92,9 +92,8 @@ class ExpenseReferences implements CatalogReferences, InventoryReceipts {
                   Map.of(
                       "catalogItemId", entry.itemId(),
                       "warehouseId", entry.warehouseId(),
-                      "direction", "IN",
-                      "quantity", entry.quantity().stripTrailingZeros().toPlainString(),
-                      "reason", "Expense receipt line " + entry.receiptLineId()))
+                      "expenseId", entry.expenseId(),
+                      "quantity", entry.quantity().stripTrailingZeros().toPlainString()))
               .retrieve()
               .body(MovementResponse.class);
       if (movement == null || movement.id() == null) {

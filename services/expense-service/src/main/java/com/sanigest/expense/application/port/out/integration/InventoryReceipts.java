@@ -16,5 +16,10 @@ public interface InventoryReceipts {
   record Warehouse(UUID id, boolean active) {}
 
   record Entry(
-      UUID companyId, UUID receiptLineId, UUID warehouseId, UUID itemId, BigDecimal quantity) {}
+      UUID companyId,
+      UUID expenseId,
+      UUID receiptLineId,
+      UUID warehouseId,
+      UUID itemId,
+      BigDecimal quantity) {}
 }
