@@ -39,6 +39,7 @@ class ServiceRoutingIT {
   private static final String TENANT = "e3fc1fd0-42ea-4a0d-9c14-6cbd44592b42";
   private static final HttpServer EXPENSE = backend("expense");
   private static final HttpServer INVENTORY = backend("inventory");
+  private static final HttpServer FINANCE = backend("finance");
   private static final HttpServer SALES = backend("sales");
   private static final HttpServer IDENTITY = backend("identity");
   private static final HttpServer COMPANY = backend("company");
@@ -56,6 +57,7 @@ class ServiceRoutingIT {
     registry.add("INVENTORY_SERVICE_URL", () -> origin(INVENTORY));
     registry.add("EXPENSE_SERVICE_URL", () -> origin(EXPENSE));
     registry.add("SALES_SERVICE_URL", () -> origin(SALES));
+    registry.add("FINANCE_SERVICE_URL", () -> origin(FINANCE));
     registry.add("GATEWAY_CORS_ALLOWED_ORIGINS", () -> ORIGIN + ",https://another.example");
   }
 
@@ -65,6 +67,7 @@ class ServiceRoutingIT {
     COMPANY.stop(0);
     CATALOG.stop(0);
     SALES.stop(0);
+    FINANCE.stop(0);
     INVENTORY.stop(0);
     EXPENSE.stop(0);
   }
@@ -125,6 +128,22 @@ class ServiceRoutingIT {
                     .GET())
                 .statusCode())
         .isEqualTo(404);
+  }
+
+  @Test
+  void routesActiveCashSummaryOnlyWithCompanyContext() throws Exception {
+    String path = "/api/v1/cash-sessions/active/summary";
+    String token = "Bearer " + GatewayTestTokens.validToken();
+    var missingCompany = send(request(gateway(), path).header("Authorization", token).GET());
+    assertThat(missingCompany.statusCode()).isEqualTo(400);
+    var summary =
+        send(
+            request(gateway(), path)
+                .header("Authorization", token)
+                .header("X-Company-Id", TENANT)
+                .GET());
+    assertThat(summary.statusCode()).isEqualTo(200);
+    assertThat(summary.body()).isEqualTo("finance GET " + path + " ");
   }
 
   @Test

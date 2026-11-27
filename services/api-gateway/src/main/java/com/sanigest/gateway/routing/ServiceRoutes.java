@@ -166,6 +166,22 @@ class ServiceRoutes {
         .build();
   }
 
+  @Bean
+  @ConditionalOnProperty("FINANCE_SERVICE_URL")
+  RouteLocator financeRoutes(RouteLocatorBuilder builder, Environment environment) {
+    return builder
+        .routes()
+        .route(
+            "finance",
+            route ->
+                route
+                    .path("/api/v1/cash-sessions/active/summary")
+                    .and()
+                    .method(HttpMethod.GET)
+                    .uri(destination(environment, "FINANCE_SERVICE_URL")))
+        .build();
+  }
+
   private URI destination(Environment environment, String property) {
     URI uri;
     try {

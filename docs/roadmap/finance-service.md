@@ -33,9 +33,30 @@ persistencia, el consumidor reintenta cada cinco segundos. Un mensaje
 inválido también deja pendiente su partición hasta que se resuelva. Antes
 de consumir, crea el topic según la [guía de Kafka](../development/kafka.md).
 
-S2-464 implementará la gestión de turnos y arqueo, y S2-467 agregará la gestión
-de cuentas y transferencias. Para probar la admisión antes de esos flujos,
-carga un turno abierto y sus cuentas por método en la base de Finance.
+## Indicadores del turno activo
+
+`GET /api/v1/cash-sessions/active/summary` requiere un JWT y `X-Company-Id`.
+Finance resuelve el turno abierto de esa empresa con el operador del JWT.
+Sales valida la pertenencia y el permiso `SALES_READ` con el mismo JWT y
+proporciona el total de facturas cobrables de la empresa.
+
+La respuesta incluye `shiftId`, `totalCollections` en DOP, `pendingInvoices`,
+`netCash` en DOP y `otherMethods` con cobros por `CREDIT_CARD`, `DEBIT_CARD`,
+`TRANSFER` y `CHECK`. Los cobros se suman a partir de los ingresos confirmados
+proyectados para el turno. El efectivo neto resta todas las salidas de efectivo
+a las entradas de efectivo del turno. Un turno sin movimientos devuelve importes
+en cero. Los cobros pueden tardar en aparecer mientras Kafka los proyecta.
+
+Sin turno abierto devuelve `404`. Si Sales deniega la consulta se devuelve
+`401` o `403` según corresponda. Si no se puede consultar el conteo devuelve
+`503`.
+
+Gateway usa `FINANCE_SERVICE_URL`. Finance usa `FINANCE_SALES_ORIGIN`
+y la misma configuración `JWT_ISSUER`, `JWT_AUDIENCE` y
+`JWT_PUBLIC_KEY_LOCATION` de los otros servicios. El Compose de QA
+configura ambas rutas. Para probar el flujo, carga un turno abierto y sus
+cuentas por método en Finance. S2-467 agregará la gestión de cuentas y
+transferencias.
 
 La hoja de ruta v0.8 también incluye adjuntos (S2-466), actividad y flujo
 (S2-468) y detalle y exportación (S2-469). Las proyecciones MVP usan
