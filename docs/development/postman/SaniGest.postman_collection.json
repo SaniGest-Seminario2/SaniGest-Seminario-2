@@ -3660,6 +3660,65 @@
           "response": []
         },
         {
+          "name": "POST /api/v1/invoices/{{creditInvoiceId}}/payments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{requestKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientName\": \"{{invoicePaymentClientName}}\",\n  \"balance\": \"{{invoicePaymentBalance}}\",\n  \"lines\": [\n    {\n      \"method\": \"CASH\",\n      \"amount\": \"1.00\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/invoices/{{creditInvoiceId}}/payments",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{creditInvoiceId}}",
+                "payments"
+              ]
+            },
+            "description": "Usa un turno activo con cuenta CASH. Define invoicePaymentClientName e invoicePaymentBalance con los datos de la factura antes del cobro. Fija idempotencyOverride y conserva el mismo cuerpo para recibir el 201 histórico."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set(\"requestKey\", pm.environment.get(\"idempotencyOverride\") || pm.variables.replaceIn(\"{{$guid}}\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
           "name": "POST /api/v1/invoices/{{creditInvoiceId}}/cancel",
           "request": {
             "method": "POST",
@@ -6759,7 +6818,7 @@
                 "payments"
               ]
             },
-            "description": "Configura payableId y paymentAccountId con una obligación y una cuenta de la empresa habilitada para TRANSFER. Fija idempotencyOverride para repetir el mismo pago."
+            "description": "Configura payableId y paymentAccountId con una obligación y una cuenta de la empresa habilitada para TRANSFER. Fija idempotencyOverride y conserva la fecha y el cuerpo originales para recibir el 201 histórico."
           },
           "event": [
             {
@@ -6768,7 +6827,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.variables.set(\"requestKey\", pm.environment.get(\"idempotencyOverride\") || pm.variables.replaceIn(\"{{$guid}}\"));",
-                  "pm.variables.set(\"paymentDate\", new Date().toLocaleDateString(\"sv-SE\", {timeZone: \"America/Santo_Domingo\"}));"
+                  "pm.variables.set(\"paymentDate\", pm.environment.get(\"paymentDate\") || new Date().toLocaleDateString(\"sv-SE\", {timeZone: \"America/Santo_Domingo\"}));"
                 ]
               }
             },

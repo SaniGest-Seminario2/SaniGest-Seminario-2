@@ -211,7 +211,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("14");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("15");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -365,8 +365,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(14);
-    assertThat(history.getLast()).containsEntry("version", "14").containsEntry("success", true);
+    assertThat(history).hasSize(15);
+    assertThat(history.getLast()).containsEntry("version", "15").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -434,12 +434,12 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(1);
-    assertThat(current.migrate().migrationsExecuted).isEqualTo(9);
+    assertThat(current.migrate().migrationsExecuted).isEqualTo(10);
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
         .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("14");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("15");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
@@ -2182,6 +2182,19 @@ class SalesServiceIT {
               invoicePayment(http, owner, id, "collect", body.replace("REF", "DIFFERENT")).body())
           .contains("IDEMPOTENCY_CONFLICT");
       assertThat(invoicePayment(http, owner, id, "stale", body).statusCode()).isEqualTo(409);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT request_fingerprint FROM sales.invoice_payments WHERE id = ?",
+                  String.class,
+                  UUID.fromString(result.path("paymentId").asString())))
+          .matches("v1:[0-9a-f]{64}");
+      owner.companyReply(403);
+      assertThat(invoicePayment(http, owner, id, "collect", body).statusCode()).isEqualTo(403);
+      owner.membership("OWNER", false);
+      jdbc.update(
+          "UPDATE sales.invoice_payments SET request_fingerprint = NULL WHERE id = ?",
+          UUID.fromString(result.path("paymentId").asString()));
+      assertThat(invoicePayment(http, owner, id, "collect", body).body()).isEqualTo(created.body());
       owner.membership("OWNER", false, "READ");
       assertShiftHistory(http, owner, result, shift);
       assertClientFinancials(

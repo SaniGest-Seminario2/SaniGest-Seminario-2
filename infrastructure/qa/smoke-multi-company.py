@@ -753,6 +753,8 @@ def verify_payable_payment(compose, token, owner, company, other, payable):
     with ThreadPoolExecutor(max_workers=2) as executor:
         first, replay = list(executor.map(lambda _: pay(), range(2)))
     assert first == replay and first["status"] == "PARTIALLY_PAID"
+    assert pay({**request, "amount": "10.0", "notes": " Abono "}) == first
+    pay(tenant=other, status=404)
     assert Decimal(str(first["outstandingAmount"])) == Decimal("19.50")
     assert pay({**request, "amount": "11.00"}, status=409)["errorCode"] == (
         "PAYABLE_PAYMENT_IDEMPOTENCY_CONFLICT")
