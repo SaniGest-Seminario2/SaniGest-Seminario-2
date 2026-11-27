@@ -194,6 +194,24 @@ class ServiceRoutes {
                     .and()
                     .method(HttpMethod.GET)
                     .uri(destination(environment, "FINANCE_SERVICE_URL")))
+        .route(
+            "finance-projection",
+            route ->
+                route
+                    .path("/api/v1/dashboard/projection", "/api/v1/reports/projection")
+                    .and()
+                    .method(HttpMethod.GET)
+                    .metadata(RESPONSE_TIMEOUT_ATTR, 15_000)
+                    .uri(destination(environment, "FINANCE_SERVICE_URL")))
+        .route(
+            "finance-projection-rebuild",
+            route ->
+                route
+                    .path("/api/v1/reports/projection/rebuild")
+                    .and()
+                    .method(HttpMethod.POST)
+                    .metadata(RESPONSE_TIMEOUT_ATTR, 15_000)
+                    .uri(destination(environment, "FINANCE_SERVICE_URL")))
         .build();
   }
 

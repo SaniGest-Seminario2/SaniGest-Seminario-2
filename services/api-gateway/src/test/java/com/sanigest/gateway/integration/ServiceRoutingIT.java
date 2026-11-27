@@ -142,6 +142,29 @@ class ServiceRoutingIT {
     assertCashRoute("/api/v1/cash-sessions/active/payments", "sales");
   }
 
+  @Test
+  void routesFinancialProjectionsWithExplicitCompany() throws Exception {
+    assertCashRoute("/api/v1/dashboard/projection", "finance");
+    assertCashRoute("/api/v1/reports/projection", "finance");
+
+    String path = "/api/v1/reports/projection/rebuild";
+    String token = "Bearer " + GatewayTestTokens.validToken();
+    var missingCompany =
+        send(
+            request(gateway(), path)
+                .header("Authorization", token)
+                .POST(HttpRequest.BodyPublishers.noBody()));
+    assertThat(missingCompany.statusCode()).isEqualTo(400);
+    var rebuild =
+        send(
+            request(gateway(), path)
+                .header("Authorization", token)
+                .header("X-Company-Id", TENANT)
+                .POST(HttpRequest.BodyPublishers.noBody()));
+    assertThat(rebuild.statusCode()).isEqualTo(422);
+    assertThat(rebuild.body()).isEqualTo("finance POST " + path + " ");
+  }
+
   private void assertCashRoute(String path, String service) throws Exception {
     String token = "Bearer " + GatewayTestTokens.validToken();
     var missingCompany = send(request(gateway(), path).header("Authorization", token).GET());

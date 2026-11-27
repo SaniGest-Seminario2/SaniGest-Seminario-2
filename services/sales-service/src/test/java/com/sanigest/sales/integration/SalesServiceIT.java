@@ -2205,6 +2205,14 @@ class SalesServiceIT {
     assertThat(summary.path("clientsWithPendingBalance").asInt()).isEqualTo(1);
     assertThat(summary.path("totalPending").decimalValue()).isEqualByComparingTo(balance);
 
+    var financialSnapshot =
+        page(getClientFinancials(http, owner, "/internal/financial-snapshot/v1"));
+    assertThat(financialSnapshot.path("balance").decimalValue()).isEqualByComparingTo(balance);
+    assertThat(financialSnapshot.path("recentInvoices").get(0).path("id"))
+        .isEqualTo(invoice.path("id"));
+    assertThat(financialSnapshot.path("series").size()).isEqualTo(2);
+    assertThat(financialSnapshot.path("dataAsOf").asString()).isNotBlank();
+
     var statement =
         page(
             getClientFinancials(

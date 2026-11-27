@@ -37,7 +37,13 @@ class FinanceSecurity {
                     "/actuator/health/readiness",
                     "/actuator/info")
                 .permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/cash-sessions/active/summary")
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/v1/cash-sessions/active/summary",
+                    "/api/v1/dashboard/projection",
+                    "/api/v1/reports/projection")
+                .authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v1/reports/projection/rebuild")
                 .authenticated()
                 .anyRequest()
                 .denyAll())

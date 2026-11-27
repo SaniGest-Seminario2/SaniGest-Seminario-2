@@ -395,6 +395,7 @@ services:
       JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
       JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
       FINANCE_SALES_ORIGIN: http://sales-service:8080
+      FINANCE_EXPENSE_ORIGIN: http://expense-service:8080
       FINANCE_ADMISSION_TOKEN: ${FINANCE_ADMISSION_TOKEN:-}
       FINANCE_DB_HOST: postgres
       FINANCE_DB_PORT: 5432

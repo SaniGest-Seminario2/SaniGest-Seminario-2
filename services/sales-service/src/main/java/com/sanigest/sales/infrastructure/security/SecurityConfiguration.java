@@ -69,6 +69,10 @@ class SecurityConfiguration {
                     "/api/v1/invoices/{id}/payments",
                     "/api/v1/sales/{id}/invoices")
                 .authenticated()
+                .requestMatchers(HttpMethod.GET, "/internal/financial-snapshot/v1")
+                .authenticated()
+                .requestMatchers(HttpMethod.HEAD, "/internal/financial-snapshot/v1")
+                .authenticated()
                 .anyRequest()
                 .denyAll())
         .oauth2ResourceServer(resource -> {
