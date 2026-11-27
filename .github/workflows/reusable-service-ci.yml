@@ -45,6 +45,8 @@ jobs:
   smoke:
     name: Smoke tests
     needs: syntax
+    # Wait for the cache warmup, but let Maven resolve dependencies if it failed.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -83,6 +85,7 @@ jobs:
   regression:
     name: Regression tests
     needs: syntax
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
