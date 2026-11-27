@@ -8,6 +8,10 @@ import java.util.UUID;
 import java.util.function.UnaryOperator;
 
 public interface ClientRepository {
+  record Counts(long total, long active) {}
+
+  Counts counts(UUID companyId);
+
   void insert(Client client);
 
   Optional<Client> find(UUID companyId, UUID id);

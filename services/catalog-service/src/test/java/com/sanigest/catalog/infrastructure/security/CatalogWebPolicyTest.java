@@ -115,6 +115,7 @@ import org.springframework.test.web.servlet.ResultActions;
   CreateCatalogItem.class,
   CreateClient.class,
   ListClients.class,
+  com.sanigest.catalog.application.usecase.client.ClientFinancials.class,
   ClientCompany.class,
   ClientCategories.class,
   ClientReferenceData.class,
@@ -152,6 +153,7 @@ class CatalogWebPolicyTest {
   @MockitoBean SupplierCategoryRepository supplierCategories;
   @MockitoBean SupplierItemRepository supplierItems;
   @MockitoBean CatalogAuthorization authorization;
+  @MockitoBean com.sanigest.catalog.application.port.out.integration.SalesClientFinancials sales;
 
   @MockitoBean
   com.sanigest.catalog.application.port.out.integration.InventoryAvailability inventory;

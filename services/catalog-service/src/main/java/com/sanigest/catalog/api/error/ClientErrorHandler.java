@@ -4,6 +4,7 @@ import static com.sanigest.catalog.api.error.CatalogProblems.problem;
 
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.exception.ClientFinancialsUnavailable;
 import com.sanigest.catalog.application.exception.ClientListingForbiddenException;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -14,6 +15,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(0)
 @RestControllerAdvice
 class ClientErrorHandler {
+  @ExceptionHandler(ClientFinancialsUnavailable.class)
+  ProblemDetail financialsUnavailable() {
+    return problem(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "CLIENT_FINANCIALS_UNAVAILABLE",
+        "Client financial data could not be retrieved");
+  }
+
   @ExceptionHandler(ClientListingForbiddenException.class)
   ProblemDetail listingForbidden(ClientListingForbiddenException failure) {
     return problem(HttpStatus.FORBIDDEN, "FORBIDDEN", failure.getMessage());

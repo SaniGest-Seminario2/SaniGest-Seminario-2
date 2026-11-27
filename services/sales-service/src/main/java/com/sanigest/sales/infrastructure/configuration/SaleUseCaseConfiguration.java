@@ -16,6 +16,7 @@ import com.sanigest.sales.application.port.out.persistence.ReceivableRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
+import com.sanigest.sales.application.usecase.client.ClientFinancials;
 import com.sanigest.sales.application.usecase.invoice.IssueInvoice;
 import com.sanigest.sales.application.usecase.invoice.ListActiveShiftPayments;
 import com.sanigest.sales.application.usecase.invoice.ManageInvoices;
@@ -36,6 +37,12 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 class SaleUseCaseConfiguration {
+  @Bean
+  ClientFinancials clientFinancials(
+      SalesAuthorization authorization, ClientFinancials.Ledger ledger) {
+    return new ClientFinancials(authorization, ledger);
+  }
+
   @Bean
   GetReceivable getReceivable(SalesAuthorization authorization, ReceivableRepository receivables) {
     return new GetReceivable(authorization, receivables);

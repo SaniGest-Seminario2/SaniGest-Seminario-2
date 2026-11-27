@@ -1,5 +1,6 @@
 package com.sanigest.catalog.application.dto;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,5 +22,20 @@ public record ClientPage(List<Item> content, int page, int size, long totalEleme
       String clientType,
       String paymentTerms,
       UUID categoryId,
-      String categoryName) {}
+      String categoryName,
+      BigDecimal balance) {
+    public Item withBalance(BigDecimal amount) {
+      return new Item(
+          id,
+          name,
+          taxId,
+          status,
+          phone,
+          clientType,
+          paymentTerms,
+          categoryId,
+          categoryName,
+          amount);
+    }
+  }
 }

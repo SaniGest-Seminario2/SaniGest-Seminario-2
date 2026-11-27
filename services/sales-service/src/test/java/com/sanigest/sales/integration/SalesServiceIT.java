@@ -210,7 +210,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("12");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("13");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -322,6 +322,9 @@ class SalesServiceIT {
             "receivables_company_id_key",
             "invoice_payments_pkey",
             "invoice_payments_shift_history_idx",
+            "receivables_client_pending_idx",
+            "invoices_client_history_idx",
+            "invoice_payments_invoice_history_idx",
             "invoice_payments_company_id_operator_id_idempotency_key_key",
             "invoice_payment_lines_pkey",
             "invoice_payment_lines_payment_id_position_key");
@@ -361,8 +364,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(12);
-    assertThat(history.getLast()).containsEntry("version", "12").containsEntry("success", true);
+    assertThat(history).hasSize(13);
+    assertThat(history.getLast()).containsEntry("version", "13").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -430,12 +433,12 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(1);
-    assertThat(current.migrate().migrationsExecuted).isEqualTo(7);
+    assertThat(current.migrate().migrationsExecuted).isEqualTo(8);
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
         .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("12");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("13");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
@@ -1636,6 +1639,9 @@ class SalesServiceIT {
               "receivables_company_id_key",
               "invoice_payments_pkey",
               "invoice_payments_shift_history_idx",
+              "receivables_client_pending_idx",
+              "invoices_client_history_idx",
+              "invoice_payments_invoice_history_idx",
               "invoice_payments_company_id_operator_id_idempotency_key_key",
               "invoice_payment_lines_pkey",
               "invoice_payment_lines_payment_id_position_key");
@@ -2109,7 +2115,66 @@ class SalesServiceIT {
       assertThat(invoicePayment(http, owner, id, "stale", body).statusCode()).isEqualTo(409);
       owner.membership("OWNER", false, "READ");
       assertShiftHistory(http, owner, result, shift);
+      assertClientFinancials(
+          http, owner, document, result, balance.subtract(new BigDecimal("3.00")));
     }
+  }
+
+  private void assertClientFinancials(
+      HttpClient http, Fixture owner, JsonNode invoice, JsonNode payment, BigDecimal balance)
+      throws Exception {
+    var base = "/internal/client-financials";
+    var client = "/" + owner.client();
+    var company = "?expectedCompanyId=" + owner.company();
+
+    var totals = page(getClientFinancials(http, owner, base + client + "/summary" + company));
+    assertThat(totals.path("balance").decimalValue()).isEqualByComparingTo(balance);
+    assertThat(totals.path("creditExposure").decimalValue()).isEqualByComparingTo(balance);
+    assertThat(totals.path("totalInvoiced").decimalValue())
+        .isEqualByComparingTo(balance.add(new BigDecimal("3.00")));
+    assertThat(totals.path("paymentsReceived").decimalValue()).isEqualByComparingTo("3.00");
+
+    var summary = page(getClientFinancials(http, owner, base + "/summary" + company));
+    assertThat(summary.path("clientsWithPendingBalance").asInt()).isEqualTo(1);
+    assertThat(summary.path("totalPending").decimalValue()).isEqualByComparingTo(balance);
+
+    var statement =
+        page(
+            getClientFinancials(
+                http, owner, base + client + "/statement" + company + "&page=0&size=1"));
+    assertThat(statement.path("invoices").get(0).path("id")).isEqualTo(invoice.path("id"));
+    assertThat(statement.path("payments").get(0).path("id")).isEqualTo(payment.path("paymentId"));
+    assertThat(statement.path("hasMorePayments").asBoolean()).isFalse();
+    assertThat(
+            getClientFinancials(
+                    http, owner, base + "/summary?expectedCompanyId=" + UUID.randomUUID())
+                .statusCode())
+        .isEqualTo(403);
+
+    var batch =
+        http.send(
+            HttpRequest.newBuilder(
+                    URI.create("http://localhost:" + port + base + "/balances" + company))
+                .header("Authorization", "Bearer " + owner.bearer())
+                .header("X-Company-Id", owner.company().toString())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("[\"" + owner.client() + "\"]"))
+                .build(),
+            HttpResponse.BodyHandlers.ofString());
+    assertThat(batch.statusCode()).withFailMessage(batch.body()).isEqualTo(200);
+    assertThat(page(batch).path(owner.client().toString()).decimalValue())
+        .isEqualByComparingTo(balance);
+  }
+
+  private HttpResponse<String> getClientFinancials(HttpClient http, Fixture owner, String path)
+      throws Exception {
+    return http.send(
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+            .header("Authorization", "Bearer " + owner.bearer())
+            .header("X-Company-Id", owner.company().toString())
+            .GET()
+            .build(),
+        HttpResponse.BodyHandlers.ofString());
   }
 
   private void assertShiftHistory(HttpClient http, Fixture owner, JsonNode payment, UUID shift)

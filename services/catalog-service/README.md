@@ -148,6 +148,27 @@ duplicado o una revisión obsoleta produce `409`.
   gestionan con los documentos comerciales.
   [DGII, guía de comprobantes fiscales](https://dgii.gov.do/publicacionesOficiales/bibliotecaVirtual/contribuyentes/facturacion/Documents/Comprobantes%20Fiscales/1-Guia%205-Comprobantes%20Fiscales.pdf)
 
+### Indicadores y ficha financiera de clientes (S2-457)
+
+- `GET /api/v1/clients` y `GET /api/v1/clients/all` comparten filtros y orden.
+  Cada fila incluye `balance`. Cero indica que Sales confirmó que el cliente no
+  tiene deuda pendiente. `null` indica que el saldo no estuvo disponible para
+  esa consulta.
+- `GET /api/v1/clients/summary` devuelve `totalClients`, `activeClients`,
+  `clientsWithPendingBalance`, `totalPending` y `asOf` para la empresa.
+- `GET /api/v1/clients/{id}/financial-summary` devuelve la ficha comercial con
+  `balance`, `availableCredit`, `totalInvoiced`, `paymentsReceived` y `asOf`.
+  El crédito disponible es el límite menos la deuda a crédito, con mínimo
+  cero. Un cliente sin límite devuelve `availableCredit: null`.
+- `GET /api/v1/clients/{id}/statement` devuelve `invoices` y `payments`,
+  ambos del más reciente al más antiguo. Acepta `page` y `size` (20 por
+  defecto, máximo 100) e indica si hay más registros en cada lista. El
+  historial incluye clientes inactivos y facturas anuladas con su estado.
+
+Las consultas financieras requieren lectura de Catalog y Sales en la misma
+empresa seleccionada con `X-Company-Id`. Catalog consulta Sales a través de
+`CATALOG_SALES_ORIGIN`, configurado en Compose.
+
 ### Ficha comercial y artículos de proveedores (S2-458)
 
 Se conservan las cinco rutas de proveedores. `POST` usa `201` y asigna
