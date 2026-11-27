@@ -275,6 +275,11 @@ def main(compose):
         {"value": "CREDIT", "label": "Crédito"},
     ]
     assert catalog_options["supplierSupplyTypes"] == [
+        {"value": "PRODUCT", "label": "Productos"},
+        {"value": "SERVICE", "label": "Servicios"},
+        {"value": "BOTH", "label": "Ambos"},
+    ]
+    assert catalog_options["supplierSupplyClassifications"] == [
         {"value": "REGULAR", "label": "Regular"},
         {"value": "BOTH", "label": "Productos y servicios"},
         {"value": "PRODUCT", "label": "Productos"},
@@ -549,7 +554,11 @@ def verify_expenses(token, company, other, item, warehouse):
         "name": "Proveedor a crédito", "contact": "Compras", "supplyType": "REGULAR",
         "paymentTerms": "BOTH", "creditDays": 30,
     })
-    assert supplier["supplyType"] == "REGULAR"
+    detail = exchange(f"suppliers/{supplier['id']}", token=token, tenant=company)
+    listed = exchange("suppliers?supplyType=REGULAR", token=token, tenant=company)["content"]
+    assert [entry["id"] for entry in listed] == [supplier["id"]]
+    for record in (supplier, detail, *listed):
+        assert record["supplyType"] == "BOTH" and record["supplyClassification"] == "REGULAR"
     issue_date = business_date()
     attachment = str(uuid.uuid4())
     request = {

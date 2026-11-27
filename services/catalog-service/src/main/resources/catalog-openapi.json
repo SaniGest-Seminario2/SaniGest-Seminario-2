@@ -40,7 +40,8 @@
                     "supplierCreditDays",
                     "itemTypes",
                     "itemTypeFilters",
-                    "itemAvailabilityFilters"
+                    "itemAvailabilityFilters",
+                    "supplierSupplyClassifications"
                   ],
                   "properties": {
                     "clientTypes": {
@@ -122,10 +123,9 @@
                           "value": {
                             "type": "string",
                             "enum": [
-                              "REGULAR",
-                              "BOTH",
                               "PRODUCT",
-                              "SERVICE"
+                              "SERVICE",
+                              "BOTH"
                             ]
                           },
                           "label": {
@@ -228,6 +228,31 @@
                           }
                         }
                       }
+                    },
+                    "supplierSupplyClassifications": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "enum": [
+                              "REGULAR",
+                              "BOTH",
+                              "PRODUCT",
+                              "SERVICE"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "description": "Opciones de alta para el campo supplyType. El tipo exacto se devuelve en supplyClassification."
                     }
                   }
                 }
@@ -3929,10 +3954,10 @@
             "enum": [
               "PRODUCT",
               "SERVICE",
-              "BOTH",
-              "REGULAR"
+              "BOTH"
             ],
-            "nullable": true
+            "nullable": true,
+            "description": "Cobertura de suministro. REGULAR se representa como BOTH."
           },
           "paymentTerms": {
             "type": "string",
@@ -3959,6 +3984,17 @@
             "type": "string",
             "maxLength": 1000,
             "nullable": true
+          },
+          "supplyClassification": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE",
+              "BOTH",
+              "REGULAR"
+            ],
+            "nullable": true,
+            "description": "Tipo exacto del proveedor. Use este valor para editar el campo supplyType."
           }
         }
       },
@@ -4031,10 +4067,10 @@
             "enum": [
               "PRODUCT",
               "SERVICE",
-              "BOTH",
-              "REGULAR"
+              "BOTH"
             ],
-            "nullable": true
+            "nullable": true,
+            "description": "Cobertura de suministro. REGULAR se representa como BOTH."
           },
           "paymentTerms": {
             "type": "string",
@@ -4061,6 +4097,17 @@
             "type": "string",
             "maxLength": 1000,
             "nullable": true
+          },
+          "supplyClassification": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE",
+              "BOTH",
+              "REGULAR"
+            ],
+            "nullable": true,
+            "description": "Tipo exacto del proveedor. Use este valor para editar el campo supplyType."
           }
         }
       },
@@ -4111,10 +4158,10 @@
             "enum": [
               "PRODUCT",
               "SERVICE",
-              "BOTH",
-              "REGULAR"
+              "BOTH"
             ],
-            "nullable": true
+            "nullable": true,
+            "description": "Cobertura de suministro. REGULAR se representa como BOTH."
           },
           "paymentTerms": {
             "type": "string",
@@ -4129,6 +4176,17 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "supplyClassification": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE",
+              "BOTH",
+              "REGULAR"
+            ],
+            "nullable": true,
+            "description": "Tipo exacto del proveedor. Use este valor para editar el campo supplyType."
           }
         }
       },

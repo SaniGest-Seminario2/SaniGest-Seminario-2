@@ -18,10 +18,13 @@ public record CatalogOptions(
     List<ValueOption<Integer>> supplierCreditDays,
     List<ValueOption<String>> itemTypes,
     List<ValueOption<String>> itemTypeFilters,
-    List<ValueOption<String>> itemAvailabilityFilters) {
+    List<ValueOption<String>> itemAvailabilityFilters,
+    List<ValueOption<String>> supplierSupplyClassifications) {
   public static CatalogOptions defaults() {
     var types =
         List.of(of(CatalogItemType.PRODUCT, "Producto"), of(CatalogItemType.SERVICE, "Servicio"));
+    var products = of(SupplierSupplyType.PRODUCT, "Productos");
+    var services = of(SupplierSupplyType.SERVICE, "Servicios");
     return new CatalogOptions(
         List.of(of(ClientType.NATURAL, "Persona física"), of(ClientType.LEGAL, "Persona jurídica")),
         List.of(of(ClientPaymentTerms.CASH, "Contado"), of(ClientPaymentTerms.CREDIT, "Crédito")),
@@ -29,11 +32,7 @@ public record CatalogOptions(
             of(SupplierPaymentTerms.CASH, "Contado"),
             of(SupplierPaymentTerms.CREDIT, "Crédito"),
             of(SupplierPaymentTerms.BOTH, "Ambos")),
-        List.of(
-            of(SupplierSupplyType.REGULAR, "Regular"),
-            of(SupplierSupplyType.BOTH, "Productos y servicios"),
-            of(SupplierSupplyType.PRODUCT, "Productos"),
-            of(SupplierSupplyType.SERVICE, "Servicios")),
+        List.of(products, services, of(SupplierSupplyType.BOTH, "Ambos")),
         List.of(
             new ValueOption<>(null, "No aplica"),
             new ValueOption<>(15, "15 días"),
@@ -46,6 +45,11 @@ public record CatalogOptions(
             new ValueOption<>("ALL", "Todas"),
             of(State.AVAILABLE, "Disponibles"),
             of(State.LOW, "Stock bajo"),
-            of(State.OUT, "Agotado")));
+            of(State.OUT, "Agotado")),
+        List.of(
+            of(SupplierSupplyType.REGULAR, "Regular"),
+            of(SupplierSupplyType.BOTH, "Productos y servicios"),
+            products,
+            services));
   }
 }
