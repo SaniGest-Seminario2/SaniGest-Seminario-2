@@ -1,9 +1,16 @@
 package com.sanigest.finance.infrastructure;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.RETURNS_SELF;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import tools.jackson.databind.json.JsonMapper;
 
 class ConfirmedPaymentConsumerTest {
@@ -33,5 +40,19 @@ class ConfirmedPaymentConsumerTest {
             consumer.project(
                 new ConsumerRecord<>(
                     "expense.payable-payment.v1", 0, 0, "other-company", PAYABLE)));
+  }
+
+  @Test
+  void persistsPayableAsCompanyOutflow() {
+    var jdbc = mock(JdbcClient.class);
+    var sql = mock(JdbcClient.StatementSpec.class, RETURNS_SELF);
+    when(jdbc.sql(anyString())).thenReturn(sql);
+    new ConfirmedPaymentConsumer(JsonMapper.builder().build(), jdbc)
+        .project(new ConsumerRecord<>("expense.payable-payment.v1", 0, 0, COMPANY, PAYABLE));
+
+    verify(sql).param("company", UUID.fromString(COMPANY));
+    verify(sql).param("origin", "PAGO");
+    verify(sql).param("direction", "OUTFLOW");
+    verify(sql).update();
   }
 }
