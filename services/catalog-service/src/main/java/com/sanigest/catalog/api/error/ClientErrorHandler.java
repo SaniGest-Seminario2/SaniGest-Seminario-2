@@ -1,6 +1,6 @@
 package com.sanigest.catalog.api.error;
 
-import static com.sanigest.catalog.api.error.CatalogProblems.problem;
+import static com.sanigest.web.HttpProblems.create;
 
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 class ClientErrorHandler {
   @ExceptionHandler(ClientFinancialsUnavailable.class)
   ProblemDetail financialsUnavailable() {
-    return problem(
+    return create(
         HttpStatus.SERVICE_UNAVAILABLE,
         "CLIENT_FINANCIALS_UNAVAILABLE",
         "Client financial data could not be retrieved");
@@ -25,17 +25,17 @@ class ClientErrorHandler {
 
   @ExceptionHandler(ClientListingForbiddenException.class)
   ProblemDetail listingForbidden(ClientListingForbiddenException failure) {
-    return problem(HttpStatus.FORBIDDEN, "FORBIDDEN", failure.getMessage());
+    return create(HttpStatus.FORBIDDEN, "FORBIDDEN", failure.getMessage());
   }
 
   @ExceptionHandler(ClientAccessException.class)
   ProblemDetail clientAccess(ClientAccessException failure) {
     String code = failure.reason().name();
     return switch (failure.reason()) {
-      case FORBIDDEN -> problem(HttpStatus.FORBIDDEN, code, "Client access is not authorized");
-      case CLIENT_NOT_FOUND -> problem(HttpStatus.NOT_FOUND, code, "Client not found");
+      case FORBIDDEN -> create(HttpStatus.FORBIDDEN, code, "Client access is not authorized");
+      case CLIENT_NOT_FOUND -> create(HttpStatus.NOT_FOUND, code, "Client not found");
       case CLIENT_UPDATE_CONFLICT ->
-          problem(HttpStatus.CONFLICT, code, "The client was changed by another request");
+          create(HttpStatus.CONFLICT, code, "The client was changed by another request");
     };
   }
 
@@ -44,14 +44,14 @@ class ClientErrorHandler {
     String errorCode = failure.reason().name();
     return switch (failure.reason()) {
       case FORBIDDEN ->
-          problem(HttpStatus.FORBIDDEN, errorCode, "Client creation is not authorized");
+          create(HttpStatus.FORBIDDEN, errorCode, "Client creation is not authorized");
       case AUTHORIZATION_UNAVAILABLE ->
-          problem(
+          create(
               HttpStatus.SERVICE_UNAVAILABLE,
               errorCode,
               "Company authorization could not be verified");
       case DUPLICATE_TAX_ID ->
-          problem(
+          create(
               HttpStatus.CONFLICT,
               errorCode,
               "A client with that tax ID already exists in the company");

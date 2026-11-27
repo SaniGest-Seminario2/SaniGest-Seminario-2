@@ -14,6 +14,7 @@ import com.sanigest.catalog.application.usecase.supplier.ListSuppliers;
 import com.sanigest.catalog.application.usecase.supplier.UpdateSupplier;
 import com.sanigest.catalog.domain.enums.SupplierPaymentTerms;
 import com.sanigest.catalog.domain.enums.SupplierSupplyType;
+import com.sanigest.web.PageResponse;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -78,7 +79,7 @@ class SupplierController {
   }
 
   @GetMapping("/api/v1/suppliers")
-  SupplierPageResponse list(
+  PageResponse<SupplierPageResponse.Item> list(
       @RequestParam(required = false) String search,
       @RequestParam(required = false) String status,
       @ModelAttribute CommercialFilters filters,

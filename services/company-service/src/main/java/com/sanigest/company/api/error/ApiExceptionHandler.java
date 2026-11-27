@@ -12,6 +12,7 @@ import com.sanigest.company.application.exception.MemberNotFoundException;
 import com.sanigest.companyaccess.TraceIds;
 import com.sanigest.security.CompanySelector.InvalidContext;
 import com.sanigest.security.http.MvcProblems;
+import com.sanigest.web.HttpProblems;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import org.slf4j.MDC;
@@ -23,14 +24,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 class ApiExceptionHandler extends MvcProblems {
   ApiExceptionHandler() {
-    super("INVALID_REQUEST");
+    super(HttpProblems.code(HttpStatus.BAD_REQUEST));
   }
 
   @ExceptionHandler(InvalidContext.class)
   ProblemDetail invalidCompanyContext(HttpServletRequest request, InvalidContext failure) {
-    var result = problem(request, HttpStatus.BAD_REQUEST, "Invalid company selection");
-    result.setProperty("errorCode", failure.getMessage());
-    return result;
+    return problem(
+        request, HttpStatus.BAD_REQUEST, failure.getMessage(), "Invalid company selection");
   }
 
   @ExceptionHandler(IllegalArgumentException.class)
@@ -46,9 +46,13 @@ class ApiExceptionHandler extends MvcProblems {
 
   @ExceptionHandler(CompanySelectionRequiredException.class)
   ProblemDetail companySelectionRequired(HttpServletRequest request) {
-    var problem = problem(request, HttpStatus.CONFLICT, "Select a company for this operation");
+    var problem =
+        problem(
+            request,
+            HttpStatus.CONFLICT,
+            "COMPANY_SELECTION_REQUIRED",
+            "Select a company for this operation");
     problem.setProperty("code", "COMPANY_SELECTION_REQUIRED");
-    problem.setProperty("errorCode", "COMPANY_SELECTION_REQUIRED");
     return problem;
   }
 
@@ -87,10 +91,18 @@ class ApiExceptionHandler extends MvcProblems {
   }
 
   private ProblemDetail problem(HttpServletRequest request, HttpStatus status, String detail) {
-    var problem = ProblemDetail.forStatusAndDetail(status, detail);
+    return problem(request, status, HttpProblems.code(status), detail);
+  }
+
+  private ProblemDetail problem(
+      HttpServletRequest request, HttpStatus status, String code, String detail) {
     String trace = MDC.get("traceId");
-    problem.setProperty(
-        "traceId", TraceIds.normalize(trace == null ? request.getHeader("X-Trace-Id") : trace));
+    var problem =
+        HttpProblems.create(
+            status,
+            code,
+            detail,
+            TraceIds.normalize(trace == null ? request.getHeader("X-Trace-Id") : trace));
     if (CompanyRoutes.isInvitationPath(request.getRequestURI())) {
       problem.setInstance(URI.create("/api/v1/invitations"));
     }

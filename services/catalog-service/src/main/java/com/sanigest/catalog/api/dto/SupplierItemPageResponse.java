@@ -2,14 +2,15 @@ package com.sanigest.catalog.api.dto;
 
 import com.sanigest.catalog.application.dto.SupplierItemPage;
 import com.sanigest.catalog.domain.enums.SupplierStatus;
+import com.sanigest.web.PageResponse;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
-public record SupplierItemPageResponse<T>(
-    List<T> content, int page, int size, long totalElements, long totalPages) {
-  public static SupplierItemPageResponse<SuppliedItem> items(SupplierItemPage page) {
-    return new SupplierItemPageResponse<>(
+public final class SupplierItemPageResponse {
+  private SupplierItemPageResponse() {}
+
+  public static PageResponse<SuppliedItem> items(SupplierItemPage page) {
+    return new PageResponse<>(
         page.content().stream()
             .map(entry -> {
               var party = entry.party();
@@ -27,8 +28,8 @@ public record SupplierItemPageResponse<T>(
         page.totalPages());
   }
 
-  public static SupplierItemPageResponse<ItemSupplier> suppliers(SupplierItemPage page) {
-    return new SupplierItemPageResponse<>(
+  public static PageResponse<ItemSupplier> suppliers(SupplierItemPage page) {
+    return new PageResponse<>(
         page.content().stream()
             .map(entry -> {
               var party = entry.party();

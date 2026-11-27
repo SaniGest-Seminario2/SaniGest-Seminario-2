@@ -14,6 +14,7 @@ import com.sanigest.catalog.application.usecase.catalogitem.FilterCatalogStock;
 import com.sanigest.catalog.application.usecase.catalogitem.ListCatalogItems;
 import com.sanigest.catalog.application.usecase.catalogitem.UpdateCatalogItem;
 import com.sanigest.catalog.domain.model.CatalogItem;
+import com.sanigest.web.PageResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -62,7 +63,7 @@ class CatalogItemController {
   }
 
   @GetMapping
-  CatalogItemPageResponse list(
+  PageResponse<CatalogItemDetailResponse> list(
       @RequestParam(required = false) String type,
       @RequestParam(required = false) String search,
       @RequestParam(required = false) String active,

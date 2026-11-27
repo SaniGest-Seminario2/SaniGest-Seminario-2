@@ -9,6 +9,7 @@ import com.sanigest.catalog.application.usecase.supplier.ListSupplierLinks;
 import com.sanigest.catalog.application.usecase.supplier.ListSuppliers;
 import com.sanigest.catalog.application.usecase.supplier.ReplaceSupplierItems;
 import com.sanigest.catalog.domain.enums.SupplierStatus;
+import com.sanigest.web.PageResponse;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,7 +32,7 @@ class SupplierItemController {
   }
 
   @GetMapping("/api/v1/suppliers/{id}/items")
-  SupplierItemPageResponse<SupplierItemPageResponse.SuppliedItem> items(
+  PageResponse<SupplierItemPageResponse.SuppliedItem> items(
       @PathVariable UUID id,
       @RequestParam(required = false) String search,
       @RequestParam(required = false) SupplierStatus status,
@@ -42,7 +43,7 @@ class SupplierItemController {
   }
 
   @GetMapping("/api/v1/catalog-items/{id}/suppliers")
-  SupplierItemPageResponse<SupplierItemPageResponse.ItemSupplier> suppliers(
+  PageResponse<SupplierItemPageResponse.ItemSupplier> suppliers(
       @PathVariable UUID id,
       @RequestParam(required = false) String search,
       @RequestParam(required = false) SupplierStatus status,

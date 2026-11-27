@@ -15,6 +15,7 @@ import com.sanigest.catalog.application.usecase.client.GetClient;
 import com.sanigest.catalog.application.usecase.client.ListClients;
 import com.sanigest.catalog.application.usecase.client.UpdateClient;
 import com.sanigest.catalog.domain.exception.InvalidClientPatch;
+import com.sanigest.web.PageResponse;
 import jakarta.validation.Validator;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -98,7 +99,7 @@ class ClientController {
   }
 
   @GetMapping("/api/v1/clients")
-  ClientPageResponse list(
+  PageResponse<ClientPage.Item> list(
       @ModelAttribute ClientListFilter filter,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = ListClients.DEFAULT_SIZE) int size) {

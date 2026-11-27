@@ -3,11 +3,12 @@ package com.sanigest.company.api.dto;
 import com.sanigest.company.application.dto.MemberPage;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.MembershipStatus;
-import java.util.List;
+import com.sanigest.web.PageResponse;
 import java.util.UUID;
 
-public record MemberPageResponse(
-    List<Item> content, int page, int size, long totalElements, long totalPages) {
+public final class MemberPageResponse {
+  private MemberPageResponse() {}
+
   public record Item(
       UUID membershipId,
       UUID userId,
@@ -16,8 +17,8 @@ public record MemberPageResponse(
       CompanyRole role,
       MembershipStatus status) {}
 
-  public static MemberPageResponse from(MemberPage page) {
-    return new MemberPageResponse(
+  public static PageResponse<MemberPageResponse.Item> from(MemberPage page) {
+    return new PageResponse<>(
         page.items().stream()
             .map(item ->
                 new Item(

@@ -11,7 +11,7 @@ import com.sanigest.expense.application.usecase.RegisterPayablePayment;
 import com.sanigest.expense.domain.model.PayablePayment.Details;
 import com.sanigest.expense.domain.model.PayablePayment.Result;
 import com.sanigest.expense.domain.model.PayablePayment.Status;
-import com.sanigest.security.http.HttpProblems;
+import com.sanigest.web.HttpProblems;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;

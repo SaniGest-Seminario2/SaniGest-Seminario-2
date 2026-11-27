@@ -35,8 +35,30 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Locate Maven repository
+        id: maven
+        shell: bash
+        run: printf 'repository=%s/.m2/repository\n' "$HOME" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Maven dependencies for Docker
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ steps.maven.outputs.repository }}
+          key: sanigest-maven-${{ runner.os }}-${{ runner.arch }}-reactor-${{ hashFiles('pom.xml', '**/pom.xml') }}
+          restore-keys: |
+            sanigest-maven-${{ runner.os }}-${{ runner.arch }}-reactor-
+            setup-java-${{ runner.os }}-${{ runner.arch == 'X64' && 'x64' || runner.arch == 'X86' && 'ia32' || runner.arch == 'ARM64' && 'arm64' || 'arm' }}-maven-
+
       - name: Build application images
+        shell: bash
         run: |
+          mkdir -p "$HOME/.m2/repository"
+          docker compose --env-file .env.example -f docker-compose.yml \
+            -f infrastructure/qa/compose-multi-company.yml --profile apps config --format json \
+            > "$RUNNER_TEMP/sanigest-compose-build.json"
           sh scripts/ci/run-stage.sh Infrastructure 'Build application images' \
-            docker compose --env-file .env.example -f docker-compose.yml -f infrastructure/qa/compose-multi-company.yml --profile apps --progress plain build \
-            company-service identity-service catalog-service sales-service inventory-service api-gateway
+            docker buildx bake --file - --load --progress plain \
+            --allow="fs.read=$HOME/.m2/repository" \
+            --set "*.contexts.maven-cache=$HOME/.m2/repository" \
+            --set api-gateway.tags=sanigest-api-gateway \
+            company-service identity-service catalog-service sales-service inventory-service expense-service api-gateway < "$RUNNER_TEMP/sanigest-compose-build.json"
