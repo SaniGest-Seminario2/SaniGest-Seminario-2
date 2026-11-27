@@ -73,9 +73,11 @@ class FinanceAdmissionConfigurationTest {
   private PaymentAdmission.Admission admit(PaymentMethod... methods) {
     var environment = new MockEnvironment();
     environment.setActiveProfiles("test");
-    var client =
-        new FinanceAdmissionConfiguration()
-            .financePaymentAdmission(URI.create(FINANCE.baseUrl()), "test-token", environment);
+    var configuration = new FinanceAdmissionConfiguration();
+    var shifts =
+        configuration.financeActiveCashShifts(
+            URI.create(FINANCE.baseUrl()), "test-token", environment);
+    var client = configuration.financePaymentAdmission(shifts);
     var lines =
         List.of(methods).stream()
             .map(method -> new InvoicePayment.Line(method, BigDecimal.ONE, null))

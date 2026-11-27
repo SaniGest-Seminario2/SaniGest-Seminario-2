@@ -2,6 +2,7 @@ package com.sanigest.sales.api.error;
 
 import static com.sanigest.sales.api.error.SalesProblems.problem;
 
+import com.sanigest.sales.api.controller.ActiveShiftPaymentController;
 import com.sanigest.sales.api.controller.InvalidIdempotencyKey;
 import com.sanigest.sales.api.controller.InvoicePaymentController;
 import com.sanigest.sales.application.exception.IdempotencyConflict;
@@ -15,7 +16,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @Order(0)
-@RestControllerAdvice(assignableTypes = InvoicePaymentController.class)
+@RestControllerAdvice(
+    assignableTypes = {InvoicePaymentController.class, ActiveShiftPaymentController.class})
 class InvoicePaymentErrorHandler {
   @ExceptionHandler(InvoiceNotFound.class)
   ProblemDetail notFound() {

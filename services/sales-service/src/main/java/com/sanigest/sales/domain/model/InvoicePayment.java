@@ -52,6 +52,15 @@ public final class InvoicePayment {
       List<AppliedLine> lines,
       String notes) {}
 
+  public record HistoryLine(
+      UUID paymentId,
+      UUID paymentLineId,
+      UUID invoiceId,
+      String clientName,
+      PaymentMethod method,
+      BigDecimal amount,
+      BigDecimal balance) {}
+
   public record AppliedLine(UUID id, PaymentMethod method, BigDecimal amount, String reference) {}
 
   private static BigDecimal money(BigDecimal amount) {

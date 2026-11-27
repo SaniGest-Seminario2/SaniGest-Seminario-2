@@ -10,6 +10,7 @@ import com.sanigest.sales.application.exception.InvoicePaymentConflict;
 import com.sanigest.sales.application.exception.PaymentAdmissionUnavailable;
 import com.sanigest.sales.application.port.out.integration.PaymentAdmission;
 import com.sanigest.sales.application.port.out.persistence.InvoicePayments;
+import com.sanigest.sales.domain.enums.PaymentMethod;
 import com.sanigest.sales.domain.enums.ReceivableStatus;
 import com.sanigest.sales.domain.model.InvoicePayment;
 import com.sanigest.sales.domain.model.Receivable;
@@ -46,6 +47,33 @@ class PostgresInvoicePayments implements InvoicePayments {
     this.receivables = receivables;
     this.outbox = outbox;
     this.json = json;
+  }
+
+  @Override
+  public List<InvoicePayment.HistoryLine> findByShift(UUID company, UUID operator, UUID shift) {
+    return jdbc.sql(
+            """
+            SELECT p.id AS payment_id, l.id AS line_id, p.invoice_id,
+                   p.request_body ->> 'clientName' AS client_name, l.method, l.amount, p.balance
+              FROM sales.invoice_payments p
+              JOIN sales.invoice_payment_lines l ON l.payment_id = p.id
+             WHERE p.company_id = :company AND p.operator_id = :operator AND p.shift_id = :shift
+               AND p.registered_at IS NOT NULL
+             ORDER BY p.registered_at DESC, p.id DESC, l.position
+            """)
+        .param("company", company)
+        .param("operator", operator)
+        .param("shift", shift)
+        .query((row, index) ->
+            new InvoicePayment.HistoryLine(
+                row.getObject("payment_id", UUID.class),
+                row.getObject("line_id", UUID.class),
+                row.getObject("invoice_id", UUID.class),
+                row.getString("client_name"),
+                PaymentMethod.valueOf(row.getString("method")),
+                row.getBigDecimal("amount"),
+                row.getBigDecimal("balance")))
+        .list();
   }
 
   @Override
