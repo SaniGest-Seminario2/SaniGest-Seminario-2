@@ -34,7 +34,7 @@ class PostgresInvoiceDocuments implements InvoiceDocuments {
         AND (:status IN ('', 'ALL') OR
              invoice_payment.status = :status)
         AND (NOT :collectible OR
-            (i.status = 'ISSUED' AND s.status = 'REGISTERED' AND r.status <> 'CANCELLED'
+            (i.status = 'ISSUED' AND s.status = 'REGISTERED' AND r.status IN ('OPEN', 'PARTIALLY_PAID')
              AND payment.outstanding > 0))
       """;
   // The issued snapshot never changes, including the exact JSON used for POST replays.
@@ -66,20 +66,18 @@ class PostgresInvoiceDocuments implements InvoiceDocuments {
             CURRENT_DOCUMENT
                 + FROM
                 + FILTER
-                + " ORDER BY i.sale_date DESC, i.id DESC"
-                + (search.limit() == null ? "" : " LIMIT :limit OFFSET :offset"),
+                + " ORDER BY i.sale_date DESC, i.id DESC LIMIT :limit OFFSET :offset",
             company,
             search);
-    if (search.limit() != null) {
-      page.param("limit", search.limit()).param("offset", search.offset());
-    }
-    var documents = page.query(String.class).list();
+    var documents =
+        page.param("limit", search.limit())
+            .param("offset", search.offset())
+            .query(String.class)
+            .list();
     long total =
-        search.limit() == null
-            ? documents.size()
-            : filter("SELECT count(*) " + FROM + FILTER, company, search)
-                .query(Long.class)
-                .single();
+        search.countTotal()
+            ? filter("SELECT count(*) " + FROM + FILTER, company, search).query(Long.class).single()
+            : documents.size();
     return new InvoicePage(documents, total);
   }
 

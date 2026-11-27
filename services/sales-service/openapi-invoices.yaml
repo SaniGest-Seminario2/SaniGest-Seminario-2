@@ -279,6 +279,7 @@ paths:
         - $ref: '#/components/parameters/InvoiceStatus'
       responses:
         '200': {$ref: '#/components/responses/InvoiceList'}
+        '422': {$ref: '#/components/responses/InvoiceListLimitExceeded'}
   /api/v1/invoices/collectible:
     get:
       summary: Lista facturas vigentes con saldo positivo y paginación.
@@ -299,6 +300,7 @@ paths:
         - $ref: '#/components/parameters/InvoiceStatus'
       responses:
         '200': {$ref: '#/components/responses/InvoiceList'}
+        '422': {$ref: '#/components/responses/InvoiceListLimitExceeded'}
   /api/v1/invoices/{id}:
     parameters:
       - $ref: '#/components/parameters/CompanySelector'
@@ -394,11 +396,16 @@ paths:
 components:
   parameters:
     InvoiceId: {name: id, in: path, required: true, schema: {type: string, format: uuid}}
-    InvoiceSearch: {name: search, in: query, schema: {type: string, maxLength: 250}}
+    InvoiceSearch:
+      name: search
+      in: query
+      description: Coincidencia parcial por número de factura o nombre del cliente, sin distinguir mayúsculas.
+      schema: {type: string, maxLength: 250}
     InvoiceStatus:
       name: status
       in: query
-      schema: {type: string, enum: [ALL, ISSUED, CANCELLED, PARTIALLY_PAID, PAID]}
+      description: Filtra por paymentStatus. ALL incluye las facturas anuladas en facturación.
+      schema: {type: string, enum: [ALL, ISSUED, CANCELLED, PARTIALLY_PAID, PAID], default: ALL}
     InvoicePageNumber: {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}
     InvoicePageSize: {name: size, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
     CompanySelector:
@@ -431,7 +438,13 @@ components:
       description: Facturas en el mismo orden que la consulta paginada.
       content:
         application/json:
-          schema: {type: array, items: {$ref: '#/components/schemas/Invoice'}}
+          schema: {type: array, maxItems: 1000, items: {$ref: '#/components/schemas/Invoice'}}
+    InvoiceListLimitExceeded:
+      description: Más de 1000 facturas coinciden. Refine la búsqueda o use la ruta paginada.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          example: {status: 422, errorCode: INVOICE_LIST_LIMIT_EXCEEDED}
     InvalidContext:
       description: Selector ausente, duplicado o inválido, o petición inválida.
       content:

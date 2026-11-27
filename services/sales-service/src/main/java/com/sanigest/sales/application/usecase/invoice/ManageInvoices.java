@@ -6,6 +6,7 @@ import static com.sanigest.sales.application.port.out.integration.SalesAuthoriza
 import com.sanigest.sales.application.dto.InvoicePage;
 import com.sanigest.sales.application.exception.InvalidSaleQuery;
 import com.sanigest.sales.application.exception.InvalidSaleRequest;
+import com.sanigest.sales.application.exception.InvoiceListLimitExceeded;
 import com.sanigest.sales.application.exception.InvoiceNotFound;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
 import com.sanigest.sales.application.port.out.persistence.InvoiceDocuments;
@@ -18,6 +19,8 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 public final class ManageInvoices {
+  public static final int MAX_UNPAGED_RESULTS = 1_000;
+
   private static final Set<String> STATUSES =
       Set.of("", "ALL", "ISSUED", "CANCELLED", "PARTIALLY_PAID", "PAID");
 
@@ -50,8 +53,17 @@ public final class ManageInvoices {
       throw new InvalidSaleQuery();
     }
     String pattern = "%" + term.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
-    return documents.list(
-        company, new Search(pattern, state, collectible, size == null ? 0 : page * size, size));
+    if (size != null) {
+      return documents.list(
+          company, new Search(pattern, state, collectible, page * size, size, true));
+    }
+    var result =
+        documents.list(
+            company, new Search(pattern, state, collectible, 0, MAX_UNPAGED_RESULTS + 1, false));
+    if (result.content().size() > MAX_UNPAGED_RESULTS) {
+      throw new InvoiceListLimitExceeded();
+    }
+    return result;
   }
 
   public String find(UUID invoice) {

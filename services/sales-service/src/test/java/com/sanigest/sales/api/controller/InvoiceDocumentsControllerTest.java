@@ -50,17 +50,20 @@ class InvoiceDocumentsControllerTest {
 
   @Test
   void sharesSearchAndSortingCriteriaAcrossBothCollectionShapes() {
-    when(documents.list(company, new Search("%A!%!_%", "ISSUED", true, 2, 2)))
+    when(documents.list(company, new Search("%A!%!_%", "ISSUED", true, 2, 2, true)))
         .thenReturn(new InvoicePage(List.of(DOCUMENT), 3));
     var page = controller.page(" A%_ ", " issued ", 1, 2, path("/collectible"));
     assertThat(page.content().getFirst().path("number").asString()).isEqualTo("FAC-2026-001");
     assertThat(page.totalPages()).isEqualTo(2);
 
-    when(documents.list(company, new Search("%A!%!_%", "ISSUED", true, 0, null)))
+    when(documents.list(
+            company,
+            new Search(
+                "%A!%!_%", "ISSUED", true, 0, ManageInvoices.MAX_UNPAGED_RESULTS + 1, false)))
         .thenReturn(new InvoicePage(List.of(DOCUMENT), 1));
     assertThat(controller.all("A%_", "issued", path("/collectible/all"))).isEqualTo(page.content());
 
-    when(documents.list(company, new Search("%%", "", false, 0, 20)))
+    when(documents.list(company, new Search("%%", "", false, 0, 20, true)))
         .thenReturn(new InvoicePage(List.of(), 0));
     assertThat(controller.page(null, null, 0, 20, path("")).totalPages()).isZero();
   }

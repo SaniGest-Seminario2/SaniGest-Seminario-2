@@ -6,7 +6,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface InvoiceDocuments {
-  record Search(String pattern, String status, boolean collectible, int offset, Integer limit) {}
+  record Search(
+      String pattern,
+      String status,
+      boolean collectible,
+      int offset,
+      int limit,
+      boolean countTotal) {}
 
   InvoicePage list(UUID company, Search search);
 
