@@ -48,6 +48,8 @@ class SecurityConfiguration {
                 .authenticated()
                 .requestMatchers(
                     HttpMethod.GET,
+                    "/api/v1/expenses",
+                    "/api/v1/expenses/*",
                     "/api/v1/payables",
                     "/api/v1/payables/all",
                     "/api/v1/payables/supplier-balances")

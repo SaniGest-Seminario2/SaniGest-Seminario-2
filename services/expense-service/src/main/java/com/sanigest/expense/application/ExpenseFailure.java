@@ -3,6 +3,7 @@ package com.sanigest.expense.application;
 public final class ExpenseFailure extends RuntimeException {
   public enum Kind {
     INVALID,
+    NOT_FOUND,
     CONFLICT,
     FORBIDDEN,
     UNAVAILABLE

@@ -17,5 +17,7 @@ public interface CatalogReferences {
       boolean active,
       boolean purchasable,
       boolean product,
-      boolean divisible) {}
+      boolean divisible,
+      UUID categoryId,
+      String categoryName) {}
 }

@@ -160,6 +160,14 @@ class ServiceRoutes {
                     .metadata(RESPONSE_TIMEOUT_ATTR, 15_000)
                     .uri(destination(environment, "EXPENSE_SERVICE_URL")))
         .route(
+            "expense-read",
+            route ->
+                route
+                    .path("/api/v1/expenses", "/api/v1/expenses/*")
+                    .and()
+                    .method(HttpMethod.GET)
+                    .uri(destination(environment, "EXPENSE_SERVICE_URL")))
+        .route(
             "payables",
             route ->
                 route

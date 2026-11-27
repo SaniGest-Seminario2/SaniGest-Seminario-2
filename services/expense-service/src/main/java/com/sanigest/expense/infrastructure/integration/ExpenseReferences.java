@@ -53,7 +53,9 @@ class ExpenseReferences implements CatalogReferences, InventoryReceipts {
                 response.active(),
                 response.eligibleForPurchase(),
                 "PRODUCT".equals(response.type()),
-                Boolean.TRUE.equals(response.unitDivisible())));
+                Boolean.TRUE.equals(response.unitDivisible()),
+                response.categoryId(),
+                response.categoryName()));
   }
 
   @Override
@@ -158,7 +160,9 @@ class ExpenseReferences implements CatalogReferences, InventoryReceipts {
       boolean active,
       boolean eligibleForPurchase,
       String type,
-      Boolean unitDivisible) {}
+      Boolean unitDivisible,
+      UUID categoryId,
+      String categoryName) {}
 
   private record WarehouseResponse(UUID id, String status) {}
 

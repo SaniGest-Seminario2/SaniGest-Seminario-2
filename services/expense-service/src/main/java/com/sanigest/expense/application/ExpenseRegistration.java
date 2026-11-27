@@ -119,5 +119,7 @@ public final class ExpenseRegistration {
       boolean stockTracked,
       BigDecimal subtotal,
       BigDecimal tax,
-      BigDecimal total) {}
+      BigDecimal total,
+      UUID categoryId,
+      String categoryName) {}
 }
