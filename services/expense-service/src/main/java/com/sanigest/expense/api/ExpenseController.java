@@ -38,12 +38,16 @@ class ExpenseController {
     var company = ExpenseCompanyAccess.select(http);
     var actor = AuthenticatedActor.userId().orElseThrow(ExpenseCompanyAccess::denied);
     companies.require(company, Scope.WRITE);
+    return register.register(
+        new ExpenseStore.Key(company, actor, idempotencyKey(http)), hash(request), request);
+  }
+
+  static String idempotencyKey(HttpServletRequest http) {
     var keys = Collections.list(http.getHeaders("Idempotency-Key"));
     if (keys.size() != 1 || !keys.getFirst().matches("[A-Za-z0-9._:-]{1,128}")) {
       throw ExpenseFailure.invalid("EXPENSE_INVALID_IDEMPOTENCY_KEY");
     }
-    return register.register(
-        new ExpenseStore.Key(company, actor, keys.getFirst()), hash(request), request);
+    return keys.getFirst();
   }
 
   private String hash(Request request) {

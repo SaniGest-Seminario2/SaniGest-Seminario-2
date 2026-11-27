@@ -76,7 +76,13 @@ Sales encola los cobros de facturas con `PaymentOutbox.enqueue(companyId, event)
 en la misma transacción que persiste el pago. Cada línea confirmada tiene su
 propio `sourceId` y `eventId`, y comparte el `paymentId` del pago. En un
 reintento, el caso de uso resuelve la idempotencia antes de volver a encolar.
-S2-347 integrará el flujo de Expense con su propia tabla `payment_outbox`.
+Expense guarda cada abono y su saldo resultante junto con
+`PayablePaymentRegisteredV1` en su propia tabla `payment_outbox`. Finance
+valida la cuenta y el medio usando las configuraciones de cuenta por medio
+existentes en la empresa. Ambos servicios usan `FINANCE_ADMISSION_TOKEN` y
+Expense resuelve el destino con `EXPENSE_FINANCE_ORIGIN`. Para pagos de una
+fecha anterior, el movimiento usa el inicio de esa fecha en Santo Domingo.
+Expense conserva por separado el instante de registro.
 
 El publicador toma una fila por transacción con `FOR NO KEY UPDATE SKIP LOCKED` y
 registra `published_at` después del acuse de Kafka. Una reversión publicada como
