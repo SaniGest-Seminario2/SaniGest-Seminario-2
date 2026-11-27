@@ -212,11 +212,52 @@ jobs:
   multi-company:
     name: Multi-company smoke through Gateway
     needs: syntax
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - run: sh infrastructure/qa/run-smoke-multi-company.sh
+      - name: Validate OpenAPI and run the multi-company smoke
+        env:
+          VERIFY_OPENAPI: "true"
+        run: |
+          python3 -m venv "$RUNNER_TEMP/openapi-venv"
+          export PATH="$RUNNER_TEMP/openapi-venv/bin:$PATH"
+          export OPENAPI_OUTPUT="$RUNNER_TEMP/openapi"
+          python -m pip install openapi-spec-validator==0.7.2
+          sh infrastructure/qa/run-smoke-multi-company.sh
+      - name: Block incompatible changes against main
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          workflow="repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs"
+          run_id=$(gh api "$workflow?event=push&status=success&head_sha=$BASE_SHA" --jq '.workflow_runs[0].id // ""')
+          artifact_id=
+          if [ -n "$run_id" ]; then
+            artifact_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts" \
+              --jq '.artifacts[] | select(.name == "openapi-contracts" and (.expired | not)) | .id')
+          fi
+          if [ -z "$artifact_id" ]; then
+            echo "::notice::The base revision has no validated OpenAPI artifact yet."
+            exit 0
+          fi
+          gh run download "$run_id" --name openapi-contracts --dir "$RUNNER_TEMP/openapi-base"
+          archive="$RUNNER_TEMP/oasdiff_1.41.0_linux_amd64.tar.gz"
+          curl -fsSL https://github.com/oasdiff/oasdiff/releases/download/v1.41.0/oasdiff_1.41.0_linux_amd64.tar.gz -o "$archive"
+          printf '%s  %s\n' 96365453163118e6503eb71742643d9ee67f91aedbaadd1a1ce9c6213e3b71c7 "$archive" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" oasdiff
+          for baseline in "$RUNNER_TEMP/openapi-base/"*.json; do
+            "$RUNNER_TEMP/oasdiff" breaking "$baseline" "$RUNNER_TEMP/openapi/${baseline##*/}" --fail-on ERR
+          done
+      - name: Publish the validated contracts
+        uses: actions/upload-artifact@v7
+        with:
+          name: openapi-contracts
+          path: ${{ runner.temp }}/openapi
   required:
     name: CI required
     if: ${{ always() }}

@@ -15,6 +15,7 @@ import com.sanigest.company.application.usecase.profile.CreateCompanyUseCase;
 import com.sanigest.company.application.usecase.profile.GetMyCompanyUseCase;
 import com.sanigest.company.application.usecase.profile.ListMyCompaniesUseCase;
 import com.sanigest.company.application.usecase.profile.UpdateMyCompanyUseCase;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -107,6 +108,7 @@ public class CompanyController {
   }
 
   @PostMapping
+  @ApiResponse(responseCode = "201", description = "Created", useReturnTypeSchema = true)
   ResponseEntity<CompanyResponse> create(
       @AuthenticationPrincipal Jwt jwt,
       @RequestHeader("Idempotency-Key") String key,

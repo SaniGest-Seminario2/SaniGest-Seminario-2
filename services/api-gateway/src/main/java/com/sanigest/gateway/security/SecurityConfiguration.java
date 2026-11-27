@@ -1,8 +1,10 @@
 package com.sanigest.gateway.security;
 
 import com.sanigest.gateway.error.GatewayProblems;
+import com.sanigest.gateway.routing.ServiceRoutes;
 import com.sanigest.security.AccessTokens;
 import com.sanigest.web.HttpProblems;
+import com.sanigest.web.OpenApiConfiguration;
 import java.io.IOException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.config.GlobalCorsProperties;
@@ -30,7 +32,10 @@ import reactor.core.publisher.Mono;
 class SecurityConfiguration {
   @Bean
   SecurityWebFilterChain securityFilterChain(
-      ServerHttpSecurity http, GlobalCorsProperties cors, GatewayProblems problems) {
+      ServerHttpSecurity http,
+      GlobalCorsProperties cors,
+      GatewayProblems problems,
+      @Value("${springdoc.api-docs.enabled:false}") boolean documentationEnabled) {
     var bearer = new BearerTokenServerAuthenticationEntryPoint();
     ServerAuthenticationEntryPoint entry =
         (exchange, failure) ->
@@ -45,23 +50,30 @@ class SecurityConfiguration {
         .cors(configuration -> configuration.configurationSource(source))
         .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
         .requestCache(cache -> cache.requestCache(NoOpServerRequestCache.getInstance()))
-        .authorizeExchange(exchanges ->
-            exchanges
-                .pathMatchers(
-                    HttpMethod.POST,
-                    "/api/v1/auth/login",
-                    "/api/v1/auth/register",
-                    "/api/v1/auth/refresh",
-                    "/api/v1/auth/logout")
-                .permitAll()
-                .pathMatchers(
-                    HttpMethod.GET,
-                    "/actuator/health",
-                    "/actuator/health/liveness",
-                    "/actuator/health/readiness")
-                .permitAll()
-                .anyExchange()
-                .authenticated())
+        .authorizeExchange(exchanges -> {
+          if (documentationEnabled) {
+            exchanges.pathMatchers(HttpMethod.GET, OpenApiConfiguration.GET_PATHS).permitAll();
+            for (String module : ServiceRoutes.DOCUMENTED_MODULES) {
+              exchanges.pathMatchers(HttpMethod.GET, "/v3/api-docs/" + module).permitAll();
+            }
+          }
+          exchanges
+              .pathMatchers(
+                  HttpMethod.POST,
+                  "/api/v1/auth/login",
+                  "/api/v1/auth/register",
+                  "/api/v1/auth/refresh",
+                  "/api/v1/auth/logout")
+              .permitAll()
+              .pathMatchers(
+                  HttpMethod.GET,
+                  "/actuator/health",
+                  "/actuator/health/liveness",
+                  "/actuator/health/readiness")
+              .permitAll()
+              .anyExchange()
+              .authenticated();
+        })
         .exceptionHandling(
             errors -> errors.authenticationEntryPoint(entry).accessDeniedHandler(denied))
         .oauth2ResourceServer(resource ->

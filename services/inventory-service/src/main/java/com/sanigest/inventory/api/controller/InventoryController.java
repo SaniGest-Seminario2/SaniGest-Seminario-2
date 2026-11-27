@@ -16,6 +16,7 @@ import com.sanigest.inventory.domain.StockKey;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.UUID;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -89,7 +90,8 @@ public class InventoryController {
   }
 
   @GetMapping("/stock")
-  PageView<StockView> list(HttpServletRequest request, @ModelAttribute StockFilters filters) {
+  PageView<StockView> list(
+      HttpServletRequest request, @ParameterObject @ModelAttribute StockFilters filters) {
     var company = RequestContext.company(request);
     access.authorize(company, Operation.READ);
     return PageView.from(
@@ -99,7 +101,7 @@ public class InventoryController {
 
   @GetMapping("/movements")
   PageView<MovementView> movements(
-      HttpServletRequest request, @ModelAttribute MovementFilters filters) {
+      HttpServletRequest request, @ParameterObject @ModelAttribute MovementFilters filters) {
     var company = RequestContext.company(request);
     access.authorize(company, Operation.READ);
     return PageView.from(reads.movements(company, filters.query()), MovementView::from);

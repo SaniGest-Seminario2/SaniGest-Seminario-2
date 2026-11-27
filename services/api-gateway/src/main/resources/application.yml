@@ -46,3 +46,30 @@ management:
         enabled: true
       show-components: never
       show-details: never
+
+springdoc:
+  api-docs:
+    enabled: ${SANIGEST_OPENAPI_ENABLED:false}
+    version: OPENAPI_3_1
+  swagger-ui:
+    enabled: ${SANIGEST_OPENAPI_ENABLED:false}
+    disable-swagger-default-url: true
+    urls:
+      - name: Gateway
+        url: /v3/api-docs
+      - name: Identity
+        url: /v3/api-docs/identity
+      - name: Company
+        url: /v3/api-docs/company
+      - name: Catalog
+        url: /v3/api-docs/catalog
+      - name: Inventory
+        url: /v3/api-docs/inventory
+      - name: Sales
+        url: /v3/api-docs/sales
+      - name: Expense
+        url: /v3/api-docs/expense
+      - name: Finance
+        url: /v3/api-docs/finance
+  paths-to-match: /api/v1/**
+  override-with-generic-response: false

@@ -3,6 +3,8 @@ package com.sanigest.gateway.routing;
 import static org.springframework.cloud.gateway.support.RouteMetadataUtils.RESPONSE_TIMEOUT_ATTR;
 
 import java.net.URI;
+import java.util.List;
+import java.util.Locale;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.gateway.config.HttpClientCustomizer;
 import org.springframework.cloud.gateway.route.RouteLocator;
@@ -13,7 +15,31 @@ import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 
 @Configuration(proxyBeanMethods = false)
-class ServiceRoutes {
+public class ServiceRoutes {
+  public static final List<String> DOCUMENTED_MODULES =
+      List.of("identity", "company", "catalog", "inventory", "sales", "expense", "finance");
+
+  @Bean
+  @ConditionalOnProperty(name = "springdoc.api-docs.enabled", havingValue = "true")
+  RouteLocator documentationRoutes(RouteLocatorBuilder builder, Environment environment) {
+    var routes = builder.routes();
+    for (String module : DOCUMENTED_MODULES) {
+      String property = module.toUpperCase(Locale.ROOT) + "_SERVICE_URL";
+      if (environment.containsProperty(property)) {
+        routes.route(
+            module + "-openapi",
+            route ->
+                route
+                    .path("/v3/api-docs/" + module)
+                    .and()
+                    .method(HttpMethod.GET)
+                    .filters(filters -> filters.setPath("/v3/api-docs"))
+                    .uri(destination(environment, property)));
+      }
+    }
+    return routes.build();
+  }
+
   @Bean
   HttpClientCustomizer disableTransportRetry() {
     return client -> client.disableRetry(true);

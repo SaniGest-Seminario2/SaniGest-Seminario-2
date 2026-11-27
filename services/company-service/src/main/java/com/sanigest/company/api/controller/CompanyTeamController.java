@@ -17,9 +17,11 @@ import com.sanigest.company.application.usecase.team.ListMyCompanyUsersUseCase;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.web.PageResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -64,6 +66,7 @@ class CompanyTeamController {
   }
 
   @PostMapping({"/api/v1/companies/me/invitations", "/api/v1/companies/{companyId}/invitations"})
+  @ApiResponse(responseCode = "201", description = "Created", useReturnTypeSchema = true)
   ResponseEntity<InvitationResponse> invite(
       @AuthenticationPrincipal Jwt jwt,
       @PathVariable(required = false) String companyId,
@@ -119,8 +122,8 @@ class CompanyTeamController {
       @AuthenticationPrincipal Jwt jwt,
       @PathVariable(required = false) String companyId,
       HttpServletRequest http,
-      @RequestParam String view,
-      @ModelAttribute MemberPageQuery query) {
+      @RequestParam(required = false) String view,
+      @ParameterObject @ModelAttribute MemberPageQuery query) {
     if (!"page".equals(view)) {
       throw new IllegalArgumentException("Invalid member view");
     }

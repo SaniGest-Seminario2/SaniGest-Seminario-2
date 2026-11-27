@@ -2,8 +2,10 @@ package com.sanigest.company.infrastructure.security;
 
 import com.sanigest.security.AccessTokens;
 import com.sanigest.security.http.ServletSecurityProblems;
+import com.sanigest.web.OpenApiConfiguration;
 import jakarta.servlet.DispatcherType;
 import java.io.IOException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -22,7 +24,15 @@ import tools.jackson.databind.json.JsonMapper;
 @EnableConfigurationProperties(SecurityConfiguration.JwtProperties.class)
 class SecurityConfiguration {
   @Bean
-  SecurityFilterChain filterChain(HttpSecurity http, JsonMapper json) throws Exception {
+  SecurityFilterChain filterChain(
+      HttpSecurity http,
+      JsonMapper json,
+      @Value("${springdoc.api-docs.enabled:false}") boolean documentationEnabled)
+      throws Exception {
+    if (documentationEnabled) {
+      http.authorizeHttpRequests(requests ->
+          requests.requestMatchers(HttpMethod.GET, OpenApiConfiguration.GET_PATHS).permitAll());
+    }
     var problems = new ServletSecurityProblems(json, "FORBIDDEN");
     problems.configure(http);
     return http.csrf(csrf -> csrf.disable())

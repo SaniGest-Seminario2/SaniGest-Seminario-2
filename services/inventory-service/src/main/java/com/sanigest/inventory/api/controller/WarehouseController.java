@@ -11,6 +11,7 @@ import com.sanigest.inventory.application.port.out.integration.InventoryAccess;
 import com.sanigest.inventory.application.port.out.integration.InventoryAccess.Operation;
 import com.sanigest.inventory.application.usecase.WarehouseOperations;
 import com.sanigest.inventory.domain.Warehouse;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -39,6 +40,7 @@ public class WarehouseController {
   }
 
   @PostMapping
+  @ApiResponse(responseCode = "201", description = "Created", useReturnTypeSchema = true)
   ResponseEntity<WarehouseView> create(
       HttpServletRequest request, @Valid @RequestBody InventoryRequests.CreateWarehouse body) {
     var company = RequestContext.company(request);

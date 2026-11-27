@@ -95,6 +95,7 @@ services:
     image: sanigest/company-service:${SANIGEST_IMAGE_TAG:-local}
     profiles: [apps]
     environment:
+      SANIGEST_OPENAPI_ENABLED: ${SANIGEST_OPENAPI_ENABLED:-true}
       SPRING_PROFILES_ACTIVE: local
       SPRING_APPLICATION_JSON: >-
         {"sanigest":{"company-access":{"callers":{"catalog":{"issuer":"catalog-company-access","public-key":"file:/run/secrets/catalog-company-public.pem"},
@@ -158,6 +159,7 @@ services:
     image: sanigest/identity-service:${SANIGEST_IMAGE_TAG:-local}
     profiles: [apps]
     environment:
+      SANIGEST_OPENAPI_ENABLED: ${SANIGEST_OPENAPI_ENABLED:-true}
       SPRING_PROFILES_ACTIVE: local
       JWT_ISSUER: ${JWT_ISSUER:-sanigest}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
@@ -203,6 +205,7 @@ services:
     image: sanigest/catalog-service:${SANIGEST_IMAGE_TAG:-local}
     profiles: [apps]
     environment:
+      SANIGEST_OPENAPI_ENABLED: ${SANIGEST_OPENAPI_ENABLED:-true}
       SPRING_PROFILES_ACTIVE: local
       JWT_ISSUER: ${JWT_ISSUER:-sanigest}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
@@ -253,6 +256,7 @@ services:
     image: sanigest/sales-service:${SANIGEST_IMAGE_TAG:-local}
     profiles: [apps]
     environment:
+      SANIGEST_OPENAPI_ENABLED: ${SANIGEST_OPENAPI_ENABLED:-true}
       SPRING_PROFILES_ACTIVE: local
       JWT_ISSUER: ${JWT_ISSUER:-sanigest}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
@@ -298,6 +302,7 @@ services:
     image: sanigest/inventory-service:${SANIGEST_IMAGE_TAG:-local}
     profiles: [apps]
     environment:
+      SANIGEST_OPENAPI_ENABLED: ${SANIGEST_OPENAPI_ENABLED:-true}
       SPRING_PROFILES_ACTIVE: local
       JWT_ISSUER: ${JWT_ISSUER:-sanigest}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
@@ -350,6 +355,7 @@ services:
     image: sanigest/expense-service:${SANIGEST_IMAGE_TAG:-local}
     profiles: [apps]
     environment:
+      SANIGEST_OPENAPI_ENABLED: ${SANIGEST_OPENAPI_ENABLED:-true}
       JWT_ISSUER: ${JWT_ISSUER:-sanigest}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
       JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
@@ -390,6 +396,7 @@ services:
     image: sanigest/finance-service:${SANIGEST_IMAGE_TAG:-local}
     profiles: [apps]
     environment:
+      SANIGEST_OPENAPI_ENABLED: ${SANIGEST_OPENAPI_ENABLED:-true}
       SERVER_PORT: 8080
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_ISSUER: ${JWT_ISSUER:-sanigest}

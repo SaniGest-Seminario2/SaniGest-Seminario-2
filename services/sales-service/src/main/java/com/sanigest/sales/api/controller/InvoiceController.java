@@ -3,6 +3,11 @@ package com.sanigest.sales.api.controller;
 import com.sanigest.sales.api.dto.InvoiceResponse;
 import com.sanigest.sales.application.exception.InvalidSaleRequest;
 import com.sanigest.sales.application.usecase.invoice.IssueInvoice;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.UUID;
@@ -33,6 +38,18 @@ public class InvoiceController {
       path = "/api/v1/sales/{saleId}/invoices",
       produces = MediaType.APPLICATION_JSON_VALUE)
   @PreAuthorize("isAuthenticated()")
+  @ApiResponse(
+      responseCode = "201",
+      description = "Created",
+      content =
+          @Content(
+              mediaType = "application/json",
+              schema = @Schema(implementation = InvoiceResponse.class)))
+  @Parameter(
+      name = "Idempotency-Key",
+      in = ParameterIn.HEADER,
+      required = true,
+      schema = @Schema(type = "string", pattern = "^[A-Za-z0-9._~-]{1,128}$"))
   public ResponseEntity<String> issue(
       @PathVariable String saleId, @RequestHeader HttpHeaders headers, InputStream body)
       throws IOException {

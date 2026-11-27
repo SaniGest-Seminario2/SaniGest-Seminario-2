@@ -66,6 +66,16 @@ done
 "$@" up -d --build --wait --wait-timeout 120
 curl -fsS --retry 20 --retry-connrefused --retry-delay 1 --max-time 4 \
   "$SMOKE_GATEWAY_URL/actuator/health" >/dev/null
+if [ "${VERIFY_OPENAPI:-false}" = true ]; then
+  if [ -n "${OPENAPI_OUTPUT:-}" ]; then
+    python3 infrastructure/qa/verify-openapi.py "$SMOKE_GATEWAY_URL" --output "$OPENAPI_OUTPUT"
+  else
+    python3 infrastructure/qa/verify-openapi.py "$SMOKE_GATEWAY_URL"
+  fi
+  for module in identity company catalog inventory sales expense finance; do
+    "$@" exec -T "$module-service" wget -qO /dev/null http://127.0.0.1:8080/swagger-ui.html
+  done
+fi
 python3 infrastructure/qa/smoke-multi-company.py "$@"
 
 payables=$("$@" exec -T postgres sh -c '

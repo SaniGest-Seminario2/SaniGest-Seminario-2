@@ -149,3 +149,15 @@ La migración V17 preserva los registros existentes y protege contra el borrado 
 | Compras, gastos y cuentas por pagar | El smoke comprueba el detalle del gasto, la referencia al adjunto y los filtros de obligaciones por proveedor, tanto por Gateway como por acceso directo a Expense. |
 | Caja, Dashboard y Reportes | El smoke verifica autenticación y rechazo de un contexto sin acceso. `FinancialProjectionsIT` comprueba que una denegación conserva el snapshot anterior y que los movimientos y reintentos se aíslan por empresa. |
 | Servicios REST y despliegue | `AccessTokensTest` comprueba issuer, audience y firma en los decodificadores servlet y reactivo. CI analiza los JAR de ejecución y el historial Git. El despliegue de dev requiere CI exitoso. |
+
+## Verificación OpenAPI y Postman (S2-365)
+
+| Consumidor | Operación | Contrato verificado |
+| --- | --- | --- |
+| Inicio de sesión | `POST /api/v1/auth/login`, `GET /api/v1/auth/me` | Login público, perfil con Bearer JWT. |
+| Selector de empresa | `GET /api/v1/companies` | Empresas accesibles con JWT. |
+| Inventario · Existencias | `GET /api/v1/inventory/stock` | `catalogItemIds` filtra por lote con `warehouseId` y admite hasta 100 UUID. `search` se aplica sobre todas las ubicaciones cuando se omite `warehouseId`. Se filtra antes de calcular `totalElements` y paginar. |
+| Ventas · Emitir factura interna | `POST /api/v1/invoices` | `201` con `InvoiceResponse`, selector de empresa y `Idempotency-Key`. Ejemplos de errores `400/401/403/404/409`. |
+| Dashboard y Reportes | `GET /api/v1/{dashboard,reports}/projection` | JWT y selector de empresa. Incluye indicadores de cobertura de las fuentes y fechas de corte. |
+
+La colección de S2-471 incluye estos flujos y las URL de OpenAPI por módulo. Para comprobar un contrato publicado y detectar cambios incompatibles, usa la [guía de desarrollo](../development/docker-postman.md#swagger-ui-y-autenticación-rápida).
