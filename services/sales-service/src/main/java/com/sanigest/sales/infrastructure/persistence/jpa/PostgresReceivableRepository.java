@@ -5,6 +5,7 @@ import com.sanigest.sales.application.port.out.persistence.ReceivableRepository;
 import com.sanigest.sales.domain.enums.ReceivableOrigin;
 import com.sanigest.sales.domain.enums.ReceivableStatus;
 import com.sanigest.sales.domain.model.Receivable;
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -78,6 +79,23 @@ class PostgresReceivableRepository implements ReceivableRepository {
                 UPDATE sales.receivables SET status = :status WHERE company_id = :company AND id = :id
                 """)
             .param("status", receivable.status().name())
+            .param("company", receivable.companyId())
+            .param("id", receivable.id())
+            .update();
+    if (updated != 1) {
+      throw new IllegalStateException("Locked receivable could not be updated");
+    }
+  }
+
+  void applyPayment(Receivable receivable, BigDecimal balance) {
+    int updated =
+        jdbc.sql(
+                """
+                UPDATE sales.receivables SET balance = :balance, status = :status
+                 WHERE company_id = :company AND id = :id
+                """)
+            .param("balance", balance)
+            .param("status", balance.signum() == 0 ? "PAID" : "PARTIALLY_PAID")
             .param("company", receivable.companyId())
             .param("id", receivable.id())
             .update();

@@ -21,6 +21,7 @@ import com.sanigest.sales.application.exception.CatalogUnavailableException;
 import com.sanigest.sales.application.exception.IdempotencyInProgress;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess.CompanyContext;
+import com.sanigest.sales.application.port.out.integration.PaymentAdmission;
 import com.sanigest.sales.application.port.out.persistence.InvoiceRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Claim;
@@ -83,6 +84,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -115,12 +117,14 @@ class SalesServiceIT {
   @Autowired private InvoiceRepository invoices;
   @Autowired private SaleIdempotencyRepository idempotency;
   @Autowired private CatalogClient catalog;
+  @MockitoBean private PaymentAdmission paymentAdmission;
 
   @DynamicPropertySource
   static void database(DynamicPropertyRegistry registry) throws Exception {
     if (!CATALOG.isRunning()) {
       CATALOG.start();
     }
+    registry.add("sanigest.payment-outbox.relay-enabled", () -> "false");
     registry.add("sanigest.catalog.origin", CATALOG::baseUrl);
     registry.add("sanigest.inventory.origin", CATALOG::baseUrl);
     registry.add("sanigest.sales.legacy-creation-enabled", () -> true);
@@ -204,7 +208,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("10");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("11");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -242,7 +246,9 @@ class SalesServiceIT {
             "internal_invoices",
             "internal_invoice_lines",
             "invoice_number_sequences",
-            "payment_outbox");
+            "payment_outbox",
+            "invoice_payments",
+            "invoice_payment_lines");
 
     assertThat(
             jdbc.queryForList(
@@ -309,7 +315,13 @@ class SalesServiceIT {
             "payment_outbox_pkey",
             "payment_outbox_company_id_source_id_key",
             "payment_outbox_company_id_event_id_key",
-            "payment_outbox_pending_idx");
+            "payment_outbox_pending_idx",
+            "internal_invoices_company_id_key",
+            "receivables_company_id_key",
+            "invoice_payments_pkey",
+            "invoice_payments_company_id_operator_id_idempotency_key_key",
+            "invoice_payment_lines_pkey",
+            "invoice_payment_lines_payment_id_position_key");
     assertForeignKeys();
     assertMigrationHistory();
   }
@@ -333,7 +345,10 @@ class SalesServiceIT {
             "receivables.receivables_sale_fk -> sales.sales",
             "internal_invoices.invoice_sale_fk -> sales.sales",
             "internal_invoice_lines.invoice_lines_invoice_fk -> sales.internal_invoices",
-            "payment_outbox.payment_outbox_original_fk -> sales.payment_outbox");
+            "payment_outbox.payment_outbox_original_fk -> sales.payment_outbox",
+            "invoice_payments.invoice_payments_invoice_fk -> sales.internal_invoices",
+            "invoice_payments.invoice_payments_receivable_fk -> sales.receivables",
+            "invoice_payment_lines.invoice_payment_lines_payment_fk -> sales.invoice_payments");
   }
 
   private void assertMigrationHistory() {
@@ -343,8 +358,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(10);
-    assertThat(history.getLast()).containsEntry("version", "10").containsEntry("success", true);
+    assertThat(history).hasSize(11);
+    assertThat(history.getLast()).containsEntry("version", "11").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -412,12 +427,12 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(1);
-    assertThat(current.migrate().migrationsExecuted).isEqualTo(5);
+    assertThat(current.migrate().migrationsExecuted).isEqualTo(6);
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
         .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("10");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("11");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
@@ -1613,7 +1628,13 @@ class SalesServiceIT {
               "payment_outbox_pkey",
               "payment_outbox_company_id_source_id_key",
               "payment_outbox_company_id_event_id_key",
-              "payment_outbox_pending_idx");
+              "payment_outbox_pending_idx",
+              "internal_invoices_company_id_key",
+              "receivables_company_id_key",
+              "invoice_payments_pkey",
+              "invoice_payments_company_id_operator_id_idempotency_key_key",
+              "invoice_payment_lines_pkey",
+              "invoice_payment_lines_payment_id_position_key");
 
       assertThatThrownBy(() ->
               jdbc.update(
@@ -2012,6 +2033,88 @@ class SalesServiceIT {
           .contains("IDEMPOTENCY_CONFLICT");
       assertThat(countInvoices(owner.company())).isEqualTo(3);
     }
+  }
+
+  @Test
+  void registersMixedPaymentOnceAndRejectsStaleBalance() throws Exception {
+    var owner = fixture();
+    owner.membership("OWNER", false);
+    var account = UUID.randomUUID();
+    var shift = UUID.randomUUID();
+    try (var http = HttpClient.newHttpClient()) {
+      String sale = registerCredit(http, owner);
+      var issued = invoice(http, owner.bearer(), sale, "issue-to-collect", "");
+      assertThat(issued.statusCode()).withFailMessage(issued.body()).isEqualTo(201);
+      var mapper = new ObjectMapper();
+      var document = mapper.readTree(issued.body());
+      String id = document.path("id").asString();
+      var balance =
+          jdbc.queryForObject(
+              "SELECT balance FROM sales.receivables WHERE id = ?",
+              BigDecimal.class,
+              UUID.fromString(sale));
+      String body =
+          """
+          {"clientName":"Cliente","balance":"%s","lines":[
+            {"method":"CASH","amount":"1.00"},{"method":"TRANSFER","amount":"2.00","reference":"REF"}]}
+          """
+              .formatted(balance);
+      var rejected = invoicePayment(http, owner, id, "collect", body);
+      assertThat(rejected.statusCode()).withFailMessage(rejected.body()).isEqualTo(503);
+
+      org.mockito.Mockito.when(
+              paymentAdmission.admit(
+                  org.mockito.ArgumentMatchers.eq(owner.company()),
+                      org.mockito.ArgumentMatchers.eq(owner.user()),
+                  org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+          .thenReturn(
+              new PaymentAdmission.Admission(shift, java.util.Map.of(0, account, 1, account)));
+      var responses =
+          race(
+              () -> invoicePayment(http, owner, id, "collect", body),
+              () -> invoicePayment(http, owner, id, "collect", body));
+      var created = responses.getFirst();
+      assertThat(created.statusCode()).withFailMessage(created.body()).isEqualTo(201);
+      assertThat(responses.getLast().statusCode()).isEqualTo(201);
+      assertThat(responses.getLast().body()).isEqualTo(created.body());
+      var result = mapper.readTree(created.body());
+      assertThat(result.path("shiftId").asString()).isEqualTo(shift.toString());
+      assertThat(result.path("operatorId").asString()).isEqualTo(owner.user().toString());
+      assertThat(result.path("balance").decimalValue())
+          .isEqualByComparingTo(balance.subtract(new BigDecimal("3.00")));
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT balance FROM sales.receivables WHERE id = ?",
+                  BigDecimal.class,
+                  UUID.fromString(sale)))
+          .isEqualByComparingTo(balance.subtract(new BigDecimal("3.00")));
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT count(*) FROM sales.payment_outbox WHERE company_id = ?",
+                  Integer.class,
+                  owner.company()))
+          .isEqualTo(2);
+      assertThat(
+              invoicePayment(http, owner, id, "collect", body.replace("REF", "DIFFERENT")).body())
+          .contains("IDEMPOTENCY_CONFLICT");
+      assertThat(invoicePayment(http, owner, id, "stale", body).statusCode()).isEqualTo(409);
+    }
+  }
+
+  private HttpResponse<String> invoicePayment(
+      HttpClient http, Fixture actor, String invoice, String key, String body) throws Exception {
+    return http.send(
+        HttpRequest.newBuilder(
+                URI.create(
+                    "http://localhost:" + port + "/api/v1/invoices/" + invoice + "/payments"))
+            .header("Authorization", "Bearer " + actor.bearer())
+            .header("X-Company-Id", actor.company().toString())
+            .header("Idempotency-Key", key)
+            .header("Content-Type", "application/json")
+            .timeout(Duration.ofSeconds(5))
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .build(),
+        HttpResponse.BodyHandlers.ofString());
   }
 
   private IssueInvoice invoiceUseCase(Fixture fixture, String instant) {

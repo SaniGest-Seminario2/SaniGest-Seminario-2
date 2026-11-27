@@ -468,3 +468,34 @@ usuario y operación. Un reintento autorizado de la misma venta devuelve el
 JSON original con `201`. Una clave usada con otra venta devuelve `409`.
 La emisión y la cancelación bloquean la misma fila de venta. Cancelar una
 venta con una factura vigente devuelve `409`.
+
+### Registro de cobros de factura (S2-339)
+
+`POST /api/v1/invoices/{id}/payments` requiere el permiso `SALES_WRITE` en la
+empresa activa y un `Idempotency-Key`. Envía el nombre y saldo mostrados junto
+con los medios e importes confirmados.
+
+```json
+{
+  "clientName": "Cliente",
+  "balance": "100.00",
+  "lines": [
+    {"method": "CASH", "amount": "30.00"},
+    {"method": "TRANSFER", "amount": "20.00", "reference": "REF-2026"}
+  ],
+  "notes": "Abono parcial"
+}
+```
+
+El 201 devuelve el identificador del pago, la factura, la cuenta por cobrar,
+el operador, el turno, el importe aplicado, el nuevo saldo y las líneas.
+La misma clave por empresa y operador devuelve el resultado original. Se
+rechazan con 409 las claves reutilizadas con otro cuerpo o factura, las
+facturas inactivas o sin cuenta por cobrar, el saldo o cliente desactualizado
+y los importes superiores al saldo.
+
+Sales bloquea la venta y la obligación antes de confirmar. Registra el cobro,
+actualiza el saldo y encola un evento por línea en la misma transacción.
+El puerto `PaymentAdmission` requiere que Finance valide el turno activo del
+operador y resuelva la cuenta destino de cada línea. La ruta devuelve 503
+hasta que exista un adaptador de admisión de Finance.

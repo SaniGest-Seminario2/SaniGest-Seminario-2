@@ -59,6 +59,7 @@ class SecurityConfiguration {
                     "/api/v1/sales/{id}/cancel",
                     "/api/v1/invoices",
                     "/api/v1/invoices/{id}/cancel",
+                    "/api/v1/invoices/{id}/payments",
                     "/api/v1/sales/{id}/invoices")
                 .authenticated()
                 .anyRequest()
