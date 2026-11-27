@@ -2089,11 +2089,16 @@ class SalesServiceIT {
                   UUID.fromString(sale)))
           .isEqualByComparingTo(balance.subtract(new BigDecimal("3.00")));
       assertThat(
-              jdbc.queryForObject(
-                  "SELECT count(*) FROM sales.payment_outbox WHERE company_id = ?",
-                  Integer.class,
+              jdbc.queryForList(
+                  "SELECT payload::text FROM sales.payment_outbox WHERE company_id = ?",
+                  String.class,
                   owner.company()))
-          .isEqualTo(2);
+          .hasSize(2)
+          .allSatisfy(payload -> {
+            var event = mapper.readTree(payload);
+            assertThat(event.path("documentId").asString()).isEqualTo(id);
+            assertThat(event.path("actorId").asString()).isEqualTo(owner.user().toString());
+          });
       assertThat(
               invoicePayment(http, owner, id, "collect", body.replace("REF", "DIFFERENT")).body())
           .contains("IDEMPOTENCY_CONFLICT");

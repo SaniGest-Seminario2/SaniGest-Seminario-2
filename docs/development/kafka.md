@@ -17,9 +17,14 @@ offsets entre reinicios. La creación automática de topics está deshabilitada.
 | `expense.payable-payment.v1` | Expense → Finance | `companyId` | 7 días |
 | `qa.smoke.v1` | CLI del smoke test | `qa-company` | 1 hora |
 
-Los topics financieros se aprovisionan explícitamente al integrar los flujos.
-Para desarrollo, crear cada topic con una partición, factor de replicación 1,
-`cleanup.policy=delete` y `retention.ms=604800000`.
+Para desarrollo, aprovisiona el topic de cobros antes de iniciar Finance.
+
+```sh
+docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server kafka:29092 --create --if-not-exists \
+  --topic sales.receivable-payment.v1 --partitions 1 --replication-factor 1 \
+  --config cleanup.policy=delete --config retention.ms=604800000
+```
 
 Los nombres siguen `<dominio>.<flujo>.v<versión mayor>`. Los cambios
 compatibles conservan el topic. Un cambio incompatible requiere una nueva
@@ -33,7 +38,7 @@ el flujo depende de ese orden.
 
 ## Grupos, offsets y diagnóstico
 
-Finance usa el grupo estable `finance.cash-movements.v1` para ambos topics.
+Finance usa el grupo estable `finance.cash-movements.v1` para el topic de Sales.
 Las réplicas comparten ese grupo. Otro consumidor lógico usa su propio grupo
 para mantener sus offsets independientes. El consumidor confirma el offset
 después de persistir el efecto idempotente. Un grupo nuevo de pruebas puede
@@ -65,13 +70,11 @@ para clientes, reintentos, DLQ y headers corresponde a S2-437.
 
 ## Outbox de pagos confirmados
 
-Sales y Expense tienen su propia tabla `payment_outbox`. Los casos de uso de
-confirmación de S2-339 y S2-347 deben llamar a `PaymentOutbox.enqueue(companyId, event)`
-dentro de la misma transacción local que persiste el pago. La llamada exige una
-transacción activa. Cada línea confirmada tiene su propio `sourceId` y
-`eventId`, y comparte el `paymentId` del pago. Las rutas actuales de creación
-de ventas y gastos todavía no registran estos pagos. En un reintento de la
-operación, el caso de uso debe resolver la idempotencia antes de volver a encolar.
+Sales encola los cobros de facturas con `PaymentOutbox.enqueue(companyId, event)`
+en la misma transacción que persiste el pago. Cada línea confirmada tiene su
+propio `sourceId` y `eventId`, y comparte el `paymentId` del pago. En un
+reintento, el caso de uso resuelve la idempotencia antes de volver a encolar.
+S2-347 integrará el flujo de Expense con su propia tabla `payment_outbox`.
 
 El publicador toma una fila por transacción con `FOR NO KEY UPDATE SKIP LOCKED` y
 registra `published_at` después del acuse de Kafka. Una reversión publicada como
@@ -81,8 +84,8 @@ la fila descansa cinco minutos antes de un nuevo ciclo. El evento queda
 pendiente en PostgreSQL durante el fallo y sobrevive a reinicios.
 
 La entrega es **al menos una vez**. Si falla el proceso tras el acuse de Kafka
-y antes del commit, se reenvía con los mismos identificadores. Finance debe
-deduplicar por `eventId` y proteger el efecto por
+y antes del commit, se reenvía con los mismos identificadores. Finance
+deduplica por `eventId` y protege el efecto por
 `(companyId, origin, sourceId)`. Los eventos publicados se conservan para
 mantener la referencia de las reversiones.
 

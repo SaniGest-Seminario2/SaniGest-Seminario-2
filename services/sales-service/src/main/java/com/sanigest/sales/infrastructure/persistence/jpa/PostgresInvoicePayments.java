@@ -106,7 +106,8 @@ class PostgresInvoicePayments implements InvoicePayments {
       throw new PaymentAdmissionUnavailable();
     }
     Instant registeredAt = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
-    var lines = recordLines(company, payment, request, admission, registeredAt);
+    var lines =
+        recordLines(company, payment, invoiceId, operator, request, admission, registeredAt);
     receivables.applyPayment(receivable, balance);
     var result =
         new InvoicePayment.Result(
@@ -159,6 +160,8 @@ class PostgresInvoicePayments implements InvoicePayments {
   private List<InvoicePayment.AppliedLine> recordLines(
       UUID company,
       UUID payment,
+      UUID invoiceId,
+      UUID operator,
       InvoicePayment.Request request,
       PaymentAdmission.Admission admission,
       Instant registeredAt) {
@@ -187,7 +190,9 @@ class PostgresInvoicePayments implements InvoicePayments {
               line.amount(),
               "DOP",
               null,
-              null));
+              null,
+              invoiceId,
+              operator));
       jdbc.sql(
               """
               INSERT INTO sales.invoice_payment_lines (id, payment_id, position, method, amount, reference, account_id)

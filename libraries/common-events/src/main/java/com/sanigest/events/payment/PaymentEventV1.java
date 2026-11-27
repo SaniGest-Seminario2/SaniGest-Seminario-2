@@ -26,7 +26,9 @@ public record PaymentEventV1(
     @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal amount,
     String currency,
     UUID originalEventId,
-    UUID originalSourceId) {
+    UUID originalSourceId,
+    UUID documentId,
+    UUID actorId) {
 
   public static final int VERSION = 1;
 
