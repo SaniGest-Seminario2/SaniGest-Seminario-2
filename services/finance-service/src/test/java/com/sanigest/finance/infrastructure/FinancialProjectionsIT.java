@@ -25,7 +25,8 @@ import tools.jackson.databind.json.JsonMapper;
 @Testcontainers
 class FinancialProjectionsIT {
   @Container
-  static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17.7-alpine");
+  static final PostgreSQLContainer POSTGRES =
+      new PostgreSQLContainer("postgres:17.7-alpine").withPassword(UUID.randomUUID().toString());
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
   private static JdbcClient jdbc;

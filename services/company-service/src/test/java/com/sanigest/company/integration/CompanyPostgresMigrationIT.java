@@ -25,7 +25,7 @@ class CompanyPostgresMigrationIT {
       new PostgreSQLContainer("postgres:17.7-alpine")
           .withDatabaseName("sanigest_company")
           .withUsername("sanigest_company")
-          .withPassword("test-only-password");
+          .withPassword(UUID.randomUUID().toString());
 
   @Test
   void appliesCompanyMigrationsToPostgres() throws SQLException {

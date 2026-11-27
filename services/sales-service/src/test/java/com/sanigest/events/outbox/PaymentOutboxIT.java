@@ -47,7 +47,9 @@ class PaymentOutboxIT {
 
   @Container
   static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer("postgres:17.7-alpine").withUsername("sanigest_sales");
+      new PostgreSQLContainer("postgres:17.7-alpine")
+          .withUsername("sanigest_sales")
+          .withPassword(UUID.randomUUID().toString());
 
   @Container static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka:4.1.1");
 
