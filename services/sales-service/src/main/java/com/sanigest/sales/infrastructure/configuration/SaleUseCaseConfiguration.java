@@ -22,6 +22,7 @@ import com.sanigest.sales.application.usecase.invoice.ListActiveShiftPayments;
 import com.sanigest.sales.application.usecase.invoice.ManageInvoices;
 import com.sanigest.sales.application.usecase.invoice.RegisterInvoicePayment;
 import com.sanigest.sales.application.usecase.receivable.GetReceivable;
+import com.sanigest.sales.application.usecase.receivable.ListReceivables;
 import com.sanigest.sales.application.usecase.sale.CancelSale;
 import com.sanigest.sales.application.usecase.sale.CreateSale;
 import com.sanigest.sales.application.usecase.sale.CreateSaleIdempotently;
@@ -41,6 +42,14 @@ class SaleUseCaseConfiguration {
   ClientFinancials clientFinancials(
       SalesAuthorization authorization, ClientFinancials.Ledger ledger) {
     return new ClientFinancials(authorization, ledger);
+  }
+
+  @Bean
+  ListReceivables listReceivables(
+      SalesAuthorization authorization,
+      ReceivableRepository receivables,
+      @Value("${sanigest.sales.max-page-size:100}") int maxPageSize) {
+    return new ListReceivables(authorization, receivables, maxPageSize);
   }
 
   @Bean

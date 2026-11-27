@@ -1,6 +1,8 @@
 package com.sanigest.sales.infrastructure.persistence.jpa;
 
 import com.sanigest.sales.application.dto.ReceivableDetail;
+import com.sanigest.sales.application.dto.ReceivablePage;
+import com.sanigest.sales.application.dto.ReceivableSearch;
 import com.sanigest.sales.application.port.out.persistence.ReceivableRepository;
 import com.sanigest.sales.domain.enums.ReceivableOrigin;
 import com.sanigest.sales.domain.enums.ReceivableStatus;
@@ -9,13 +11,37 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 class PostgresReceivableRepository implements ReceivableRepository {
+  private static final String SELECT_DETAIL =
+      "SELECT r.*, s.code AS sale_code, i.id AS invoice_id, i.number AS invoice_number ";
+  private static final String JOINS =
+      """
+      FROM sales.receivables r
+      LEFT JOIN sales.sales s ON s.company_id = r.company_id AND s.id = r.sale_id
+      LEFT JOIN sales.internal_invoices i ON i.company_id = r.company_id AND i.sale_id = r.sale_id
+      """;
+  private static final String OPEN_FILTER =
+      """
+      WHERE r.company_id = :company AND r.balance > 0 AND r.status IN ('OPEN', 'PARTIALLY_PAID')
+        AND (:status = 'ALL' OR r.status = :status)
+        AND (:search = ''
+          OR strpos(lower(r.client_name), lower(:search)) > 0
+          OR strpos(lower(s.code), lower(:search)) > 0
+          OR strpos(lower(i.number), lower(:search)) > 0
+          OR strpos(CAST(COALESCE(i.id, s.id) AS text), lower(:search)) > 0)
+      """;
+  private static final String OPEN_LIST =
+      SELECT_DETAIL + JOINS + OPEN_FILTER + " ORDER BY r.due_date, r.id";
+
   private final JdbcClient jdbc;
 
   PostgresReceivableRepository(JdbcClient jdbc) {
@@ -48,24 +74,51 @@ class PostgresReceivableRepository implements ReceivableRepository {
 
   @Override
   public Optional<ReceivableDetail> findByCompanyIdAndId(UUID companyId, UUID id) {
-    return jdbc.sql(
-            """
-            SELECT r.*, s.code AS sale_code, i.id AS invoice_id, i.number AS invoice_number
-            FROM sales.receivables r
-            LEFT JOIN sales.sales s ON s.company_id = r.company_id AND s.id = r.sale_id
-            LEFT JOIN sales.internal_invoices i
-              ON i.company_id = r.company_id AND i.sale_id = r.sale_id
-            WHERE r.company_id = :company AND r.id = :id
-            """)
+    return jdbc.sql(SELECT_DETAIL + JOINS + "WHERE r.company_id = :company AND r.id = :id")
         .param("company", companyId)
         .param("id", id)
-        .query((row, index) ->
-            new ReceivableDetail(
-                toReceivable(row),
-                row.getString("sale_code"),
-                row.getObject("invoice_id", UUID.class),
-                row.getString("invoice_number")))
+        .query(PostgresReceivableRepository::toDetail)
         .optional();
+  }
+
+  @Override
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+  public ReceivablePage page(UUID companyId, ReceivableSearch criteria, int page, int size) {
+    long total =
+        openQuery("SELECT count(*) " + JOINS + OPEN_FILTER, companyId, criteria)
+            .query(Long.class)
+            .single();
+    var content =
+        openQuery(OPEN_LIST + " LIMIT :size OFFSET :offset", companyId, criteria)
+            .param("size", size)
+            .param("offset", (long) page * size)
+            .query(PostgresReceivableRepository::toDetail)
+            .list();
+    return new ReceivablePage(content, page, size, total);
+  }
+
+  @Override
+  public List<ReceivableDetail> all(UUID companyId, ReceivableSearch criteria) {
+    return openQuery(OPEN_LIST, companyId, criteria)
+        .query(PostgresReceivableRepository::toDetail)
+        .list();
+  }
+
+  private JdbcClient.StatementSpec openQuery(
+      String sql, UUID companyId, ReceivableSearch criteria) {
+    var status = criteria.status().receivableStatus();
+    return jdbc.sql(sql)
+        .param("company", companyId)
+        .param("status", status == null ? "ALL" : status.name())
+        .param("search", criteria.search());
+  }
+
+  private static ReceivableDetail toDetail(ResultSet row, int index) throws SQLException {
+    return new ReceivableDetail(
+        toReceivable(row),
+        row.getString("sale_code"),
+        row.getObject("invoice_id", UUID.class),
+        row.getString("invoice_number"));
   }
 
   Optional<Receivable> lockBySale(UUID companyId, UUID saleId) {

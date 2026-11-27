@@ -115,6 +115,8 @@ class ServiceRoutingIT {
                 Map.entry("/api/v1/inventory/movements", "inventory"),
                 Map.entry("/api/v1/inventory/adjustments", "inventory"),
                 Map.entry("/api/v1/sales", "sales"),
+                Map.entry("/api/v1/receivables", "sales"),
+                Map.entry("/api/v1/receivables/all", "sales"),
                 Map.entry("/api/v1/receivables/123", "sales"))
             .entrySet()) {
       var response =

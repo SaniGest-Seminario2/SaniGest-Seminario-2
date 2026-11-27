@@ -46,6 +46,8 @@ class SecurityConfiguration {
                     HttpMethod.GET,
                     "/api/v1/sales",
                     "/api/v1/sales/{id}",
+                    "/api/v1/receivables",
+                    "/api/v1/receivables/all",
                     "/api/v1/receivables/{id}",
                     "/internal/client-financials/summary",
                     "/internal/client-financials/{id}/summary",

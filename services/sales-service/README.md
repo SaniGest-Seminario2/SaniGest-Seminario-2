@@ -499,3 +499,19 @@ actualiza el saldo y encola un evento por línea en la misma transacción.
 El puerto `PaymentAdmission` requiere que Finance valide el turno activo del
 operador y resuelva la cuenta destino de cada línea. La ruta devuelve 503
 hasta que exista un adaptador de admisión de Finance.
+
+### Cartera abierta (S2-338)
+
+`GET /api/v1/receivables` devuelve `content`, `page`, `size`,
+`totalElements` y `totalPages`. La página inicial es 0 y el tamaño
+predeterminado es 20 (máximo 100 por defecto).
+`GET /api/v1/receivables/all` devuelve el arreglo completo.
+
+Ambas rutas requieren JWT y permiso `SALES_READ` en la empresa seleccionada.
+Aceptan `search` para buscar por nombre del cliente, número o UUID del documento,
+y `status=ALL|PENDING|PARTIALLY_PAID`. Devuelven cuentas abiertas con saldo positivo,
+ordenadas por vencimiento e ID. Cada fila incluye `id`, `client {id, name}`,
+`documentId`, `documentNumber`, `dueDate`, `totalAmount`, `balance` y
+`status` (`OPEN` o `PARTIALLY_PAID`). Se usa la factura si existe y la venta
+en los demás casos asociados a una venta. Para un saldo inicial ambos campos
+de documento son nulos.
