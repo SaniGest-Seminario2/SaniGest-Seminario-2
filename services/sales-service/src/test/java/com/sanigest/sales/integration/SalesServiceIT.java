@@ -1766,7 +1766,8 @@ class SalesServiceIT {
                 "\"requestedReceiptType\":\"CONSUMPTION\",\"notes\":\"Entrega\",\"issueDate\"")
             .replace(
                 "\"quantity\":2",
-                "\"quantity\":2,\"discount\":1,\"unitPrice\":10.1234,\"taxRate\":0.18");
+                "\"quantity\":2,\"discount\":1,\"unitPrice\":10.1234,\"taxRate\":0.18")
+            .replace("\"quantity\":3", "\"quantity\":3,\"unitPrice\":5.00");
     try (var http = HttpClient.newHttpClient()) {
       var request =
           HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/invoices"))

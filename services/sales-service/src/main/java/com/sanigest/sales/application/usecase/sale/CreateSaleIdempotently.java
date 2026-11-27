@@ -10,6 +10,7 @@ import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyReposi
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Claim;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Replay;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Request;
+import com.sanigest.sales.domain.model.InvoiceTaxRates;
 import com.sanigest.sales.domain.model.Sale;
 import java.util.UUID;
 import java.util.function.Function;
@@ -60,6 +61,12 @@ public final class CreateSaleIdempotently {
     UUID actorId = actor.get();
     CreateSale.validate(command);
     boolean invoice = INVOICE_OPERATION.equals(operation);
+    if (invoice
+        && command.lines().stream()
+            .anyMatch(
+                line -> line.unitPrice() == null || !InvoiceTaxRates.accepts(line.taxRate()))) {
+      throw new InvalidSaleRequest();
+    }
     if (!invoice
         && (command.hasInvoiceFields()
             || command.lines().stream().anyMatch(line -> line.discount() != null))) {

@@ -3379,7 +3379,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"lines\": [\n    {\n      \"catalogItemId\": \"{{itemId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"mode\": \"CASH\"\n}",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"lines\": [\n    {\n      \"catalogItemId\": \"{{itemId}}\",\n      \"quantity\": 1,\n      \"unitPrice\": 25,\n      \"taxRate\": 0.18\n    }\n  ],\n  \"mode\": \"CASH\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3582,7 +3582,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"lines\": [\n    {\n      \"catalogItemId\": \"{{itemId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"mode\": \"CREDIT\",\n  \"dueDate\": \"{{dueDate}}\"\n}",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"lines\": [\n    {\n      \"catalogItemId\": \"{{itemId}}\",\n      \"quantity\": 1,\n      \"unitPrice\": 25,\n      \"taxRate\": 0.18\n    }\n  ],\n  \"mode\": \"CREDIT\",\n  \"dueDate\": \"{{dueDate}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

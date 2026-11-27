@@ -69,6 +69,17 @@ def verify(origin, output, baseline):
             assert parameters["catalogItemIds"]["schema"]["type"] == "array"
             assert parameters["X-Company-Id"]["required"]
         if name == "sales":
+            schemas = spec["components"]["schemas"]
+
+            def request_line(post):
+                request = post["requestBody"]["content"]["application/json"]["schema"]
+                body = schemas[request["$ref"].rsplit("/", 1)[-1]]
+                item = body["properties"]["lines"]["items"]
+                return schemas[item["$ref"].rsplit("/", 1)[-1]]
+
+            assert "unitPrice" in request_line(operation)["required"]
+            payment = spec["paths"]["/api/v1/invoices/{id}/payments"]["post"]
+            assert {"amount", "method", "reference"} <= request_line(payment)["properties"].keys()
             assert {"400", "404", "409"} <= responses.keys()
             for status in ("400", "401", "403", "404", "409"):
                 example = responses[status]["content"]["application/problem+json"]["example"]

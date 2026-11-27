@@ -1,6 +1,6 @@
 package com.sanigest.sales.api.controller;
 
-import com.sanigest.sales.api.dto.CreateSaleRequest;
+import com.sanigest.sales.api.dto.CreateInvoiceRequest;
 import com.sanigest.sales.api.dto.InvoiceResponse;
 import com.sanigest.sales.application.usecase.invoice.IssueInvoice;
 import com.sanigest.sales.application.usecase.sale.CreateSaleIdempotently;
@@ -50,7 +50,7 @@ public class CreateInvoiceController {
       required = true,
       schema = @Schema(type = "string", pattern = "^[A-Za-z0-9._~-]{1,128}$"))
   public ResponseEntity<String> create(
-      @RequestHeader HttpHeaders headers, @Valid @RequestBody CreateSaleRequest request) {
+      @RequestHeader HttpHeaders headers, @Valid @RequestBody CreateInvoiceRequest request) {
     var keys = headers.get("Idempotency-Key");
     if (keys == null || keys.size() != 1 || !KEY_FORMAT.matcher(keys.getFirst()).matches()) {
       throw new InvalidIdempotencyKey();

@@ -204,8 +204,8 @@ paths:
       summary: Crea una factura interna multilínea con SALES_WRITE.
       description: >
         Registra la venta, la factura y la obligación positiva en una transacción.
-        Aplica el precio unitario enviado o el vigente en Catalog. Valida la tasa contra Catalog y redondea base e impuesto
-        por línea a dos decimales. La obligación CASH vence en la fecha comercial
+        Aplica el precio y la tasa indicados en cada línea. Redondea a dos decimales la base después del descuento
+        y calcula el ITBIS sobre esa base. La obligación CASH vence en la fecha comercial
         y la CREDIT usa dueDate. Los productos con seguimiento de stock se rechazan
         hasta habilitar la reserva de existencias. La misma clave y solicitud recuperan el mismo
         documento durante la ventana de idempotencia de Sales.
@@ -225,7 +225,10 @@ paths:
               properties:
                 clientId: {type: string, format: uuid}
                 mode: {type: string, enum: [CASH, CREDIT]}
-                issueDate: {type: string, format: date}
+                issueDate:
+                  type: string
+                  format: date
+                  description: Fecha comercial. Acepta saleDate como alias. Por defecto usa la fecha comercial actual.
                 requestedReceiptType: {type: string, enum: [CONSUMPTION, FISCAL_CREDIT]}
                 notes: {type: string, maxLength: 1000}
                 dueDate:
@@ -238,15 +241,16 @@ paths:
                   maxItems: 100
                   items:
                     type: object
-                    required: [catalogItemId, quantity]
+                    required: [catalogItemId, quantity, unitPrice]
                     properties:
                       catalogItemId: {type: string, format: uuid}
                       quantity: {type: number, minimum: 0, exclusiveMinimum: true, multipleOf: 0.001}
                       unitPrice: {type: number, minimum: 0, multipleOf: 0.0001}
                       taxRate:
                         type: number
-                        description: Fracción de ITBIS compatible con la tasa de Catalog.
+                        description: Fracción de ITBIS elegida para la línea. Usa los valores numéricos de invoiceTaxRates.
                         enum: [0, 0.16, 0.18]
+                        default: 0
                       discount:
                         type: number
                         description: Descuento en DOP sobre el importe bruto de la línea.
