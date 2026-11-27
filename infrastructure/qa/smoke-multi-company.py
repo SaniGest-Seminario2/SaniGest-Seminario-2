@@ -10,7 +10,7 @@ from datetime import date, timedelta
 
 
 def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200,
-             origin=None, method=None, content_type="application/json"):
+             origin=None, method=None, content_type="application/json", problem=True):
     headers = {}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -39,8 +39,9 @@ def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200,
         raise AssertionError(f"{request.get_method()} {path}: expected {status}, got {actual} ({code})")
     decoded = json.loads(payload) if payload else None
     if status >= 400:
-        assert response_headers.get_content_type() == "application/problem+json"
-        assert decoded["status"] == status
+        assert decoded["status"] == status, path
+    if status >= 400 and problem:
+        assert response_headers.get_content_type() == "application/problem+json", path
         required = ("type", "title", "detail", "errorCode", "timestamp", "traceId")
         missing = [field for field in required if not decoded.get(field)]
         assert not missing, f"HTTP {status}: missing problem fields {missing}"
@@ -72,7 +73,12 @@ def main():
     assert exchange("clients", token=token, tenant=a)["content"] == []
     assert exchange("clients", token=token, tenant=a, origin=CATALOG)["content"] == []
     assert exchange("sales", token=token, tenant=a)["content"] == []
-    exchange("clients", status=401)
+    for path in ("auth/me", "companies", "advisor/companies", "clients", "catalog-items",
+                 "sales", "invoices", "receivables", "expenses", "payables", "warehouses",
+                 "inventory/stock", "cash-sessions/active/summary",
+                 "cash-sessions/active/payments", "reports/projection"):
+        exchange(path, tenant=a, status=401)
+    exchange("reports/projection/rebuild", tenant=a, method="POST", status=401)
     exchange("missing-s2-302-route", token=token, status=404)
     exchange("auth/register", method="POST", status=400)
     exchange("auth/register", token=token, status=405)
@@ -152,7 +158,18 @@ def main():
                          data={"reason": "Smoke multiempresa"})
     assert cancelled["status"] == "CANCELLED" and cancelled["total"] == direct["total"]
     assert exchange(f"receivables/{direct['saleId']}", token=token, tenant=a)["outstandingBalance"] == "0.00"
-    exchange(f"sales/{sale_id}", token=token, tenant=b, status=404)
+    for path in (f"sales/{sale_id}", f"receivables/{sale_id}", f"clients/{client_a}"):
+        exchange(path, token=token, tenant=b, status=404)
+    exchange(f"{direct_path}/payments", token=token, tenant=b, method="POST",
+             data={"clientName": client["name"], "balance": direct["total"],
+                   "lines": [{"amount": "1.00", "method": "CASH"}]}, key=uuid.uuid4().hex, status=404)
+    unauthorized = str(uuid.uuid4())
+    exchange("clients", token=token, tenant=unauthorized, status=403)
+    exchange("clients", token=token, tenant=unauthorized, origin=CATALOG, status=403)
+    exchange("cash-sessions/active/payments", token=token, tenant=unauthorized, status=403)
+    for path in ("cash-sessions/active/summary", "reports/projection"):
+        denied = exchange(path, token=token, tenant=unauthorized, status=403, problem=False)
+        assert {"shiftId", "activity", "receivables", "payables"}.isdisjoint(denied)
     exchange("clients", token=token, status=400)
     exchange("clients", token=token, status=400, origin=CATALOG)
     exchange(f"clients/{client_a}", token=token, tenant=b, status=404, origin=CATALOG)
@@ -201,7 +218,8 @@ def verify_inventory(token, company, other, item):
         page = inventory(path)
         assert page["totalElements"] == page["totalPages"] == 1
         assert page["content"][0]["id"] == expected
-        exchange(path, token=token, tenant=other, status=404)
+        for origin in (None, CATALOG):
+            exchange(path, token=token, tenant=other, status=404, origin=origin)
     adjust(service, "IN", "1", uuid.uuid4().hex, 400)
     exchange(position, token=token, tenant=other, status=404)
     exchange("inventory/stock", status=401, origin=INVENTORY)
@@ -217,7 +235,9 @@ def verify_expenses(token, company, other, item, warehouse):
         "paymentTerms": "BOTH", "creditDays": 30,
     })
     issue_date = date.today()
+    attachment = str(uuid.uuid4())
     request = {
+        "attachmentId": attachment,
         "operationType": "PURCHASE", "documentDate": issue_date.isoformat(),
         "receiptType": "FISCAL_CREDIT", "mode": "CREDIT", "supplierId": supplier["id"],
         "supplierInvoiceNumber": "COMPRA-001", "warehouseId": warehouse, "receiptStatus": "PARTIAL",
@@ -239,6 +259,14 @@ def verify_expenses(token, company, other, item, warehouse):
     assert created["subtotal"] == 25 and created["tax"] == 4.5 and created["total"] == 29.5
     assert created["dueDate"] == (issue_date + timedelta(days=30)).isoformat()
     assert register() == created
+    detail_path = f"expenses/{created['id']}"
+    for origin in (None, EXPENSE):
+        assert exchange(detail_path, token=token, tenant=company, origin=origin)["attachmentIds"] == [attachment]
+        exchange(detail_path, token=token, tenant=other, origin=origin, status=404)
+        filtered = f"payables?supplierId={supplier['id']}"
+        assert exchange(filtered, token=token, tenant=company, origin=origin)["totalElements"] == 1
+        assert exchange(filtered, token=token, tenant=other, origin=origin)["totalElements"] == 0
+        exchange("expenses", tenant=company, origin=origin, status=401)
     conflict = exchange("expenses", token=token, tenant=company, data={**request, "notes": "Cambiada"},
                         key=key, status=409)
     assert conflict["errorCode"] == "EXPENSE_IDEMPOTENCY_CONFLICT"
@@ -257,4 +285,5 @@ if __name__ == "__main__":
     GATEWAY = os.environ.get("SMOKE_GATEWAY_URL", "http://127.0.0.1:8085")
     CATALOG = os.environ.get("SMOKE_CATALOG_URL", "http://127.0.0.1:8083")
     INVENTORY = os.environ.get("SMOKE_INVENTORY_URL", "http://127.0.0.1:8086")
+    EXPENSE = os.environ.get("SMOKE_EXPENSE_URL", "http://127.0.0.1:8087")
     main()

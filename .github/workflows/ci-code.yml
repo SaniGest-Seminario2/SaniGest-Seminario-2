@@ -40,3 +40,15 @@ jobs:
           path: services/api-gateway/target/failsafe-reports/
           if-no-files-found: warn
           retention-days: 7
+
+  finance:
+    name: Finance projection integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-maven
+      - name: Verify snapshot and event isolation
+        run: >-
+          sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true
+          -pl services/finance-service -am -Pintegration-only verify

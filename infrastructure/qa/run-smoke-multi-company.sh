@@ -26,6 +26,7 @@ export INVENTORY_SERVICE_PORT="${INVENTORY_SERVICE_PORT:-18086}"
 export SMOKE_GATEWAY_URL="http://127.0.0.1:$GATEWAY_PORT"
 export SMOKE_CATALOG_URL="http://127.0.0.1:$CATALOG_SERVICE_PORT"
 export SMOKE_INVENTORY_URL="http://127.0.0.1:$INVENTORY_SERVICE_PORT"
+export SMOKE_EXPENSE_URL="http://127.0.0.1:$EXPENSE_SERVICE_PORT"
 
 qa_compose() {
   docker compose --project-name "$project" --env-file .env.example \
