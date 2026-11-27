@@ -34,12 +34,13 @@ public class SaleQueryController {
   public SalePageResponse list(
       @RequestParam(required = false) String search,
       @RequestParam(required = false) String status,
+      @RequestParam(required = false) String mode,
       @RequestParam(required = false) String from,
       @RequestParam(required = false) String to,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = ListSales.DEFAULT_SIZE) int size) {
     return SalePageResponse.from(
-        listSales.execute(search, status, date(from), date(to), page, size));
+        listSales.execute(search, status, mode, date(from), date(to), page, size));
   }
 
   private static LocalDate date(String value) {

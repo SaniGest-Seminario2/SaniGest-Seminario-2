@@ -370,7 +370,8 @@ class CatalogServiceIT {
             "V15__extend_catalog_item_commercial_profile.sql",
             "V16__create_catalog_item_history.sql",
             "V17__preserve_required_commercial_fields.sql",
-            "V18__require_commercial_fields_on_insert.sql");
+            "V18__require_commercial_fields_on_insert.sql",
+            "V19__add_regular_supplier_supply_type.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -1119,7 +1120,7 @@ class CatalogServiceIT {
             Flyway.configure().dataSource(source).target("17").load().migrate().migrationsExecuted)
         .isEqualTo(4);
     assertThat(Flyway.configure().dataSource(source).load().migrate().migrationsExecuted)
-        .isEqualTo(1);
+        .isEqualTo(2);
     assertIncompleteInsertsRejected(jdbc, companyId);
     assertThat(
             jdbc.queryForObject(

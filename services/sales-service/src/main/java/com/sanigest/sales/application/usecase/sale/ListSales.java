@@ -8,6 +8,7 @@ import com.sanigest.sales.application.exception.InvalidSaleQuery;
 import com.sanigest.sales.application.exception.SalesAccessForbidden;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
 import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
+import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.enums.SaleStatus;
 import java.time.LocalDate;
 import java.util.Locale;
@@ -32,6 +33,11 @@ public final class ListSales {
 
   public SalePage execute(
       String search, String status, LocalDate from, LocalDate to, int page, int size) {
+    return execute(search, status, null, from, to, page, size);
+  }
+
+  public SalePage execute(
+      String search, String status, String mode, LocalDate from, LocalDate to, int page, int size) {
     var companyId = requireReadCompany();
     String term = search == null ? "" : search.strip();
     LocalDate first = from == null ? SaleSearch.MIN_DATE : from;
@@ -48,7 +54,15 @@ public final class ListSales {
       throw new InvalidSaleQuery();
     }
     return sales.search(
-        companyId, new SaleSearch(term, parseStatus(status), first, last, page, size));
+        companyId,
+        new SaleSearch(
+            term,
+            parseFilter(SaleStatus.class, status),
+            first,
+            last,
+            page,
+            size,
+            parseFilter(SaleMode.class, mode)));
   }
 
   public UUID requireReadCompany() {
@@ -59,12 +73,12 @@ public final class ListSales {
     return companyId;
   }
 
-  private static SaleStatus parseStatus(String status) {
-    if (status == null || status.isBlank()) {
+  private static <E extends Enum<E>> E parseFilter(Class<E> type, String value) {
+    if (value == null || value.isBlank() || "ALL".equalsIgnoreCase(value.strip())) {
       return null;
     }
     try {
-      return SaleStatus.valueOf(status.strip().toUpperCase(Locale.ROOT));
+      return Enum.valueOf(type, value.strip().toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException invalid) {
       throw new InvalidSaleQuery();
     }

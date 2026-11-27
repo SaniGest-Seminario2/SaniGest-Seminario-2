@@ -3,6 +3,130 @@ info:
   title: SaniGest Expense API
   version: 0.1.0
 paths:
+  /api/v1/expenses/options:
+    get:
+      operationId: expenseOptions
+      summary: Consultar opciones de compras y cuentas por pagar
+      description: >
+        Requiere permiso de lectura en Expense. operationTypeFilters y statusFilters se usan
+        en las consultas de gastos. payableFilters se usa como status en cuentas por pagar.
+        ALL es exclusivo de filtros. taxClassifications usa los códigos de taxClassification del alta.
+      security: [{bearerAuth: []}]
+      parameters:
+        - in: header
+          name: X-Company-Id
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Grupos de opciones ordenados
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [operationTypes, receiptTypes, modes, receiptStatuses, taxClassifications, operationTypeFilters, statusFilters, payableFilters]
+                properties:
+                  operationTypes:
+                    type: array
+                    items:
+                      type: object
+                      required: [value, label]
+                      properties:
+                        value: {type: string, enum: [PURCHASE, OPERATING_EXPENSE, ASSET_ACQUISITION]}
+                        label: {type: string}
+                  receiptTypes:
+                    type: array
+                    items:
+                      type: object
+                      required: [value, label]
+                      properties:
+                        value: {type: string, enum: [FISCAL_CREDIT, CONSUMPTION, PURCHASE, MINOR_EXPENSES, OTHER, NOT_APPLICABLE]}
+                        label: {type: string}
+                  modes:
+                    type: array
+                    items:
+                      type: object
+                      required: [value, label]
+                      properties:
+                        value: {type: string, enum: [CASH, CREDIT]}
+                        label: {type: string}
+                  receiptStatuses:
+                    type: array
+                    items:
+                      type: object
+                      required: [value, label]
+                      properties:
+                        value: {type: string, enum: [PENDING, COMPLETE, PARTIAL]}
+                        label: {type: string}
+                  taxClassifications:
+                    type: array
+                    items:
+                      type: object
+                      required: [value, label]
+                      properties:
+                        value: {type: string, enum: [ITBIS_18, ITBIS_16, EXEMPT]}
+                        label: {type: string}
+                  operationTypeFilters:
+                    type: array
+                    items:
+                      type: object
+                      required: [value, label]
+                      properties:
+                        value: {type: string, enum: [ALL, PURCHASE, OPERATING_EXPENSE, ASSET_ACQUISITION]}
+                        label: {type: string}
+                  statusFilters:
+                    type: array
+                    items:
+                      type: object
+                      required: [value, label]
+                      properties:
+                        value: {type: string, enum: [ALL, PAID, PENDING, PARTIALLY_PAID]}
+                        label: {type: string}
+                  payableFilters:
+                    type: array
+                    items:
+                      type: object
+                      required: [value, label]
+                      properties:
+                        value: {type: string, enum: [ALL, PENDING, PARTIALLY_PAID]}
+                        label: {type: string}
+              example:
+                operationTypes:
+                  - {value: PURCHASE, label: "Compra de mercancía o suministro"}
+                  - {value: OPERATING_EXPENSE, label: "Gasto operativo"}
+                  - {value: ASSET_ACQUISITION, label: "Adquisición de activo"}
+                receiptTypes:
+                  - {value: FISCAL_CREDIT, label: "Crédito fiscal"}
+                  - {value: CONSUMPTION, label: "Consumo"}
+                  - {value: PURCHASE, label: "Compra"}
+                  - {value: MINOR_EXPENSES, label: "Gastos menores"}
+                  - {value: OTHER, label: "Otro"}
+                  - {value: NOT_APPLICABLE, label: "No aplica"}
+                modes:
+                  - {value: CASH, label: "Contado"}
+                  - {value: CREDIT, label: "Crédito"}
+                receiptStatuses:
+                  - {value: PENDING, label: "Pendiente de recepción"}
+                  - {value: COMPLETE, label: "Recibida completamente"}
+                  - {value: PARTIAL, label: "Recibida parcialmente"}
+                taxClassifications:
+                  - {value: ITBIS_18, label: "18%"}
+                  - {value: ITBIS_16, label: "16%"}
+                  - {value: EXEMPT, label: "0%/Exento"}
+                operationTypeFilters:
+                  - {value: ALL, label: "Todas"}
+                  - {value: PURCHASE, label: "Compra"}
+                  - {value: OPERATING_EXPENSE, label: "Gasto"}
+                  - {value: ASSET_ACQUISITION, label: "Activo"}
+                statusFilters:
+                  - {value: ALL, label: "Todos"}
+                  - {value: PAID, label: "Pagado"}
+                  - {value: PENDING, label: "Pendiente"}
+                  - {value: PARTIALLY_PAID, label: "Parcial"}
+                payableFilters:
+                  - {value: ALL, label: "Todos"}
+                  - {value: PENDING, label: "Pendiente"}
+                  - {value: PARTIALLY_PAID, label: "Parcial"}
   /api/v1/expenses:
     post:
       operationId: registerExpense

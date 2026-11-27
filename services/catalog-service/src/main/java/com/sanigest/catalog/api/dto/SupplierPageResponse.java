@@ -21,6 +21,7 @@ public final class SupplierPageResponse {
                     item.status(),
                     item.contact(),
                     item.phone(),
+                    SupplierSupplyCoverage.from(item.supplyType()),
                     item.supplyType(),
                     item.paymentTerms(),
                     item.categoryId()))
@@ -36,11 +37,12 @@ public final class SupplierPageResponse {
       SupplierStatus status,
       String contact,
       String phone,
-      SupplierSupplyType supplyType,
+      SupplierSupplyCoverage supplyType,
+      SupplierSupplyType supplyClassification,
       SupplierPaymentTerms paymentTerms,
       UUID categoryId) {
     public Item(UUID id, String name, String taxId, SupplierStatus status) {
-      this(id, name, taxId, status, null, null, null, null, null);
+      this(id, name, taxId, status, null, null, null, null, null, null);
     }
   }
 }

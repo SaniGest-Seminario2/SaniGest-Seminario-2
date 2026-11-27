@@ -18,7 +18,8 @@ interface SupplierRows extends Repository<SupplierRow, UUID> {
       FROM catalog.suppliers
       WHERE company_id = :companyId
         AND (:#{#filter.status()} = '' OR status = :#{#filter.status()})
-        AND (:#{#filter.supplyType()} = '' OR supply_type = :#{#filter.supplyType()} OR supply_type = 'BOTH')
+        AND (:#{#filter.supplyType()} = '' OR supply_type = :#{#filter.supplyType()}
+          OR (:#{#filter.supplyType()} IN ('PRODUCT', 'SERVICE') AND supply_type IN ('BOTH', 'REGULAR')))
         AND (:#{#filter.paymentTerms()} = '' OR payment_terms = :#{#filter.paymentTerms()}
           OR payment_terms = 'BOTH')
         AND (CAST(:#{#filter.categoryId()} AS uuid) IS NULL OR category_id = :#{#filter.categoryId()})

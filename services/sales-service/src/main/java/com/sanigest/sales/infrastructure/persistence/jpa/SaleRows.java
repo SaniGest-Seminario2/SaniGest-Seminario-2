@@ -100,14 +100,17 @@ interface SaleRows extends Repository<SaleRow, UUID> {
   String FILTER =
       """
       WHERE s.company_id = :companyId
-        AND s.sale_date BETWEEN :fromDate AND :toDate
-        AND (:status = '' OR s.status = :status)
-        AND (:pattern = '' OR lower(s.client_name) LIKE lower(:pattern) ESCAPE '!')
+        AND s.sale_date BETWEEN :#{#filter.fromDate()} AND :#{#filter.toDate()}
+        AND (:#{#filter.status()} = '' OR s.status = :#{#filter.status()})
+        AND (:#{#filter.mode()} = '' OR s.mode = :#{#filter.mode()})
+        AND (:#{#filter.pattern()} = '' OR lower(s.client_name) LIKE lower(:#{#filter.pattern()}) ESCAPE '!')
       """;
 
   @Query(value = "SELECT count(*) FROM sales.sales s " + FILTER, nativeQuery = true)
-  long countMatching(
-      UUID companyId, String pattern, String status, LocalDate fromDate, LocalDate toDate);
+  long countMatching(UUID companyId, ListingFilter filter);
+
+  record ListingFilter(
+      String pattern, String status, String mode, LocalDate fromDate, LocalDate toDate) {}
 
   @Query(
       value =
@@ -125,14 +128,7 @@ interface SaleRows extends Repository<SaleRow, UUID> {
               LIMIT :size OFFSET :offset
               """,
       nativeQuery = true)
-  List<ListedSale> search(
-      UUID companyId,
-      String pattern,
-      String status,
-      LocalDate fromDate,
-      LocalDate toDate,
-      int size,
-      long offset);
+  List<ListedSale> search(UUID companyId, ListingFilter filter, int size, long offset);
 
   interface ListedSale {
     UUID getId();

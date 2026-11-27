@@ -8,7 +8,7 @@
     "/api/v1/catalog/options": {
       "get": {
         "summary": "Consultar opciones fijas de Catalog",
-        "description": "Requiere CATALOG_READ. BOTH es una condición de maestro. null indica que el plazo no aplica.",
+        "description": "Requiere CATALOG_READ. null indica que el plazo no aplica. itemAvailabilityFilters corresponde a availability en el listado.",
         "security": [
           {
             "bearerAuth": []
@@ -39,7 +39,9 @@
                     "supplierSupplyTypes",
                     "supplierCreditDays",
                     "itemTypes",
-                    "itemTypeFilters"
+                    "itemTypeFilters",
+                    "itemAvailabilityFilters",
+                    "supplierSupplyClassifications"
                   ],
                   "properties": {
                     "clientTypes": {
@@ -77,8 +79,7 @@
                             "type": "string",
                             "enum": [
                               "CASH",
-                              "CREDIT",
-                              "BOTH"
+                              "CREDIT"
                             ]
                           },
                           "label": {
@@ -203,6 +204,55 @@
                           }
                         }
                       }
+                    },
+                    "itemAvailabilityFilters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "enum": [
+                              "ALL",
+                              "AVAILABLE",
+                              "LOW",
+                              "OUT"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "supplierSupplyClassifications": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "enum": [
+                              "REGULAR",
+                              "BOTH",
+                              "PRODUCT",
+                              "SERVICE"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "description": "Opciones de alta para el campo supplyType. El tipo exacto se devuelve en supplyClassification."
                     }
                   }
                 }
@@ -331,7 +381,8 @@
               "enum": [
                 "PRODUCT",
                 "SERVICE",
-                "BOTH"
+                "BOTH",
+                "REGULAR"
               ]
             }
           }
@@ -699,7 +750,7 @@
       "get": {
         "operationId": "listCatalogItems",
         "summary": "Listar productos y servicios",
-        "description": "Requiere CATALOG_READ en la membresía vigente. Orden por nombre e ID ascendentes. Una página fuera de rango devuelve contenido vacío y conserva los totales. Para combinar filtros comerciales y stock, enviar warehouseId y availability juntos. Requiere lectura de Catalog e Inventory. Completa el conteo antes de paginar.",
+        "description": "Requiere CATALOG_READ en la membresía vigente. Orden por nombre e ID ascendentes. Una página fuera de rango devuelve contenido vacío y conserva los totales. Para filtrar por estado de stock, enviar warehouseId y availability juntos. Requiere lectura de Catalog e Inventory. Completa el conteo antes de paginar.",
         "security": [
           {
             "bearerAuth": []
@@ -782,7 +833,7 @@
           {
             "name": "warehouseId",
             "in": "query",
-            "description": "Almacén explícito. Obligatorio cuando se envía availability.",
+            "description": "Almacén explícito. Obligatorio al filtrar por un estado de disponibilidad.",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -791,10 +842,11 @@
           {
             "name": "availability",
             "in": "query",
-            "description": "Disponibilidad en el almacén elegido. SERVICE corresponde a NOT_APPLICABLE. Producto sin posición o seguimiento corresponde a NOT_TRACKED.",
+            "description": "Disponibilidad en el almacén elegido. SERVICE corresponde a NOT_APPLICABLE. Producto sin posición o seguimiento corresponde a NOT_TRACKED. ALL incluye todos los artículos sin requerir almacén.",
             "schema": {
               "type": "string",
               "enum": [
+                "ALL",
                 "NOT_APPLICABLE",
                 "NOT_TRACKED",
                 "OUT",
@@ -1309,13 +1361,14 @@
           {
             "name": "supplyType",
             "in": "query",
-            "description": "PRODUCT y SERVICE incluyen BOTH. BOTH coincide exactamente.",
+            "description": "PRODUCT y SERVICE incluyen BOTH y REGULAR. BOTH y REGULAR coinciden exactamente.",
             "schema": {
               "type": "string",
               "enum": [
                 "PRODUCT",
                 "SERVICE",
-                "BOTH"
+                "BOTH",
+                "REGULAR"
               ]
             }
           },
@@ -3796,7 +3849,8 @@
             "enum": [
               "PRODUCT",
               "SERVICE",
-              "BOTH"
+              "BOTH",
+              "REGULAR"
             ],
             "nullable": true
           },
@@ -3902,7 +3956,8 @@
               "SERVICE",
               "BOTH"
             ],
-            "nullable": true
+            "nullable": true,
+            "description": "Cobertura de suministro. REGULAR se representa como BOTH."
           },
           "paymentTerms": {
             "type": "string",
@@ -3929,6 +3984,17 @@
             "type": "string",
             "maxLength": 1000,
             "nullable": true
+          },
+          "supplyClassification": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE",
+              "BOTH",
+              "REGULAR"
+            ],
+            "nullable": true,
+            "description": "Tipo exacto del proveedor. Use este valor para editar el campo supplyType."
           }
         }
       },
@@ -4003,7 +4069,8 @@
               "SERVICE",
               "BOTH"
             ],
-            "nullable": true
+            "nullable": true,
+            "description": "Cobertura de suministro. REGULAR se representa como BOTH."
           },
           "paymentTerms": {
             "type": "string",
@@ -4030,6 +4097,17 @@
             "type": "string",
             "maxLength": 1000,
             "nullable": true
+          },
+          "supplyClassification": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE",
+              "BOTH",
+              "REGULAR"
+            ],
+            "nullable": true,
+            "description": "Tipo exacto del proveedor. Use este valor para editar el campo supplyType."
           }
         }
       },
@@ -4082,7 +4160,8 @@
               "SERVICE",
               "BOTH"
             ],
-            "nullable": true
+            "nullable": true,
+            "description": "Cobertura de suministro. REGULAR se representa como BOTH."
           },
           "paymentTerms": {
             "type": "string",
@@ -4097,6 +4176,17 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "supplyClassification": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "SERVICE",
+              "BOTH",
+              "REGULAR"
+            ],
+            "nullable": true,
+            "description": "Tipo exacto del proveedor. Use este valor para editar el campo supplyType."
           }
         }
       },
@@ -4186,7 +4276,8 @@
             "enum": [
               "PRODUCT",
               "SERVICE",
-              "BOTH"
+              "BOTH",
+              "REGULAR"
             ],
             "nullable": true
           },
