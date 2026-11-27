@@ -1,0 +1,207 @@
+openapi: 3.1.0
+info:
+  title: Proyecciones financieras de SaniGest
+  version: 1.0.0
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/dashboard/projection:
+    parameters:
+      - $ref: '#/components/parameters/Company'
+    get:
+      operationId: getDashboardProjection
+      responses:
+        '200':
+          $ref: '#/components/responses/Projection'
+        '400':
+          $ref: '#/components/responses/InvalidCompany'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/reports/projection:
+    parameters:
+      - $ref: '#/components/parameters/Company'
+    get:
+      operationId: getReportsProjection
+      responses:
+        '200':
+          $ref: '#/components/responses/Projection'
+        '400':
+          $ref: '#/components/responses/InvalidCompany'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/reports/projection/rebuild:
+    parameters:
+      - $ref: '#/components/parameters/Company'
+    post:
+      operationId: rebuildFinancialProjection
+      description: Reemplaza los snapshots documentales con el estado actual de Sales y Expense.
+      responses:
+        '200':
+          $ref: '#/components/responses/Projection'
+        '400':
+          $ref: '#/components/responses/InvalidCompany'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Company:
+      name: X-Company-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Projection:
+      description: Proyección DOP. Las series contienen los meses con datos.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Projection'
+    InvalidCompany:
+      description: Selección de empresa ausente o inválida.
+    Unauthorized:
+      description: JWT ausente o inválido.
+    Forbidden:
+      description: Sin acceso de lectura a ambas fuentes.
+    Unavailable:
+      description: Alguna fuente o su autorización está indisponible.
+  schemas:
+    Projection:
+      type: object
+      required: [currency, generatedAt, dataAsOf, partial, missingSources, salesAsOf, expenseAsOf, cashLatestEventAt,
+                 receivables, payables, salesSeries, expenseSeries, documentTotals, recentInvoices, cashSeries,
+                 cashTotals, activity]
+      properties:
+        currency:
+          const: DOP
+        generatedAt:
+          type: string
+          format: date-time
+        dataAsOf:
+          type: [string, 'null']
+          format: date-time
+          description: Menor fecha de observación de los dos snapshots documentales.
+        partial:
+          type: boolean
+          description: La empresa aún no tiene snapshots documentales.
+        missingSources:
+          type: array
+          items:
+            enum: [sales, expense]
+        salesAsOf:
+          type: [string, 'null']
+          format: date-time
+        expenseAsOf:
+          type: [string, 'null']
+          format: date-time
+        cashLatestEventAt:
+          type: [string, 'null']
+          format: date-time
+          description: Última fecha efectiva del registro local. Puede haber eventos pendientes de consumo.
+        receivables:
+          type: [number, 'null']
+        payables:
+          type: [number, 'null']
+        salesSeries:
+          $ref: '#/components/schemas/DocumentSeries'
+        expenseSeries:
+          $ref: '#/components/schemas/DocumentSeries'
+        documentTotals:
+          type: [array, 'null']
+          items:
+            $ref: '#/components/schemas/DocumentTotal'
+        recentInvoices:
+          type: [array, 'null']
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/Activity'
+        cashSeries:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/CashTotals'
+              - type: object
+                required: [month]
+                properties:
+                  month:
+                    type: string
+                    format: date
+        cashTotals:
+          $ref: '#/components/schemas/CashTotals'
+        activity:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/Activity'
+    DocumentTotal:
+      type: object
+      required: [kind, amount, count]
+      properties:
+        kind:
+          type: string
+        amount:
+          type: number
+        count:
+          type: integer
+    DocumentSeries:
+      type: [array, 'null']
+      items:
+        allOf:
+          - $ref: '#/components/schemas/DocumentTotal'
+          - type: object
+            required: [month]
+            properties:
+              month:
+                type: string
+                format: date
+    CashTotals:
+      type: object
+      required: [inflow, outflow, net]
+      properties:
+        inflow:
+          type: number
+        outflow:
+          type: number
+        net:
+          type: number
+    Activity:
+      type: object
+      required: [id, date, kind]
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        kind:
+          type: string
+        status:
+          type: string
+        total:
+          type: number
+        origin:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        amount:
+          type: number

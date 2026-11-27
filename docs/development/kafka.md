@@ -17,13 +17,15 @@ offsets entre reinicios. La creación automática de topics está deshabilitada.
 | `expense.payable-payment.v1` | Expense → Finance | `companyId` | 7 días |
 | `qa.smoke.v1` | CLI del smoke test | `qa-company` | 1 hora |
 
-Para desarrollo, aprovisiona el topic de cobros antes de iniciar Finance.
+Para desarrollo, aprovisiona los topics de cobros y pagos antes de iniciar Finance.
 
 ```sh
-docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh \
-  --bootstrap-server kafka:29092 --create --if-not-exists \
-  --topic sales.receivable-payment.v1 --partitions 1 --replication-factor 1 \
-  --config cleanup.policy=delete --config retention.ms=604800000
+for topic in sales.receivable-payment.v1 expense.payable-payment.v1; do
+  docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh \
+    --bootstrap-server kafka:29092 --create --if-not-exists \
+    --topic "$topic" --partitions 1 --replication-factor 1 \
+    --config cleanup.policy=delete --config retention.ms=604800000
+done
 ```
 
 Los nombres siguen `<dominio>.<flujo>.v<versión mayor>`. Los cambios
@@ -38,7 +40,7 @@ el flujo depende de ese orden.
 
 ## Grupos, offsets y diagnóstico
 
-Finance usa el grupo estable `finance.cash-movements.v1` para el topic de Sales.
+Finance usa el grupo estable `finance.cash-movements.v1` para ambos topics de pagos.
 Las réplicas comparten ese grupo. Otro consumidor lógico usa su propio grupo
 para mantener sus offsets independientes. El consumidor confirma el offset
 después de persistir el efecto idempotente. Un grupo nuevo de pruebas puede

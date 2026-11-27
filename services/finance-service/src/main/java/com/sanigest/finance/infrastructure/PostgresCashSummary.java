@@ -23,8 +23,9 @@ class PostgresCashSummary implements Movements {
     return jdbc.sql(
             """
             SELECT method,
-                   SUM(CASE WHEN origin = 'COBRO' AND direction = 'INFLOW'
-                            THEN amount ELSE 0.00 END) AS collections,
+                   SUM(CASE WHEN origin = 'COBRO' AND direction = 'INFLOW' THEN amount
+                            WHEN origin = 'COBRO' AND original_event_id IS NOT NULL THEN -amount
+                            ELSE 0.00 END) AS collections,
                    SUM(CASE direction WHEN 'INFLOW' THEN amount ELSE -amount END) AS net
             FROM finance.cash_movements
             WHERE company_id = :company AND shift_id = :shift

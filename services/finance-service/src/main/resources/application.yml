@@ -45,6 +45,7 @@ server:
 sanigest:
   finance:
     sales-origin: ${FINANCE_SALES_ORIGIN:http://localhost:8084}
+    expense-origin: ${FINANCE_EXPENSE_ORIGIN:http://localhost:8087}
     admission-token: ${FINANCE_ADMISSION_TOKEN:}
 
 management:
