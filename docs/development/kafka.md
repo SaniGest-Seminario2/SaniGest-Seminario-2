@@ -62,3 +62,31 @@ para clientes, reintentos, DLQ y headers corresponde a S2-437.
 
 - [ADR de propiedad de datos y comunicación](../adr/ADR-001-propiedad-datos-comunicacion-servicios.md)
 - [S2-384](https://devjoanvasquez-1791077375328.atlassian.net/browse/S2-384) · [S2-437](https://devjoanvasquez-1791077375328.atlassian.net/browse/S2-437)
+
+## Outbox de pagos confirmados
+
+Sales y Expense tienen su propia tabla `payment_outbox`. Los casos de uso de
+confirmación de S2-339 y S2-347 deben llamar a `PaymentOutbox.enqueue(companyId, event)`
+dentro de la misma transacción local que persiste el pago. La llamada exige una
+transacción activa. Cada línea confirmada tiene su propio `sourceId` y
+`eventId`, y comparte el `paymentId` del pago. Las rutas actuales de creación
+de ventas y gastos todavía no registran estos pagos. En un reintento de la
+operación, el caso de uso debe resolver la idempotencia antes de volver a encolar.
+
+El publicador toma una fila por transacción con `FOR NO KEY UPDATE SKIP LOCKED` y
+registra `published_at` después del acuse de Kafka. Una reversión publicada como
+evento compensatorio espera a que se publique su original de la misma empresa.
+Ante fallo, los reintentos esperan 2, 4, 8 y 16 segundos. Tras el quinto fallo,
+la fila descansa cinco minutos antes de un nuevo ciclo. El evento queda
+pendiente en PostgreSQL durante el fallo y sobrevive a reinicios.
+
+La entrega es **al menos una vez**. Si falla el proceso tras el acuse de Kafka
+y antes del commit, se reenvía con los mismos identificadores. Finance debe
+deduplicar por `eventId` y proteger el efecto por
+`(companyId, origin, sourceId)`. Los eventos publicados se conservan para
+mantener la referencia de las reversiones.
+
+El publicador está habilitado por defecto. Para suspenderlo sin impedir que se
+encolen pagos, configura `SANIGEST_PAYMENT_OUTBOX_RELAY_ENABLED=false`.
+`SPRING_KAFKA_BOOTSTRAP_SERVERS` usa `kafka:29092` en Compose y
+`localhost:9092` por defecto fuera de Compose.

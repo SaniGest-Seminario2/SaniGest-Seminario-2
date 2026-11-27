@@ -131,6 +131,7 @@ class SalesServiceIT {
     var privateKey = pem("service", "PRIVATE KEY", SERVICE_KEYS.getPrivate().getEncoded());
     registry.add("sanigest.jwt.public-key", () -> publicKey);
     registry.add("sanigest.company-access.private-key-location", () -> privateKey);
+    registry.add("spring.kafka.bootstrap-servers", () -> "broker.invalid:9092");
     registry.add("SALES_DB_HOST", POSTGRES::getHost);
     registry.add("SALES_DB_PORT", () -> POSTGRES.getMappedPort(5432));
     registry.add("SALES_DB_PASSWORD", POSTGRES::getPassword);
@@ -203,7 +204,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("9");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("10");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -240,7 +241,8 @@ class SalesServiceIT {
             "receivables",
             "internal_invoices",
             "internal_invoice_lines",
-            "invoice_number_sequences");
+            "invoice_number_sequences",
+            "payment_outbox");
 
     assertThat(
             jdbc.queryForList(
@@ -303,7 +305,16 @@ class SalesServiceIT {
             "invoice_one_issued_per_sale",
             "invoice_company_date_idx",
             "internal_invoice_lines_pkey",
-            "invoice_line_source_key");
+            "invoice_line_source_key",
+            "payment_outbox_pkey",
+            "payment_outbox_company_id_source_id_key",
+            "payment_outbox_company_id_event_id_key",
+            "payment_outbox_pending_idx");
+    assertForeignKeys();
+    assertMigrationHistory();
+  }
+
+  private void assertForeignKeys() {
     assertThat(
             jdbc.queryForList(
                 """
@@ -321,9 +332,8 @@ class SalesServiceIT {
             "sale_idempotency_keys.sale_idempotency_sale_fk -> sales.sales",
             "receivables.receivables_sale_fk -> sales.sales",
             "internal_invoices.invoice_sale_fk -> sales.sales",
-            "internal_invoice_lines.invoice_lines_invoice_fk -> sales.internal_invoices");
-
-    assertMigrationHistory();
+            "internal_invoice_lines.invoice_lines_invoice_fk -> sales.internal_invoices",
+            "payment_outbox.payment_outbox_original_fk -> sales.payment_outbox");
   }
 
   private void assertMigrationHistory() {
@@ -333,8 +343,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(9);
-    assertThat(history.getLast()).containsEntry("version", "9").containsEntry("success", true);
+    assertThat(history).hasSize(10);
+    assertThat(history.getLast()).containsEntry("version", "10").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -402,12 +412,12 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(1);
-    assertThat(current.migrate().migrationsExecuted).isEqualTo(4);
+    assertThat(current.migrate().migrationsExecuted).isEqualTo(5);
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
         .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("9");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("10");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
@@ -1599,7 +1609,11 @@ class SalesServiceIT {
               "invoice_request_key",
               "invoice_one_issued_per_sale",
               "internal_invoice_lines_pkey",
-              "invoice_line_source_key");
+              "invoice_line_source_key",
+              "payment_outbox_pkey",
+              "payment_outbox_company_id_source_id_key",
+              "payment_outbox_company_id_event_id_key",
+              "payment_outbox_pending_idx");
 
       assertThatThrownBy(() ->
               jdbc.update(

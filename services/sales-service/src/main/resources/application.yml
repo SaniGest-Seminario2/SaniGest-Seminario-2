@@ -45,6 +45,8 @@ server:
   shutdown: graceful
 
 sanigest:
+  payment-outbox:
+    owner: sales
   sales:
     idempotency:
       retention: ${SALES_IDEMPOTENCY_RETENTION:7d}
