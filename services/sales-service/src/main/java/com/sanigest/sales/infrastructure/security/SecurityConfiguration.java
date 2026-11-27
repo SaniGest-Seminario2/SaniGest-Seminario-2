@@ -47,6 +47,7 @@ class SecurityConfiguration {
                     "/api/v1/sales",
                     "/api/v1/sales/{id}",
                     "/api/v1/receivables/{id}",
+                    "/api/v1/cash-sessions/active/payments",
                     "/api/v1/invoices",
                     "/api/v1/invoices/all",
                     "/api/v1/invoices/collectible",

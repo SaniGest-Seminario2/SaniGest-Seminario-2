@@ -19,6 +19,7 @@ import com.sanigest.sales.SalesServiceApplication;
 import com.sanigest.sales.api.controller.SaleController;
 import com.sanigest.sales.application.exception.CatalogUnavailableException;
 import com.sanigest.sales.application.exception.IdempotencyInProgress;
+import com.sanigest.sales.application.port.out.integration.ActiveCashShifts;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess.CompanyContext;
 import com.sanigest.sales.application.port.out.integration.PaymentAdmission;
@@ -118,6 +119,7 @@ class SalesServiceIT {
   @Autowired private SaleIdempotencyRepository idempotency;
   @Autowired private CatalogClient catalog;
   @MockitoBean private PaymentAdmission paymentAdmission;
+  @MockitoBean private ActiveCashShifts activeCashShifts;
 
   @DynamicPropertySource
   static void database(DynamicPropertyRegistry registry) throws Exception {
@@ -208,7 +210,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("11");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("12");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -319,6 +321,7 @@ class SalesServiceIT {
             "internal_invoices_company_id_key",
             "receivables_company_id_key",
             "invoice_payments_pkey",
+            "invoice_payments_shift_history_idx",
             "invoice_payments_company_id_operator_id_idempotency_key_key",
             "invoice_payment_lines_pkey",
             "invoice_payment_lines_payment_id_position_key");
@@ -358,8 +361,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(11);
-    assertThat(history.getLast()).containsEntry("version", "11").containsEntry("success", true);
+    assertThat(history).hasSize(12);
+    assertThat(history.getLast()).containsEntry("version", "12").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -427,12 +430,12 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(1);
-    assertThat(current.migrate().migrationsExecuted).isEqualTo(6);
+    assertThat(current.migrate().migrationsExecuted).isEqualTo(7);
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
         .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("11");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("12");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
@@ -1632,6 +1635,7 @@ class SalesServiceIT {
               "internal_invoices_company_id_key",
               "receivables_company_id_key",
               "invoice_payments_pkey",
+              "invoice_payments_shift_history_idx",
               "invoice_payments_company_id_operator_id_idempotency_key_key",
               "invoice_payment_lines_pkey",
               "invoice_payment_lines_payment_id_position_key");
@@ -2103,7 +2107,49 @@ class SalesServiceIT {
               invoicePayment(http, owner, id, "collect", body.replace("REF", "DIFFERENT")).body())
           .contains("IDEMPOTENCY_CONFLICT");
       assertThat(invoicePayment(http, owner, id, "stale", body).statusCode()).isEqualTo(409);
+      owner.membership("OWNER", false, "READ");
+      assertShiftHistory(http, owner, result, shift);
     }
+  }
+
+  private void assertShiftHistory(HttpClient http, Fixture owner, JsonNode payment, UUID shift)
+      throws Exception {
+    var request =
+        HttpRequest.newBuilder(
+                URI.create("http://localhost:" + port + "/api/v1/cash-sessions/active/payments"))
+            .header("Authorization", "Bearer " + owner.bearer())
+            .header("X-Company-Id", owner.company().toString())
+            .GET()
+            .build();
+    var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+    assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(200);
+    assertThat(response.body()).isEqualTo("[]");
+
+    org.mockito.Mockito.when(activeCashShifts.find(owner.company(), owner.user()))
+        .thenReturn(java.util.Optional.of(new ActiveCashShifts.Shift(shift, java.util.Map.of())));
+    response = http.send(request, HttpResponse.BodyHandlers.ofString());
+    assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(200);
+    var history = new ObjectMapper().readTree(response.body());
+    assertThat(history.size()).isEqualTo(2);
+    for (int index = 0; index < history.size(); index++) {
+      var line = history.get(index);
+      var applied = payment.path("lines").get(index);
+      assertThat(line.path("clientName").asString()).isEqualTo("Cliente");
+      assertThat(line.path("paymentId")).isEqualTo(payment.path("paymentId"));
+      assertThat(line.path("invoiceId")).isEqualTo(payment.path("invoiceId"));
+      assertThat(line.path("balance")).isEqualTo(payment.path("balance"));
+      assertThat(line.path("paymentLineId")).isEqualTo(applied.path("id"));
+      assertThat(line.path("method")).isEqualTo(applied.path("method"));
+      assertThat(line.path("amount")).isEqualTo(applied.path("amount"));
+    }
+
+    org.mockito.Mockito.when(activeCashShifts.find(owner.company(), owner.user()))
+        .thenReturn(
+            java.util.Optional.of(
+                new ActiveCashShifts.Shift(UUID.randomUUID(), java.util.Map.of())));
+    response = http.send(request, HttpResponse.BodyHandlers.ofString());
+    assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(200);
+    assertThat(response.body()).isEqualTo("[]");
   }
 
   private HttpResponse<String> invoicePayment(

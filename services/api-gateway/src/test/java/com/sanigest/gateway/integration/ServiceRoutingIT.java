@@ -131,8 +131,12 @@ class ServiceRoutingIT {
   }
 
   @Test
-  void routesActiveCashSummaryOnlyWithCompanyContext() throws Exception {
-    String path = "/api/v1/cash-sessions/active/summary";
+  void routesActiveCashSummaryAndPaymentsOnlyWithCompanyContext() throws Exception {
+    assertCashRoute("/api/v1/cash-sessions/active/summary", "finance");
+    assertCashRoute("/api/v1/cash-sessions/active/payments", "sales");
+  }
+
+  private void assertCashRoute(String path, String service) throws Exception {
     String token = "Bearer " + GatewayTestTokens.validToken();
     var missingCompany = send(request(gateway(), path).header("Authorization", token).GET());
     assertThat(missingCompany.statusCode()).isEqualTo(400);
@@ -143,7 +147,7 @@ class ServiceRoutingIT {
                 .header("X-Company-Id", TENANT)
                 .GET());
     assertThat(summary.statusCode()).isEqualTo(200);
-    assertThat(summary.body()).isEqualTo("finance GET " + path + " ");
+    assertThat(summary.body()).isEqualTo(service + " GET " + path + " ");
   }
 
   @Test

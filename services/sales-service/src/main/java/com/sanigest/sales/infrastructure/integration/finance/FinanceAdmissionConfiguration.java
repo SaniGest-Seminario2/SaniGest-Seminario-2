@@ -2,6 +2,8 @@ package com.sanigest.sales.infrastructure.integration.finance;
 
 import com.sanigest.sales.application.exception.InvoicePaymentConflict;
 import com.sanigest.sales.application.exception.PaymentAdmissionUnavailable;
+import com.sanigest.sales.application.port.out.integration.ActiveCashShifts;
+import com.sanigest.sales.application.port.out.integration.ActiveCashShifts.Shift;
 import com.sanigest.sales.application.port.out.integration.PaymentAdmission;
 import com.sanigest.sales.application.port.out.integration.PaymentAdmission.Admission;
 import java.net.ProxySelector;
@@ -10,6 +12,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -19,12 +22,13 @@ import org.springframework.core.env.Environment;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "sanigest.finance.enabled", havingValue = "true")
 class FinanceAdmissionConfiguration {
   @Bean
-  PaymentAdmission financePaymentAdmission(
+  ActiveCashShifts financeActiveCashShifts(
       @Value("${sanigest.finance.origin}") URI origin,
       @Value("${sanigest.finance.admission-token}") String token,
       Environment environment) {
@@ -43,22 +47,11 @@ class FinanceAdmissionConfiguration {
             .baseUrl(origin.toString())
             .requestFactory(transport)
             .defaultHeaders(headers -> headers.setBearerAuth(token))
-            .defaultStatusHandler(
-                status -> status.value() == 404,
-                (request, response) -> {
-                  throw new InvoicePaymentConflict("Operator has no active cash shift");
-                })
-            .defaultStatusHandler(
-                status -> status.value() != 200,
-                (request, response) -> {
-                  throw new PaymentAdmissionUnavailable();
-                })
             .build();
 
-    return (company, operator, payment, request) -> {
-      ActiveShift active;
+    return (company, operator) -> {
       try {
-        active =
+        var response =
             client
                 .get()
                 .uri(
@@ -66,14 +59,33 @@ class FinanceAdmissionConfiguration {
                     company,
                     operator)
                 .retrieve()
-                .body(ActiveShift.class);
+                .toEntity(Shift.class);
+        var shift = response.getBody();
+        if (response.getStatusCode().value() != 200
+            || shift == null
+            || shift.shiftId() == null
+            || shift.accountsByMethod() == null) {
+          throw new PaymentAdmissionUnavailable();
+        }
+        return Optional.of(shift);
+      } catch (RestClientResponseException failure) {
+        if (failure.getStatusCode().value() == 404) {
+          return Optional.empty();
+        }
+        throw new PaymentAdmissionUnavailable();
       } catch (RestClientException failure) {
         throw new PaymentAdmissionUnavailable();
       }
-      if (active == null || active.shiftId() == null || active.accountsByMethod() == null) {
-        throw new PaymentAdmissionUnavailable();
-      }
+    };
+  }
 
+  @Bean
+  PaymentAdmission financePaymentAdmission(ActiveCashShifts shifts) {
+    return (company, operator, payment, request) -> {
+      var active =
+          shifts
+              .find(company, operator)
+              .orElseThrow(() -> new InvoicePaymentConflict("Operator has no active cash shift"));
       Map<Integer, UUID> accountsByLine = new HashMap<>();
       for (int index = 0; index < request.lines().size(); index++) {
         String method = request.lines().get(index).method().name();
@@ -101,6 +113,4 @@ class FinanceAdmissionConfiguration {
       throw new IllegalArgumentException("Finance requires a dedicated origin and service token");
     }
   }
-
-  private record ActiveShift(UUID shiftId, Map<String, UUID> accountsByMethod) {}
 }

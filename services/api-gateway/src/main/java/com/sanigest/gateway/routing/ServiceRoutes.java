@@ -111,7 +111,8 @@ class ServiceRoutes {
                         "/api/v1/invoices/{id}",
                         "/api/v1/invoices/{id}/cancel",
                         "/api/v1/invoices/{id}/payments",
-                        "/api/v1/receivables/{id}")
+                        "/api/v1/receivables/{id}",
+                        "/api/v1/cash-sessions/active/payments")
                     .uri(destination(environment, "SALES_SERVICE_URL")))
         .build();
   }

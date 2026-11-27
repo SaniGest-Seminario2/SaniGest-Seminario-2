@@ -3,6 +3,7 @@ package com.sanigest.sales.infrastructure.configuration;
 import com.sanigest.companyaccess.AuthenticatedActor;
 import com.sanigest.sales.application.exception.PaymentAdmissionUnavailable;
 import com.sanigest.sales.application.exception.SalesAccessForbidden;
+import com.sanigest.sales.application.port.out.integration.ActiveCashShifts;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess;
 import com.sanigest.sales.application.port.out.integration.InvoiceStock;
@@ -16,6 +17,7 @@ import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyReposi
 import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.sanigest.sales.application.usecase.invoice.IssueInvoice;
+import com.sanigest.sales.application.usecase.invoice.ListActiveShiftPayments;
 import com.sanigest.sales.application.usecase.invoice.ManageInvoices;
 import com.sanigest.sales.application.usecase.invoice.RegisterInvoicePayment;
 import com.sanigest.sales.application.usecase.receivable.GetReceivable;
@@ -78,6 +80,24 @@ class SaleUseCaseConfiguration {
           }
           return authority.admit(company, operator, payment, request);
         });
+  }
+
+  @Bean
+  ListActiveShiftPayments listActiveShiftPayments(
+      SalesAuthorization authorization,
+      InvoicePayments payments,
+      ObjectProvider<ActiveCashShifts> shifts) {
+    return new ListActiveShiftPayments(
+        authorization,
+        SaleUseCaseConfiguration::actorId,
+        (company, operator) -> {
+          var finance = shifts.getIfAvailable();
+          if (finance == null) {
+            throw new PaymentAdmissionUnavailable();
+          }
+          return finance.find(company, operator);
+        },
+        payments);
   }
 
   private static UUID actorId() {
