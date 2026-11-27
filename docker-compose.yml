@@ -260,6 +260,9 @@ services:
       SALES_CATALOG_ORIGIN: ${SALES_CATALOG_ORIGIN:-http://catalog-service:8080}
       SALES_INVENTORY_ORIGIN: ${SALES_INVENTORY_ORIGIN:-http://inventory-service:8080}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SANIGEST_FINANCE_ENABLED: ${FINANCE_ADMISSION_ENABLED:-false}
+      SANIGEST_FINANCE_ORIGIN: http://finance-service:8080
+      SANIGEST_FINANCE_ADMISSION_TOKEN: ${FINANCE_ADMISSION_TOKEN:-}
       SALES_DB_HOST: postgres
       SALES_DB_PORT: 5432
       SALES_DB_PASSWORD: ${SALES_DB_PASSWORD:?Define SALES_DB_PASSWORD in .env}
@@ -363,6 +366,33 @@ services:
           create_host_path: false
     ports:
       - "127.0.0.1:${EXPENSE_SERVICE_PORT:-8087}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - sanigest-local
+
+  finance-service:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/service.Dockerfile
+      args:
+        SERVICE: finance-service
+    image: sanigest/finance-service:${SANIGEST_IMAGE_TAG:-local}
+    profiles: [apps]
+    environment:
+      SERVER_PORT: 8080
+      FINANCE_ADMISSION_TOKEN: ${FINANCE_ADMISSION_TOKEN:-}
+      FINANCE_DB_HOST: postgres
+      FINANCE_DB_PORT: 5432
+      FINANCE_DB_PASSWORD: ${FINANCE_DB_PASSWORD:?Define FINANCE_DB_PASSWORD in .env}
     depends_on:
       postgres:
         condition: service_healthy
