@@ -1,6 +1,7 @@
 package com.sanigest.sales.infrastructure.persistence.jpa;
 
 import com.sanigest.events.outbox.PaymentOutbox;
+import com.sanigest.events.payment.FinancialWriteFingerprint;
 import com.sanigest.events.payment.PaymentEventTypeV1;
 import com.sanigest.events.payment.PaymentEventV1;
 import com.sanigest.events.payment.PaymentMethodV1;
@@ -99,12 +100,13 @@ class PostgresInvoicePayments implements InvoicePayments {
     sales.lockSale(company, saleId).orElseThrow(InvoiceNotFound::new);
     var payment = UUID.randomUUID();
     var requestBody = json.writeValueAsString(request);
+    String fingerprint = FinancialWriteFingerprint.v1("invoice-payment", invoiceId, request);
     int inserted =
         jdbc.sql(
                 """
                 INSERT INTO sales.invoice_payments
-                  (id, company_id, operator_id, invoice_id, idempotency_key, request_body)
-                VALUES (:id, :company, :operator, :invoice, :key, CAST(:request AS jsonb))
+                  (id, company_id, operator_id, invoice_id, idempotency_key, request_body, request_fingerprint)
+                VALUES (:id, :company, :operator, :invoice, :key, CAST(:request AS jsonb), :fingerprint)
                 ON CONFLICT (company_id, operator_id, idempotency_key) DO NOTHING
                 """)
             .param("id", payment)
@@ -113,9 +115,10 @@ class PostgresInvoicePayments implements InvoicePayments {
             .param("invoice", invoiceId)
             .param("key", key)
             .param("request", requestBody)
+            .param("fingerprint", fingerprint)
             .update();
     if (inserted == 0) {
-      return replay(company, operator, invoiceId, key, requestBody);
+      return replay(company, operator, invoiceId, key, requestBody, fingerprint);
     }
 
     var receivable = collectibleReceivable(company, invoiceId, saleId, request);
@@ -259,15 +262,18 @@ class PostgresInvoicePayments implements InvoicePayments {
   }
 
   private InvoicePayment.Result replay(
-      UUID company, UUID operator, UUID invoice, String key, String request) {
+      UUID company, UUID operator, UUID invoice, String key, String request, String fingerprint) {
     return jdbc.sql(
             """
-            SELECT invoice_id = :invoice AND request_body = CAST(:request AS jsonb) AS matches, response_body
+            SELECT invoice_id = :invoice
+                   AND COALESCE(request_fingerprint = :fingerprint,
+                                request_body = CAST(:request AS jsonb)) AS matches, response_body
               FROM sales.invoice_payments
              WHERE company_id = :company AND operator_id = :operator AND idempotency_key = :key
             """)
         .param("invoice", invoice)
         .param("request", request)
+        .param("fingerprint", fingerprint)
         .param("company", company)
         .param("operator", operator)
         .param("key", key)

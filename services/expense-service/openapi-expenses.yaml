@@ -153,11 +153,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Document'}
-        '400': {description: Empresa, referencia comercial, recepción o valor inválido.}
+        '400': {description: "Empresa, referencia comercial, recepción o valor inválido."}
         '401': {description: Autenticación requerida.}
         '403': {description: Membresía o permiso insuficiente.}
         '409': {description: La clave ya fue usada con un cuerpo diferente.}
-        '503': {description: Dependencia indisponible. Si hay recepción pendiente de sincronizar, reintentar con la misma clave.}
+        '503': {description: "Dependencia indisponible. Si hay recepción pendiente de sincronizar, reintentar con la misma clave."}
         '504': {description: Tiempo de espera del Gateway agotado. Reintentar con la misma clave.}
   /api/v1/payables:
     get:
@@ -199,7 +199,10 @@ paths:
         - in: header
           name: Idempotency-Key
           required: true
-          description: Reutilizar con la misma empresa, usuario, obligación y cuerpo al reintentar.
+          description: >
+            Clave por empresa, usuario y operación. Repetir la misma obligación y datos
+            normalizados devuelve la respuesta histórica. Otra obligación o datos distintos
+            con la misma clave devuelven 409.
           schema: {type: string, pattern: '^[A-Za-z0-9._:-]{1,128}$'}
       requestBody:
         required: true
@@ -227,7 +230,7 @@ paths:
         '401': {description: Autenticación requerida.}
         '403': {description: Permiso de escritura de Expense insuficiente.}
         '404': {description: Obligación inexistente en la empresa seleccionada.}
-        '409': {description: Obligación anulada, saldo insuficiente o clave reutilizada con otro pago.}
+        '409': {description: "Obligación anulada, saldo insuficiente o clave reutilizada con otro pago."}
         '503': {description: Autorización o validación de cuenta indisponible.}
         '504': {description: Tiempo de espera del Gateway agotado. Reintentar con la misma clave.}
   /api/v1/payables/all:

@@ -152,6 +152,7 @@ class FinancialProjectionsIT {
 
     consumer.project(original);
     consumer.project(original);
+    consumer.project(payable(company, account, payment, UUID.randomUUID(), source, null, null));
     assertEquals(60, JSON.readTree(projections.view(company)).at("/cashTotals/outflow").intValue());
     consumer.project(reversal);
     consumer.project(reversal);

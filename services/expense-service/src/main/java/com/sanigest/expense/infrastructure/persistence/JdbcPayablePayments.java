@@ -1,6 +1,7 @@
 package com.sanigest.expense.infrastructure.persistence;
 
 import com.sanigest.events.outbox.PaymentOutbox;
+import com.sanigest.events.payment.FinancialWriteFingerprint;
 import com.sanigest.events.payment.PaymentEventTypeV1;
 import com.sanigest.events.payment.PaymentEventV1;
 import com.sanigest.expense.application.ExpenseFailure;
@@ -56,12 +57,13 @@ class JdbcPayablePayments implements PayablePayments {
 
     UUID id = UUID.randomUUID();
     String request = json.writeValueAsString(payment);
+    String fingerprint = FinancialWriteFingerprint.v1("payable-payment", payable, payment);
     int inserted =
         jdbc.sql(
                 """
                 INSERT INTO expense.payable_payments
-                  (id, company_id, payable_id, actor_id, request_key, request_body)
-                VALUES (:id, :company, :payable, :actor, :key, CAST(:request AS jsonb))
+                  (id, company_id, payable_id, actor_id, request_key, request_body, request_fingerprint)
+                VALUES (:id, :company, :payable, :actor, :key, CAST(:request AS jsonb), :fingerprint)
                 ON CONFLICT (company_id, actor_id, request_key) DO NOTHING
                 """)
             .param("id", id)
@@ -70,9 +72,10 @@ class JdbcPayablePayments implements PayablePayments {
             .param("actor", actor)
             .param("key", key)
             .param("request", request)
+            .param("fingerprint", fingerprint)
             .update();
     if (inserted == 0) {
-      return replay(company, actor, payable, key, request);
+      return replay(company, actor, payable, key, request, fingerprint);
     }
 
     if (balance.cancelled()) {
@@ -144,16 +147,20 @@ class JdbcPayablePayments implements PayablePayments {
     return result;
   }
 
-  private Result replay(UUID company, UUID actor, UUID payable, String key, String request) {
+  private Result replay(
+      UUID company, UUID actor, UUID payable, String key, String request, String fingerprint) {
     return jdbc.sql(
             """
-            SELECT payable_id = :payable AND request_body = CAST(:request AS jsonb) AS matches,
+            SELECT payable_id = :payable
+                   AND COALESCE(request_fingerprint = :fingerprint,
+                                request_body = CAST(:request AS jsonb)) AS matches,
                    response_body
             FROM expense.payable_payments
             WHERE company_id = :company AND actor_id = :actor AND request_key = :key
             """)
         .param("payable", payable)
         .param("request", request)
+        .param("fingerprint", fingerprint)
         .param("company", company)
         .param("actor", actor)
         .param("key", key)

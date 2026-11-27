@@ -263,12 +263,12 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Invoice'}
-        '400': {description: Selector, clave o cuerpo inválido.}
+        '400': {description: "Selector, clave o cuerpo inválido."}
         '401': {description: JWT inválido o ausente.}
         '403': {description: Permiso empresarial insuficiente.}
         '404': {description: Cliente o artículo ausente o fuera de la empresa.}
         '409': {description: Conflicto de idempotencia o de registro.}
-        '422': {description: Cliente o artículo inactivo, o importes fuera de rango.}
+        '422': {description: "Cliente o artículo inactivo, o importes fuera de rango."}
         '503': {description: Autorización o dependencia indisponible.}
   /api/v1/invoices/all:
     get:
@@ -393,6 +393,65 @@ paths:
           content:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
+  /api/v1/invoices/{id}/payments:
+    post:
+      operationId: registerInvoicePayment
+      summary: Registrar un cobro de factura
+      parameters:
+        - $ref: '#/components/parameters/CompanySelector'
+        - $ref: '#/components/parameters/InvoiceId'
+        - in: header
+          name: Idempotency-Key
+          required: true
+          description: >
+            Clave por empresa, operador y operación. Repetir la misma factura y datos
+            normalizados devuelve el 201 histórico. Otra factura o datos distintos devuelven 409.
+          schema: {type: string, pattern: '^[A-Za-z0-9._~-]{1,128}$'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientName, balance, lines]
+              properties:
+                clientName: {type: string, maxLength: 250}
+                balance: {$ref: '#/components/schemas/PaymentInputAmount'}
+                lines:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: {$ref: '#/components/schemas/InvoicePaymentLine'}
+                notes: {type: string, nullable: true, maxLength: 500}
+      responses:
+        '201':
+          description: Cobro registrado o respuesta histórica recuperada.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InvoicePaymentResult'}
+        '400':
+          description: Solicitud, selector o clave inválida.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '401': {description: JWT Bearer ausente o inválido.}
+        '403':
+          description: Permiso de escritura insuficiente.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '404':
+          description: Factura inexistente en la empresa seleccionada.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '409':
+          description: Factura no cobrable, datos desactualizados o conflicto de idempotencia.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '503': {description: Autorización o admisión de cobros indisponible.}
+        '504': {description: Tiempo de espera agotado. Reintentar con la misma clave y solicitud.}
 components:
   parameters:
     InvoiceId: {name: id, in: path, required: true, schema: {type: string, format: uuid}}
@@ -603,6 +662,41 @@ components:
       type: string
       pattern: '^[0-9]+\.[0-9]{2}$'
       example: '3500.00'
+    PaymentInputAmount:
+      oneOf:
+        - {type: number, minimum: 0, exclusiveMinimum: true, multipleOf: 0.01}
+        - {type: string, example: '3500.00'}
+    InvoicePaymentLine:
+      type: object
+      required: [method, amount]
+      properties:
+        method: {type: string, enum: [CASH, CREDIT_CARD, DEBIT_CARD, TRANSFER, CHECK]}
+        amount: {$ref: '#/components/schemas/PaymentInputAmount'}
+        reference: {type: string, nullable: true, maxLength: 250}
+    InvoicePaymentResult:
+      type: object
+      required: [paymentId, invoiceId, receivableId, operatorId, shiftId, registeredAt, amount, balance, currency, lines]
+      properties:
+        paymentId: {type: string, format: uuid}
+        invoiceId: {type: string, format: uuid}
+        receivableId: {type: string, format: uuid}
+        operatorId: {type: string, format: uuid}
+        shiftId: {type: string, format: uuid}
+        registeredAt: {type: string, format: date-time}
+        amount: {type: number}
+        balance: {type: number}
+        currency: {type: string, enum: [DOP]}
+        lines:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/InvoicePaymentLine'
+              - type: object
+                required: [id]
+                properties:
+                  id: {type: string, format: uuid}
+                  amount: {type: number}
+        notes: {type: string, nullable: true}
     Problem:
       type: object
       required: [type, title, status, detail, errorCode, timestamp, traceId]
