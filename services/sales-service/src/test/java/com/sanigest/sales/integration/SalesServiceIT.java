@@ -1656,6 +1656,73 @@ class SalesServiceIT {
     }
   }
 
+  @Test
+  void listsOnlyOpenReceivablesForTheAuthorizedCompany() throws Exception {
+    var owner = fixture();
+    owner.membership("OWNER", false, "READ");
+    var other = fixture();
+    other.membership("OWNER", false, "READ");
+    String search = "?search=CLIENT%25";
+    try (var http = HttpClient.newHttpClient()) {
+      UUID pending = insertOpeningReceivable(owner.company(), "Client% One", "OPEN", "100", 24);
+      UUID partial =
+          insertOpeningReceivable(owner.company(), "Client% Two", "PARTIALLY_PAID", "25", 23);
+      insertOpeningReceivable(owner.company(), "Client% Three", "PAID", "0", 21);
+      insertOpeningReceivable(owner.company(), "Client% Four", "CANCELLED", "100", 22);
+      insertOpeningReceivable(owner.company(), "Client without percent", "OPEN", "100", 22);
+      insertOpeningReceivable(other.company(), "Client% Other", "OPEN", "100", 22);
+
+      var all = page(queryReceivables(http, owner.bearer(), "/all" + search));
+      assertThat(all.size()).isEqualTo(2);
+      assertThat(all.get(0).path("id").asString()).isEqualTo(partial.toString());
+      assertThat(all.get(1).path("id").asString()).isEqualTo(pending.toString());
+      assertThat(all.get(0).path("client").path("name").asString()).isEqualTo("Client% Two");
+      assertThat(all.get(0).path("documentId").isNull()).isTrue();
+      assertThat(all.get(0).path("dueDate").asString()).isEqualTo("2026-12-23");
+      assertThat(all.get(0).path("totalAmount").asString()).isEqualTo("100.00");
+      assertThat(all.get(0).path("balance").asString()).isEqualTo("25.00");
+      assertThat(all.get(0).path("status").asString()).isEqualTo("PARTIALLY_PAID");
+
+      var first = page(queryReceivables(http, owner.bearer(), search + "&size=1"));
+      assertThat(first.path("totalElements").asLong()).isEqualTo(2);
+      assertThat(first.path("totalPages").asLong()).isEqualTo(2);
+      assertThat(first.path("content").get(0)).isEqualTo(all.get(0));
+      var second = page(queryReceivables(http, owner.bearer(), search + "&size=1&page=1"));
+      assertThat(second.path("content").get(0)).isEqualTo(all.get(1));
+      var pendingOnly = page(queryReceivables(http, owner.bearer(), search + "&status=PENDING"));
+      assertThat(pendingOnly.path("totalElements").asLong()).isEqualTo(1);
+      assertThat(pendingOnly.path("content").get(0)).isEqualTo(all.get(1));
+      var partialOnly =
+          page(queryReceivables(http, owner.bearer(), "/all" + search + "&status=PARTIALLY_PAID"));
+      assertThat(partialOnly.size()).isEqualTo(1);
+      assertThat(partialOnly.get(0)).isEqualTo(all.get(0));
+      assertThat(queryReceivables(http, owner.bearer(), "?size=0").statusCode()).isEqualTo(400);
+      assertThat(queryReceivables(http, null, "/all").statusCode()).isEqualTo(401);
+      other.companyReply(403);
+      assertThat(queryReceivables(http, other.bearer(), "").statusCode()).isEqualTo(403);
+    }
+  }
+
+  private UUID insertOpeningReceivable(
+      UUID company, String client, String status, String balance, int day) {
+    UUID id = UUID.randomUUID();
+    jdbc.update(
+        """
+        INSERT INTO sales.receivables
+          (id, company_id, client_id, client_name, total_amount, balance, due_date, status,
+           created_at, origin)
+        VALUES (?, ?, ?, ?, 100, ?, ?, ?, now(), 'OPENING_BALANCE')
+        """,
+        id,
+        company,
+        UUID.randomUUID(),
+        client,
+        new BigDecimal(balance),
+        LocalDate.of(2026, 12, day),
+        status);
+    return id;
+  }
+
   private void copyReceivable(UUID sourceCompany, UUID targetCompany) {
     jdbc.update(
         """
@@ -2301,8 +2368,14 @@ class SalesServiceIT {
 
   private HttpResponse<String> getReceivable(HttpClient http, String bearer, String id)
       throws Exception {
+    return queryReceivables(http, bearer, "/" + id);
+  }
+
+  private HttpResponse<String> queryReceivables(HttpClient http, String bearer, String suffix)
+      throws Exception {
     var request =
-        HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/receivables/" + id))
+        HttpRequest.newBuilder(
+                URI.create("http://localhost:" + port + "/api/v1/receivables" + suffix))
             .timeout(Duration.ofSeconds(5))
             .GET();
     if (bearer != null) {
