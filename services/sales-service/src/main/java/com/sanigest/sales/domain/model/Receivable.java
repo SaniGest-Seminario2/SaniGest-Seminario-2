@@ -91,6 +91,10 @@ public record Receivable(
         origin);
   }
 
+  public BigDecimal collectedAmount() {
+    return totalAmount.subtract(balance);
+  }
+
   public BigDecimal collectibleBalance() {
     return status == ReceivableStatus.CANCELLED ? BigDecimal.ZERO.setScale(2) : balance;
   }

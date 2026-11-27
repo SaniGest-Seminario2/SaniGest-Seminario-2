@@ -211,7 +211,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("13");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("14");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -365,8 +365,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(13);
-    assertThat(history.getLast()).containsEntry("version", "13").containsEntry("success", true);
+    assertThat(history).hasSize(14);
+    assertThat(history.getLast()).containsEntry("version", "14").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -434,12 +434,12 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(1);
-    assertThat(current.migrate().migrationsExecuted).isEqualTo(8);
+    assertThat(current.migrate().migrationsExecuted).isEqualTo(9);
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
         .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("13");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("14");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
@@ -1907,7 +1907,7 @@ class SalesServiceIT {
       owner.membership("OWNER", false, "READ");
       var listed = page(getSales(http, owner.bearer(), "")).at("/content/0");
       assertThat(listed.path("invoiceNumber")).isEqualTo(document.path("number"));
-      assertThat(listed.path("paymentStatus").isNull()).isTrue();
+      assertThat(listed.path("paymentStatus").asString()).isEqualTo("OPEN");
       var detail = page(getSales(http, owner.bearer(), "/" + id));
       assertThat(detail.path("invoiceId")).isEqualTo(document.path("id"));
       assertThat(detail.path("invoiceNumber")).isEqualTo(document.path("number"));

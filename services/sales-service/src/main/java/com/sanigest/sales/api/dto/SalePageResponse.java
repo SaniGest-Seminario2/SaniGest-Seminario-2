@@ -31,7 +31,9 @@ public record SalePageResponse(
       @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal total,
       String currency,
       String invoiceNumber,
-      ReceivableStatus paymentStatus) {
+      ReceivableStatus paymentStatus,
+      @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal outstandingBalance,
+      @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal collectedAmount) {
     private static Item from(SalePage.Item item) {
       return new Item(
           item.id(),
@@ -43,7 +45,9 @@ public record SalePageResponse(
           item.total(),
           "DOP",
           item.invoiceNumber(),
-          item.paymentStatus());
+          item.paymentStatus(),
+          item.outstandingBalance(),
+          item.collectedAmount());
     }
   }
 }

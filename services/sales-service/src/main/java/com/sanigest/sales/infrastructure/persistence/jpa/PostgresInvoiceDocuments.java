@@ -20,25 +20,31 @@ class PostgresInvoiceDocuments implements InvoiceDocuments {
       FROM sales.internal_invoices i
       JOIN sales.sales s ON s.company_id = i.company_id AND s.id = i.sale_id
       LEFT JOIN sales.receivables r ON r.company_id = i.company_id AND r.sale_id = i.sale_id
-      """;
+      """
+          + SaleRows.PAYMENT_PROJECTION
+          + """
+          CROSS JOIN LATERAL (
+            SELECT CASE WHEN payment.status = 'OPEN' THEN 'ISSUED' ELSE payment.status END AS status
+          ) invoice_payment
+          """;
   private static final String FILTER =
       """
       WHERE i.company_id = :company
         AND (i.number ILIKE :pattern ESCAPE '!' OR i.client_name ILIKE :pattern ESCAPE '!')
         AND (:status IN ('', 'ALL') OR
-             CASE WHEN i.status = 'CANCELLED' THEN i.status
-                  WHEN r.status IN ('PARTIALLY_PAID', 'PAID') THEN r.status
-                  ELSE i.status END = :status)
+             invoice_payment.status = :status)
         AND (NOT :collectible OR
-            (i.status = 'ISSUED' AND r.status IN ('OPEN', 'PARTIALLY_PAID') AND r.balance > 0))
+            (i.status = 'ISSUED' AND s.status = 'REGISTERED' AND r.status <> 'CANCELLED'
+             AND payment.outstanding > 0))
       """;
   // The issued snapshot never changes, including the exact JSON used for POST replays.
   private static final String CURRENT_DOCUMENT =
       """
       SELECT (i.response_body::jsonb || jsonb_strip_nulls(jsonb_build_object(
           'status', i.status, 'issueDate', i.sale_date, 'mode', s.mode,
-          'paymentStatus', r.status, 'outstandingBalance',
-             CASE WHEN r.status = 'CANCELLED' THEN '0.00' ELSE r.balance::text END,
+          'paymentStatus', invoice_payment.status,
+          'outstandingBalance', CAST(round(payment.outstanding, 2) AS text),
+          'collectedAmount', CAST(round(payment.collected, 2) AS text),
           'cancelledAt', i.cancelled_at, 'cancelledBy', i.cancelled_by,
           'cancelReason', i.cancel_reason)))::text
       """;

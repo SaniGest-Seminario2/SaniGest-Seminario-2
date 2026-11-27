@@ -23,5 +23,7 @@ public record SalePage(List<Item> content, int page, int size, long totalElement
       SaleStatus status,
       BigDecimal total,
       String invoiceNumber,
-      ReceivableStatus paymentStatus) {}
+      ReceivableStatus paymentStatus,
+      BigDecimal outstandingBalance,
+      BigDecimal collectedAmount) {}
 }

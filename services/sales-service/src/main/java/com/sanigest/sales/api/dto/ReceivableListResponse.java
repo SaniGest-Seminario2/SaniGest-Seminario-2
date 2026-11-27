@@ -16,6 +16,7 @@ public record ReceivableListResponse(
     LocalDate dueDate,
     String totalAmount,
     String balance,
+    String collectedAmount,
     ReceivableStatus status) {
 
   public static ReceivableListResponse from(ReceivableDetail detail) {
@@ -29,6 +30,7 @@ public record ReceivableListResponse(
         receivable.dueDate(),
         receivable.totalAmount().toPlainString(),
         receivable.balance().toPlainString(),
+        receivable.collectedAmount().toPlainString(),
         receivable.status());
   }
 

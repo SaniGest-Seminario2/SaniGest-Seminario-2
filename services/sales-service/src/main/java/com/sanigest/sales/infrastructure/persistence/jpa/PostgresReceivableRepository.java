@@ -144,11 +144,11 @@ class PostgresReceivableRepository implements ReceivableRepository {
     int updated =
         jdbc.sql(
                 """
-                UPDATE sales.receivables SET balance = :balance, status = :status
+                UPDATE sales.receivables SET balance = :balance,
+                    status = sales.payment_status(total_amount, :balance)
                  WHERE company_id = :company AND id = :id
                 """)
             .param("balance", balance)
-            .param("status", balance.signum() == 0 ? "PAID" : "PARTIALLY_PAID")
             .param("company", receivable.companyId())
             .param("id", receivable.id())
             .update();

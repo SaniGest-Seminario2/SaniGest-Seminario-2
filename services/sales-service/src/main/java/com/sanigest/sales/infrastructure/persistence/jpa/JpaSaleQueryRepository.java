@@ -9,6 +9,7 @@ import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.sanigest.sales.domain.enums.ReceivableStatus;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.enums.SaleStatus;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,10 +44,12 @@ class JpaSaleQueryRepository implements SaleQueryRepository {
                 row.getInvoiceNumber(),
                 row.getDueDate(),
                 paymentStatus(row.getPaymentStatus()),
-                row.getOutstandingBalance() == null
-                    ? null
-                    : row.getOutstandingBalance().setScale(2),
-                row.getCollected() == null ? null : row.getCollected().setScale(2)));
+                money(row.getOutstandingBalance()),
+                money(row.getCollected())));
+  }
+
+  private static BigDecimal money(BigDecimal value) {
+    return value == null ? null : value.setScale(2);
   }
 
   private static ReceivableStatus paymentStatus(String value) {
@@ -88,7 +91,9 @@ class JpaSaleQueryRepository implements SaleQueryRepository {
                         SaleStatus.valueOf(row.getStatus()),
                         row.getTotal().setScale(2),
                         row.getInvoiceNumber(),
-                        paymentStatus(row.getPaymentStatus())))
+                        paymentStatus(row.getPaymentStatus()),
+                        money(row.getOutstandingBalance()),
+                        money(row.getCollected())))
                 .toList();
     return new SalePage(content, criteria.page(), criteria.size(), total);
   }

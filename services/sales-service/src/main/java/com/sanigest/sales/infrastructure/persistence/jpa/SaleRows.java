@@ -45,21 +45,37 @@ interface SaleRows extends Repository<SaleRow, UUID> {
       nativeQuery = true)
   int recordCancellation(UUID companyId, UUID saleId, UUID actor, Instant at, String reason);
 
+  String PAYMENT_PROJECTION =
+      """
+      CROSS JOIN LATERAL (
+        SELECT CASE
+                 WHEN r.status = 'CANCELLED' OR i.status = 'CANCELLED' THEN 'CANCELLED'
+                 ELSE sales.payment_status(amounts.total, amounts.balance)
+               END AS status,
+               CASE WHEN r.status = 'CANCELLED' OR i.status = 'CANCELLED' THEN 0.00
+                    ELSE amounts.balance END AS outstanding,
+               amounts.total - amounts.balance AS collected
+        FROM (SELECT coalesce(r.total_amount, i.total) AS total,
+                     coalesce(r.balance, i.total) AS balance) amounts
+      ) payment
+      """;
+
   String DOCUMENT_JOINS =
       """
       LEFT JOIN sales.internal_invoices i
         ON i.company_id = s.company_id AND i.sale_id = s.id
       LEFT JOIN sales.receivables r ON r.company_id = s.company_id AND r.sale_id = s.id
-      """;
+      """
+          + PAYMENT_PROJECTION;
 
   @Query(
       value =
           """
           SELECT i.id AS "invoiceId", i.number AS "invoiceNumber",
                  r.due_date AS "dueDate",
-                 r.status AS "paymentStatus",
-                 CASE WHEN r.status = 'CANCELLED' THEN 0.00 ELSE r.balance END AS "outstandingBalance",
-                 r.total_amount - r.balance AS "collected"
+                 payment.status AS "paymentStatus",
+                 payment.outstanding AS "outstandingBalance",
+                 payment.collected AS "collected"
           FROM sales.sales s
           """
               + DOCUMENT_JOINS
@@ -98,7 +114,8 @@ interface SaleRows extends Repository<SaleRow, UUID> {
           """
           SELECT s.id, s.code, s.client_id AS "clientId", s.client_name AS "clientName",
                  s.sale_date AS "saleDate", s.mode, s.status, s.total,
-                 i.number AS "invoiceNumber", r.status AS "paymentStatus"
+                 i.number AS "invoiceNumber", payment.status AS "paymentStatus",
+                 payment.outstanding AS "outstandingBalance", payment.collected AS "collected"
           FROM sales.sales s
           """
               + DOCUMENT_JOINS
@@ -137,5 +154,9 @@ interface SaleRows extends Repository<SaleRow, UUID> {
     String getInvoiceNumber();
 
     String getPaymentStatus();
+
+    BigDecimal getOutstandingBalance();
+
+    BigDecimal getCollected();
   }
 }
