@@ -8,8 +8,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.sales.api.dto.CreateSaleLineRequest;
-import com.sanigest.sales.api.dto.CreateSaleRequest;
+import com.sanigest.sales.api.dto.CreateInvoiceRequest;
+import com.sanigest.sales.api.dto.CreateInvoiceRequest.Line;
 import com.sanigest.sales.application.dto.CreatedSaleResponse;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess.CompanyContext;
@@ -130,15 +130,15 @@ class CreateInvoiceControllerTest {
         json);
   }
 
-  private CreateSaleRequest request() {
-    return new CreateSaleRequest(
+  private CreateInvoiceRequest request() {
+    return new CreateInvoiceRequest(
         client,
         List.of(
-            new CreateSaleLineRequest(
+            new Line(
                 item,
                 new BigDecimal("2"),
-                BigDecimal.ONE,
                 new BigDecimal("10.1234"),
+                BigDecimal.ONE,
                 new BigDecimal("0.18"))),
         LocalDate.of(2026, 11, 23),
         SaleMode.CASH,

@@ -40,12 +40,12 @@ public record CreateSaleRequest(
         lines.stream().map(CreateSaleLineRequest::toCommand).toList(),
         saleDate,
         mode,
-        parseDueDate(),
+        parseDueDate(dueDate),
         requestedReceiptType,
         notes);
   }
 
-  private LocalDate parseDueDate() {
+  static LocalDate parseDueDate(String dueDate) {
     if (dueDate == null) {
       return null;
     }

@@ -353,14 +353,28 @@ def main(compose):
         assert first.result(timeout=15) == {client_a}
         assert second.result(timeout=15) == {client_b}
 
+    rates = [option["value"] for option in sales_options["invoiceTaxRates"]]
+    line = {"catalogItemId": item_a, "quantity": 1, "unitPrice": 100}
     sale = {"clientId": client_a,
-            "lines": [{"catalogItemId": item_a, "quantity": 1, "taxRate": 0.18}],
+            "lines": [
+                {**line, "quantity": 2, "discount": 10, "taxRate": rates[0]},
+                {**line, "taxRate": rates[1]},
+                {**line, "taxRate": rates[2]},
+                line,
+            ],
             "mode": "CREDIT", "requestedReceiptType": "CONSUMPTION",
             "dueDate": (business_date() + timedelta(days=30)).isoformat()}
     exchange("invoices", token=token, tenant=a, data={**sale, "mode": "ALL"},
              key=uuid.uuid4().hex, status=400)
     exchange("invoices", token=token, tenant=a, data={**sale, "requestedReceiptType": "ALL"},
              key=uuid.uuid4().hex, status=400)
+    for invalid in (
+        {"catalogItemId": item_a, "quantity": 1},
+        {**line, "unitPrice": None},
+        {**line, "taxRate": 0.17},
+    ):
+        exchange("invoices", token=token, tenant=a, data={**sale, "lines": [invalid]},
+                 key=uuid.uuid4().hex, status=400)
     invoice_key = uuid.uuid4().hex
     direct = exchange("invoices", token=token, tenant=a, data=sale, key=invoice_key, status=201)
     sale_id = direct["saleId"]
@@ -384,7 +398,21 @@ def main(compose):
     for status in ("ALL", "PENDING", "PARTIALLY_PAID"):
         exchange(f"receivables?status={status}", token=token, tenant=a)
     direct_path = f"invoices/{direct['id']}"
-    assert exchange(direct_path, token=token, tenant=a)["number"] == direct["number"]
+    assert exchange("invoices", token=token, tenant=a)["totalElements"] == 1
+    assert direct["total"] == "540.20"
+    assert [(row["subtotal"], row["taxAmount"], row["discount"]) for row in direct["lines"]] == [
+        ("190.00", "34.20", "10.00"),
+        ("100.00", "16.00", "0.00"),
+        ("100.00", "0.00", "0.00"),
+        ("100.00", "0.00", "0.00"),
+    ]
+    exchange(f"catalog-items/{item_a}", token=token, tenant=a, method="PATCH",
+             data={"price": "30.00", "taxClassificationCode": "EXEMPT"})
+    historical = exchange(direct_path, token=token, tenant=a)
+    assert historical["number"] == direct["number"]
+    assert historical["total"] == direct["total"] and historical["lines"] == direct["lines"]
+    exchange(f"catalog-items/{item_a}", token=token, tenant=a, method="PATCH",
+             data={"price": "25.00", "taxClassificationCode": "ITBIS_18"})
     exchange(direct_path, token=token, tenant=b, status=404)
     listed = exchange("invoices/collectible/all", token=token, tenant=a)
     assert direct["id"] in {row["id"] for row in listed}
@@ -420,13 +448,13 @@ def main(compose):
                            data={"name": "Servicio de cobro", "type": "SERVICE", "price": "25.00",
                                  "unitCode": "UNIT", "taxClassificationCode": "EXEMPT"})
         payable_invoice = exchange("invoices", token=token, tenant=a,
-                                   data={**sale, "lines": [{"catalogItemId": service["id"], "quantity": 1}]},
+                                   data={**sale, "lines": [{"catalogItemId": service["id"], "quantity": 1, "unitPrice": 25}]},
                                    key=uuid.uuid4().hex, status=201)
         verify_payment(compose, token, owner, a, b, payable_invoice,
                        payable_invoice["saleId"], client["name"])
         verify_payable_payment(compose, token, owner, a, b, payable)
         zero_payload = {**sale, "mode": "CASH", "lines": [
-            {"catalogItemId": service["id"], "quantity": 1, "discount": "25.00"}]}
+            {"catalogItemId": service["id"], "quantity": 1, "unitPrice": 25, "discount": "25.00"}]}
         del zero_payload["dueDate"]
         zero = exchange("invoices", token=token, tenant=a, data=zero_payload,
                         key=uuid.uuid4().hex, status=201)

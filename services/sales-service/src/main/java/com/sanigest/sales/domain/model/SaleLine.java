@@ -59,8 +59,9 @@ public record SaleLine(
       CatalogItemSnapshot item,
       BigDecimal quantity,
       BigDecimal discount,
-      BigDecimal unitPrice) {
-    var price = SaleAmounts.unitPrice(unitPrice == null ? item.price() : unitPrice);
+      BigDecimal unitPrice,
+      BigDecimal taxRate) {
+    var price = SaleAmounts.unitPrice(unitPrice);
     var appliedDiscount = discount == null ? BigDecimal.ZERO : discount;
     return new SaleLine(
         id,
@@ -72,7 +73,7 @@ public record SaleLine(
         quantity,
         SaleAmounts.rounded(price.multiply(quantity).subtract(appliedDiscount)),
         appliedDiscount,
-        item.taxRate() == null ? BigDecimal.ZERO : item.taxRate());
+        taxRate == null ? InvoiceTaxRates.EXEMPT : taxRate);
   }
 
   public BigDecimal taxAmount() {

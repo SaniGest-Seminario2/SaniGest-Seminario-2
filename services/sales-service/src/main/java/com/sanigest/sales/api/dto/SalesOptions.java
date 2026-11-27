@@ -7,6 +7,7 @@ import com.sanigest.sales.domain.enums.ReceivableStatus;
 import com.sanigest.sales.domain.enums.RequestedReceiptType;
 import com.sanigest.sales.domain.enums.SaleMode;
 import com.sanigest.sales.domain.model.InternalInvoice;
+import com.sanigest.sales.domain.model.InvoiceTaxRates;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -44,8 +45,8 @@ public record SalesOptions(
             of(PaymentMethod.CHECK, "Cheque")),
         List.of(new ValueOption<>("ALL", "Todas"), cash, credit),
         List.of(
-            new ValueOption<>(new BigDecimal("0.18"), "18%"),
-            new ValueOption<>(new BigDecimal("0.16"), "16%"),
-            new ValueOption<>(BigDecimal.ZERO, "0%/Exento")));
+            new ValueOption<>(InvoiceTaxRates.STANDARD, "18%"),
+            new ValueOption<>(InvoiceTaxRates.REDUCED, "16%"),
+            new ValueOption<>(InvoiceTaxRates.EXEMPT, "0%/Exento")));
   }
 }

@@ -135,13 +135,14 @@ public class CreateSale {
       UUID saleId, CreateSaleCommand.Line line, CatalogItemSnapshot item, boolean invoice) {
     try {
       if (invoice) {
-        var taxRate = item.taxRate() == null ? java.math.BigDecimal.ZERO : item.taxRate();
-        if (line.taxRate() != null && line.taxRate().compareTo(taxRate) != 0) {
-          throw new CatalogResourceInvalidException(
-              CatalogResourceInvalidException.Reason.NOT_ELIGIBLE);
-        }
         return SaleLine.forInvoice(
-            UUID.randomUUID(), saleId, item, line.quantity(), line.discount(), line.unitPrice());
+            UUID.randomUUID(),
+            saleId,
+            item,
+            line.quantity(),
+            line.discount(),
+            line.unitPrice(),
+            line.taxRate());
       }
       if (line.discount() != null) {
         throw new InvalidSaleRequest();
