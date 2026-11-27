@@ -269,10 +269,14 @@ class ServiceRoutingIT {
   }
 
   @Test
-  void routesPayableReadsWithCompanyAndPreservesQueries() throws Exception {
+  void routesExpenseAndPayableReadsWithCompanyAndPreservesQueries() throws Exception {
     String token = "Bearer " + GatewayTestTokens.validToken();
     for (String path :
         List.of(
+            "/api/v1/expenses?status=PENDING&page=1",
+            "/api/v1/expenses/all?search=paper&operationType=PURCHASE",
+            "/api/v1/expenses/summary?from=2026-11-01&to=2026-11-26",
+            "/api/v1/expenses/" + TENANT,
             "/api/v1/payables?status=PENDING&page=1",
             "/api/v1/payables/all?search=paper",
             "/api/v1/payables/supplier-balances?supplierIds=" + TENANT)) {
@@ -316,13 +320,13 @@ class ServiceRoutingIT {
         .contains("registration-1");
     assertThat(forwarded.headers().firstValue("X-Backend-X-Company-Role")).isEmpty();
 
-    var get =
+    var put =
         send(
             request(gateway(), path)
                 .header("Authorization", token)
                 .header("X-Company-Id", TENANT)
-                .GET());
-    assertThat(get.statusCode()).isEqualTo(404);
+                .PUT(body));
+    assertThat(put.statusCode()).isEqualTo(404);
   }
 
   @Test

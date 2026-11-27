@@ -29,7 +29,7 @@ class CompanyContextFilter implements GlobalFilter, Ordered {
   }
 
   private static final Set<String> BUSINESS_ROUTES =
-      Set.of("catalog", "sales", "inventory", "expense", "payables", "finance");
+      Set.of("catalog", "sales", "inventory", "expense", "expense-read", "payables", "finance");
   private static final List<String> INTERNAL_HEADERS =
       List.of(
           "X-Company-User-Assertion",

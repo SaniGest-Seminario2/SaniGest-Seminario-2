@@ -191,7 +191,9 @@ public class RegisterExpense {
         tracked,
         subtotal,
         tax,
-        subtotal.add(tax));
+        subtotal.add(tax),
+        item.categoryId(),
+        item.categoryName());
   }
 
   private static ReceiptStatus receiptStatus(List<Line> lines) {

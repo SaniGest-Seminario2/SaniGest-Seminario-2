@@ -20,6 +20,7 @@ class ExpenseProblems extends MvcProblems {
     var status =
         switch (failure.kind()) {
           case INVALID -> HttpStatus.BAD_REQUEST;
+          case NOT_FOUND -> HttpStatus.NOT_FOUND;
           case CONFLICT -> HttpStatus.CONFLICT;
           case FORBIDDEN -> HttpStatus.FORBIDDEN;
           case UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
