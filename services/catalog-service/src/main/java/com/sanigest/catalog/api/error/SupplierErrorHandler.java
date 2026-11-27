@@ -5,6 +5,7 @@ import com.sanigest.catalog.application.exception.SupplierAccessException;
 import com.sanigest.catalog.application.exception.SupplierCommercialException;
 import com.sanigest.catalog.application.exception.SupplierCreationException;
 import com.sanigest.catalog.domain.exception.InvalidSupplierPatch;
+import com.sanigest.web.HttpProblems;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -16,8 +17,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 class SupplierErrorHandler {
   @ExceptionHandler({InvalidSupplierQueryException.class, InvalidSupplierPatch.class})
   ProblemDetail invalidRequest() {
-    return CatalogProblems.problem(
-        HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The request is invalid");
+    return HttpProblems.create(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The request is invalid");
   }
 
   @ExceptionHandler(SupplierAccessException.class)
@@ -25,12 +25,12 @@ class SupplierErrorHandler {
     var code = failure.reason().name();
     return switch (failure.reason()) {
       case FORBIDDEN ->
-          CatalogProblems.problem(HttpStatus.FORBIDDEN, code, "Supplier access is not authorized");
+          HttpProblems.create(HttpStatus.FORBIDDEN, code, "Supplier access is not authorized");
       case SUPPLIER_NOT_FOUND ->
-          CatalogProblems.problem(HttpStatus.NOT_FOUND, code, "Supplier not found");
+          HttpProblems.create(HttpStatus.NOT_FOUND, code, "Supplier not found");
       case DUPLICATE_TAX_ID -> duplicateTaxId(code);
       case SUPPLIER_UPDATE_CONFLICT ->
-          CatalogProblems.problem(
+          HttpProblems.create(
               HttpStatus.CONFLICT, code, "The supplier was changed by another request");
     };
   }
@@ -40,8 +40,7 @@ class SupplierErrorHandler {
     var code = failure.reason().name();
     return switch (failure.reason()) {
       case FORBIDDEN ->
-          CatalogProblems.problem(
-              HttpStatus.FORBIDDEN, code, "Supplier creation is not authorized");
+          HttpProblems.create(HttpStatus.FORBIDDEN, code, "Supplier creation is not authorized");
       case DUPLICATE_TAX_ID -> duplicateTaxId(code);
     };
   }
@@ -51,21 +50,21 @@ class SupplierErrorHandler {
     var reason = failure.reason();
     return switch (reason) {
       case INVALID_SUPPLIER_CATEGORY ->
-          CatalogProblems.problem(
+          HttpProblems.create(
               HttpStatus.BAD_REQUEST, reason.name(), "Supplier category is unavailable");
       case INCOMPATIBLE_SUPPLIER_ITEM ->
-          CatalogProblems.problem(
+          HttpProblems.create(
               HttpStatus.CONFLICT,
               reason.name(),
               "Supplier and item are not eligible for this relationship");
       case PRIMARY_SUPPLIER_CONFLICT ->
-          CatalogProblems.problem(
+          HttpProblems.create(
               HttpStatus.CONFLICT, reason.name(), "This item already has a primary supplier");
     };
   }
 
   private static ProblemDetail duplicateTaxId(String code) {
-    return CatalogProblems.problem(
+    return HttpProblems.create(
         HttpStatus.CONFLICT, code, "A supplier with that tax ID already exists in the company");
   }
 }

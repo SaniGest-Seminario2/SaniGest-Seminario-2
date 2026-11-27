@@ -16,6 +16,7 @@ import com.sanigest.company.application.usecase.team.InviteCompanyUserUseCase;
 import com.sanigest.company.application.usecase.team.ListMyCompanyUsersUseCase;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.MembershipStatus;
+import com.sanigest.web.PageResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -114,7 +115,7 @@ class CompanyTeamController {
   @GetMapping(
       value = {"/api/v1/companies/me/users", "/api/v1/companies/{companyId}/users"},
       params = "view")
-  ResponseEntity<MemberPageResponse> memberPage(
+  ResponseEntity<PageResponse<MemberPageResponse.Item>> memberPage(
       @AuthenticationPrincipal Jwt jwt,
       @PathVariable(required = false) String companyId,
       HttpServletRequest http,

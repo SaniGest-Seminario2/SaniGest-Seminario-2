@@ -18,6 +18,10 @@
     <dependencies>
         <dependency>
             <groupId>com.sanigest</groupId>
+            <artifactId>common-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.sanigest</groupId>
             <artifactId>common-company-access</artifactId>
         </dependency>
         <dependency>

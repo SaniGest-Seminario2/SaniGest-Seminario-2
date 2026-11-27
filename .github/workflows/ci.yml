@@ -17,7 +17,7 @@ concurrency:
 env:
   # Modules with unit tests and an instruction coverage gate.
   COVERED_MODULES: >-
-    libraries/common-security libraries/common-company-access libraries/common-events
+    libraries/common-security libraries/common-company-access libraries/common-events libraries/common-web
     services/company-service services/identity-service
     services/catalog-service services/sales-service services/inventory-service
     services/expense-service services/finance-service

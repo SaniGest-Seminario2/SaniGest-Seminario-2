@@ -1,7 +1,7 @@
 package com.sanigest.gateway.error;
 
 import com.sanigest.gateway.observability.TraceHeaders;
-import com.sanigest.security.http.HttpProblems;
+import com.sanigest.web.HttpProblems;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;

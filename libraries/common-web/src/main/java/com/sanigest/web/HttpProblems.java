@@ -1,4 +1,4 @@
-package com.sanigest.security.http;
+package com.sanigest.web;
 
 import java.net.URI;
 import java.time.Instant;
@@ -13,15 +13,20 @@ public final class HttpProblems {
 
   public static ProblemDetail create(
       HttpStatusCode status, String code, String detail, String trace) {
-    var problem = ProblemDetail.forStatusAndDetail(status, detail);
-    problem.setType(type(code));
-    problem.setProperty("errorCode", code);
-    problem.setProperty("timestamp", Instant.now().toString());
+    var problem = create(status, code, detail);
     problem.setProperty("traceId", traceId(trace));
     return problem;
   }
 
-  static URI type(String code) {
+  public static ProblemDetail create(HttpStatusCode status, String code, String detail) {
+    var problem = ProblemDetail.forStatusAndDetail(status, detail);
+    problem.setType(type(code));
+    problem.setProperty("errorCode", code);
+    problem.setProperty("timestamp", Instant.now().toString());
+    return problem;
+  }
+
+  public static URI type(String code) {
     return URI.create("urn:sanigest:problem:" + code.toLowerCase(Locale.ROOT));
   }
 

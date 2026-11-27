@@ -4,12 +4,13 @@ import com.sanigest.catalog.application.dto.SupplierPage;
 import com.sanigest.catalog.domain.enums.SupplierPaymentTerms;
 import com.sanigest.catalog.domain.enums.SupplierStatus;
 import com.sanigest.catalog.domain.enums.SupplierSupplyType;
-import java.util.List;
+import com.sanigest.web.PageResponse;
 import java.util.UUID;
 
-public record SupplierPageResponse(
-    List<Item> content, int page, int size, long totalElements, long totalPages) {
-  public static SupplierPageResponse from(SupplierPage page) {
+public final class SupplierPageResponse {
+  private SupplierPageResponse() {}
+
+  public static PageResponse<SupplierPageResponse.Item> from(SupplierPage page) {
     var content =
         page.content().stream()
             .map(item ->
@@ -24,7 +25,7 @@ public record SupplierPageResponse(
                     item.paymentTerms(),
                     item.categoryId()))
             .toList();
-    return new SupplierPageResponse(
+    return new PageResponse<>(
         content, page.page(), page.size(), page.totalElements(), page.totalPages());
   }
 

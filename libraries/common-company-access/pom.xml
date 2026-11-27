@@ -68,6 +68,7 @@
                                     </excludes>
                                     <includes>
                                         <include>com.sanigest:common-security</include>
+                                        <include>com.sanigest:common-web</include>
                                     </includes>
                                 </bannedDependencies>
                             </rules>

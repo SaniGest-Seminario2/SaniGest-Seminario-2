@@ -11,6 +11,7 @@ libraries/*
 !libraries/common-security/
 !libraries/common-company-access/
 !libraries/common-events/
+!libraries/common-web/
 **/.project
 **/.settings
 **/*.md

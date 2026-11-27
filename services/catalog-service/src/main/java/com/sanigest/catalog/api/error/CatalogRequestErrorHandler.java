@@ -1,6 +1,6 @@
 package com.sanigest.catalog.api.error;
 
-import static com.sanigest.catalog.api.error.CatalogProblems.problem;
+import static com.sanigest.web.HttpProblems.create;
 
 import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
 import com.sanigest.catalog.application.exception.InvalidClientQueryException;
@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 class CatalogRequestErrorHandler {
   @ExceptionHandler(InvalidContext.class)
   ProblemDetail invalidCompanyContext(InvalidContext failure) {
-    return problem(HttpStatus.BAD_REQUEST, failure.getMessage(), "Invalid company selection");
+    return create(HttpStatus.BAD_REQUEST, failure.getMessage(), "Invalid company selection");
   }
 
   @ExceptionHandler({
@@ -27,12 +27,12 @@ class CatalogRequestErrorHandler {
     InvalidSupplierDetails.class
   })
   ProblemDetail validation() {
-    return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The request is invalid");
+    return create(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The request is invalid");
   }
 
   @ExceptionHandler(CatalogAuthorizationUnavailable.class)
   ProblemDetail authorizationUnavailable() {
-    return problem(
+    return create(
         HttpStatus.SERVICE_UNAVAILABLE,
         "AUTHORIZATION_UNAVAILABLE",
         "Company authorization could not be verified");

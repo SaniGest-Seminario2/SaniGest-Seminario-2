@@ -1,6 +1,6 @@
 package com.sanigest.gateway.error;
 
-import com.sanigest.security.http.HttpProblems;
+import com.sanigest.web.HttpProblems;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;

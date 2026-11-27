@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -457,7 +458,15 @@ class CatalogWebPolicyTest {
                   .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
                   .param(invalid[0], invalid[1]))
           .andExpect(status().isBadRequest())
-          .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+          .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+          .andExpect(jsonPath("$.type").value("urn:sanigest:problem:invalid_request"))
+          .andExpect(jsonPath("$.title").value("Bad Request"))
+          .andExpect(jsonPath("$.status").value(400))
+          .andExpect(jsonPath("$.instance").value("/api/v1/clients"))
+          .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"))
+          .andExpect(jsonPath("$.detail").isNotEmpty())
+          .andExpect(jsonPath("$.timestamp").isString())
+          .andExpect(jsonPath("$.traceId").isString());
     }
     verifyNoInteractions(clients);
   }

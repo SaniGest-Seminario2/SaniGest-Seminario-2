@@ -2,7 +2,7 @@ package com.sanigest.gateway.security;
 
 import com.sanigest.gateway.error.GatewayProblems;
 import com.sanigest.security.AccessTokens;
-import com.sanigest.security.http.HttpProblems;
+import com.sanigest.web.HttpProblems;
 import java.io.IOException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.config.GlobalCorsProperties;

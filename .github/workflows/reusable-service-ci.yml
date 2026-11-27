@@ -17,6 +17,7 @@ env:
     .github/workflows/reusable-service-ci.yml
     pom.xml
     libraries/common-security/pom.xml
+    libraries/common-web/pom.xml
     libraries/common-company-access/pom.xml
     services/${{ inputs.service }}/pom.xml
 
