@@ -11,6 +11,8 @@ export SANIGEST_NETWORK_INTERNAL=false
 export SANIGEST_IMAGE_TAG="$project"
 export COMPANY_ACCESS_KEYS_DIR="$keys"
 export COMPANY_MULTIPLE_MEMBERSHIPS_ENABLED=true
+export FINANCE_ADMISSION_ENABLED=true
+export FINANCE_ADMISSION_TOKEN=$(openssl rand -hex 32)
 export JWT_PUBLIC_KEY_FILE="$keys/jwt-public.pem"
 export JWT_PRIVATE_KEY_FILE="$keys/jwt-private.pem"
 export POSTGRES_PORT="${POSTGRES_PORT:-16432}"
@@ -28,24 +30,22 @@ export SMOKE_CATALOG_URL="http://127.0.0.1:$CATALOG_SERVICE_PORT"
 export SMOKE_INVENTORY_URL="http://127.0.0.1:$INVENTORY_SERVICE_PORT"
 export SMOKE_EXPENSE_URL="http://127.0.0.1:$EXPENSE_SERVICE_PORT"
 
-qa_compose() {
-  docker compose --project-name "$project" --env-file .env.example \
-    -f docker-compose.yml -f infrastructure/qa/compose-multi-company.yml --profile apps "$@"
-}
+set -- docker compose --project-name "$project" --env-file .env.example \
+  -f docker-compose.yml -f infrastructure/qa/compose-multi-company.yml --profile apps
 
 cleanup() {
   result=$?
   trap - EXIT
   if [ "$result" -ne 0 ]; then
-    qa_compose ps || :
+    "$@" ps || :
   fi
   cleanup_result=0
-  qa_compose down --volumes --remove-orphans --rmi local || cleanup_result=$?
+  "$@" down --volumes --remove-orphans --rmi local || cleanup_result=$?
   rm -rf -- "$keys"
   [ "$result" -eq 0 ] || exit "$result"
   exit "$cleanup_result"
 }
-trap cleanup EXIT
+trap 'cleanup "$@"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -56,12 +56,19 @@ for pair in jwt catalog-company sales-company inventory-company expense-company;
   chmod 644 "$keys/$pair-private.pem"
 done
 
-qa_compose up -d --build --wait --wait-timeout 120
+"$@" up -d --wait --wait-timeout 120 kafka
+for topic in sales.receivable-payment.v1 expense.payable-payment.v1; do
+  "$@" exec -T kafka /opt/kafka/bin/kafka-topics.sh \
+    --bootstrap-server kafka:29092 --create --if-not-exists \
+    --topic "$topic" --partitions 1 --replication-factor 1 \
+    --config cleanup.policy=delete --config retention.ms=604800000
+done
+"$@" up -d --build --wait --wait-timeout 120
 curl -fsS --retry 20 --retry-connrefused --retry-delay 1 --max-time 4 \
   "$SMOKE_GATEWAY_URL/actuator/health" >/dev/null
-python3 infrastructure/qa/smoke-multi-company.py
+python3 infrastructure/qa/smoke-multi-company.py "$@"
 
-payables=$(qa_compose exec -T postgres sh -c '
+payables=$("$@" exec -T postgres sh -c '
   psql -XAtq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d sanigest_expense
 ' <<'SQL'
 SELECT original_amount, paid_amount, outstanding_amount, credit_days, status
