@@ -6,6 +6,8 @@ import com.sanigest.sales.application.exception.CatalogUnavailableException;
 import com.sanigest.sales.application.exception.InvoiceStockUnavailable;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.integration.InvoiceStock;
+import com.sanigest.web.RemoteCall;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import java.net.ProxySelector;
 import java.net.URI;
@@ -38,7 +40,8 @@ class CatalogClientConfiguration {
   CatalogClient catalogClient(
       CatalogClientProperties properties,
       Environment environment,
-      ObjectProvider<ObservationRegistry> observations) {
+      ObjectProvider<ObservationRegistry> observations,
+      ObjectProvider<MeterRegistry> meters) {
     properties.validateOrigin(environment.matchesProfiles("local", "test"));
     var api =
         Optional.ofNullable(properties.origin())
@@ -48,7 +51,17 @@ class CatalogClientConfiguration {
                     origin,
                     observations.getIfAvailable(() -> ObservationRegistry.NOOP),
                     CatalogHttpApi.class));
-    return new CatalogHttpClient(api);
+    var calls =
+        new RemoteCall(
+            "catalog",
+            properties.responseTimeout(),
+            failure ->
+                failure instanceof CatalogAccessDeniedException
+                    || failure instanceof CatalogResourceInvalidException
+                    || (failure instanceof CatalogUnavailableException unavailable
+                        && unavailable.reason() == CatalogUnavailableException.Reason.CONFLICT),
+            meters.getIfAvailable());
+    return new CatalogHttpClient(api, calls);
   }
 
   @Bean

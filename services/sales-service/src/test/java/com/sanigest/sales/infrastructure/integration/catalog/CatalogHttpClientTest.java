@@ -22,6 +22,7 @@ import com.sanigest.sales.application.exception.CatalogUnavailableException;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.domain.model.CatalogCustomerSnapshot.Status;
 import com.sanigest.sales.domain.model.CatalogItemSnapshot.Type;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import java.math.BigDecimal;
 import java.net.InetAddress;
@@ -249,6 +250,21 @@ class CatalogHttpClientTest {
   }
 
   @Test
+  void failsFastAfterRepeatedCatalogOutages() {
+    CATALOG.stubFor(get(urlPathEqualTo(ITEM)).willReturn(aResponse().withStatus(503)));
+    for (int call = 0; call < 10; call++) {
+      assertThatThrownBy(() -> client.getItem(ID, TENANT))
+          .isInstanceOf(CatalogUnavailableException.class)
+          .hasMessage("Catalog: DEPENDENCY_FAILURE");
+    }
+
+    assertThatThrownBy(() -> client.getCustomer(ID, TENANT))
+        .isInstanceOf(CatalogUnavailableException.class);
+    CATALOG.verify(10, getRequestedFor(urlPathEqualTo(ITEM)));
+    CATALOG.verify(0, getRequestedFor(urlPathEqualTo(CUSTOMER)));
+  }
+
+  @Test
   void abortsOnResponseTimeout() {
     CATALOG.stubFor(get(urlPathEqualTo(ITEM)).willReturn(okJson(ITEM_JSON).withFixedDelay(1200)));
     var impatient = client(URI.create(CATALOG.baseUrl()), Duration.ofMillis(300));
@@ -383,7 +399,8 @@ class CatalogHttpClientTest {
         .catalogClient(
             new CatalogClientProperties(origin, Duration.ofMillis(500), timeout),
             environment,
-            new StaticListableBeanFactory().getBeanProvider(ObservationRegistry.class));
+            new StaticListableBeanFactory().getBeanProvider(ObservationRegistry.class),
+            new StaticListableBeanFactory().getBeanProvider(MeterRegistry.class));
   }
 
   private static void authenticate(Instant expiresAt) {

@@ -11,12 +11,14 @@ import com.sanigest.sales.domain.model.CatalogCustomerSnapshot;
 import com.sanigest.sales.domain.model.CatalogCustomerSnapshot.Status;
 import com.sanigest.sales.domain.model.CatalogItemSnapshot;
 import com.sanigest.sales.domain.model.CatalogItemSnapshot.Type;
+import com.sanigest.web.RemoteCall;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.concurrent.DelegatingSecurityContextCallable;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 
@@ -25,8 +27,11 @@ final class CatalogHttpClient implements CatalogClient {
 
   private final Optional<CatalogHttpApi> api;
 
-  CatalogHttpClient(Optional<CatalogHttpApi> api) {
+  private final RemoteCall calls;
+
+  CatalogHttpClient(Optional<CatalogHttpApi> api, RemoteCall calls) {
     this.api = api;
+    this.calls = calls;
   }
 
   @Override
@@ -135,12 +140,22 @@ final class CatalogHttpClient implements CatalogClient {
     if (id == null || expectedCompanyId == null) {
       throw new CatalogResourceInvalidException(INVALID_REQUEST);
     }
+    var client =
+        api.orElseThrow(() ->
+            new CatalogUnavailableException(CatalogUnavailableException.Reason.NOT_CONFIGURED));
+    return calls.execute(
+        new DelegatingSecurityContextCallable<>(
+            () -> fetchVerified(client, expectedCompanyId, request)),
+        () ->
+            new CatalogUnavailableException(CatalogUnavailableException.Reason.TRANSPORT_FAILURE));
+  }
+
+  private static <T> T fetchVerified(
+      CatalogHttpApi client,
+      UUID expectedCompanyId,
+      Function<CatalogHttpApi, ResponseEntity<T>> request) {
     try {
-      var response =
-          request.apply(
-              api.orElseThrow(() ->
-                  new CatalogUnavailableException(
-                      CatalogUnavailableException.Reason.NOT_CONFIGURED)));
+      var response = request.apply(client);
       if (response.getStatusCode().value() != 200) {
         throw new CatalogUnavailableException(
             CatalogUnavailableException.Reason.DEPENDENCY_FAILURE);

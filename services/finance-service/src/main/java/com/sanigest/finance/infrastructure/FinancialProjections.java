@@ -3,7 +3,6 @@ package com.sanigest.finance.infrastructure;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClientException;
 
 @Service
 public class FinancialProjections {
@@ -16,22 +15,12 @@ public class FinancialProjections {
   }
 
   public String read(UUID company, String token) {
-    try {
-      sources.authorize(company, token);
-    } catch (RestClientException failure) {
-      throw FinancialSources.failure(failure);
-    }
+    sources.authorize(company, token);
     return view(company);
   }
 
   public String rebuild(UUID company, String token) {
-    FinancialSources.Snapshots snapshots;
-    try {
-      snapshots = sources.fetch(company, token);
-    } catch (RestClientException failure) {
-      throw FinancialSources.failure(failure);
-    }
-    save(company, snapshots);
+    save(company, sources.fetch(company, token));
     return view(company);
   }
 
