@@ -49,6 +49,7 @@ public class RegisterExpense {
           inventory.recordEntry(
               new InventoryReceipts.Entry(
                   document.companyId(),
+                  document.id(),
                   line.id(),
                   document.warehouseId(),
                   line.itemId(),

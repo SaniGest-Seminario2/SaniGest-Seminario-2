@@ -22,7 +22,8 @@ public record StockMovement(
     BigDecimal balanceAfter) {
   public enum Type {
     INITIAL_STOCK,
-    MANUAL_ADJUSTMENT
+    MANUAL_ADJUSTMENT,
+    PURCHASE_RECEIPT
   }
 
   public enum Direction {
@@ -32,7 +33,8 @@ public record StockMovement(
 
   public enum Origin {
     STOCK_CONFIGURATION,
-    MANUAL_ADJUSTMENT
+    MANUAL_ADJUSTMENT,
+    PURCHASE_RECEIPT
   }
 
   public StockMovement {

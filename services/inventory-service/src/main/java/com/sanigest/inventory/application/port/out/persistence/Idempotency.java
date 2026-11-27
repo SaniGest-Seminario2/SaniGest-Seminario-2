@@ -6,7 +6,8 @@ import java.util.UUID;
 public interface Idempotency {
   enum Operation {
     INITIALIZE_STOCK,
-    ADJUST_STOCK
+    ADJUST_STOCK,
+    PURCHASE_RECEIPT
   }
 
   record Key(UUID company, UUID actor, Operation operation, String value) {}

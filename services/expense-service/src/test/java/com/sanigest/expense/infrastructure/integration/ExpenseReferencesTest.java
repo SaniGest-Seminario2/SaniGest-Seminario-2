@@ -91,9 +91,9 @@ class ExpenseReferencesTest {
     answer(200, "{\"trackingEnabled\":true}");
     assertTrue(references.tracksStock(company, id, id));
     answer(201, "{\"id\":\"" + id + "\"}");
-    assertEquals(id, references.recordEntry(new Entry(company, id, id, id, BigDecimal.ONE)));
+    assertEquals(id, references.recordEntry(new Entry(company, id, id, id, id, BigDecimal.ONE)));
     assertEquals(
-        "POST|/api/v1/inventory/adjustments|Bearer user-token|" + company + "|" + id,
+        "POST|/internal/v1/inventory/purchase-receipts|Bearer user-token|" + company + "|" + id,
         received.get());
   }
 
@@ -118,7 +118,7 @@ class ExpenseReferencesTest {
         "EXPENSE_INVENTORY_RECEIPT_PENDING",
         assertThrows(
                 ExpenseFailure.class,
-                () -> references.recordEntry(new Entry(company, id, id, id, BigDecimal.ONE)))
+                () -> references.recordEntry(new Entry(company, id, id, id, id, BigDecimal.ONE)))
             .getMessage());
   }
 

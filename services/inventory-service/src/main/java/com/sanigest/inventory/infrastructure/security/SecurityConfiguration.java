@@ -65,7 +65,10 @@ class SecurityConfiguration {
                     "/api/v1/inventory/summary")
                 .authenticated()
                 .requestMatchers(
-                    HttpMethod.POST, "/api/v1/warehouses", "/api/v1/inventory/adjustments")
+                    HttpMethod.POST,
+                    "/api/v1/warehouses",
+                    "/api/v1/inventory/adjustments",
+                    "/internal/v1/inventory/purchase-receipts")
                 .authenticated()
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/warehouses/{id}")
                 .authenticated()

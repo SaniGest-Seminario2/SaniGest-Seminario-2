@@ -11,6 +11,7 @@ import com.sanigest.inventory.domain.StockKey;
 import com.sanigest.inventory.domain.StockMovement;
 import com.sanigest.inventory.domain.StockPosition;
 import com.sanigest.inventory.domain.Warehouse;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -96,13 +97,14 @@ public class StockOperations {
     var item = product(stock);
     Quantity.validate(quantity, item.divisible(), true);
     var result =
-        writer.adjust(
+        writer.recordMovement(
             stock,
             actor,
             key,
             hash,
             new StockCommands.Adjust(request.direction(), quantity, reason),
-            item);
+            item,
+            null);
     LOG.info(
         "Inventory adjustment accepted company={} warehouse={} item={} movement={}",
         stock.companyId(),
@@ -110,6 +112,56 @@ public class StockOperations {
         stock.catalogItemId(),
         result.id());
     return result;
+  }
+
+  public StockMovement receivePurchase(
+      StockKey stock, UUID actor, String token, UUID expenseId, BigDecimal receivedQuantity) {
+    var lineId = receiptLineId(token);
+    var key = key(stock, actor, token, Operation.PURCHASE_RECEIPT, true);
+    var quantity = Quantity.validate(receivedQuantity, true, true);
+    var hash = fingerprint(stock, expenseId, quantity);
+    var previous = idempotency.replay(key, hash, StockMovement.class);
+    if (previous.isPresent()) {
+      return previous.get();
+    }
+
+    // An expense saved before this endpoint existed may have posted some lines as adjustments.
+    var direction = StockMovement.Direction.IN;
+    var reason = "Expense receipt line " + lineId;
+    var legacyKey = key(stock, actor, token, Operation.ADJUST_STOCK, true);
+    var legacyHash = fingerprint(stock, direction, quantity, reason);
+    var legacy = idempotency.replay(legacyKey, legacyHash, StockMovement.class);
+    if (legacy.isPresent()) {
+      var movement = legacy.get();
+      if (movement.originType() == StockMovement.Origin.PURCHASE_RECEIPT
+          && !expenseId.equals(movement.originId())) {
+        throw InventoryViolation.conflict("IDEMPOTENCY_CONFLICT");
+      }
+      return movement;
+    }
+
+    var item = product(stock);
+    Quantity.validate(quantity, item.divisible(), true);
+    return writer.recordMovement(
+        stock,
+        actor,
+        key,
+        hash,
+        new StockCommands.Adjust(direction, quantity, reason),
+        item,
+        new StockTransaction.PurchaseOrigin(expenseId, lineId, legacyKey, legacyHash));
+  }
+
+  private static UUID receiptLineId(String token) {
+    try {
+      var lineId = UUID.fromString(token);
+      if (lineId.toString().equals(token)) {
+        return lineId;
+      }
+    } catch (IllegalArgumentException | NullPointerException invalid) {
+      throw InventoryViolation.invalid("INVALID_IDEMPOTENCY_KEY");
+    }
+    throw InventoryViolation.invalid("INVALID_IDEMPOTENCY_KEY");
   }
 
   private CatalogInventoryClient.Item product(StockKey stock) {

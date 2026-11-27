@@ -1208,7 +1208,8 @@
               "type": "string",
               "enum": [
                 "INITIAL_STOCK",
-                "MANUAL_ADJUSTMENT"
+                "MANUAL_ADJUSTMENT",
+                "PURCHASE_RECEIPT"
               ]
             }
           },
@@ -1230,7 +1231,8 @@
               "type": "string",
               "enum": [
                 "STOCK_CONFIGURATION",
-                "MANUAL_ADJUSTMENT"
+                "MANUAL_ADJUSTMENT",
+                "PURCHASE_RECEIPT"
               ]
             }
           },
@@ -1798,7 +1800,8 @@
             "type": "string",
             "enum": [
               "INITIAL_STOCK",
-              "MANUAL_ADJUSTMENT"
+              "MANUAL_ADJUSTMENT",
+              "PURCHASE_RECEIPT"
             ]
           },
           "direction": {
@@ -1820,7 +1823,8 @@
             "type": "string",
             "enum": [
               "STOCK_CONFIGURATION",
-              "MANUAL_ADJUSTMENT"
+              "MANUAL_ADJUSTMENT",
+              "PURCHASE_RECEIPT"
             ]
           },
           "originId": {

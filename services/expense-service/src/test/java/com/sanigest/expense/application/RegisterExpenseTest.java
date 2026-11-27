@@ -69,6 +69,7 @@ class RegisterExpenseTest {
         .recordEntry(
             new InventoryReceipts.Entry(
                 key.companyId(),
+                document.id(),
                 document.lines().getFirst().id(),
                 warehouse,
                 item,
