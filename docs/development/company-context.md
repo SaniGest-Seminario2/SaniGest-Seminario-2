@@ -82,6 +82,16 @@ COMPANY_MULTIPLE_MEMBERSHIPS_ENABLED=true docker compose -f docker-compose.yml \
 python3 infrastructure/qa/smoke-multi-company.py
 ```
 
+El smoke completo de Gateway (S2-361) se ejecuta con
+`sh infrastructure/qa/run-smoke-multi-company.sh`. El runner levanta un stack
+descartable con PostgreSQL, Redis y Kafka. Prepara membresías y un turno de caja
+como datos de prueba, luego verifica por HTTP desde Gateway los permisos, el
+aislamiento, la auditoría y el cobro hasta su proyección en Finance. La invocación
+directa de Python omite los escenarios que requieren esos datos iniciales.
+El smoke exige que los nombres históricos `/movements` y `/reports/summary`
+devuelvan 404. Los alias de empresa mantienen la compatibilidad indicada en el
+[inventario REST](../traceability/s2-472-endpoint-lifecycle.md).
+
 Inventory usa el selector en cada petición y verifica `INVENTORY` con alcance `READ` o `WRITE`. Solo admite membresías; Company rechaza las solicitudes delegadas para ese módulo. Catalog verifica `CATALOG_READ` de forma independiente. Consulta la [matriz de Inventory](../../services/inventory-service/README.md).
 
 Expense verifica el selector por petición con Company en `EXPENSE/WRITE`.

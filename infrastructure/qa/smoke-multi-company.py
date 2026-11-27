@@ -1,12 +1,18 @@
 """Run against the disposable local multi-company Compose stack."""
 import json
 import os
+import subprocess
+import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, timedelta
+from datetime import datetime, timedelta
+from decimal import Decimal
+from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 
 def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200,
@@ -50,11 +56,110 @@ def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200,
     return decoded
 
 
-def main():
+def fixture(compose, database, sql):
+    subprocess.run(
+        [*compose, "exec", "-T", "postgres", "sh", "-c",
+         'exec psql -Xq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$1"', "psql", database],
+        input=sql, text=True, check=True, timeout=30,
+    )
+
+
+def business_date():
+    return datetime.now(ZoneInfo("America/Santo_Domingo")).date()
+
+
+def verify_roles(compose, owner, company, other):
+    audit = f"companies/{company}/audit-log"
+    for role in ("ADMIN", "OPERATOR", "VIEWER"):
+        credentials = {"email": f"{role.lower()}-{uuid.uuid4().hex}@example.test",
+                       "password": "Disposable-smoke-454!"}
+        user = uuid.UUID(exchange("auth/register", data={**credentials, "name": role},
+                                  status=201)["userId"])
+        member = exchange("auth/login", data=credentials)["accessToken"]
+        fixture(compose, "sanigest_company", f"""
+            INSERT INTO company_memberships (id, company_id, user_id, role)
+            VALUES ('{uuid.uuid4()}', '{uuid.UUID(company)}', '{user}', '{role}');
+        """)
+        assert exchange(f"companies/{company}", token=member)["companyId"] == company
+        exchange(f"companies/{other}", token=member, status=403)
+        exchange(audit, token=member, status=403)
+        if role == "ADMIN":
+            exchange(f"companies/{company}", token=member, method="PATCH",
+                     data={"phone": "8095550101"})
+        elif role == "VIEWER":
+            exchange("clients", token=member, tenant=company)
+            exchange("clients", token=member, tenant=company,
+                     data={"name": "Forbidden", "clientType": "NATURAL"}, status=403)
+        else:
+            exchange("sales", token=member, tenant=company)
+            exchange(f"companies/{company}", token=member, method="PATCH",
+                     data={"phone": "8095550102"}, status=403)
+
+        exchange(f"companies/{company}/members/{user}/status", token=owner, method="PATCH",
+                 data={"status": "SUSPENDED"})
+        exchange(f"companies/{company}", token=member, status=403)
+        entries = exchange(f"{audit}?size=20", token=owner)["content"]
+        assert any(entry["companyId"] == company and entry["targetUserId"] == str(user)
+                   and entry["newStatus"] == "SUSPENDED" for entry in entries), entries
+        assert all(entry["targetUserId"] != str(user)
+                   for entry in exchange(f"companies/{other}/audit-log", token=owner)["content"])
+
+
+def verify_payment(compose, token, owner, company, other, invoice, sale, client):
+    company_uuid = uuid.UUID(company)
+    shift, account = uuid.uuid4(), uuid.uuid4()
+    fixture(compose, "sanigest_finance", f"""
+        BEGIN;
+        INSERT INTO finance.cash_shifts (company_id, id, operator_id, opened_at)
+        VALUES ('{company_uuid}', '{shift}', '{owner}', now());
+        INSERT INTO finance.cash_accounts (company_id, id) VALUES ('{company_uuid}', '{account}');
+        INSERT INTO finance.shift_payment_accounts (company_id, shift_id, method, account_id)
+        VALUES ('{company_uuid}', '{shift}', 'CASH', '{account}');
+        COMMIT;
+    """)
+
+    def get(path, tenant=company):
+        return exchange(path, token=token, tenant=tenant)
+
+    path = f"invoices/{invoice['id']}/payments"
+    key = uuid.uuid4().hex
+    data = {"clientName": client, "balance": invoice["total"],
+            "lines": [{"amount": "1.00", "method": "CASH"}]}
+    payment = exchange(path, token=token, tenant=company, data=data, key=key, status=201)
+    assert exchange(path, token=token, tenant=company, data=data, key=key, status=201) == payment
+    assert payment["shiftId"] == str(shift) and payment["operatorId"] == str(owner)
+    balance = Decimal(str(invoice["total"])) - Decimal("1.00")
+    assert Decimal(str(payment["balance"])) == balance
+    assert Decimal(str(get(f"receivables/{sale}")["outstandingBalance"])) == balance
+    page = get("receivables?status=PARTIALLY_PAID&size=1")
+    assert page["totalElements"] == 1 and page["content"] == get("receivables/all?status=PARTIALLY_PAID")
+    assert get("receivables/all?status=PENDING") == []
+    assert get("receivables/all?status=PARTIALLY_PAID", other) == []
+
+    history = get("cash-sessions/active/payments")
+    assert [line["paymentId"] for line in history] == [payment["paymentId"]]
+    assert get("cash-sessions/active/payments", other) == []
+
+    deadline = time.monotonic() + 30
+    while True:
+        summary = get("cash-sessions/active/summary")
+        if Decimal(str(summary["totalCollections"])) == Decimal("1.00"):
+            break
+        assert time.monotonic() < deadline, f"Payment did not reach Finance: {summary}"
+        time.sleep(0.5)
+    assert summary["shiftId"] == str(shift) and Decimal(str(summary["netCash"])) == Decimal("1.00")
+    exchange("cash-sessions/active/summary", token=token, tenant=other, status=404)
+
+
+def main(compose):
     suffix = uuid.uuid4().hex
     credentials = {"email": f"tenant-{suffix}@example.test", "password": "Disposable-smoke-454!"}
-    exchange("auth/register", data={**credentials, "name": "Multiempresa Smoke"}, status=201)
-    token = exchange("auth/login", data=credentials)["accessToken"]
+    owner = uuid.UUID(exchange("auth/register", data={**credentials, "name": "Multiempresa Smoke"},
+                               status=201)["userId"])
+    session = exchange("auth/login", data=credentials)
+    session = exchange("auth/refresh", data={"refreshToken": session["refreshToken"]})
+    token = session["accessToken"]
+    assert exchange("auth/me", token=token)["id"] == str(owner)
     assert exchange("companies", token=token) == []
 
     def create_company(label):
@@ -79,7 +184,8 @@ def main():
                  "cash-sessions/active/payments", "reports/projection"):
         exchange(path, tenant=a, status=401)
     exchange("reports/projection/rebuild", tenant=a, method="POST", status=401)
-    exchange("missing-s2-302-route", token=token, status=404)
+    for retired_path in ("movements", "reports/summary"):
+        exchange(retired_path, token=token, tenant=a, status=404)
     exchange("auth/register", method="POST", status=400)
     exchange("auth/register", token=token, status=405)
     exchange("auth/register", data={}, content_type="text/plain", status=415)
@@ -136,7 +242,7 @@ def main():
         assert second.result(timeout=15) == {client_b}
 
     sale = {"clientId": client_a, "lines": [{"catalogItemId": item_a, "quantity": 1}],
-            "mode": "CREDIT", "dueDate": (date.today() + timedelta(days=30)).isoformat()}
+            "mode": "CREDIT", "dueDate": (business_date() + timedelta(days=30)).isoformat()}
     invoice_key = uuid.uuid4().hex
     direct = exchange("invoices", token=token, tenant=a, data=sale, key=invoice_key, status=201)
     sale_id = direct["saleId"]
@@ -177,6 +283,19 @@ def main():
     verify_expenses(token, a, b, item_a, warehouse)
     exchange("invoices", token=token, tenant=a, data=sale, key=uuid.uuid4().hex, status=422)
     assert exchange("sales", token=token, tenant=a)["totalElements"] == 1
+    if compose:
+        verify_roles(compose, token, a, b)
+        service = exchange("catalog-items", token=token, tenant=a, status=201,
+                           data={"name": "Servicio de cobro", "type": "SERVICE", "price": "25.00",
+                                 "unitCode": "UNIT", "taxClassificationCode": "EXEMPT"})
+        payable_invoice = exchange("invoices", token=token, tenant=a,
+                                   data={**sale, "lines": [{"catalogItemId": service["id"], "quantity": 1}]},
+                                   key=uuid.uuid4().hex, status=201)
+        verify_payment(compose, token, owner, a, b, payable_invoice,
+                       payable_invoice["saleId"], client["name"])
+    refresh = {"refreshToken": session["refreshToken"]}
+    exchange("auth/logout", data=refresh, status=204)
+    exchange("auth/refresh", data=refresh, status=401)
     print("Multi-company HTTP smoke passed")
 
 
@@ -234,7 +353,7 @@ def verify_expenses(token, company, other, item, warehouse):
         "name": "Proveedor a crédito", "contact": "Compras", "supplyType": "PRODUCT",
         "paymentTerms": "BOTH", "creditDays": 30,
     })
-    issue_date = date.today()
+    issue_date = business_date()
     attachment = str(uuid.uuid4())
     request = {
         "attachmentId": attachment,
@@ -267,6 +386,11 @@ def verify_expenses(token, company, other, item, warehouse):
         assert exchange(filtered, token=token, tenant=company, origin=origin)["totalElements"] == 1
         assert exchange(filtered, token=token, tenant=other, origin=origin)["totalElements"] == 0
         exchange("expenses", tenant=company, origin=origin, status=401)
+    pending = f"status=PENDING&supplierId={supplier['id']}"
+    page = exchange(f"payables?{pending}&size=1", token=token, tenant=company)
+    assert page["totalElements"] == 1 and page["content"][0]["outstandingAmount"] == created["total"]
+    assert exchange(f"payables/all?{pending}", token=token, tenant=company) == page["content"]
+    assert exchange(f"payables/all?{pending}", token=token, tenant=other) == []
     conflict = exchange("expenses", token=token, tenant=company, data={**request, "notes": "Cambiada"},
                         key=key, status=409)
     assert conflict["errorCode"] == "EXPENSE_IDEMPOTENCY_CONFLICT"
@@ -275,6 +399,11 @@ def verify_expenses(token, company, other, item, warehouse):
                           "supplierInvoiceNumber": "COMPRA-002",
                           "lines": [{**request["lines"][0], "receivedQuantity": "0"}]})
     assert cash["financialStatus"] == "PAYMENT_UNRECORDED" and cash["dueDate"] is None
+    filters = urlencode({"search": "COMPRA-001", "operationType": "PURCHASE"})
+    page = exchange(f"expenses?{filters}&size=1", token=token, tenant=company)
+    assert page["totalElements"] == 1 and page["content"][0]["id"] == created["id"]
+    assert exchange(f"expenses/all?{filters}", token=token, tenant=company) == page["content"]
+    assert exchange(f"expenses/all?{filters}", token=token, tenant=other) == []
     stock = exchange(f"inventory/stock/{item}/{warehouse}", token=token, tenant=company)
     assert stock["onHand"] == "24.000"
     movements = exchange(f"inventory/movements?warehouseId={warehouse}", token=token, tenant=company)
@@ -286,4 +415,4 @@ if __name__ == "__main__":
     CATALOG = os.environ.get("SMOKE_CATALOG_URL", "http://127.0.0.1:8083")
     INVENTORY = os.environ.get("SMOKE_INVENTORY_URL", "http://127.0.0.1:8086")
     EXPENSE = os.environ.get("SMOKE_EXPENSE_URL", "http://127.0.0.1:8087")
-    main()
+    main(sys.argv[1:])
