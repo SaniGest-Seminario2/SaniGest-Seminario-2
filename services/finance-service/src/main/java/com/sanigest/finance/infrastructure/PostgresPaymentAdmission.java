@@ -17,6 +17,20 @@ class PostgresPaymentAdmission implements PaymentAdmission {
   }
 
   @Override
+  public boolean isEligibleAccount(UUID companyId, UUID accountId, String method) {
+    return jdbc.sql(
+            """
+            SELECT EXISTS (SELECT 1 FROM finance.shift_payment_accounts
+              WHERE company_id = :company AND account_id = :account AND method = :method)
+            """)
+        .param("company", companyId)
+        .param("account", accountId)
+        .param("method", method)
+        .query(Boolean.class)
+        .single();
+  }
+
+  @Override
   public Optional<ActiveShift> find(UUID companyId, UUID operatorId) {
     return jdbc.sql(
             """

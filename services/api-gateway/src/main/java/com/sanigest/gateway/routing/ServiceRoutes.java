@@ -154,7 +154,7 @@ class ServiceRoutes {
             "expense",
             route ->
                 route
-                    .path("/api/v1/expenses")
+                    .path("/api/v1/expenses", "/api/v1/payables/{id}/payments")
                     .and()
                     .method(HttpMethod.POST)
                     .metadata(RESPONSE_TIMEOUT_ATTR, 15_000)

@@ -74,25 +74,33 @@ payables=$("$@" exec -T postgres sh -c '
 SELECT original_amount, paid_amount, outstanding_amount, credit_days, status
 FROM expense.payable_balances;
 SELECT outstanding_amount FROM expense.supplier_payable_balances;
-
-BEGIN;
-UPDATE expense.payables SET paid_amount = 10;
-SELECT paid_amount, outstanding_amount, status FROM expense.payable_balances;
-SELECT outstanding_amount FROM expense.supplier_payable_balances;
-UPDATE expense.payables SET paid_amount = original_amount;
-SELECT paid_amount, outstanding_amount, status FROM expense.payable_balances;
-SELECT outstanding_amount FROM expense.supplier_payable_balances;
-ROLLBACK;
+SELECT count(*) FROM expense.payable_payments;
+SELECT count(*) FROM expense.payment_outbox;
 SQL
 )
-expected_payables='29.50|0.00|29.50|30|OPEN
-29.50
-10.00|19.50|PARTIALLY_PAID
-19.50
-29.50|0.00|PAID
-0.00'
+expected_payables='29.50|29.50|0.00|30|PAID
+0.00
+2
+2'
 if [ "$payables" != "$expected_payables" ]; then
-  echo "Unexpected expense obligation or supplier balance" >&2
+  echo "Unexpected expense payments, outbox or resulting balances" >&2
   exit 1
 fi
-echo "Expense payable persisted once and balances reflect persisted payments"
+
+for attempt in $(seq 1 30); do
+  movements=$("$@" exec -T postgres sh -c '
+    psql -XAtq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d sanigest_finance
+  ' <<'SQL'
+SELECT count(*), sum(amount)
+FROM finance.cash_movements
+WHERE origin = 'PAGO' AND direction = 'OUTFLOW' AND method = 'TRANSFER' AND shift_id IS NULL;
+SQL
+  )
+  if [ "$movements" = '2|29.50' ]; then
+    echo "Expense payments and Finance outflows persisted exactly once"
+    exit 0
+  fi
+  sleep 1
+done
+echo "Finance did not project the expected payable payments" >&2
+exit 1

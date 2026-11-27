@@ -20,7 +20,7 @@ env:
     libraries/common-security libraries/common-company-access libraries/common-events
     services/company-service services/identity-service
     services/catalog-service services/sales-service services/inventory-service
-    services/finance-service
+    services/expense-service services/finance-service
 
 jobs:
   secrets:

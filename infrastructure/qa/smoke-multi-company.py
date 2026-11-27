@@ -280,7 +280,7 @@ def main(compose):
     exchange("clients", token=token, status=400, origin=CATALOG)
     exchange(f"clients/{client_a}", token=token, tenant=b, status=404, origin=CATALOG)
     warehouse = verify_inventory(token, a, b, item_a)
-    verify_expenses(token, a, b, item_a, warehouse)
+    payable = verify_expenses(token, a, b, item_a, warehouse)
     exchange("invoices", token=token, tenant=a, data=sale, key=uuid.uuid4().hex, status=422)
     assert exchange("sales", token=token, tenant=a)["totalElements"] == 1
     if compose:
@@ -293,6 +293,7 @@ def main(compose):
                                    key=uuid.uuid4().hex, status=201)
         verify_payment(compose, token, owner, a, b, payable_invoice,
                        payable_invoice["saleId"], client["name"])
+        verify_payable_payment(compose, token, owner, a, b, payable)
     refresh = {"refreshToken": session["refreshToken"]}
     exchange("auth/logout", data=refresh, status=204)
     exchange("auth/refresh", data=refresh, status=401)
@@ -408,6 +409,64 @@ def verify_expenses(token, company, other, item, warehouse):
     assert stock["onHand"] == "24.000"
     movements = exchange(f"inventory/movements?warehouseId={warehouse}", token=token, tenant=company)
     assert movements["totalElements"] == 4
+    return created["id"]
+
+
+def verify_payable_payment(compose, token, owner, company, other, payable):
+    shift, account = uuid.uuid4(), str(uuid.uuid4())
+    fixture(compose, "sanigest_finance", f"""
+        BEGIN;
+        INSERT INTO finance.cash_shifts (company_id, id, operator_id, opened_at, closed_at)
+        VALUES ('{uuid.UUID(company)}', '{shift}', '{owner}', now(), now());
+        INSERT INTO finance.cash_accounts (company_id, id) VALUES ('{uuid.UUID(company)}', '{account}');
+        INSERT INTO finance.shift_payment_accounts (company_id, shift_id, method, account_id)
+        VALUES ('{uuid.UUID(company)}', '{shift}', 'TRANSFER', '{account}');
+        COMMIT;
+    """)
+    path = f"payables/{payable}/payments"
+    request = {"amount": "10.00", "method": "TRANSFER", "accountId": account,
+               "date": business_date().isoformat(), "reference": "TRF-001", "notes": "Abono"}
+    key = uuid.uuid4().hex
+
+    def pay(data=request, request_key=key, status=201, tenant=company):
+        return exchange(path, token=token, tenant=tenant, data=data, key=request_key, status=status)
+
+    exchange(path, tenant=company, data=request, key=key, status=401)
+    pay(tenant=other, status=404)
+    pay(request_key=None, status=400)
+    pay({**request, "amount": "0.00"}, status=400)
+    assert pay({**request, "reference": None}, status=400)["errorCode"] == (
+        "PAYABLE_INVALID_PAYMENT_REFERENCE")
+    assert pay({**request, "method": "CHECK"}, status=400)["errorCode"] == (
+        "PAYABLE_INELIGIBLE_PAYMENT_ACCOUNT")
+    fixture(compose, "sanigest_expense", f"""
+        UPDATE expense.payables SET cancelled_at = now() WHERE expense_id = '{uuid.UUID(payable)}';
+    """)
+    assert pay(status=409)["errorCode"] == "PAYABLE_CANCELLED"
+    fixture(compose, "sanigest_expense", f"""
+        UPDATE expense.payables SET cancelled_at = NULL WHERE expense_id = '{uuid.UUID(payable)}';
+    """)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first, replay = list(executor.map(lambda _: pay(), range(2)))
+    assert first == replay and first["status"] == "PARTIALLY_PAID"
+    assert Decimal(str(first["outstandingAmount"])) == Decimal("19.50")
+    assert pay({**request, "amount": "11.00"}, status=409)["errorCode"] == (
+        "PAYABLE_PAYMENT_IDEMPOTENCY_CONFLICT")
+
+    def finish(index):
+        # Both requests attempt to settle the full remaining balance.
+        try:
+            return exchange(path, token=token, tenant=company, data={**request, "amount": "19.50"},
+                            key=keys[index], status=201)
+        except AssertionError as unexpected:
+            assert "(PAYABLE_PAYMENT_EXCEEDS_BALANCE)" in str(unexpected), unexpected
+            return None
+
+    keys = [uuid.uuid4().hex, uuid.uuid4().hex]
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        settled = [payment for payment in executor.map(finish, range(2)) if payment]
+    assert len(settled) == 1 and settled[0]["status"] == "PAID"
+    assert settled[0]["outstandingAmount"] == 0 and pay() == first
 
 
 if __name__ == "__main__":

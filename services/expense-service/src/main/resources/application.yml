@@ -45,6 +45,8 @@ sanigest:
     origin: ${EXPENSE_COMPANY_ACCESS_ORIGIN:}
     issuer: ${EXPENSE_COMPANY_ACCESS_ISSUER:expense-company-access}
     private-key-location: ${EXPENSE_COMPANY_ACCESS_PRIVATE_KEY_LOCATION:}
+  finance-origin: ${EXPENSE_FINANCE_ORIGIN:http://finance-service:8080}
+  finance-admission-token: ${FINANCE_ADMISSION_TOKEN:}
   catalog-origin: ${EXPENSE_CATALOG_ORIGIN:http://catalog-service:8080}
   inventory-origin: ${EXPENSE_INVENTORY_ORIGIN:http://inventory-service:8080}
 

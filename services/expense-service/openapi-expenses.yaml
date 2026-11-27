@@ -61,6 +61,51 @@ paths:
         '401': {description: Autenticación requerida.}
         '403': {description: Membresía o permiso EXPENSE_READ insuficiente.}
         '503': {description: Servicio de autorización indisponible.}
+  /api/v1/payables/{id}/payments:
+    post:
+      operationId: registerPayablePayment
+      summary: Abonar o liquidar una cuenta por pagar
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/PayableCompany'
+        - in: path
+          name: id
+          required: true
+          schema: {type: string, format: uuid}
+        - in: header
+          name: Idempotency-Key
+          required: true
+          description: Reutilizar con la misma empresa, usuario, obligación y cuerpo al reintentar.
+          schema: {type: string, pattern: '^[A-Za-z0-9._:-]{1,128}$'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PayablePaymentRequest'}
+      responses:
+        '201':
+          description: Pago registrado o reproducido con la misma clave.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PayablePaymentDetails'
+                  - type: object
+                    required: [paymentId, payableId, actorId, registeredAt, outstandingAmount, status]
+                    properties:
+                      paymentId: {type: string, format: uuid}
+                      payableId: {type: string, format: uuid}
+                      actorId: {type: string, format: uuid}
+                      registeredAt: {type: string, format: date-time}
+                      outstandingAmount: {type: number, minimum: 0, multipleOf: 0.01}
+                      status: {type: string, enum: [PARTIALLY_PAID, PAID]}
+        '400': {description: Solicitud inválida o cuenta no elegible en Finance.}
+        '401': {description: Autenticación requerida.}
+        '403': {description: Permiso de escritura de Expense insuficiente.}
+        '404': {description: Obligación inexistente en la empresa seleccionada.}
+        '409': {description: Obligación anulada, saldo insuficiente o clave reutilizada con otro pago.}
+        '503': {description: Autorización o validación de cuenta indisponible.}
+        '504': {description: Tiempo de espera del Gateway agotado. Reintentar con la misma clave.}
   /api/v1/payables/all:
     get:
       operationId: listAllPayables
@@ -127,6 +172,34 @@ components:
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
   schemas:
+    PayablePaymentRequest:
+      allOf:
+        - $ref: '#/components/schemas/PayablePaymentDetails'
+        - type: object
+          properties:
+            amount:
+              oneOf:
+                - {type: number, exclusiveMinimum: 0, multipleOf: 0.01, maximum: 99999999999999999.99}
+                - {type: string, pattern: '^[0-9]{1,17}(\.[0-9]{1,2})?$'}
+    PayablePaymentDetails:
+      type: object
+      required: [amount, method, accountId, date]
+      properties:
+        amount: {type: [number, string], description: Importe positivo en DOP con hasta dos decimales.}
+        method: {type: string, enum: [CASH, CREDIT_CARD, DEBIT_CARD, TRANSFER, CHECK]}
+        accountId:
+          type: string
+          format: uuid
+          description: Cuenta de la empresa habilitada para el medio en Finance.
+        date:
+          type: string
+          format: date
+          description: Fecha efectiva del pago, hasta el día actual en America/Santo_Domingo.
+        reference:
+          type: [string, 'null']
+          maxLength: 250
+          description: Requerida para los medios distintos de CASH. Omitir para CASH.
+        notes: {type: [string, 'null'], maxLength: 500}
     Payable:
       type: object
       required: [id, supplierId, supplierName, concept, dueDate, originalAmount, paidAmount, outstandingAmount, status]
