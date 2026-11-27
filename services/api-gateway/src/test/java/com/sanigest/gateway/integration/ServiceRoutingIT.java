@@ -141,6 +141,20 @@ class ServiceRoutingIT {
   }
 
   @Test
+  void forwardsInvoicePaymentToSales() throws Exception {
+    String path = "/api/v1/invoices/123/payments";
+    var response =
+        send(
+            request(gateway(), path)
+                .header("Authorization", "Bearer " + GatewayTestTokens.validToken())
+                .header("X-Company-Id", TENANT)
+                .header("Idempotency-Key", "payment")
+                .POST(HttpRequest.BodyPublishers.ofString("{}")));
+    assertThat(response.statusCode()).isEqualTo(422);
+    assertThat(response.body()).isEqualTo("sales POST " + path + " {}");
+  }
+
+  @Test
   void writesGatewayProblemsAndPreservesBackendProblems() throws Exception {
     var client = WebTestClient.bindToServer().baseUrl(gateway()).build();
     client

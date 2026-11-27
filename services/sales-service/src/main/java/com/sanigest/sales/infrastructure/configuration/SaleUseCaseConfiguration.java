@@ -1,12 +1,15 @@
 package com.sanigest.sales.infrastructure.configuration;
 
 import com.sanigest.companyaccess.AuthenticatedActor;
+import com.sanigest.sales.application.exception.PaymentAdmissionUnavailable;
 import com.sanigest.sales.application.exception.SalesAccessForbidden;
 import com.sanigest.sales.application.port.out.integration.CatalogClient;
 import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess;
 import com.sanigest.sales.application.port.out.integration.InvoiceStock;
+import com.sanigest.sales.application.port.out.integration.PaymentAdmission;
 import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
 import com.sanigest.sales.application.port.out.persistence.InvoiceDocuments;
+import com.sanigest.sales.application.port.out.persistence.InvoicePayments;
 import com.sanigest.sales.application.port.out.persistence.InvoiceRepository;
 import com.sanigest.sales.application.port.out.persistence.ReceivableRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository;
@@ -14,6 +17,7 @@ import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
 import com.sanigest.sales.application.port.out.persistence.SaleRepository;
 import com.sanigest.sales.application.usecase.invoice.IssueInvoice;
 import com.sanigest.sales.application.usecase.invoice.ManageInvoices;
+import com.sanigest.sales.application.usecase.invoice.RegisterInvoicePayment;
 import com.sanigest.sales.application.usecase.receivable.GetReceivable;
 import com.sanigest.sales.application.usecase.sale.CancelSale;
 import com.sanigest.sales.application.usecase.sale.CreateSale;
@@ -23,6 +27,7 @@ import com.sanigest.sales.application.usecase.sale.ListSales;
 import java.time.Clock;
 import java.time.ZoneId;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -55,6 +60,24 @@ class SaleUseCaseConfiguration {
   ManageInvoices manageInvoices(SalesAuthorization authorization, InvoiceDocuments documents) {
     return new ManageInvoices(
         authorization, documents, SaleUseCaseConfiguration::actorId, Clock.systemUTC());
+  }
+
+  @Bean
+  RegisterInvoicePayment registerInvoicePayment(
+      SalesAuthorization authorization,
+      InvoicePayments payments,
+      ObjectProvider<PaymentAdmission> admissions) {
+    return new RegisterInvoicePayment(
+        authorization,
+        SaleUseCaseConfiguration::actorId,
+        payments,
+        (company, operator, payment, request) -> {
+          var authority = admissions.getIfAvailable();
+          if (authority == null) {
+            throw new PaymentAdmissionUnavailable();
+          }
+          return authority.admit(company, operator, payment, request);
+        });
   }
 
   private static UUID actorId() {
