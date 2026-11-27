@@ -41,14 +41,18 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  finance:
-    name: Finance projection integration
+  postgres:
+    name: ${{ matrix.service }} PostgreSQL integration
     runs-on: ubuntu-latest
     timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [expense, finance]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-maven
-      - name: Verify snapshot and event isolation
+      - name: Verify service against ephemeral PostgreSQL
         run: >-
           sh scripts/ci/maven-build.sh -Dspotless.skip=true -Dcheckstyle.skip=true
-          -pl services/finance-service -am -Pintegration-only verify
+          -pl services/${{ matrix.service }}-service -am -Pintegration-only verify

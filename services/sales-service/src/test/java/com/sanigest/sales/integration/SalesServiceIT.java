@@ -107,7 +107,8 @@ class SalesServiceIT {
   static final PostgreSQLContainer POSTGRES =
       new PostgreSQLContainer("postgres:17.7-alpine")
           .withDatabaseName("sanigest_sales")
-          .withUsername("sanigest_sales");
+          .withUsername("sanigest_sales")
+          .withPassword(UUID.randomUUID().toString());
 
   @LocalServerPort private int port;
   @Autowired private Environment environment;

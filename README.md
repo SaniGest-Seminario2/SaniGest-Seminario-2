@@ -53,11 +53,17 @@ compartidos.
 
 ## Compilar y probar
 
-Desde la raíz:
+Desde la raíz, con Java 21, Maven y Docker en ejecución:
 
 ```bash
 mvn -B verify
 ```
+
+Surefire ejecuta las pruebas unitarias (`*Test`) y Failsafe ejecuta las de
+integración (`*IT`). Testcontainers crea y elimina las instancias de PostgreSQL,
+por lo que puedes dejar apagada tu base local. Gateway prueba el enrutamiento
+contra servidores HTTP de prueba. Para ejecutar solo la suite unitaria, usa
+`mvn -B test`.
 
 Para reconstruir desde cero:
 
@@ -68,7 +74,8 @@ mvn -B clean verify
 El workflow `CI` corre en PRs a `main`, en cada push a `main` y por ejecución
 manual desde Actions. Primero valida y compila el reactor. Después ejecuta en
 paralelo las unitarias con cobertura, la integración HTTP de Gateway, smoke y
-regresión de Company, Identity, Catalog, Sales e Inventory, y las verificaciones
+regresión de Company, Identity, Catalog, Sales e Inventory, integración con
+PostgreSQL de Expense y Finance, y las verificaciones
 de Compose, infraestructura e imágenes.
 El smoke multiempresa arranca después de la compilación, construye su propio
 stack y verifica los seis servicios a través de Gateway en paralelo. Los reportes de pruebas y cobertura se conservan durante siete días.

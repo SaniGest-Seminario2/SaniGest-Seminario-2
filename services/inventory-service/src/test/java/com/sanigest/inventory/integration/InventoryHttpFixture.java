@@ -72,7 +72,8 @@ abstract class InventoryHttpFixture {
   static final PostgreSQLContainer DATABASE =
       new PostgreSQLContainer("postgres:17.7-alpine")
           .withDatabaseName("sanigest_inventory")
-          .withUsername("sanigest_inventory");
+          .withUsername("sanigest_inventory")
+          .withPassword(UUID.randomUUID().toString());
 
   private static HttpServer companyServer;
   private static final Map<UUID, Member> MEMBERS = new ConcurrentHashMap<>();

@@ -29,7 +29,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest
 class CompanyRegistrationIT {
   @Container
-  static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17.7-alpine");
+  static final PostgreSQLContainer POSTGRES =
+      new PostgreSQLContainer("postgres:17.7-alpine").withPassword(UUID.randomUUID().toString());
 
   @DynamicPropertySource
   static void datasource(DynamicPropertyRegistry properties) {
