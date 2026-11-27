@@ -18,6 +18,7 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,19 +42,20 @@ class ExpenseReadController {
   @GetMapping
   Page page(
       HttpServletRequest http,
-      @Valid @ModelAttribute Filters filters,
+      @Valid @ParameterObject @ModelAttribute Filters filters,
       @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
     return queries.page(companies.require(http, Scope.READ), filters.criteria(), page, size);
   }
 
   @GetMapping("/all")
-  List<Row> all(HttpServletRequest http, @Valid @ModelAttribute Filters filters) {
+  List<Row> all(HttpServletRequest http, @Valid @ParameterObject @ModelAttribute Filters filters) {
     return queries.all(companies.require(http, Scope.READ), filters.criteria());
   }
 
   @GetMapping("/summary")
-  Summary summary(HttpServletRequest http, @Valid @ModelAttribute Filters filters) {
+  Summary summary(
+      HttpServletRequest http, @Valid @ParameterObject @ModelAttribute Filters filters) {
     return queries.summary(companies.require(http, Scope.READ), filters.criteria());
   }
 

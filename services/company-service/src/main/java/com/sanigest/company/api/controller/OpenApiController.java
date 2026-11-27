@@ -1,6 +1,7 @@
 package com.sanigest.company.api.controller;
 
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -8,6 +9,10 @@ import org.springframework.web.servlet.view.RedirectView;
 
 /** Dependency-free OpenAPI contract. */
 @RestController
+@ConditionalOnProperty(
+    name = "springdoc.api-docs.enabled",
+    havingValue = "false",
+    matchIfMissing = true)
 public class OpenApiController {
   @GetMapping(value = "/v3/api-docs", produces = MediaType.APPLICATION_JSON_VALUE)
   public Map<String, Object> apiDocs() {

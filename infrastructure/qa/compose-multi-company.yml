@@ -7,6 +7,7 @@ services:
         SERVICE: api-gateway
     profiles: [apps]
     environment:
+      SANIGEST_OPENAPI_ENABLED: ${SANIGEST_OPENAPI_ENABLED:-true}
       JWT_ISSUER: ${JWT_ISSUER:-sanigest}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-sanigest-api}
       JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem

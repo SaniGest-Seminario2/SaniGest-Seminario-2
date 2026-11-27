@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -100,14 +101,14 @@ class ClientController {
 
   @GetMapping("/api/v1/clients")
   PageResponse<ClientPage.Item> list(
-      @ModelAttribute ClientListFilter filter,
+      @ParameterObject @ModelAttribute ClientListFilter filter,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = ListClients.DEFAULT_SIZE) int size) {
     return ClientPageResponse.from(listClients.execute(filter.toCriteria(), page, size));
   }
 
   @GetMapping("/api/v1/clients/all")
-  List<ClientPage.Item> all(@ModelAttribute ClientListFilter filter) {
+  List<ClientPage.Item> all(@ParameterObject @ModelAttribute ClientListFilter filter) {
     return listClients.all(filter.toCriteria());
   }
 

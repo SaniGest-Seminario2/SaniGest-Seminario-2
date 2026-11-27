@@ -2,6 +2,7 @@ package com.sanigest.finance.infrastructure;
 
 import com.sanigest.security.AccessTokens;
 import com.sanigest.security.http.ServletSecurityProblems;
+import com.sanigest.web.OpenApiConfiguration;
 import jakarta.servlet.DispatcherType;
 import java.io.IOException;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,7 +21,15 @@ import tools.jackson.databind.json.JsonMapper;
 @Configuration(proxyBeanMethods = false)
 class FinanceSecurity {
   @Bean
-  SecurityFilterChain financeApi(HttpSecurity http, JsonMapper json) throws Exception {
+  SecurityFilterChain financeApi(
+      HttpSecurity http,
+      JsonMapper json,
+      @Value("${springdoc.api-docs.enabled:false}") boolean documentationEnabled)
+      throws Exception {
+    if (documentationEnabled) {
+      http.authorizeHttpRequests(requests ->
+          requests.requestMatchers(HttpMethod.GET, OpenApiConfiguration.GET_PATHS).permitAll());
+    }
     var problems = new ServletSecurityProblems(json, "FORBIDDEN");
     problems.configure(http);
     return http.csrf(AbstractHttpConfigurer::disable)

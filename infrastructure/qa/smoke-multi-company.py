@@ -43,6 +43,9 @@ def exchange(path, *, token=None, tenant=None, data=None, key=None, status=200,
         except (UnicodeError, ValueError):
             code = None
         raise AssertionError(f"{request.get_method()} {path}: expected {status}, got {actual} ({code})")
+    if origin is None or origin == GATEWAY:
+        correlation_id = response_headers.get("X-Correlation-Id")
+        assert correlation_id and str(uuid.UUID(correlation_id)) == correlation_id, path
     decoded = json.loads(payload) if payload else None
     if status >= 400:
         assert decoded["status"] == status, path
@@ -247,6 +250,10 @@ def main(compose):
     direct = exchange("invoices", token=token, tenant=a, data=sale, key=invoice_key, status=201)
     sale_id = direct["saleId"]
     assert exchange("invoices", token=token, tenant=a, data=sale, key=invoice_key, status=201) == direct
+    changed_sale = {**sale, "dueDate": (business_date() + timedelta(days=31)).isoformat()}
+    conflict = exchange("invoices", token=token, tenant=a, data=changed_sale,
+                        key=invoice_key, status=409)
+    assert conflict["errorCode"] == "IDEMPOTENCY_CONFLICT"
     detail = exchange(f"sales/{sale_id}", token=token, tenant=a)
     assert detail["invoiceNumber"] == direct["number"] and detail["paymentStatus"] == "OPEN"
     receivable = exchange(f"receivables/{sale_id}", token=token, tenant=a)
@@ -326,6 +333,13 @@ def verify_inventory(token, company, other, item):
     assert inventory(position)["onHand"] == "22.000"
     batch = inventory(f"inventory/stock?warehouseId={warehouse}&catalogItemIds={item}")
     assert batch["totalElements"] == 1 and batch["content"][0]["warehouseName"] == "Principal"
+    query = urlencode({"search": "Artículo A", "size": 1})
+    global_stock = inventory(f"inventory/stock?{query}")
+    assert global_stock["content"] == batch["content"]
+    assert global_stock["totalElements"] == global_stock["totalPages"] == 1
+    assert inventory(f"inventory/stock?{query}&page=1")["content"] == []
+    invalid_batch = inventory(f"inventory/stock?catalogItemIds={item}", status=400)
+    assert invalid_batch["errorCode"] == "INVALID_STOCK_BATCH"
     assert adjust(item, "IN", "5.000", retry_key) == inbound
     assert inventory(f"inventory/movements?warehouseId={warehouse}")["totalElements"] == 3
     summary = inventory(f"inventory/summary?warehouseId={warehouse}")

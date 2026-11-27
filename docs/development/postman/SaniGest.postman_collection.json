@@ -902,6 +902,333 @@
             }
           ],
           "response": []
+        },
+        {
+          "name": "GET /v3/api-docs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/v3/api-docs",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "v3",
+                "api-docs"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"OpenAPI 3.1\", () => pm.expect(pm.response.json().openapi).to.match(/^3\\.1\\./));",
+                  "pm.test(\"Origen relativo\", () => pm.expect(pm.response.json().servers[0].url).to.equal(\"/\"));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /v3/api-docs/identity",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/v3/api-docs/identity",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "v3",
+                "api-docs",
+                "identity"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"OpenAPI 3.1\", () => pm.expect(pm.response.json().openapi).to.match(/^3\\.1\\./));",
+                  "pm.test(\"Origen relativo\", () => pm.expect(pm.response.json().servers[0].url).to.equal(\"/\"));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /v3/api-docs/company",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/v3/api-docs/company",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "v3",
+                "api-docs",
+                "company"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"OpenAPI 3.1\", () => pm.expect(pm.response.json().openapi).to.match(/^3\\.1\\./));",
+                  "pm.test(\"Origen relativo\", () => pm.expect(pm.response.json().servers[0].url).to.equal(\"/\"));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /v3/api-docs/catalog",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/v3/api-docs/catalog",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "v3",
+                "api-docs",
+                "catalog"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"OpenAPI 3.1\", () => pm.expect(pm.response.json().openapi).to.match(/^3\\.1\\./));",
+                  "pm.test(\"Origen relativo\", () => pm.expect(pm.response.json().servers[0].url).to.equal(\"/\"));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /v3/api-docs/inventory",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/v3/api-docs/inventory",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "v3",
+                "api-docs",
+                "inventory"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"OpenAPI 3.1\", () => pm.expect(pm.response.json().openapi).to.match(/^3\\.1\\./));",
+                  "pm.test(\"Origen relativo\", () => pm.expect(pm.response.json().servers[0].url).to.equal(\"/\"));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /v3/api-docs/sales",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/v3/api-docs/sales",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "v3",
+                "api-docs",
+                "sales"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"OpenAPI 3.1\", () => pm.expect(pm.response.json().openapi).to.match(/^3\\.1\\./));",
+                  "pm.test(\"Origen relativo\", () => pm.expect(pm.response.json().servers[0].url).to.equal(\"/\"));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /v3/api-docs/expense",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/v3/api-docs/expense",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "v3",
+                "api-docs",
+                "expense"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"OpenAPI 3.1\", () => pm.expect(pm.response.json().openapi).to.match(/^3\\.1\\./));",
+                  "pm.test(\"Origen relativo\", () => pm.expect(pm.response.json().servers[0].url).to.equal(\"/\"));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /v3/api-docs/finance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/v3/api-docs/finance",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "v3",
+                "api-docs",
+                "finance"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"OpenAPI 3.1\", () => pm.expect(pm.response.json().openapi).to.match(/^3\\.1\\./));",
+                  "pm.test(\"Origen relativo\", () => pm.expect(pm.response.json().servers[0].url).to.equal(\"/\"));"
+                ]
+              }
+            }
+          ],
+          "response": []
         }
       ]
     },
@@ -1613,7 +1940,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "if (pm.response.code === 200) {",
+                  "  const category = pm.response.json().find(entry => entry.active === true || entry.status === \"ACTIVE\");",
+                  "  pm.test(\"Categoría activa disponible\", () => pm.expect(category && category.id).to.be.a(\"string\"));",
+                  "  if (category) pm.environment.set(\"clientCategoryId\", category.id);",
+                  "}"
                 ]
               }
             }
@@ -1654,7 +1986,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "if (pm.response.code === 200) {",
+                  "  const category = pm.response.json().find(entry => entry.active === true || entry.status === \"ACTIVE\");",
+                  "  pm.test(\"Categoría activa disponible\", () => pm.expect(category && category.id).to.be.a(\"string\"));",
+                  "  if (category) pm.environment.set(\"supplierCategoryId\", category.id);",
+                  "}"
                 ]
               }
             }
@@ -1695,7 +2032,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "if (pm.response.code === 200) {",
+                  "  const category = pm.response.json().find(entry => entry.active === true || entry.status === \"ACTIVE\");",
+                  "  pm.test(\"Categoría activa disponible\", () => pm.expect(category && category.id).to.be.a(\"string\"));",
+                  "  if (category) pm.environment.set(\"itemCategoryId\", category.id);",
+                  "}"
                 ]
               }
             }
@@ -2453,6 +2795,7 @@
                   "pm.test(\"HTTP esperado: 201\", () => pm.expect(pm.response.code).to.be.oneOf([201]));",
                   "if (pm.response.code >= 200 && pm.response.code < 300) {",
                   "  const data = pm.response.json();",
+                  "  if (data.name != null) pm.environment.set(\"stockSearch\", data.name);",
                   "  if (data.id != null) pm.environment.set(\"itemId\", String(data.id));",
                   "}"
                 ]
@@ -2497,68 +2840,6 @@
               ]
             },
             "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "GET /api/v1/catalog-items (disponibilidad por almacén)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Company-Id",
-                "value": "{{companyId}}"
-              }
-            ],
-            "url": {
-              "raw": "{{gatewayUrl}}/api/v1/catalog-items?page=0&size=20&type=PRODUCT&warehouseId={{warehouseId}}&availability=AVAILABLE",
-              "host": [
-                "{{gatewayUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "catalog-items"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "0"
-                },
-                {
-                  "key": "size",
-                  "value": "20"
-                },
-                {
-                  "key": "type",
-                  "value": "PRODUCT"
-                },
-                {
-                  "key": "warehouseId",
-                  "value": "{{warehouseId}}"
-                },
-                {
-                  "key": "availability",
-                  "value": "AVAILABLE"
-                }
-              ]
-            },
-            "description": "Combina tipo y disponibilidad antes de paginar. Ejecutar tras crear un almacén y configurar existencias."
           },
           "event": [
             {
@@ -3060,7 +3341,425 @@
       ]
     },
     {
-      "name": "04 Inventario",
+      "name": "04 Ventas y facturas",
+      "item": [
+        {
+          "name": "POST /api/v1/invoices (contado)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{requestKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/invoices",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"lines\": [\n    {\n      \"catalogItemId\": \"{{itemId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"mode\": \"CASH\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set(\"requestKey\", pm.environment.get(\"idempotencyOverride\") || pm.variables.replaceIn(\"{{$guid}}\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado: 201\", () => pm.expect(pm.response.code).to.be.oneOf([201]));",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.saleId != null) pm.environment.set(\"saleId\", String(data.saleId));",
+                  "  if (data.id != null) pm.environment.set(\"invoiceId\", String(data.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/sales?page=0&size=20",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/sales?page=0&size=20",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sales"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/sales/{{saleId}}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/sales/{{saleId}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sales",
+                "{{saleId}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/invoices/{{invoiceId}}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/invoices/{{invoiceId}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoiceId}}"
+              ]
+            },
+            "description": "Consulta la factura creada para la venta al contado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/invoices (crédito)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{requestKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/invoices",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"lines\": [\n    {\n      \"catalogItemId\": \"{{itemId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"mode\": \"CREDIT\",\n  \"dueDate\": \"{{dueDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set(\"dueDate\", new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));",
+                  "pm.variables.set(\"requestKey\", pm.environment.get(\"idempotencyOverride\") || pm.variables.replaceIn(\"{{$guid}}\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado: 201\", () => pm.expect(pm.response.code).to.be.oneOf([201]));",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.saleId != null) pm.environment.set(\"creditSaleId\", String(data.saleId));",
+                  "  if (data.id != null) pm.environment.set(\"creditInvoiceId\", String(data.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/receivables/{{creditSaleId}}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/receivables/{{creditSaleId}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "receivables",
+                "{{creditSaleId}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/invoices/{{creditInvoiceId}}/cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/invoices/{{creditInvoiceId}}/cancel",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{creditInvoiceId}}",
+                "cancel"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Anulación de prueba\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/receivables/{{creditSaleId}} (después de cancelar)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/receivables/{{creditSaleId}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "receivables",
+                "{{creditSaleId}}"
+              ]
+            },
+            "description": "Comprueba el estado después de cancelar la venta a crédito."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test(\"Obligación cancelada sin saldo cobrable\", () => { const r = pm.response.json(); pm.expect(r.status).to.eql(\"CANCELLED\"); pm.expect(r.outstandingBalance).to.eql(\"0.00\"); pm.expect(r.balance).to.eql(r.totalAmount); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 Inventario",
       "item": [
         {
           "name": "POST /api/v1/warehouses",
@@ -3489,6 +4188,68 @@
           "response": []
         },
         {
+          "name": "GET /api/v1/catalog-items (disponibilidad por almacén)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/catalog-items?page=0&size=20&type=PRODUCT&warehouseId={{warehouseId}}&availability=AVAILABLE",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog-items"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "type",
+                  "value": "PRODUCT"
+                },
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                },
+                {
+                  "key": "availability",
+                  "value": "AVAILABLE"
+                }
+              ]
+            },
+            "description": "Combina tipo y disponibilidad antes de paginar. Ejecutar tras crear un almacén y configurar existencias."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
           "name": "GET /api/v1/inventory/stock?warehouseId={{warehouseId}}",
           "request": {
             "method": "GET",
@@ -3529,6 +4290,124 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/inventory/stock (batch)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/inventory/stock?warehouseId={{warehouseId}}&catalogItemIds={{itemId}}&size=1",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "stock"
+              ],
+              "query": [
+                {
+                  "key": "catalogItemIds",
+                  "value": "{{itemId}}"
+                },
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                },
+                {
+                  "key": "size",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "catalogItemIds admite hasta 100 UUID separados por coma o valores repetidos y requiere warehouseId."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Stock paginado\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const page = pm.response.json();",
+                  "  pm.expect(page).to.include.keys(\"content\", \"page\", \"size\", \"totalElements\", \"totalPages\");",
+                  "  pm.expect(page.content).to.have.lengthOf(1);",
+                  "  pm.expect(page.content[0].catalogItemId).to.equal(pm.environment.get(\"itemId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/inventory/stock (búsqueda global)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/inventory/stock?search={{stockSearch}}&size=1",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "stock"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "{{stockSearch}}"
+                },
+                {
+                  "key": "size",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Busca por nombre o SKU del artículo en todas las ubicaciones de la empresa antes de paginar."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Stock paginado\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const page = pm.response.json();",
+                  "  pm.expect(page).to.include.keys(\"content\", \"page\", \"size\", \"totalElements\", \"totalPages\");",
+                  "  pm.expect(page.content).to.have.lengthOf(1);",
+                  "  pm.expect(page.content[0].catalogItemId).to.equal(pm.environment.get(\"itemId\"));",
+                  "});"
                 ]
               }
             }
@@ -3623,436 +4502,6 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
-                ]
-              }
-            }
-          ],
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "05 Ventas y facturas",
-      "item": [
-        {
-          "name": "POST /api/v1/sales",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Company-Id",
-                "value": "{{companyId}}"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "{{requestKey}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{gatewayUrl}}/api/v1/sales",
-              "host": [
-                "{{gatewayUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "sales"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"lines\": [\n    {\n      \"catalogItemId\": \"{{itemId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"mode\": \"CASH\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.variables.set(\"requestKey\", pm.environment.get(\"idempotencyOverride\") || pm.variables.replaceIn(\"{{$guid}}\"));"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP esperado: 201\", () => pm.expect(pm.response.code).to.be.oneOf([201]));",
-                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
-                  "  const data = pm.response.json();",
-                  "  if (data.id != null) pm.environment.set(\"saleId\", String(data.id));",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "GET /api/v1/sales?page=0&size=20",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Company-Id",
-                "value": "{{companyId}}"
-              }
-            ],
-            "url": {
-              "raw": "{{gatewayUrl}}/api/v1/sales?page=0&size=20",
-              "host": [
-                "{{gatewayUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "sales"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "0"
-                },
-                {
-                  "key": "size",
-                  "value": "20"
-                }
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "GET /api/v1/sales/{{saleId}}",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Company-Id",
-                "value": "{{companyId}}"
-              }
-            ],
-            "url": {
-              "raw": "{{gatewayUrl}}/api/v1/sales/{{saleId}}",
-              "host": [
-                "{{gatewayUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "sales",
-                "{{saleId}}"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "POST /api/v1/sales/{{saleId}}/invoices",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Company-Id",
-                "value": "{{companyId}}"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "{{requestKey}}"
-              }
-            ],
-            "url": {
-              "raw": "{{gatewayUrl}}/api/v1/sales/{{saleId}}/invoices",
-              "host": [
-                "{{gatewayUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "sales",
-                "{{saleId}}",
-                "invoices"
-              ]
-            },
-            "description": "Emite una factura interna sin cuerpo HTTP. Usa la misma clave para repetir la emisión."
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.variables.set(\"requestKey\", pm.environment.get(\"idempotencyOverride\") || pm.variables.replaceIn(\"{{$guid}}\"));"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP esperado: 201\", () => pm.expect(pm.response.code).to.be.oneOf([201]));"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "POST /api/v1/sales (crédito)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Company-Id",
-                "value": "{{companyId}}"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "{{requestKey}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{gatewayUrl}}/api/v1/sales",
-              "host": [
-                "{{gatewayUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "sales"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"lines\": [\n    {\n      \"catalogItemId\": \"{{itemId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"mode\": \"CREDIT\",\n  \"dueDate\": \"{{dueDate}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.variables.set(\"dueDate\", new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));",
-                  "pm.variables.set(\"requestKey\", pm.environment.get(\"idempotencyOverride\") || pm.variables.replaceIn(\"{{$guid}}\"));"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP esperado: 201\", () => pm.expect(pm.response.code).to.be.oneOf([201]));",
-                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
-                  "  const data = pm.response.json();",
-                  "  if (data.id != null) pm.environment.set(\"creditSaleId\", String(data.id));",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "GET /api/v1/receivables/{{creditSaleId}}",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Company-Id",
-                "value": "{{companyId}}"
-              }
-            ],
-            "url": {
-              "raw": "{{gatewayUrl}}/api/v1/receivables/{{creditSaleId}}",
-              "host": [
-                "{{gatewayUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "receivables",
-                "{{creditSaleId}}"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "POST /api/v1/sales/{{creditSaleId}}/cancel",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Company-Id",
-                "value": "{{companyId}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{gatewayUrl}}/api/v1/sales/{{creditSaleId}}/cancel",
-              "host": [
-                "{{gatewayUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "sales",
-                "{{creditSaleId}}",
-                "cancel"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reason\": \"Anulación de prueba\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "GET /api/v1/receivables/{{creditSaleId}} (después de cancelar)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Company-Id",
-                "value": "{{companyId}}"
-              }
-            ],
-            "url": {
-              "raw": "{{gatewayUrl}}/api/v1/receivables/{{creditSaleId}}",
-              "host": [
-                "{{gatewayUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "receivables",
-                "{{creditSaleId}}"
-              ]
-            },
-            "description": "Comprueba el estado después de cancelar la venta a crédito."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));",
-                  "pm.test(\"Obligación cancelada sin saldo cobrable\", () => { const r = pm.response.json(); pm.expect(r.status).to.eql(\"CANCELLED\"); pm.expect(r.outstandingBalance).to.eql(\"0.00\"); pm.expect(r.balance).to.eql(r.totalAmount); });"
                 ]
               }
             }
@@ -5536,7 +5985,8 @@
                   "  pm.expect(problem.status).to.equal(401);",
                   "  pm.expect(problem.errorCode).to.equal(\"AUTHENTICATION_REQUIRED\");",
                   "  pm.expect(pm.response.headers.get(\"WWW-Authenticate\")).to.match(/^Bearer/);",
-                  "});"
+                  "});",
+                  "pm.test(\"X-Correlation-Id\", () => pm.expect(pm.response.headers.get(\"X-Correlation-Id\")).to.match(/^[0-9a-f-]{36}$/i));"
                 ]
               }
             }
@@ -5620,7 +6070,8 @@
                   "  pm.expect(problem.status).to.equal(400);",
                   "  pm.expect(problem.errorCode).to.equal(\"COMPANY_CONTEXT_REQUIRED\");",
                   "  pm.expect(problem.errors[\"X-Company-Id\"]).to.be.a(\"string\").and.not.empty;",
-                  "});"
+                  "});",
+                  "pm.test(\"X-Correlation-Id\", () => pm.expect(pm.response.headers.get(\"X-Correlation-Id\")).to.match(/^[0-9a-f-]{36}$/i));"
                 ]
               }
             }
@@ -6327,6 +6778,94 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP esperado 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Finanzas",
+      "item": [
+        {
+          "name": "GET /api/v1/reports/projection",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/reports/projection",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "projection"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Proyección financiera\", () => pm.expect(pm.response.json()).to.include.keys(\"currency\", \"partial\", \"cashTotals\"));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/dashboard/projection",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "{{companyId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v1/dashboard/projection",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "projection"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
                 ]
               }
             }

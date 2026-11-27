@@ -83,3 +83,13 @@ management:
       group:
         readiness:
           include: readinessState,db
+
+springdoc:
+  api-docs:
+    enabled: ${SANIGEST_OPENAPI_ENABLED:false}
+    version: OPENAPI_3_1
+  swagger-ui:
+    enabled: ${SANIGEST_OPENAPI_ENABLED:false}
+    disable-swagger-default-url: true
+  paths-to-match: /api/v1/**
+  override-with-generic-response: false

@@ -4,6 +4,11 @@ import com.sanigest.sales.api.dto.CreateSaleRequest;
 import com.sanigest.sales.api.dto.SaleResponse;
 import com.sanigest.sales.application.dto.CreatedSaleResponse;
 import com.sanigest.sales.application.usecase.sale.CreateSaleIdempotently;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.regex.Pattern;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -32,6 +37,18 @@ public class SaleController {
 
   @PostMapping(path = "/api/v1/sales", produces = MediaType.APPLICATION_JSON_VALUE)
   @PreAuthorize("isAuthenticated()")
+  @ApiResponse(
+      responseCode = "201",
+      description = "Created",
+      content =
+          @Content(
+              mediaType = "application/json",
+              schema = @Schema(implementation = SaleResponse.class)))
+  @Parameter(
+      name = "Idempotency-Key",
+      in = ParameterIn.HEADER,
+      required = true,
+      schema = @Schema(type = "string", pattern = "^[A-Za-z0-9._~-]{1,128}$"))
   public ResponseEntity<String> create(
       @RequestHeader HttpHeaders headers, @Valid @RequestBody CreateSaleRequest request) {
     var keys = headers.get("Idempotency-Key");

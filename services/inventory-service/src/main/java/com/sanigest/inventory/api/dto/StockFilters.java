@@ -6,6 +6,7 @@ import com.sanigest.inventory.application.dto.InventoryQueries.Paging;
 import com.sanigest.inventory.application.dto.InventoryQueries.Sort;
 import com.sanigest.inventory.domain.InventoryViolation;
 import com.sanigest.inventory.domain.StockAvailability;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,12 +15,13 @@ public record StockFilters(
     UUID catalogItemId,
     String availability,
     Boolean trackingEnabled,
-    String search,
+    @Schema(description = "Busca por nombre o SKU en las ubicaciones seleccionadas.") String search,
     Integer page,
     Integer size,
     Sort sort,
     Order order,
-    List<UUID> catalogItemIds) {
+    @Schema(description = "Hasta 100 UUID. Requiere warehouseId y excluye catalogItemId.")
+        List<UUID> catalogItemIds) {
   public InventoryQueries.Stock query() {
     return new InventoryQueries.Stock(
         warehouseId,

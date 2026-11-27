@@ -16,6 +16,7 @@ import com.sanigest.catalog.domain.enums.SupplierPaymentTerms;
 import com.sanigest.catalog.domain.enums.SupplierSupplyType;
 import com.sanigest.web.PageResponse;
 import java.util.UUID;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -82,7 +83,7 @@ class SupplierController {
   PageResponse<SupplierPageResponse.Item> list(
       @RequestParam(required = false) String search,
       @RequestParam(required = false) String status,
-      @ModelAttribute CommercialFilters filters,
+      @ParameterObject @ModelAttribute CommercialFilters filters,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = ListSuppliers.DEFAULT_SIZE) int size) {
     if (filters.equals(new CommercialFilters(null, null, null, null))) {
