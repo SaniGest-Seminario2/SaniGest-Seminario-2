@@ -7,10 +7,11 @@ import com.sanigest.catalog.api.dto.CatalogItemResponse;
 import com.sanigest.catalog.api.dto.CatalogItemStatusRequest;
 import com.sanigest.catalog.api.dto.CreateCatalogItemRequest;
 import com.sanigest.catalog.application.exception.InvalidCatalogItemQuery;
+import com.sanigest.catalog.application.port.out.integration.InventoryAvailability.State;
 import com.sanigest.catalog.application.usecase.catalogitem.CatalogItemCommercialQueries;
 import com.sanigest.catalog.application.usecase.catalogitem.ChangeCatalogItemStatus;
 import com.sanigest.catalog.application.usecase.catalogitem.CreateCatalogItem;
-import com.sanigest.catalog.application.usecase.catalogitem.FilterCatalogStock;
+import com.sanigest.catalog.application.usecase.catalogitem.FilterCatalogStock.Selection;
 import com.sanigest.catalog.application.usecase.catalogitem.ListCatalogItems;
 import com.sanigest.catalog.application.usecase.catalogitem.UpdateCatalogItem;
 import com.sanigest.catalog.domain.model.CatalogItem;
@@ -69,11 +70,26 @@ class CatalogItemController {
       @RequestParam(required = false) String active,
       @org.springframework.web.bind.annotation.ModelAttribute
           ListCatalogItems.CommercialFilters filters,
-      @org.springframework.web.bind.annotation.ModelAttribute FilterCatalogStock.Selection stock,
+      @org.springframework.web.bind.annotation.ModelAttribute StockFilter stock,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = ListCatalogItems.DEFAULT_SIZE) int size) {
-    var result = commercial.list(type, search, active, filters, page, size, stock);
+    var result = commercial.list(type, search, active, filters, page, size, stock.selection());
     return CatalogItemPageResponse.from(result.page(), result.data());
+  }
+
+  record StockFilter(UUID warehouseId, String availability) {
+    Selection selection() {
+      if ("ALL".equals(availability)) {
+        return new Selection(null, null);
+      }
+      try {
+        var state =
+            availability == null || availability.isEmpty() ? null : State.valueOf(availability);
+        return new Selection(warehouseId, state);
+      } catch (IllegalArgumentException invalid) {
+        throw new InvalidCatalogItemQuery();
+      }
+    }
   }
 
   @GetMapping("/{id}")

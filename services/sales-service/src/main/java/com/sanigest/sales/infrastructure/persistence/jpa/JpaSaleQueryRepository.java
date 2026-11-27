@@ -66,20 +66,13 @@ class JpaSaleQueryRepository implements SaleQueryRepository {
                 + criteria.search().replace("!", "!!").replace("%", "!%").replace("_", "!_")
                 + "%";
     var status = criteria.status() == null ? "" : criteria.status().name();
-    long total = rows.countMatching(companyId, pattern, status, criteria.from(), criteria.to());
+    var mode = criteria.mode() == null ? "" : criteria.mode().name();
+    var filter = new SaleRows.ListingFilter(pattern, status, mode, criteria.from(), criteria.to());
+    long total = rows.countMatching(companyId, filter);
     List<SalePage.Item> content =
         criteria.offset() >= total
             ? List.of()
-            : rows
-                .search(
-                    companyId,
-                    pattern,
-                    status,
-                    criteria.from(),
-                    criteria.to(),
-                    criteria.size(),
-                    criteria.offset())
-                .stream()
+            : rows.search(companyId, filter, criteria.size(), criteria.offset()).stream()
                 .map(row ->
                     new SalePage.Item(
                         row.getId(),

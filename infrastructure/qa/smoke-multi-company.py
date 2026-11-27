@@ -262,11 +262,30 @@ def main(compose):
     exchange(f"suppliers/{supplier['id']}/items", token=token, tenant=a, method="PUT", status=204,
              data={"items": [{"catalogItemId": item_a, "offeredCost": "15.0000", "primary": True}]})
     product = exchange(f"catalog-items/{item_a}", token=token, tenant=a)
+    assert exchange("suppliers/options?search=Proveedor", token=token, tenant=a) == [
+        {"id": supplier["id"], "name": supplier["name"]}]
+    assert exchange("suppliers/options?search=Proveedor", token=token, tenant=b) == []
     assert product["primarySupplierName"] == supplier["name"] and product["unitDivisible"] is False
 
     company_options = exchange(f"companies/{a}/options", token=token, tenant=a)
     assert [option["value"] for option in company_options["invitationRoles"]] == ["OPERATOR", "VIEWER"]
     catalog_options = exchange("catalog/options", token=token, tenant=a)
+    assert catalog_options["clientPaymentTerms"] == [
+        {"value": "CASH", "label": "Contado"},
+        {"value": "CREDIT", "label": "Crédito"},
+    ]
+    assert catalog_options["supplierSupplyTypes"] == [
+        {"value": "REGULAR", "label": "Regular"},
+        {"value": "BOTH", "label": "Productos y servicios"},
+        {"value": "PRODUCT", "label": "Productos"},
+        {"value": "SERVICE", "label": "Servicios"},
+    ]
+    assert catalog_options["itemAvailabilityFilters"] == [
+        {"value": "ALL", "label": "Todas"},
+        {"value": "AVAILABLE", "label": "Disponibles"},
+        {"value": "LOW", "label": "Stock bajo"},
+        {"value": "OUT", "label": "Agotado"},
+    ]
     assert catalog_options["supplierCreditDays"][0] == {"value": None, "label": "No aplica"}
     assert exchange("clients/options?search=Cliente", token=token, tenant=a) == [
         {"id": client_a, "name": client["name"]}]
@@ -275,9 +294,48 @@ def main(compose):
     assert exchange("suppliers/options?supplyType=SERVICE", token=token, tenant=a) == []
     assert exchange("catalog-items/options?operation=PURCHASE", token=token, tenant=a) == [
         {"id": item_a, "name": product["name"]}]
+    sale_selector = urlencode({"operation": "SALE", "search": "Artículo"})
+    assert exchange(f"catalog-items/options?{sale_selector}", token=token, tenant=a) == [
+        {"id": item_a, "name": product["name"]}]
+    assert exchange("catalog-items/options?operation=PURCHASE", token=token, tenant=b) == []
+    assert exchange("catalog-items?availability=ALL", token=token, tenant=a)["totalElements"] == 1
     sales_options = exchange("sales/options", token=token, tenant=a)
-    assert [option["value"] for option in sales_options["receivableFilters"]] == [
-        "ALL", "PENDING", "PARTIALLY_PAID"]
+    assert sales_options["saleModes"] == [
+        {"value": "CASH", "label": "Contado"},
+        {"value": "CREDIT", "label": "Crédito"},
+    ]
+    assert sales_options["requestedReceiptTypes"] == [
+        {"value": "CONSUMPTION", "label": "Consumidor final"},
+        {"value": "FISCAL_CREDIT", "label": "Crédito fiscal"},
+    ]
+    assert sales_options["invoiceFilters"] == [
+        {"value": "ALL", "label": "Todos"},
+        {"value": "ISSUED", "label": "Emitida"},
+        {"value": "PARTIALLY_PAID", "label": "Parcialmente pagada"},
+        {"value": "PAID", "label": "Pagada"},
+    ]
+    assert sales_options["receivableFilters"] == [
+        {"value": "ALL", "label": "Todos"},
+        {"value": "PENDING", "label": "Pendiente"},
+        {"value": "PARTIALLY_PAID", "label": "Parcial"},
+    ]
+    assert sales_options["paymentMethods"] == [
+        {"value": "CASH", "label": "Efectivo"},
+        {"value": "CREDIT_CARD", "label": "Tarjeta de crédito"},
+        {"value": "DEBIT_CARD", "label": "Tarjeta de débito"},
+        {"value": "TRANSFER", "label": "Transferencia"},
+        {"value": "CHECK", "label": "Cheque"},
+    ]
+    assert sales_options["saleModeFilters"] == [
+        {"value": "ALL", "label": "Todas"},
+        {"value": "CASH", "label": "Contado"},
+        {"value": "CREDIT", "label": "Crédito"},
+    ]
+    assert sales_options["invoiceTaxRates"] == [
+        {"value": 0.18, "label": "18%"},
+        {"value": 0.16, "label": "16%"},
+        {"value": 0, "label": "0%/Exento"},
+    ]
 
     barrier = threading.Barrier(2)
 
@@ -290,8 +348,14 @@ def main(compose):
         assert first.result(timeout=15) == {client_a}
         assert second.result(timeout=15) == {client_b}
 
-    sale = {"clientId": client_a, "lines": [{"catalogItemId": item_a, "quantity": 1}],
-            "mode": "CREDIT", "dueDate": (business_date() + timedelta(days=30)).isoformat()}
+    sale = {"clientId": client_a,
+            "lines": [{"catalogItemId": item_a, "quantity": 1, "taxRate": 0.18}],
+            "mode": "CREDIT", "requestedReceiptType": "CONSUMPTION",
+            "dueDate": (business_date() + timedelta(days=30)).isoformat()}
+    exchange("invoices", token=token, tenant=a, data={**sale, "mode": "ALL"},
+             key=uuid.uuid4().hex, status=400)
+    exchange("invoices", token=token, tenant=a, data={**sale, "requestedReceiptType": "ALL"},
+             key=uuid.uuid4().hex, status=400)
     invoice_key = uuid.uuid4().hex
     direct = exchange("invoices", token=token, tenant=a, data=sale, key=invoice_key, status=201)
     sale_id = direct["saleId"]
@@ -308,6 +372,12 @@ def main(compose):
              key=uuid.uuid4().hex, status=404)
     exchange("sales", token=token, tenant=a, data=sale, key=uuid.uuid4().hex, status=405)
     assert exchange("sales", token=token, tenant=a)["totalElements"] == 1
+    for mode, count in (("ALL", 1), ("CASH", 0), ("CREDIT", 1)):
+        assert exchange(f"sales?mode={mode}", token=token, tenant=a)["totalElements"] == count
+    for status in ("ALL", "ISSUED", "PARTIALLY_PAID", "PAID"):
+        exchange(f"invoices?status={status}", token=token, tenant=a)
+    for status in ("ALL", "PENDING", "PARTIALLY_PAID"):
+        exchange(f"receivables?status={status}", token=token, tenant=a)
     direct_path = f"invoices/{direct['id']}"
     assert exchange(direct_path, token=token, tenant=a)["number"] == direct["number"]
     exchange(direct_path, token=token, tenant=b, status=404)
@@ -424,10 +494,62 @@ def verify_inventory(token, company, other, item):
 
 
 def verify_expenses(token, company, other, item, warehouse):
+    options = exchange("expenses/options", token=token, tenant=company)
+    assert options["operationTypes"] == [
+        {"value": "PURCHASE", "label": "Compra de mercancía o suministro"},
+        {"value": "OPERATING_EXPENSE", "label": "Gasto operativo"},
+        {"value": "ASSET_ACQUISITION", "label": "Adquisición de activo"},
+    ]
+    assert options["receiptTypes"] == [
+        {"value": "FISCAL_CREDIT", "label": "Crédito fiscal"},
+        {"value": "CONSUMPTION", "label": "Consumo"},
+        {"value": "PURCHASE", "label": "Compra"},
+        {"value": "MINOR_EXPENSES", "label": "Gastos menores"},
+        {"value": "OTHER", "label": "Otro"},
+        {"value": "NOT_APPLICABLE", "label": "No aplica"},
+    ]
+    assert options["modes"] == [
+        {"value": "CASH", "label": "Contado"},
+        {"value": "CREDIT", "label": "Crédito"},
+    ]
+    assert options["receiptStatuses"] == [
+        {"value": "PENDING", "label": "Pendiente de recepción"},
+        {"value": "COMPLETE", "label": "Recibida completamente"},
+        {"value": "PARTIAL", "label": "Recibida parcialmente"},
+    ]
+    assert options["taxClassifications"] == [
+        {"value": "ITBIS_18", "label": "18%"},
+        {"value": "ITBIS_16", "label": "16%"},
+        {"value": "EXEMPT", "label": "0%/Exento"},
+    ]
+    assert options["operationTypeFilters"] == [
+        {"value": "ALL", "label": "Todas"},
+        {"value": "PURCHASE", "label": "Compra"},
+        {"value": "OPERATING_EXPENSE", "label": "Gasto"},
+        {"value": "ASSET_ACQUISITION", "label": "Activo"},
+    ]
+    assert options["statusFilters"] == [
+        {"value": "ALL", "label": "Todos"},
+        {"value": "PAID", "label": "Pagado"},
+        {"value": "PENDING", "label": "Pendiente"},
+        {"value": "PARTIALLY_PAID", "label": "Parcial"},
+    ]
+    assert options["payableFilters"] == [
+        {"value": "ALL", "label": "Todos"},
+        {"value": "PENDING", "label": "Pendiente"},
+        {"value": "PARTIALLY_PAID", "label": "Parcial"},
+    ]
+    for option in options["operationTypeFilters"]:
+        exchange(f"expenses?operationType={option['value']}", token=token, tenant=company)
+    for option in options["statusFilters"]:
+        exchange(f"expenses?status={option['value']}", token=token, tenant=company)
+    for option in options["payableFilters"]:
+        exchange(f"payables?status={option['value']}", token=token, tenant=company)
     supplier = exchange("suppliers", token=token, tenant=company, status=201, data={
-        "name": "Proveedor a crédito", "contact": "Compras", "supplyType": "PRODUCT",
+        "name": "Proveedor a crédito", "contact": "Compras", "supplyType": "REGULAR",
         "paymentTerms": "BOTH", "creditDays": 30,
     })
+    assert supplier["supplyType"] == "REGULAR"
     issue_date = business_date()
     attachment = str(uuid.uuid4())
     request = {
@@ -438,6 +560,9 @@ def verify_expenses(token, company, other, item, warehouse):
         "lines": [{"itemId": item, "quantity": "3", "unitCost": "10.00",
                    "taxClassification": "ITBIS_18", "discount": "5.00", "receivedQuantity": "2"}],
     }
+    for field in ("operationType", "mode", "receiptType", "receiptStatus"):
+        exchange("expenses", token=token, tenant=company, data={**request, field: "ALL"},
+                 key=uuid.uuid4().hex, status=400)
     key = uuid.uuid4().hex
     exchange("expenses", token=token, data=request, key=key, status=400)
     exchange("expenses", token=token, tenant=other, data=request, key=key, status=400)

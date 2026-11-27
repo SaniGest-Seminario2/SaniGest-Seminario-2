@@ -26,7 +26,8 @@ public record SupplierProfile(
   }
 
   public boolean supplies(CatalogItemType type) {
-    return supplyType == SupplierSupplyType.BOTH
+    return supplyType == SupplierSupplyType.REGULAR
+        || supplyType == SupplierSupplyType.BOTH
         || (supplyType != null && supplyType.name().equals(type.name()));
   }
 

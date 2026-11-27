@@ -10,6 +10,7 @@ paths:
       summary: Consultar opciones de Sales
       description: Requiere SALES_READ. Los filtros de factura y cartera son opciones de UI. PENDING representa
         OPEN en cartera. El comprobante solicitado es distinto de la clasificación fiscal de la factura interna.
+        saleModeFilters corresponde a mode en el listado e invoiceTaxRates a taxRate de cada línea.
       security:
       - bearerAuth: []
       parameters:
@@ -21,94 +22,94 @@ paths:
             application/json:
               schema:
                 type: object
-                required:
-                - saleModes
-                - requestedReceiptTypes
-                - invoiceFilters
-                - receivableFilters
-                - paymentMethods
+                required: [saleModes, requestedReceiptTypes, invoiceFilters, receivableFilters, paymentMethods, saleModeFilters, invoiceTaxRates]
                 properties:
                   saleModes:
                     type: array
                     items:
                       type: object
-                      required:
-                      - value
-                      - label
+                      required: [value, label]
                       properties:
-                        value:
-                          type: string
-                          enum:
-                          - CASH
-                          - CREDIT
-                        label:
-                          type: string
+                        value: {type: string, enum: [CASH, CREDIT]}
+                        label: {type: string}
                   requestedReceiptTypes:
                     type: array
                     items:
                       type: object
-                      required:
-                      - value
-                      - label
+                      required: [value, label]
                       properties:
-                        value:
-                          type: string
-                          enum:
-                          - CONSUMPTION
-                          - FISCAL_CREDIT
-                        label:
-                          type: string
+                        value: {type: string, enum: [CONSUMPTION, FISCAL_CREDIT]}
+                        label: {type: string}
                   invoiceFilters:
                     type: array
                     items:
                       type: object
-                      required:
-                      - value
-                      - label
+                      required: [value, label]
                       properties:
-                        value:
-                          type: string
-                          enum:
-                          - ALL
-                          - ISSUED
-                          - PARTIALLY_PAID
-                          - PAID
-                        label:
-                          type: string
+                        value: {type: string, enum: [ALL, ISSUED, PARTIALLY_PAID, PAID]}
+                        label: {type: string}
                   receivableFilters:
                     type: array
                     items:
                       type: object
-                      required:
-                      - value
-                      - label
+                      required: [value, label]
                       properties:
-                        value:
-                          type: string
-                          enum:
-                          - ALL
-                          - PENDING
-                          - PARTIALLY_PAID
-                        label:
-                          type: string
+                        value: {type: string, enum: [ALL, PENDING, PARTIALLY_PAID]}
+                        label: {type: string}
                   paymentMethods:
                     type: array
                     items:
                       type: object
-                      required:
-                      - value
-                      - label
+                      required: [value, label]
                       properties:
-                        value:
-                          type: string
-                          enum:
-                          - CASH
-                          - CREDIT_CARD
-                          - DEBIT_CARD
-                          - TRANSFER
-                          - CHECK
-                        label:
-                          type: string
+                        value: {type: string, enum: [CASH, CREDIT_CARD, DEBIT_CARD, TRANSFER, CHECK]}
+                        label: {type: string}
+                  saleModeFilters:
+                    type: array
+                    items:
+                      type: object
+                      required: [value, label]
+                      properties:
+                        value: {type: string, enum: [ALL, CASH, CREDIT]}
+                        label: {type: string}
+                  invoiceTaxRates:
+                    type: array
+                    items:
+                      type: object
+                      required: [value, label]
+                      properties:
+                        value: {type: number, enum: [0.18, 0.16, 0]}
+                        label: {type: string}
+              example:
+                saleModes:
+                  - {value: CASH, label: "Contado"}
+                  - {value: CREDIT, label: "Crédito"}
+                requestedReceiptTypes:
+                  - {value: CONSUMPTION, label: "Consumidor final"}
+                  - {value: FISCAL_CREDIT, label: "Crédito fiscal"}
+                invoiceFilters:
+                  - {value: ALL, label: "Todos"}
+                  - {value: ISSUED, label: "Emitida"}
+                  - {value: PARTIALLY_PAID, label: "Parcialmente pagada"}
+                  - {value: PAID, label: "Pagada"}
+                receivableFilters:
+                  - {value: ALL, label: "Todos"}
+                  - {value: PENDING, label: "Pendiente"}
+                  - {value: PARTIALLY_PAID, label: "Parcial"}
+                paymentMethods:
+                  - {value: CASH, label: "Efectivo"}
+                  - {value: CREDIT_CARD, label: "Tarjeta de crédito"}
+                  - {value: DEBIT_CARD, label: "Tarjeta de débito"}
+                  - {value: TRANSFER, label: "Transferencia"}
+                  - {value: CHECK, label: "Cheque"}
+                saleModeFilters:
+                  - {value: ALL, label: "Todas"}
+                  - {value: CASH, label: "Contado"}
+                  - {value: CREDIT, label: "Crédito"}
+                invoiceTaxRates:
+                  - {value: 0.18, label: "18%"}
+                  - {value: 0.16, label: "16%"}
+                  - {value: 0, label: "0%/Exento"}
         '400':
           description: Parámetros inválidos
         '401':
@@ -124,7 +125,8 @@ paths:
       summary: Lista ventas de la empresa con SALES_READ.
       parameters:
         - {name: search, in: query, schema: {type: string, maxLength: 250}}
-        - {name: status, in: query, schema: {type: string, enum: [REGISTERED, CANCELLED]}}
+        - {name: status, in: query, schema: {type: string, enum: [ALL, REGISTERED, CANCELLED]}}
+        - {name: mode, in: query, schema: {type: string, enum: [ALL, CASH, CREDIT]}}
         - {name: from, in: query, schema: {type: string, format: date}}
         - {name: to, in: query, schema: {type: string, format: date}}
         - {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}

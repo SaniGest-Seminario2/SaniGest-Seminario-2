@@ -296,6 +296,7 @@ class ServiceRoutingIT {
     String token = "Bearer " + GatewayTestTokens.validToken();
     for (String path :
         List.of(
+            "/api/v1/expenses/options",
             "/api/v1/expenses?status=PENDING&page=1",
             "/api/v1/expenses/all?search=paper&operationType=PURCHASE",
             "/api/v1/expenses/summary?from=2026-11-01&to=2026-11-26",

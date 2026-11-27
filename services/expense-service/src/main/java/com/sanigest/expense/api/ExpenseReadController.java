@@ -31,12 +31,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/expenses")
 class ExpenseReadController {
+  private static final ExpenseOptions OPTIONS = ExpenseOptions.defaults();
   private final ExpenseQueries queries;
   private final ExpenseCompanyAccess companies;
 
   ExpenseReadController(ExpenseQueries queries, ExpenseCompanyAccess companies) {
     this.queries = queries;
     this.companies = companies;
+  }
+
+  @GetMapping("/options")
+  ExpenseOptions options(HttpServletRequest http) {
+    companies.require(http, Scope.READ);
+    return OPTIONS;
   }
 
   @GetMapping
