@@ -47,6 +47,9 @@ class SecurityConfiguration {
                     "/api/v1/sales",
                     "/api/v1/sales/{id}",
                     "/api/v1/receivables/{id}",
+                    "/internal/client-financials/summary",
+                    "/internal/client-financials/{id}/summary",
+                    "/internal/client-financials/{id}/statement",
                     "/api/v1/cash-sessions/active/payments",
                     "/api/v1/invoices",
                     "/api/v1/invoices/all",
@@ -56,6 +59,7 @@ class SecurityConfiguration {
                 .authenticated()
                 .requestMatchers(
                     HttpMethod.POST,
+                    "/internal/client-financials/balances",
                     "/api/v1/sales",
                     "/api/v1/sales/{id}/cancel",
                     "/api/v1/invoices",

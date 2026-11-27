@@ -24,15 +24,18 @@ import com.sanigest.catalog.application.dto.CatalogItemReferences.Tax;
 import com.sanigest.catalog.application.dto.CatalogItemReferences.Unit;
 import com.sanigest.catalog.application.dto.CatalogItemSearchCriteria;
 import com.sanigest.catalog.application.dto.CatalogItemSummary;
+import com.sanigest.catalog.application.dto.ClientPage;
 import com.sanigest.catalog.application.dto.ClientReferences.Option;
 import com.sanigest.catalog.application.dto.SupplierPage;
 import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
 import com.sanigest.catalog.application.exception.CatalogItemAccessException;
 import com.sanigest.catalog.application.exception.ClientAccessException;
 import com.sanigest.catalog.application.exception.ClientCreationException;
+import com.sanigest.catalog.application.exception.ClientFinancialsUnavailable;
 import com.sanigest.catalog.application.exception.SupplierAccessException;
 import com.sanigest.catalog.application.exception.SupplierCreationException;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.integration.SalesClientFinancials;
 import com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository;
 import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
 import com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository;
@@ -115,6 +118,7 @@ import org.springframework.test.web.servlet.ResultActions;
   CreateCatalogItem.class,
   CreateClient.class,
   ListClients.class,
+  com.sanigest.catalog.application.usecase.client.ClientFinancials.class,
   ClientCompany.class,
   ClientCategories.class,
   ClientReferenceData.class,
@@ -152,6 +156,7 @@ class CatalogWebPolicyTest {
   @MockitoBean SupplierCategoryRepository supplierCategories;
   @MockitoBean SupplierItemRepository supplierItems;
   @MockitoBean CatalogAuthorization authorization;
+  @MockitoBean SalesClientFinancials sales;
 
   @MockitoBean
   com.sanigest.catalog.application.port.out.integration.InventoryAvailability inventory;
@@ -341,6 +346,93 @@ class CatalogWebPolicyTest {
         .andExpect(status().isServiceUnavailable())
         .andExpect(jsonPath("$.errorCode").value("AUTHORIZATION_UNAVAILABLE"));
     verifyNoInteractions(clients);
+  }
+
+  @Test
+  void listsScopedBalancesAndKeepsCommercialDataWhenSalesIsUnavailable() throws Exception {
+    validToken();
+    var company = UUID.randomUUID();
+    var first = UUID.randomUUID();
+    var second = UUID.randomUUID();
+    var rows =
+        List.of(
+            new ClientPage.Item(first, "Ana", null, "ACTIVE", null, null, null, null, null, null),
+            new ClientPage.Item(
+                second, "Juan", null, "INACTIVE", null, null, null, null, null, null));
+    given(authorization.membership(CATALOG_READ)).willReturn(Optional.of(company));
+    given(clients.search(eq(company), any(), eq(0), eq(20)))
+        .willReturn(new ClientPage(rows, 0, 20, 2));
+    given(clients.search(eq(company), any(), eq(0), eq(Integer.MAX_VALUE)))
+        .willReturn(new ClientPage(rows, 0, Integer.MAX_VALUE, 2));
+    given(sales.balances(company, List.of(first, second)))
+        .willReturn(Map.of(first, new BigDecimal("35.00")))
+        .willReturn(Map.of(first, new BigDecimal("35.00")))
+        .willThrow(new ClientFinancialsUnavailable());
+
+    mvc.perform(get("/api/v1/clients").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalPages").value(1))
+        .andExpect(jsonPath("$.content[0].balance").value(35))
+        .andExpect(jsonPath("$.content[1].balance").value(0));
+    mvc.perform(get("/api/v1/clients/all").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value(first.toString()))
+        .andExpect(jsonPath("$[0].balance").value(35));
+    mvc.perform(get("/api/v1/clients").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].name").value("Ana"))
+        .andExpect(jsonPath("$.content[0].balance").value(org.hamcrest.Matchers.nullValue()));
+  }
+
+  @Test
+  void servesScopedFinancialIndicatorsAndStatements() throws Exception {
+    validToken();
+    var company = UUID.randomUUID();
+    var asOf = Instant.parse("2026-11-26T12:00:00Z");
+    var client = Client.register(company, new ClientDetails("Cliente", "123", null, null, null));
+    var path = "/api/v1/clients/" + client.id();
+    given(authorization.membership(CATALOG_READ)).willReturn(Optional.of(company));
+    given(clients.find(company, client.id())).willReturn(Optional.of(client));
+    given(clients.counts(company)).willReturn(new ClientRepository.Counts(4, 3));
+    given(sales.summary(company))
+        .willReturn(new SalesClientFinancials.CompanyTotals(2, new BigDecimal("35.00"), asOf));
+    given(sales.totals(company, client.id()))
+        .willReturn(
+            new SalesClientFinancials.Totals(
+                BigDecimal.ONE, BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("9"), asOf));
+    given(sales.statement(company, client.id(), 1, 2))
+        .willReturn(
+            new SalesClientFinancials.Statement(List.of(), List.of(), 1, 2, false, false, asOf));
+
+    mvc.perform(get("/api/v1/clients/summary").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalClients").value(4))
+        .andExpect(jsonPath("$.activeClients").value(3))
+        .andExpect(jsonPath("$.clientsWithPendingBalance").value(2))
+        .andExpect(jsonPath("$.totalPending").value(35));
+    mvc.perform(get(path + "/financial-summary").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.name").value("Cliente"))
+        .andExpect(jsonPath("$.balance").value(1))
+        .andExpect(jsonPath("$.availableCredit").value(org.hamcrest.Matchers.nullValue()))
+        .andExpect(jsonPath("$.paymentsReceived").value(9));
+    mvc.perform(
+            get(path + "/statement")
+                .param("page", "1")
+                .param("size", "2")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.page").value(1))
+        .andExpect(jsonPath("$.payments").isEmpty());
+    mvc.perform(
+            get(path + "/statement")
+                .param("size", "101")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isBadRequest());
+    given(sales.summary(company)).willThrow(new ClientFinancialsUnavailable());
+    mvc.perform(get("/api/v1/clients/summary").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.errorCode").value("CLIENT_FINANCIALS_UNAVAILABLE"));
   }
 
   @Test

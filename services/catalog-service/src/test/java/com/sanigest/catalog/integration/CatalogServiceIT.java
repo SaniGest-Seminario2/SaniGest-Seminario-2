@@ -208,6 +208,7 @@ class CatalogServiceIT {
     registry.add("sanigest.company-access.enabled", () -> true);
     registry.add("sanigest.company-access.origin", COMPANY::baseUrl);
     registry.add("CATALOG_INVENTORY_ORIGIN", COMPANY::baseUrl);
+    registry.add("CATALOG_SALES_ORIGIN", COMPANY::baseUrl);
     registry.add("sanigest.company-access.issuer", () -> "catalog-test-internal");
     registry.add("sanigest.company-access.private-key-location", COMPANY_ACCESS_KEY::toUri);
     registry.add("JWT_ISSUER", () -> ISSUER);
@@ -1433,6 +1434,97 @@ class CatalogServiceIT {
             HttpResponse.BodyHandlers.ofString());
     assertThat(response.statusCode()).as(response.body()).isEqualTo(201);
     return JsonMapper.shared().readTree(response.body());
+  }
+
+  @Test
+  void composesClientFinancialsWithTheAuthorizedCompanyAndPreservesInactiveHistory()
+      throws Exception {
+    var company = UUID.randomUUID();
+    var owner = scopedCatalogOwner(company);
+    var foreign = scopedCatalogOwner(UUID.randomUUID());
+    var base = "/internal/client-financials";
+    try (var http = HttpClient.newHttpClient()) {
+      var id = sendProfile(http, owner, company, "Cliente crédito", "CREDIT").path("id").asString();
+      var second =
+          sendProfile(http, owner, company, "Cliente efectivo", "CASH").path("id").asString();
+      var detail = "/api/v1/clients/" + id;
+      assertThat(
+              patch(http, detail + "/status", owner, "{\"status\":\"INACTIVE\"}", company)
+                  .statusCode())
+          .isEqualTo(200);
+      var batch =
+          WireMock.post(WireMock.urlPathEqualTo(base + "/balances"))
+              .withRequestBody(
+                  WireMock.equalToJson("[\"" + id + "\",\"" + second + "\"]", true, false));
+      stubSales(batch, owner, company, "{\"" + id + "\":35.00}");
+      stubSales(
+          WireMock.get(WireMock.urlPathEqualTo(base + "/summary")),
+          owner,
+          company,
+          """
+          {"clientsWithPendingBalance":1,"totalPending":35.00,"asOf":"2026-11-26T12:00:00Z"}
+          """);
+      stubSales(
+          WireMock.get(WireMock.urlPathEqualTo(base + "/" + id + "/summary")),
+          owner,
+          company,
+          """
+          {"balance":35.00,"creditExposure":35.00,"totalInvoiced":50.00,
+           "paymentsReceived":15.00,"asOf":"2026-11-26T12:00:00Z"}
+          """);
+      stubSales(
+          WireMock.get(WireMock.urlPathEqualTo(base + "/" + id + "/statement"))
+              .withQueryParam("page", equalTo("0"))
+              .withQueryParam("size", equalTo("20")),
+          owner,
+          company,
+          """
+          {"invoices":[],"payments":[],"page":0,"size":20,"hasMoreInvoices":false,
+           "hasMorePayments":false,"asOf":"2026-11-26T12:00:00Z"}
+          """);
+
+      var list = listPage(http, owner, "?search=Cliente&sort=name,asc", company).path("content");
+      var all =
+          successfulBody(
+              get(http, "/api/v1/clients/all?search=Cliente&sort=name,asc", owner, company));
+      COMPANY.verify(2, WireMock.postRequestedFor(WireMock.urlPathEqualTo(base + "/balances")));
+      assertThat(all).isEqualTo(list);
+      assertThat(list.get(0).path("balance").decimalValue()).isEqualByComparingTo("35.00");
+      assertThat(list.get(1).path("balance").decimalValue()).isEqualByComparingTo("0.00");
+
+      var summary = successfulBody(get(http, "/api/v1/clients/summary", owner, company));
+      assertThat(summary.path("totalClients").asInt()).isEqualTo(2);
+      assertThat(summary.path("activeClients").asInt()).isEqualTo(1);
+      assertThat(summary.path("clientsWithPendingBalance").asInt()).isEqualTo(1);
+      assertThat(summary.path("totalPending").decimalValue()).isEqualByComparingTo("35.00");
+
+      var profile = successfulBody(get(http, detail + "/financial-summary", owner, company));
+      assertThat(profile.path("id").asString()).isEqualTo(id);
+      assertThat(profile.path("status").asString()).isEqualTo("INACTIVE");
+      assertThat(profile.path("availableCredit").isNull()).isTrue();
+      assertThat(profile.path("paymentsReceived").decimalValue()).isEqualByComparingTo("15.00");
+      assertThat(patch(http, detail, owner, "{\"creditLimit\":\"100.00\"}", company).statusCode())
+          .isEqualTo(200);
+      profile = successfulBody(get(http, detail + "/financial-summary", owner, company));
+      assertThat(profile.path("availableCredit").decimalValue()).isEqualByComparingTo("65.00");
+
+      assertThat(get(http, detail + "/statement", owner, company).statusCode()).isEqualTo(200);
+      assertThat(get(http, detail + "/statement", foreign).statusCode()).isEqualTo(404);
+    }
+  }
+
+  private static void stubSales(
+      com.github.tomakehurst.wiremock.client.MappingBuilder request,
+      String actor,
+      UUID company,
+      String response) {
+    COMPANY.stubFor(
+        request
+            .withHeader("Authorization", equalTo("Bearer " + actor))
+            .withHeader("X-Company-Id", equalTo(company.toString()))
+            .withQueryParam("expectedCompanyId", equalTo(company.toString()))
+            .willReturn(
+                aResponse().withHeader("Content-Type", "application/json").withBody(response)));
   }
 
   private String scopedCatalogOwner(UUID tenant) throws Exception {

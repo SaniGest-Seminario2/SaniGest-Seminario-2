@@ -90,6 +90,10 @@ class ServiceRoutingIT {
                 Map.entry("/api/v1/warehouses/options", "inventory"),
                 Map.entry("/api/v1/sales/options", "sales"),
                 Map.entry("/api/v1/clients", "catalog"),
+                Map.entry("/api/v1/clients/all", "catalog"),
+                Map.entry("/api/v1/clients/summary", "catalog"),
+                Map.entry("/api/v1/clients/" + TENANT + "/financial-summary", "catalog"),
+                Map.entry("/api/v1/clients/" + TENANT + "/statement", "catalog"),
                 Map.entry("/api/v1/clients/categories", "catalog"),
                 Map.entry(
                     "/api/v1/clients/categories/955b9b1d-9c90-4404-a72c-ab1de57995dc", "catalog"),

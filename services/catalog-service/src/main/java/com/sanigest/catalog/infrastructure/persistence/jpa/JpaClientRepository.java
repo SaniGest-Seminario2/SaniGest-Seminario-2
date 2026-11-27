@@ -31,6 +31,12 @@ class JpaClientRepository implements ClientRepository {
   }
 
   @Override
+  public Counts counts(UUID companyId) {
+    var counts = rows.counts(companyId);
+    return new Counts(counts.getTotal(), counts.getActive());
+  }
+
+  @Override
   @Transactional
   public void insert(Client client) {
     requireUniqueTaxId(client);
@@ -136,7 +142,8 @@ class JpaClientRepository implements ClientRepository {
                         row.getClientType(),
                         row.getPaymentTerms(),
                         row.getCategoryId(),
-                        row.getCategoryName()))
+                        row.getCategoryName(),
+                        null))
                 .toList();
     return new ClientPage(content, page, size, total);
   }

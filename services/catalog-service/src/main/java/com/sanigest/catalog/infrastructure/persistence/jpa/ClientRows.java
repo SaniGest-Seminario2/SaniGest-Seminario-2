@@ -99,6 +99,21 @@ interface ClientRows extends Repository<ClientRow, UUID> {
   @Query(value = "SELECT count(*) " + FILTER, nativeQuery = true)
   long countMatching(@Param("companyId") UUID companyId, @Param("filter") Filter filter);
 
+  @Query(
+      value =
+          """
+          SELECT count(*) AS total, count(*) FILTER (WHERE status = 'ACTIVE') AS active
+          FROM catalog.clients WHERE company_id = :companyId
+          """,
+      nativeQuery = true)
+  ClientCounts counts(@Param("companyId") UUID companyId);
+
+  interface ClientCounts {
+    long getTotal();
+
+    long getActive();
+  }
+
   record Filter(String pattern, String status, String type, String category, String terms) {}
 
   interface ListedClient {

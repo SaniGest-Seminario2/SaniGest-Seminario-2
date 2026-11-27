@@ -13,6 +13,7 @@ import com.sanigest.catalog.application.dto.ClientSearchCriteria;
 import com.sanigest.catalog.application.exception.ClientCreationException;
 import com.sanigest.catalog.application.exception.InvalidClientQueryException;
 import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.integration.SalesClientFinancials;
 import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
 import java.util.List;
 import java.util.Optional;
@@ -25,8 +26,9 @@ import org.springframework.security.access.AccessDeniedException;
 class ListClientsTest {
   private final CatalogAuthorization authorization = mock(CatalogAuthorization.class);
   private final ClientRepository repository = mock(ClientRepository.class);
+  private final SalesClientFinancials sales = mock(SalesClientFinancials.class);
   private final ListClients useCase =
-      new ListClients(new ClientCompany(Optional.of(authorization)), repository, 100);
+      new ListClients(new ClientCompany(Optional.of(authorization)), repository, sales, 100);
 
   @ParameterizedTest
   @CsvSource({
@@ -46,9 +48,27 @@ class ListClientsTest {
         match
             ? List.of(
                 new ClientPage.Item(
-                    UUID.randomUUID(), "Clínica", "101001", "ACTIVE", null, null, null, null, null),
+                    UUID.randomUUID(),
+                    "Clínica",
+                    "101001",
+                    "ACTIVE",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    java.math.BigDecimal.ZERO),
                 new ClientPage.Item(
-                    UUID.randomUUID(), "Clínica", "101002", "ACTIVE", null, null, null, null, null))
+                    UUID.randomUUID(),
+                    "Clínica",
+                    "101002",
+                    "ACTIVE",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    java.math.BigDecimal.ZERO))
             : List.<ClientPage.Item>of();
     var result = new ClientPage(items, 0, 20, items.size());
     when(authorization.membership(CATALOG_READ)).thenReturn(Optional.of(company));
@@ -58,7 +78,7 @@ class ListClientsTest {
 
     var page =
         useCase.execute(new ClientSearchCriteria(search, status, null, null, null, false), 0, 20);
-    assertThat(page).isSameAs(result);
+    assertThat(page).isEqualTo(result);
     assertThat(page.content()).containsExactlyElementsOf(items);
     assertThat(page.totalPages()).isEqualTo(match ? 1 : 0);
   }
