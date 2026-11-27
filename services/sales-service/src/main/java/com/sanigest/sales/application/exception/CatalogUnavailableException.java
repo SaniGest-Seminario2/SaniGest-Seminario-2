@@ -4,6 +4,7 @@ public final class CatalogUnavailableException extends RuntimeException {
   public enum Reason {
     NOT_CONFIGURED,
     RATE_LIMITED,
+    CONFLICT,
     DEPENDENCY_FAILURE,
     TRANSPORT_FAILURE
   }

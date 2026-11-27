@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -104,7 +105,8 @@ class FinancialSourcesTest {
   }
 
   private FinancialProjections projections(JdbcClient jdbc) {
-    return new FinancialProjections(jdbc, new FinancialSources(origin(), origin()));
+    return new FinancialProjections(
+        jdbc, new FinancialSources(origin(), origin(), Duration.ofSeconds(2), null));
   }
 
   private String origin() {

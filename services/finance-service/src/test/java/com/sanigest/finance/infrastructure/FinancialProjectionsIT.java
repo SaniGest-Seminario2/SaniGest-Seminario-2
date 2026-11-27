@@ -8,6 +8,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -74,7 +75,9 @@ class FinancialProjectionsIT {
     var expense = source(company, expenseBody);
     try {
       var projections =
-          new FinancialProjections(jdbc, new FinancialSources(origin(sales), origin(expense)));
+          new FinancialProjections(
+              jdbc,
+              new FinancialSources(origin(sales), origin(expense), Duration.ofSeconds(2), null));
       var first = JSON.readTree(projections.rebuild(company, "token"));
       assertEquals(100, first.path("receivables").intValue());
       assertEquals(60, first.path("payables").intValue());
