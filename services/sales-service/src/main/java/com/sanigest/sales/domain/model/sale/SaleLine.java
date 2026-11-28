@@ -17,7 +17,8 @@ public record SaleLine(
     BigDecimal quantity,
     BigDecimal subtotal,
     BigDecimal discount,
-    BigDecimal taxRate) {
+    BigDecimal taxRate,
+    String sku) {
 
   public SaleLine(
       UUID id,
@@ -38,6 +39,7 @@ public record SaleLine(
         quantity,
         subtotal,
         null,
+        null,
         null);
   }
 
@@ -53,7 +55,10 @@ public record SaleLine(
         item.description(),
         price,
         exactQuantity,
-        price.multiply(exactQuantity));
+        price.multiply(exactQuantity),
+        null,
+        null,
+        item.sku());
   }
 
   public static SaleLine forInvoice(
@@ -76,7 +81,8 @@ public record SaleLine(
         quantity,
         SaleAmounts.rounded(price.multiply(quantity).subtract(appliedDiscount)),
         appliedDiscount,
-        taxRate == null ? InvoiceTaxRates.EXEMPT : taxRate);
+        taxRate == null ? InvoiceTaxRates.EXEMPT : taxRate,
+        item.sku());
   }
 
   public BigDecimal taxAmount() {
@@ -97,6 +103,7 @@ public record SaleLine(
     Objects.requireNonNull(catalogItemId, "catalogItemId");
     itemName = SnapshotText.name(itemName, 200, "itemName");
     itemDescription = SnapshotText.bounded(itemDescription, 1000, "itemDescription");
+    sku = SnapshotText.bounded(sku, 64, "sku");
     quantity = SaleAmounts.quantity(quantity);
     subtotal = SaleAmounts.amount(subtotal, "subtotal");
     if (discount == null && taxRate == null) {

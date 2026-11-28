@@ -3531,7 +3531,7 @@
                 "{{invoiceId}}"
               ]
             },
-            "description": "Consulta la factura creada para la venta al contado."
+          "description": "Devuelve el snapshot imprimible de la factura, sus líneas, vencimiento y estado de pago. No genera PDF."
           },
           "event": [
             {
@@ -3539,7 +3539,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+          "pm.test(\"HTTP esperado: 200\", () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+          "pm.test(\"Detalle imprimible con totales y pago\", () => { const invoice = pm.response.json(); pm.expect(invoice).to.have.property('number'); pm.expect(invoice).to.have.property('client'); pm.expect(invoice).to.have.property('taxableBase'); pm.expect(invoice).to.have.property('taxTotal'); pm.expect(invoice).to.have.property('paymentStatus'); pm.expect(invoice.lines).to.be.an('array'); });"
                 ]
               }
             }

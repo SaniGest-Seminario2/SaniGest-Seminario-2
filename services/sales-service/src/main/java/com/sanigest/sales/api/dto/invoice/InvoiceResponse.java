@@ -2,7 +2,6 @@ package com.sanigest.sales.api.dto.invoice;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.sanigest.sales.api.dto.sale.SaleLineResponse;
 import com.sanigest.sales.application.dto.sale.CreateSaleCommand;
 import com.sanigest.sales.domain.enums.invoice.RequestedReceiptType;
 import com.sanigest.sales.domain.enums.sale.SaleMode;
@@ -27,13 +26,16 @@ public record InvoiceResponse(
     LocalDate saleDate,
     Party company,
     Party client,
-    List<SaleLineResponse> lines,
+    List<InvoiceLineResponse> lines,
     @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal total,
     String currency,
     @JsonInclude(JsonInclude.Include.NON_NULL) LocalDate issueDate,
+    @JsonInclude(JsonInclude.Include.NON_NULL) LocalDate dueDate,
     @JsonInclude(JsonInclude.Include.NON_NULL) SaleMode mode,
     @JsonInclude(JsonInclude.Include.NON_NULL) RequestedReceiptType requestedReceiptType,
-    @JsonInclude(JsonInclude.Include.NON_NULL) String notes) {
+    @JsonInclude(JsonInclude.Include.NON_NULL) String notes,
+    @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal taxableBase,
+    @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal taxTotal) {
 
   public record Party(UUID id, String name) {}
 
@@ -53,25 +55,19 @@ public record InvoiceResponse(
         invoice.saleDate(),
         new Party(invoice.company().id(), invoice.company().name()),
         new Party(invoice.client().id(), invoice.client().name()),
-        invoice.lines().stream()
-            .map(line ->
-                new SaleLineResponse(
-                    line.id(),
-                    line.catalogItemId(),
-                    line.itemName(),
-                    line.itemDescription(),
-                    line.unitPrice(),
-                    line.quantity(),
-                    line.subtotal(),
-                    line.discount(),
-                    line.taxRate(),
-                    line.taxRate() == null ? null : line.taxAmount()))
-            .toList(),
+        invoice.lines().stream().map(InvoiceLineResponse::from).toList(),
         invoice.total(),
         invoice.currency(),
         form == null ? null : invoice.saleDate(),
+        form == null ? null : form.dueDate(),
         form == null ? null : form.mode(),
         form == null ? null : form.requestedReceiptType(),
-        form == null ? null : form.notes());
+        form == null ? null : form.notes(),
+        invoice.lines().stream()
+            .map(line -> line.subtotal())
+            .reduce(BigDecimal.ZERO, BigDecimal::add),
+        invoice.lines().stream()
+            .map(line -> line.taxAmount())
+            .reduce(BigDecimal.ZERO, BigDecimal::add));
   }
 }

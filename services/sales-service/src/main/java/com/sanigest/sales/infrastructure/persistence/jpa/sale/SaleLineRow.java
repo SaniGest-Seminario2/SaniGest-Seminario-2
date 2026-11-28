@@ -39,6 +39,9 @@ class SaleLineRow {
 
   private BigDecimal taxRate;
 
+  @Column(length = 64)
+  private String sku;
+
   @Column(nullable = false, precision = 15, scale = 3)
   private BigDecimal quantity;
 
@@ -59,6 +62,7 @@ class SaleLineRow {
     subtotal = line.subtotal();
     discount = line.discount();
     taxRate = line.taxRate();
+    sku = line.sku();
   }
 
   SaleLine toDomain(UUID saleId) {
@@ -72,6 +76,7 @@ class SaleLineRow {
         quantity,
         subtotal,
         discount,
-        taxRate);
+        taxRate,
+        sku);
   }
 }

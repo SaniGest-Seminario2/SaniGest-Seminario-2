@@ -13,4 +13,5 @@ public record CatalogItemResponse(
     String currency,
     Boolean active,
     Boolean availableForSale,
-    String taxRate) {}
+    String taxRate,
+    String sku) {}

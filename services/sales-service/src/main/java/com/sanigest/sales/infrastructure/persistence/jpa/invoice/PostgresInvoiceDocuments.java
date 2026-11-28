@@ -20,6 +20,22 @@ class PostgresInvoiceDocuments implements InvoiceDocuments {
       FROM sales.internal_invoices i
       JOIN sales.sales s ON s.company_id = i.company_id AND s.id = i.sale_id
       LEFT JOIN sales.receivables r ON r.company_id = i.company_id AND r.sale_id = i.sale_id
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(sum(item_line.subtotal), 0) AS taxable_base,
+               COALESCE(sum(round(item_line.subtotal * item_line.tax_rate, 2)), 0) AS tax_total,
+               jsonb_agg(
+                 (i.response_body::jsonb -> 'lines' -> item_line.position)
+                   || jsonb_strip_nulls(jsonb_build_object(
+                        'sku', item_line.sku,
+                        'total', CAST(round(
+                          item_line.subtotal
+                            + COALESCE(round(item_line.subtotal * item_line.tax_rate, 2), 0), 2
+                        ) AS text)))
+                 ORDER BY item_line.position
+               ) AS lines
+          FROM sales.internal_invoice_lines item_line
+         WHERE item_line.invoice_id = i.id
+      ) invoice_detail ON true
       """
           + SaleRows.PAYMENT_PROJECTION
           + """
@@ -40,13 +56,19 @@ class PostgresInvoiceDocuments implements InvoiceDocuments {
   // The issued snapshot never changes, including the exact JSON used for POST replays.
   private static final String CURRENT_DOCUMENT =
       """
-      SELECT (i.response_body::jsonb || jsonb_strip_nulls(jsonb_build_object(
-          'status', i.status, 'issueDate', i.sale_date, 'mode', s.mode,
-          'paymentStatus', invoice_payment.status,
-          'outstandingBalance', CAST(round(payment.outstanding, 2) AS text),
-          'collectedAmount', CAST(round(payment.collected, 2) AS text),
-          'cancelledAt', i.cancelled_at, 'cancelledBy', i.cancelled_by,
-          'cancelReason', i.cancel_reason)))::text
+      SELECT (
+          i.response_body::jsonb
+          || jsonb_strip_nulls(jsonb_build_object(
+               'status', i.status, 'issueDate', i.sale_date, 'dueDate', r.due_date, 'mode', s.mode,
+               'paymentStatus', invoice_payment.status,
+               'taxableBase', CAST(round(invoice_detail.taxable_base, 2) AS text),
+               'taxTotal', CAST(round(invoice_detail.tax_total, 2) AS text),
+               'outstandingBalance', CAST(round(payment.outstanding, 2) AS text),
+               'collectedAmount', CAST(round(payment.collected, 2) AS text),
+               'cancelledAt', i.cancelled_at, 'cancelledBy', i.cancelled_by,
+               'cancelReason', i.cancel_reason))
+          || jsonb_build_object('lines', invoice_detail.lines)
+      )::text
       """;
   private final JdbcClient jdbc;
   private final SaleRepository sales;

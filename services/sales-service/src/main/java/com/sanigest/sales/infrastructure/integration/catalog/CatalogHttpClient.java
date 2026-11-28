@@ -76,9 +76,8 @@ final class CatalogHttpClient implements CatalogClient {
         || !validText(response.name(), 200)
         || !"DOP".equals(response.currency())
         || response.active() == null
-        || (response.description() != null
-            && (response.description().length() > 1000
-                || response.description().indexOf(0) >= 0))) {
+        || !validOptionalText(response.description(), 1000)
+        || !validOptionalText(response.sku(), 64)) {
       throw new CatalogResourceInvalidException(INVALID_RESPONSE);
     }
     var type = requiredEnum(Type.class, response.type());
@@ -94,7 +93,8 @@ final class CatalogHttpClient implements CatalogClient {
         price,
         response.currency(),
         response.active(),
-        invoice ? taxRate(response.taxRate()) : null);
+        invoice ? taxRate(response.taxRate()) : null,
+        response.sku());
   }
 
   private static BigDecimal taxRate(String value) {
@@ -188,6 +188,10 @@ final class CatalogHttpClient implements CatalogClient {
 
   private static boolean validText(String text, int maxLength) {
     return text != null && !text.isBlank() && text.length() <= maxLength && text.indexOf(0) < 0;
+  }
+
+  private static boolean validOptionalText(String text, int maxLength) {
+    return text == null || validText(text, maxLength);
   }
 
   private static <T extends Enum<T>> T requiredEnum(Class<T> type, String value) {

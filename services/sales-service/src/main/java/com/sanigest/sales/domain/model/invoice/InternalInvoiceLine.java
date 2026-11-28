@@ -16,7 +16,8 @@ public record InternalInvoiceLine(
     BigDecimal quantity,
     BigDecimal subtotal,
     BigDecimal discount,
-    BigDecimal taxRate) {
+    BigDecimal taxRate,
+    String sku) {
 
   public InternalInvoiceLine(
       UUID id,
@@ -26,7 +27,7 @@ public record InternalInvoiceLine(
       BigDecimal price,
       BigDecimal quantity,
       BigDecimal subtotal) {
-    this(id, itemId, name, description, price, quantity, subtotal, null, null);
+    this(id, itemId, name, description, price, quantity, subtotal, null, null, null);
   }
 
   public BigDecimal taxAmount() {
@@ -42,6 +43,7 @@ public record InternalInvoiceLine(
     Objects.requireNonNull(catalogItemId);
     itemName = SnapshotText.name(itemName, 200, "itemName");
     itemDescription = SnapshotText.bounded(itemDescription, 1000, "itemDescription");
+    sku = SnapshotText.bounded(sku, 64, "sku");
     if ((discount == null) != (taxRate == null)) {
       throw new IllegalArgumentException("Discount and tax rate must be recorded together");
     }
@@ -76,6 +78,7 @@ public record InternalInvoiceLine(
         line.quantity(),
         line.subtotal(),
         line.discount(),
-        line.taxRate());
+        line.taxRate(),
+        line.sku());
   }
 }
