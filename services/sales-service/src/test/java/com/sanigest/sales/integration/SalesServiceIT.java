@@ -211,7 +211,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("18");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("19");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -285,6 +285,7 @@ class SalesServiceIT {
             "sale_lines.catalog_item_id:uuid:NO",
             "sale_lines.item_name:character varying:NO",
             "sale_lines.item_description:character varying:YES",
+            "sale_lines.sku:character varying:YES",
             "sale_lines.unit_price:numeric:NO",
             "sale_lines.quantity:numeric:NO",
             "sale_lines.subtotal:numeric:NO",
@@ -375,8 +376,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(18);
-    assertThat(history.getLast()).containsEntry("version", "18").containsEntry("success", true);
+    assertThat(history).hasSize(19);
+    assertThat(history.getLast()).containsEntry("version", "19").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -444,12 +445,12 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(1);
-    assertThat(current.migrate().migrationsExecuted).isEqualTo(13);
+    assertThat(current.migrate().migrationsExecuted).isEqualTo(14);
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
         .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("18");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("19");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
@@ -1814,8 +1815,7 @@ class SalesServiceIT {
       assertThat(replay.statusCode()).isEqualTo(201);
       assertThat(replay.body()).isEqualTo(created.body());
       var invoice = new ObjectMapper().readTree(created.body());
-      assertThat(invoice.path("lines").size()).isEqualTo(2);
-      assertThat(invoice.at("/lines/0/taxAmount").asString()).isEqualTo("3.47");
+      assertInvoiceAmounts(invoice);
       assertThat(invoice.path("total").asString()).isEqualTo("37.72");
       assertThat(invoice.path("issueDate").asString()).isEqualTo("2026-11-23");
       assertThat(invoice.path("requestedReceiptType").asString()).isEqualTo("CONSUMPTION");
@@ -1830,6 +1830,7 @@ class SalesServiceIT {
           .isEqualByComparingTo("37.72");
       var invoiceId = invoice.path("id").asString();
       var saleId = invoice.path("saleId").asString();
+      changeCatalogSnapshot(owner);
       owner.membership("OWNER", false, "READ");
       var paginated = page(invoiceDocument(http, owner, "?search=Cliente&size=1", null));
       assertThat(paginated.path("totalElements").asLong()).isOne();
@@ -1837,6 +1838,7 @@ class SalesServiceIT {
       assertThat(page(invoiceDocument(http, owner, "/all", null)).get(0).path("id").asString())
           .isEqualTo(invoiceId);
       assertThat(page(invoiceDocument(http, owner, "/collectible/all", null)).size()).isOne();
+      assertInvoiceDetail(page(invoiceDocument(http, owner, "/" + invoiceId, null)));
       assertThat(invoiceDocument(http, other, "/" + invoiceId, null).statusCode()).isEqualTo(404);
       owner.membership("OWNER", false);
       jdbc.update(
@@ -1948,9 +1950,10 @@ class SalesServiceIT {
       assertThat(document.path("status").asString()).isEqualTo("ISSUED");
       assertThat(document.path("currency").asString()).isEqualTo("DOP");
       assertThat(document.path("company").path("name").asString()).isEqualTo("Empresa histórica");
-      for (String field : List.of("client", "lines", "saleDate", "total")) {
+      for (String field : List.of("client", "saleDate", "total")) {
         assertThat(document.path(field)).isEqualTo(sale.path(field));
       }
+      assertInvoiceLinesMatchSale(document.path("lines"), sale.path("lines"));
       assertThat(
               jdbc.queryForList(
                   """
@@ -2581,6 +2584,48 @@ class SalesServiceIT {
     return fixture;
   }
 
+  private static void assertInvoiceAmounts(JsonNode invoice) {
+    assertThat(invoice.path("lines").size()).isEqualTo(2);
+    assertThat(invoice.at("/lines/0/taxAmount").asString()).isEqualTo("3.47");
+    assertThat(invoice.at("/lines/0/sku").asString()).isEqualTo("PRODUCT-SKU");
+    assertThat(invoice.path("taxableBase").asString()).isEqualTo("34.25");
+    assertThat(invoice.path("taxTotal").asString()).isEqualTo("3.47");
+  }
+
+  private static void assertInvoiceLinesMatchSale(JsonNode invoiceLines, JsonNode saleLines) {
+    assertThat(invoiceLines.size()).isEqualTo(saleLines.size());
+    for (int line = 0; line < invoiceLines.size(); line++) {
+      for (String field :
+          List.of(
+              "id",
+              "catalogItemId",
+              "itemName",
+              "itemDescription",
+              "unitPrice",
+              "quantity",
+              "subtotal")) {
+        assertThat(invoiceLines.get(line).path(field)).isEqualTo(saleLines.get(line).path(field));
+      }
+    }
+  }
+
+  private static void assertInvoiceDetail(JsonNode detail) {
+    assertThat(detail.at("/lines/0/sku").asString()).isEqualTo("PRODUCT-SKU");
+    assertThat(detail.at("/lines/0/total").asString()).isEqualTo("22.72");
+    assertThat(detail.path("dueDate").asString()).isEqualTo("2026-11-23");
+    assertThat(detail.path("paymentStatus").asString()).isEqualTo("ISSUED");
+    assertThat(detail.path("outstandingBalance").asString()).isEqualTo("37.72");
+    assertThat(detail.path("collectedAmount").asString()).isEqualTo("0.00");
+  }
+
+  private static void changeCatalogSnapshot(Fixture owner) {
+    owner.catalog(
+        owner.productPath(),
+        owner
+            .itemJson(owner.product(), "PRODUCT", "9999.00", false)
+            .replace("PRODUCT-SKU", "CHANGED-SKU"));
+  }
+
   private record Fixture(
       UUID user, UUID company, UUID client, UUID product, UUID service, String bearer) {
     String productPath() {
@@ -2614,10 +2659,10 @@ class SalesServiceIT {
 
     String itemJson(UUID id, String type, String price, boolean active) {
       return """
-      {"id":"%s","name":"%s original","type":"%s","description":"Descripción histórica",
+      {"id":"%s","name":"%s original","type":"%s","description":"Descripción histórica","sku":"%s-SKU",
       "price":%s,"currency":"DOP","active":%s}
       """
-          .formatted(id, type, type, price, active);
+          .formatted(id, type, type, type, price, active);
     }
 
     void catalog(String path, String body) {

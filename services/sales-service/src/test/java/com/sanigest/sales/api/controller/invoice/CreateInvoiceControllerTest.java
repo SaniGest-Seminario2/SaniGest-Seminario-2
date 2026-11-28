@@ -76,7 +76,8 @@ class CreateInvoiceControllerTest {
                 new BigDecimal("10.1234"),
                 "DOP",
                 true,
-                new BigDecimal("0.18")));
+                new BigDecimal("0.18"),
+                null));
     var obligation = ArgumentCaptor.forClass(Receivable.class);
     when(sales.register(any(), obligation.capture())).thenAnswer(call -> call.getArgument(0));
     when(invoices.issueForNewSale(any(), eq(2026), any(), any()))

@@ -11,7 +11,12 @@ public record CatalogItemSnapshot(
     BigDecimal price,
     String currency,
     boolean active,
-    BigDecimal taxRate) {
+    BigDecimal taxRate,
+    String sku) {
+  public CatalogItemSnapshot {
+    sku = SnapshotText.bounded(sku, 64, "sku");
+  }
+
   public CatalogItemSnapshot(
       UUID id,
       String name,
@@ -20,7 +25,7 @@ public record CatalogItemSnapshot(
       BigDecimal price,
       String currency,
       boolean active) {
-    this(id, name, type, description, price, currency, active, null);
+    this(id, name, type, description, price, currency, active, null, null);
   }
 
   public enum Type {

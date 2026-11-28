@@ -151,7 +151,7 @@ la configuración local y difiere el tráfico remoto hasta la primera decisión.
 | POST /api/v1/sales/{id}/cancel | SALES_CANCEL | S2-334 |
 | POST /api/v1/sales/{saleId}/invoices | SALES_WRITE | S2-335 |
 | POST /api/v1/invoices | SALES_WRITE | S2-462 |
-| GET /api/v1/invoices, /all, /collectible, /collectible/all y /{id} | SALES_READ | S2-462 |
+| GET /api/v1/invoices, /all, /collectible, /collectible/all y /{id} | SALES_READ | S2-377, S2-462 |
 | POST /api/v1/invoices/{id}/cancel | SALES_CANCEL | S2-462 |
 
 Sales expone salud, registro, listado, detalle, cancelación y emisión manual de facturas internas.

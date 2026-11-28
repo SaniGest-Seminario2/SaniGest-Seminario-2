@@ -169,8 +169,8 @@ class PostgresInvoiceRepository implements InvoiceRepository {
           """
           INSERT INTO sales.internal_invoice_lines
             (invoice_id, position, source_line_id, catalog_item_id, item_name, item_description,
-             unit_price, quantity, subtotal, discount, tax_rate)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             unit_price, quantity, subtotal, discount, tax_rate, sku)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           """,
           invoice.id(),
           position,
@@ -182,7 +182,8 @@ class PostgresInvoiceRepository implements InvoiceRepository {
           line.quantity(),
           line.subtotal(),
           line.discount(),
-          line.taxRate());
+          line.taxRate(),
+          line.sku());
     }
   }
 }

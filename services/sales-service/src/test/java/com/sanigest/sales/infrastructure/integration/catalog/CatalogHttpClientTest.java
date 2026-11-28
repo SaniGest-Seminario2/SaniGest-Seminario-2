@@ -57,7 +57,8 @@ class CatalogHttpClientTest {
           .formatted(ID);
   private static final String ITEM_JSON =
       """
-      {"id":"%s","name":"Silla","type":"PRODUCT","description":"Gris","price":3200.10,"currency":"DOP","active":true}
+      {"id":"%s","name":"Silla","type":"PRODUCT","description":"Gris",
+      "sku":"SILLA-001","price":3200.10,"currency":"DOP","active":true}
       """
           .formatted(ID);
 
@@ -129,6 +130,7 @@ class CatalogHttpClientTest {
     var snapshot = client.getInvoiceItem(ID, TENANT);
     assertThat(snapshot.price()).isEqualByComparingTo("3200.1234");
     assertThat(snapshot.taxRate()).isEqualByComparingTo("0.18");
+    assertThat(snapshot.sku()).isEqualTo("SILLA-001");
   }
 
   @ParameterizedTest

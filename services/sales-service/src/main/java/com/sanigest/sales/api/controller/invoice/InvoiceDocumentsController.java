@@ -1,8 +1,11 @@
 package com.sanigest.sales.api.controller.invoice;
 
+import com.sanigest.sales.api.dto.invoice.InvoiceDetailResponse;
 import com.sanigest.sales.api.dto.sale.CancelSaleRequest;
 import com.sanigest.sales.application.exception.sale.InvalidSaleRequest;
 import com.sanigest.sales.application.usecase.invoice.ManageInvoices;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import java.util.List;
 import java.util.UUID;
@@ -67,6 +70,10 @@ public class InvoiceDocumentsController {
   }
 
   @GetMapping("/{id}")
+  @ApiResponse(
+      responseCode = "200",
+      description = "Historical invoice snapshot with current payment status",
+      content = @Content(schema = @Schema(implementation = InvoiceDetailResponse.class)))
   public JsonNode detail(@PathVariable String id) {
     return json.readTree(invoices.find(invoiceId(id)));
   }
