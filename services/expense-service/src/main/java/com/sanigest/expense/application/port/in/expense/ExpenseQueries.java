@@ -22,6 +22,12 @@ public interface ExpenseQueries {
   enum Status {
     PAID,
     PENDING,
+    PARTIALLY_PAID
+  }
+
+  enum DetailStatus {
+    PAID,
+    PENDING,
     PARTIALLY_PAID,
     CANCELLED
   }
@@ -60,7 +66,7 @@ public interface ExpenseQueries {
       BigDecimal total,
       BigDecimal paidAmount,
       BigDecimal outstandingAmount,
-      Status status,
+      DetailStatus status,
       List<Line> lines,
       List<UUID> attachmentIds,
       Instant cancelledAt,

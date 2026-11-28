@@ -101,7 +101,7 @@ class JdbcExpenseQueries implements ExpenseQueries {
               document.total(),
               row.getBigDecimal("paid_amount"),
               row.getBigDecimal("outstanding_amount"),
-              Status.valueOf(row.getString("status")),
+              DetailStatus.valueOf(row.getString("status")),
               document.lines(),
               document.attachmentId() == null ? List.of() : List.of(document.attachmentId()),
               cancelledAt == null ? null : cancelledAt.toInstant(),

@@ -90,6 +90,9 @@ def verify(origin, output, baseline):
             assert "warehouseId" in body["required"]
             cancel = spec["paths"]["/api/v1/expenses/{id}/cancel"]["post"]
             assert {"204", "400", "401", "403", "404", "409"} <= cancel["responses"].keys()
+            schemas = spec["components"]["schemas"]
+            assert "CANCELLED" in schemas["Detail"]["properties"]["status"]["enum"]
+            assert "CANCELLED" not in schemas["Row"]["properties"]["status"]["enum"]
         print(f"OpenAPI valid: {name} ({len(spec['paths'])} paths)")
     print("Swagger UI and OpenAPI valid through Gateway")
 

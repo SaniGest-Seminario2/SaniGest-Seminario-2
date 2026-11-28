@@ -268,8 +268,10 @@ jobs:
                 > "$RUNNER_TEMP/company-oasdiff-err-ignore"
               set -- --err-ignore "$RUNNER_TEMP/company-oasdiff-err-ignore"
             elif [ "${baseline##*/}" = expense.json ]; then
-              # S2-485 requires an active warehouse for expense registration.
-              printf '%s\n' 'POST /api/v1/expenses the request property `warehouseId` became required' \
+              # S2-485 requires a warehouse. S2-352 exposes cancellations in historical detail.
+              printf '%s\n' \
+                'POST /api/v1/expenses the request property `warehouseId` became required' \
+                'GET /api/v1/expenses/{id} added the new `CANCELLED` enum value to the `status` response property for the response status `200`' \
                 > "$RUNNER_TEMP/expense-oasdiff-err-ignore"
               set -- --err-ignore "$RUNNER_TEMP/expense-oasdiff-err-ignore"
             else
