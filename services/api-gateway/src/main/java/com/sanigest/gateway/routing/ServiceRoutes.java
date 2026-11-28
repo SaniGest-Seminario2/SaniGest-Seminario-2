@@ -73,6 +73,7 @@ public class ServiceRoutes {
                         "/api/v1/companies/{companyId}",
                         "/api/v1/companies/{companyId}/options",
                         "/api/v1/companies/{companyId}/users",
+                        "/api/v1/companies/{companyId}/users/all",
                         "/api/v1/companies/{companyId}/invitations",
                         "/api/v1/companies/{companyId}/invitations/{invitationId}",
                         "/api/v1/companies/{companyId}/members/{userId}",

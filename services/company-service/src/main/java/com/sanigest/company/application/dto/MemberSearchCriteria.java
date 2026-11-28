@@ -6,7 +6,7 @@ import java.util.Locale;
 import java.util.Set;
 
 public record MemberSearchCriteria(
-    String search, MembershipStatus status, CompanyRole role, int page, int size, String sort) {
+    String search, String status, CompanyRole role, int page, int size, String sort) {
   public MemberSearchCriteria {
     search = search == null ? "" : search.strip();
     if (search.length() > 160
@@ -17,6 +17,14 @@ public record MemberSearchCriteria(
       throw new IllegalArgumentException("Invalid member page parameters");
     }
     search = search.toLowerCase(Locale.ROOT);
+  }
+
+  public Set<MembershipStatus> statuses() {
+    return switch (status == null ? "ALL" : status) {
+      case "ALL" -> Set.of();
+      case "INACTIVE" -> Set.of(MembershipStatus.SUSPENDED, MembershipStatus.REVOKED);
+      default -> Set.of(MembershipStatus.valueOf(status));
+    };
   }
 
   public boolean descending() {

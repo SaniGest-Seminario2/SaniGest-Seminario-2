@@ -8,7 +8,7 @@ Base main `454eb69`. Rutas relativas a `/api/v1`. **Vigente** indica ruta presen
 | Onboarding y selección por pestaña | GET/POST /companies; X-Company-Id | Company/Gateway | Vigente | S2-453, S2-454, S2-474, S2-421 |
 | Perfil empresa | GET/PATCH /companies/{companyId} | Company | Vigente | S2-454, S2-471, S2-474 |
 | Equipo paginado | GET /companies/{companyId}/users?view=page | Company | Evolución | S2-474 |
-| Equipo sin paginar | GET /companies/{companyId}/users/all | Company | Pendiente | S2-474 |
+| Equipo sin paginar | GET /companies/{companyId}/users/all | Company | Vigente | S2-474 |
 | Equipo e incorporación | POST/GET /companies/{companyId}/invitations; DELETE /companies/{companyId}/invitations/{invitationId}; POST /invitations/{token}/accept | Company | Evolución entrega/alta; gestión vigente | S2-455, S2-474 |
 | Equipo, roles y desactivación | PATCH /companies/{companyId}/members/{userId}/{role,status}; DELETE /companies/{companyId}/members/{userId} | Company | Vigente | S2-455, S2-474 |
 | Opciones fijas y filtros | GET /companies/{companyId}/options; GET /catalog/options; GET /inventory/options; GET /sales/options | Company/Catalog/Inventory/Sales | Vigente | S2-473 |

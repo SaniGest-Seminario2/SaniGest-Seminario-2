@@ -17,6 +17,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.support.DataAccessUtils;
@@ -271,13 +272,13 @@ class JdbcMembershipRepository implements MembershipRepository {
   public List<Membership> findBatch(
       UUID companyId,
       CompanyRole role,
-      MembershipStatus status,
+      Set<MembershipStatus> statuses,
       boolean descending,
       UUID after,
       int limit,
       long offset) {
     var args = new ArrayList<>();
-    String filter = filter(args, companyId, role, status);
+    String filter = filter(args, companyId, role, statuses);
     if (after != null) {
       filter += descending ? " AND id < ?" : " AND id > ?";
       args.add(after);
@@ -294,25 +295,28 @@ class JdbcMembershipRepository implements MembershipRepository {
   }
 
   @Override
-  public long count(UUID companyId, CompanyRole role, MembershipStatus status) {
+  public long count(UUID companyId, CompanyRole role, Set<MembershipStatus> statuses) {
     var args = new ArrayList<>();
-    String filter = filter(args, companyId, role, status);
+    String filter = filter(args, companyId, role, statuses);
     return java.util.Objects.requireNonNull(
         jdbc.queryForObject(
             "SELECT count(*) FROM company_memberships" + filter, Long.class, args.toArray()));
   }
 
   private static String filter(
-      List<Object> args, UUID companyId, CompanyRole role, MembershipStatus status) {
+      List<Object> args, UUID companyId, CompanyRole role, Set<MembershipStatus> statuses) {
     args.add(companyId);
     String filter = " WHERE company_id = ?";
     if (role != null) {
       filter += " AND role = ?";
       args.add(role.name());
     }
-    if (status != null) {
-      filter += " AND status = ?";
-      args.add(status.name());
+    if (!statuses.isEmpty()) {
+      filter +=
+          " AND status IN ("
+              + String.join(", ", java.util.Collections.nCopies(statuses.size(), "?"))
+              + ")";
+      statuses.stream().map(MembershipStatus::name).forEach(args::add);
     }
     return filter;
   }

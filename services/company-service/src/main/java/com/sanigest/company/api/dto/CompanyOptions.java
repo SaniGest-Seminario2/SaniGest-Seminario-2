@@ -11,8 +11,8 @@ public record CompanyOptions(
     List<ValueOption<String>> companyStatuses,
     List<ValueOption<String>> companyStatusFilters) {
   public static CompanyOptions from(List<CompanyRole> roles) {
-    var active = of(CompanyStatus.ACTIVE, "Activa");
-    var inactive = of(CompanyStatus.INACTIVE, "Inactiva");
+    var active = of(CompanyStatus.ACTIVE, "Activo");
+    var inactive = of(CompanyStatus.INACTIVE, "Inactivo");
     return new CompanyOptions(
         roles.stream()
             .map(role ->

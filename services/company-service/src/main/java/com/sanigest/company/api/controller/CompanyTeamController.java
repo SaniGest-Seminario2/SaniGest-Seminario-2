@@ -15,7 +15,6 @@ import com.sanigest.company.application.usecase.team.AcceptCompanyInvitationUseC
 import com.sanigest.company.application.usecase.team.InviteCompanyUserUseCase;
 import com.sanigest.company.application.usecase.team.ListMyCompanyUsersUseCase;
 import com.sanigest.company.domain.enums.CompanyRole;
-import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.web.PageResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -135,21 +134,34 @@ class CompanyTeamController {
         .body(MemberPageResponse.from(result));
   }
 
-  record MemberPageQuery(
-      String search,
-      MembershipStatus status,
-      CompanyRole role,
-      Integer page,
-      Integer size,
-      String sort) {
-    MemberSearchCriteria criteria() {
+  @GetMapping("/api/v1/companies/{companyId}/users/all")
+  ResponseEntity<List<MemberPageResponse.Item>> allUsers(
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable String companyId,
+      HttpServletRequest http,
+      @ParameterObject @ModelAttribute MemberQuery query) {
+    var members =
+        listUsers.all(
+            authenticatedUserId(jwt, regularAccount),
+            resolve(http, companyId),
+            query.criteria(0, 20));
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(members.stream().map(MemberPageResponse.Item::from).toList());
+  }
+
+  record MemberQuery(String search, String status, CompanyRole role, String sort) {
+    MemberSearchCriteria criteria(int page, int size) {
       return new MemberSearchCriteria(
-          search,
-          status,
-          role,
-          page == null ? 0 : page,
-          size == null ? 20 : size,
-          sort == null ? "membershipId,asc" : sort);
+          search, status, role, page, size, sort == null ? "membershipId,asc" : sort);
+    }
+  }
+
+  record MemberPageQuery(
+      String search, String status, CompanyRole role, Integer page, Integer size, String sort) {
+    MemberSearchCriteria criteria() {
+      return new MemberQuery(search, status, role, sort)
+          .criteria(page == null ? 0 : page, size == null ? 20 : size);
     }
   }
 }

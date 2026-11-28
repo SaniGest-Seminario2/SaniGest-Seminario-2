@@ -508,6 +508,41 @@ class ServiceRoutingIT {
   }
 
   @Test
+  void forwardsAuthenticationAndTeamContracts() throws Exception {
+    String authorization = "Bearer " + GatewayTestTokens.validToken();
+    for (String action : List.of("register", "login")) {
+      String path = "/api/v1/auth/" + action;
+      var response =
+          send(
+              request(gateway(), path)
+                  .header("Content-Type", "application/json")
+                  .POST(HttpRequest.BodyPublishers.ofString("{}")));
+      assertThat(response.body()).isEqualTo("identity POST " + path + " {}");
+    }
+    var me =
+        send(request(gateway(), "/api/v1/auth/me").header("Authorization", authorization).GET());
+    assertThat(me.body()).isEqualTo("identity GET /api/v1/auth/me ");
+    assertThat(me.headers().firstValue("X-Backend-Authorization")).contains(authorization);
+
+    String team = "/api/v1/companies/" + TENANT;
+    for (String suffix :
+        List.of("/users?view=page&status=INACTIVE", "/users/all?status=INACTIVE", "/options")) {
+      var response =
+          send(request(gateway(), team + suffix).header("Authorization", authorization).GET());
+      assertThat(response.body()).isEqualTo("company GET " + team + suffix + " ");
+      assertThat(response.headers().firstValue("X-Backend-X-Company-Id")).contains(TENANT);
+    }
+    var mismatch =
+        send(
+            request(gateway(), team + "/users/all")
+                .header("Authorization", authorization)
+                .header("X-Company-Id", "0098a4d2-cf3e-4599-a9da-af9972e50251")
+                .GET());
+    assertThat(mismatch.statusCode()).isEqualTo(400);
+    assertThat(mismatch.body()).contains("COMPANY_CONTEXT_MISMATCH");
+  }
+
+  @Test
   void rejectsMissingDuplicateAndConflictingSelectorsBeforeRouting() throws Exception {
     String token = "Bearer " + GatewayTestTokens.validToken();
     var sales = request(gateway(), "/api/v1/sales").header("Authorization", token).GET();

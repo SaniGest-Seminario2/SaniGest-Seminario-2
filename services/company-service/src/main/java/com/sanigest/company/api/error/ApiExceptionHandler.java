@@ -8,6 +8,7 @@ import com.sanigest.company.application.exception.CompanyNotFoundException;
 import com.sanigest.company.application.exception.CompanySelectionRequiredException;
 import com.sanigest.company.application.exception.InvitationNotFoundException;
 import com.sanigest.company.application.exception.LastOwnerException;
+import com.sanigest.company.application.exception.MemberListLimitException;
 import com.sanigest.company.application.exception.MemberNotFoundException;
 import com.sanigest.companyaccess.TraceIds;
 import com.sanigest.security.CompanySelector.InvalidContext;
@@ -78,6 +79,12 @@ class ApiExceptionHandler extends MvcProblems {
   @ExceptionHandler(InvitationNotFoundException.class)
   ProblemDetail invitationNotFound(HttpServletRequest request) {
     return problem(request, HttpStatus.NOT_FOUND, "Invitation not found");
+  }
+
+  @ExceptionHandler(MemberListLimitException.class)
+  ProblemDetail memberListLimit(HttpServletRequest request, MemberListLimitException failure) {
+    return problem(
+        request, HttpStatus.BAD_REQUEST, "MEMBER_LIST_LIMIT_EXCEEDED", failure.getMessage());
   }
 
   @ExceptionHandler(MemberNotFoundException.class)

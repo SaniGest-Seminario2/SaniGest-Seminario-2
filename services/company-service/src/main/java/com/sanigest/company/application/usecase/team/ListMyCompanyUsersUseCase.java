@@ -3,6 +3,7 @@ package com.sanigest.company.application.usecase.team;
 import com.sanigest.company.application.dto.MemberPage;
 import com.sanigest.company.application.dto.MemberSearchCriteria;
 import com.sanigest.company.application.exception.AuthorizationUnavailableException;
+import com.sanigest.company.application.exception.MemberListLimitException;
 import com.sanigest.company.application.port.out.integration.MemberIdentityDirectory;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
 import com.sanigest.company.application.usecase.profile.GetMyCompanyUseCase;
@@ -17,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ListMyCompanyUsersUseCase {
+  public static final int ALL_LIMIT = 500;
+
   private final GetMyCompanyUseCase getMyCompany;
   private final MembershipRepository memberships;
   private final CompanyMembershipPolicy policy;
@@ -50,15 +53,16 @@ public class ListMyCompanyUsersUseCase {
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public MemberPage page(UUID userId, UUID requestedCompany, MemberSearchCriteria criteria) {
     UUID company = policy.requireAdministrator(userId, requestedCompany, false);
+    var statuses = criteria.statuses();
     if (criteria.search().isEmpty()) {
-      long total = memberships.count(company, criteria.role(), criteria.status());
+      long total = memberships.count(company, criteria.role(), statuses);
       var batch =
           criteria.offset() >= total
               ? List.<Membership>of()
               : memberships.findBatch(
                   company,
                   criteria.role(),
-                  criteria.status(),
+                  statuses,
                   criteria.descending(),
                   null,
                   criteria.size(),
@@ -66,7 +70,24 @@ public class ListMyCompanyUsersUseCase {
       return result(criteria, enrich(batch), total);
     }
 
-    var items = new ArrayList<MemberPage.Item>(criteria.size());
+    return scan(company, criteria, criteria.size(), false);
+  }
+
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+  public List<MemberPage.Item> all(
+      UUID userId, UUID requestedCompany, MemberSearchCriteria criteria) {
+    UUID company = policy.requireAdministrator(userId, requestedCompany, false);
+    if (criteria.search().isEmpty()
+        && memberships.count(company, criteria.role(), criteria.statuses()) > ALL_LIMIT) {
+      throw new MemberListLimitException(ALL_LIMIT);
+    }
+    return scan(company, criteria, ALL_LIMIT, true).items();
+  }
+
+  private MemberPage scan(UUID company, MemberSearchCriteria criteria, int limit, boolean bounded) {
+    var statuses = criteria.statuses();
+    var items = new ArrayList<MemberPage.Item>();
+    long offset = bounded ? 0 : criteria.offset();
     long total = 0;
     UUID after = null;
     int batchSize = MemberIdentityDirectory.MAX_BATCH;
@@ -74,16 +95,13 @@ public class ListMyCompanyUsersUseCase {
     while (true) {
       var batch =
           memberships.findBatch(
-              company,
-              criteria.role(),
-              criteria.status(),
-              criteria.descending(),
-              after,
-              batchSize,
-              0);
+              company, criteria.role(), statuses, criteria.descending(), after, batchSize, 0);
       for (var item : enrich(batch)) {
         if (matches(item, criteria.search())) {
-          if (total >= criteria.offset() && items.size() < criteria.size()) {
+          if (bounded && total == limit) {
+            throw new MemberListLimitException(ALL_LIMIT);
+          }
+          if (total >= offset && items.size() < limit) {
             items.add(item);
           }
           total++;
