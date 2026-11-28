@@ -100,7 +100,7 @@ Expense/Finance exigen permiso de lectura/escritura de su módulo y permisos sen
 | Recepciones · Expense/Inventory | POST /expenses/{id}/receipts; POST /expenses/{id}/receipts/{receiptId}/reversals (propuesta) | Líneas, almacén y cantidad física confirmada → ID y PENDING/PARTIAL/COMPLETE derivados. Inventory confirma entrada idempotente por operación/efecto. Reversión correlacionada cuando elegible. Evitar exceso y movimientos para servicios. |
 | CxP · Expense | GET /payables; GET /payables/all; GET /payables/{id}; GET/POST /payables/{id}/payments | Buscar proveedor/concepto y filtrar igual que cartera CxC, con vencimiento, original y saldo. Pago con importe, medio, cuenta, fecha, referencia condicional y observaciones opcionales → pago, estado y saldo; historial paginado. Proyección por proveedor desde Expense. |
 | Cuentas y transferencias · Finance | GET/POST /financial-accounts; GET/PATCH /financial-accounts/{id}; GET /accounts/options; POST /transfers | Cuenta con nombre, tipo, moneda, estado y saldo inicial con corte verificable → cuenta y saldo de backend. Transferencia con cuenta origen/destino distintas, importe, fecha y referencia → efecto interno atómico correlacionado. Reutilizar servicio de transferencia desde el formulario de movimientos. Rutas de gestión propuestas para S2-467. |
-| Ingresos y egresos · Finance | GET/POST /cash-movements; GET /cash-movements/all; GET /cash-movements/{id}; GET /cash-movements/summary; GET /cash-movements/export | Alta `type,date,category,method,personOrEntity,amount,concept`, cuenta destino en ingreso/origen en egreso/ambas en transferencia, referencia bancaria según medio, observaciones según formulario, documento opcional. Origen MANUAL derivado al crear. → referencia, concepto, medios, cuentas, entidad, comprobante y estado. Buscar concepto/referencia, filtrar tipo/origen/medio/categoría/fechas. Resumen entradas/salidas/neto/saldo inicial/final/cantidad, excluye transferencias del flujo global. CSV acotado con mismo filtro y orden. |
+| Ingresos y egresos · Finance | GET/POST /cash-movements; GET /cash-movements/all; GET /cash-movements/{id}; GET /cash-movements/summary; GET /cash-movements/export | Alta `type,date,category,method,personOrEntity,amount,concept`, `destinationAccountId,bankReference,observations` obligatorios en los tres tipos, `sourceAccountId` obligatorio en transferencia y documento opcional. Origen MANUAL derivado al crear. → referencia, concepto, medios, cuentas, entidad, comprobante y estado. Buscar concepto/referencia, filtrar tipo/origen/medio/categoría/fechas. Resumen entradas/salidas/neto/saldo inicial/final/cantidad, excluye transferencias del flujo global. CSV acotado con mismo filtro y orden. |
 | Dashboard · Finance | GET /dashboard/summary; GET /dashboard/recent-activity; GET /dashboard/monthly-activity (propuesta para serie) | Período/corte y series mensuales → ventas, gastos, CxC/CxP, caja, actividad y tendencias reales. Lectura FINANCE con autorización de fuentes. |
 | Reportes · Finance | GET /reports/financial-summary | `from,to` y período → montos reales por devengo y flujo, obligaciones, entradas/salidas, neto y saldos. Lectura FINANCE. |
 
@@ -113,3 +113,16 @@ Adjuntos privados de compras y movimientos y saldos iniciales CxC/CxP quedan suj
 - La consulta expone metadatos de auditoría permitidos y conserva la propiedad local del historial. Finance usa el cliente de autorización de Company con `FINANCE_COMPANY_ACCESS_ENABLED`, `FINANCE_COMPANY_ACCESS_ORIGIN` y `FINANCE_COMPANY_ACCESS_PRIVATE_KEY_LOCATION`. Company debe confiar en la clave pública del emisor de Finance. El Compose de QA incluye esa configuración.
 - `mode` es modalidad de operación («Contado», «Crédito»). `paymentTerms` es la condición de maestro. `documentStatus` es estado documental, separado de `paymentStatus`. PENDING («Pendiente») es presentación de obligación OPEN en cartera; no muta el estado persistido. `number` es el número de factura en su DTO, `invoiceNumber` su proyección en otro recurso, y `saleCode` identifica la venta.
 - `outstandingBalance` significa saldo exigible, `balance` conserva la semántica histórica de CxC. Disponibilidad comercial y física son distintas. `active` del artículo se presenta como «Activo/Inactivo». Para maestros `/status` implica desactivación lógica; una operación documentada usa anulación o reversión con motivo.
+
+### Alta de movimientos manuales
+
+`GET /api/v1/finance/options` devuelve `movementTypes`, `movementCategories`,
+`movementMethods` y `movementAccounts` como listas de `{value,label}`. Usa el
+UUID publicado para la empresa seleccionada en los campos de cuenta.
+
+`POST /api/v1/cash-movements` requiere `X-Company-Id` e `Idempotency-Key`.
+Acepta JSON o un formulario multipart con la parte JSON `movement`
+(`Content-Type: application/json`) y un `document` opcional (PDF, PNG o JPEG
+de hasta 1 MiB). La respuesta 201 incluye `id`, `origin`, `actorId`,
+`movement` y `documentUrl`. La misma clave y contenido devuelven el mismo
+identificador para ese actor y empresa. Cambiar el contenido devuelve 409.

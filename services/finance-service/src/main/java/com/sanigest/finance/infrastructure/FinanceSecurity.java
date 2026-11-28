@@ -49,11 +49,14 @@ class FinanceSecurity {
                 .requestMatchers(
                     HttpMethod.GET,
                     "/api/v1/finance/audit-log",
+                    "/api/v1/finance/options",
+                    "/api/v1/cash-movements/{id}/attachment",
                     "/api/v1/cash-sessions/active/summary",
                     "/api/v1/dashboard/projection",
                     "/api/v1/reports/projection")
                 .authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/v1/reports/projection/rebuild")
+                .requestMatchers(
+                    HttpMethod.POST, "/api/v1/reports/projection/rebuild", "/api/v1/cash-movements")
                 .authenticated()
                 .anyRequest()
                 .denyAll())

@@ -68,7 +68,7 @@ public class FinancialProjections {
               SELECT date_trunc('month', date)::date AS month,
                      coalesce(sum(net) FILTER (WHERE original_direction = 'INFLOW'), 0) AS inflow,
                      coalesce(sum(net) FILTER (WHERE original_direction = 'OUTFLOW'), 0) AS outflow
-              FROM movements GROUP BY 1
+              FROM movements WHERE event_type <> 'INTERNAL_TRANSFER' GROUP BY 1
             ), activity AS (
               SELECT value AS item, (value ->> 'date')::date::timestamp
                        AT TIME ZONE 'America/Santo_Domingo' AS occurred_at,
