@@ -349,7 +349,8 @@ class CatalogServiceIT {
             "catalog.units_of_measure",
             "catalog.tax_classifications",
             "catalog.tax_rate_versions",
-            "catalog.catalog_item_history");
+            "catalog.catalog_item_history",
+            "catalog.audit_log");
     assertThat(flyway.info().applied())
         .extracting(migration -> migration.getScript())
         .containsExactly(
@@ -1121,7 +1122,7 @@ class CatalogServiceIT {
             Flyway.configure().dataSource(source).target("17").load().migrate().migrationsExecuted)
         .isEqualTo(4);
     assertThat(Flyway.configure().dataSource(source).load().migrate().migrationsExecuted)
-        .isEqualTo(2);
+        .isEqualTo(3);
     assertIncompleteInsertsRejected(jdbc, companyId);
     assertThat(
             jdbc.queryForObject(
