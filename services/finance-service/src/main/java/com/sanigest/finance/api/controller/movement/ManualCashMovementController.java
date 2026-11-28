@@ -1,10 +1,8 @@
 package com.sanigest.finance.api.controller.movement;
 
-import com.sanigest.companyaccess.application.exception.CompanyAccessUnavailable;
-import com.sanigest.companyaccess.application.port.out.CompanyAccess;
-import com.sanigest.companyaccess.application.port.out.CompanyAccess.MembershipRole;
 import com.sanigest.companyaccess.application.port.out.CompanyAccess.Scope;
 import com.sanigest.companyaccess.security.authentication.AuthenticatedActor;
+import com.sanigest.finance.api.security.CashAccess;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Document;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Options;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Request;
@@ -18,12 +16,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.UUID;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,16 +35,16 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
+@PreAuthorize("isAuthenticated()")
 class ManualCashMovementController {
   private static final String MOVEMENTS = "/api/v1/cash-movements";
   private static final String IDEMPOTENCY_KEY = "Idempotency-Key";
   private final ManualCashMovements movements;
-  private final ObjectProvider<CompanyAccess> companies;
+  private final CashAccess access;
 
-  ManualCashMovementController(
-      ManualCashMovements movements, ObjectProvider<CompanyAccess> companies) {
+  ManualCashMovementController(ManualCashMovements movements, CashAccess access) {
     this.movements = movements;
-    this.companies = companies;
+    this.access = access;
   }
 
   @GetMapping("/api/v1/finance/options")
@@ -106,28 +104,7 @@ class ManualCashMovementController {
   }
 
   private UUID company(HttpServletRequest http, Scope scope) {
-    try {
-      UUID id =
-          CompanySelector.resolve(
-              Collections.list(http.getHeaders(CompanySelector.HEADER)), null, true);
-      companies
-          .getIfAvailable(() -> {
-            throw new CompanyAccessUnavailable();
-          })
-          .membership(id, scope)
-          .filter(member -> id.equals(member.companyId()))
-          .filter(member ->
-              member.role() == MembershipRole.OWNER
-                  || member.role() == MembershipRole.ADMIN
-                  || (scope == Scope.READ && member.explicitGrant()))
-          .orElseThrow(ManualCashMovementController::denied);
-      return id;
-    } catch (CompanySelector.InvalidContext invalid) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, invalid.getMessage());
-    } catch (CompanyAccessUnavailable unavailable) {
-      throw new ResponseStatusException(
-          HttpStatus.SERVICE_UNAVAILABLE, "Company authorizer unavailable");
-    }
+    return access.require(Collections.list(http.getHeaders(CompanySelector.HEADER)), scope);
   }
 
   private static ResponseStatusException denied() {

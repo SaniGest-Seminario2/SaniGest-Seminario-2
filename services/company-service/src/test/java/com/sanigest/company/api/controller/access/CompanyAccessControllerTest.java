@@ -60,6 +60,16 @@ class CompanyAccessControllerTest {
   }
 
   @Test
+  void resolvesFinanceWriteUsingTheCashGrant() {
+    session(USER);
+    when(accounts.resolve(SESSION)).thenReturn(AccountType.REGULAR);
+    when(memberships.findActiveAccess(USER, COMPANY, "CASH_WRITE"))
+        .thenReturn(Optional.of(new ActiveAccess(COMPANY, CompanyRole.OPERATOR, true, "Empresa")));
+    var response = controller.resolve(assertion(null, "FINANCE"), SESSION);
+    assertThat(response.getBody().explicitGrant()).isTrue();
+  }
+
+  @Test
   void includesCompanyNameInSalesWriteMembership() {
     session(USER);
     when(accounts.resolve(SESSION)).thenReturn(AccountType.REGULAR);

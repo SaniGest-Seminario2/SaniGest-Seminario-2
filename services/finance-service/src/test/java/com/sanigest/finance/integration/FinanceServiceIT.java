@@ -169,9 +169,40 @@ class FinanceServiceIT {
       assertThat(created.statusCode()).isEqualTo(201);
       assertThat(json.readTree(created.body()).get("actorId").asString())
           .isEqualTo(actor.toString());
-      when(companyAccess.membership(company, Scope.WRITE))
-          .thenReturn(Optional.of(new MembershipContext(company, MembershipRole.VIEWER, true)));
+      var viewer = Optional.of(new MembershipContext(company, MembershipRole.VIEWER, true));
+      when(companyAccess.membership(company, Scope.READ)).thenReturn(viewer);
+      when(companyAccess.membership(company, Scope.WRITE)).thenReturn(viewer);
+      var options =
+          HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/finance/options"))
+              .header("Authorization", "Bearer test-token")
+              .header("X-Company-Id", company.toString())
+              .build();
+      assertThat(client.send(options, HttpResponse.BodyHandlers.discarding()).statusCode())
+          .isEqualTo(200);
       assertThat(post(client, company, valid.toString()).statusCode()).isEqualTo(403);
+
+      when(companyAccess.membership(company, Scope.WRITE))
+          .thenReturn(Optional.of(new MembershipContext(company, MembershipRole.OPERATOR, false)));
+      assertThat(post(client, company, valid.toString()).statusCode()).isEqualTo(403);
+      when(companyAccess.membership(company, Scope.WRITE))
+          .thenReturn(Optional.of(new MembershipContext(company, MembershipRole.OPERATOR, true)));
+      assertThat(post(client, company, valid.toString(), "operator-movement").statusCode())
+          .isEqualTo(201);
+      assertThat(post(client, company, valid.toString(), "operator-movement").statusCode())
+          .isEqualTo(201);
+      assertThat(
+              jdbc.sql(
+                      """
+                      SELECT count(*) FROM finance.audit_entries
+                      WHERE company_id = :company AND actor_id = :actor
+                        AND resource_type = 'CASH_MOVEMENT' AND operation = 'INCOME'
+                        AND result = 'SUCCESS'
+                      """)
+                  .param("company", company)
+                  .param("actor", actor)
+                  .query(Integer.class)
+                  .single())
+          .isEqualTo(2);
     }
   }
 
@@ -222,11 +253,16 @@ class FinanceServiceIT {
   }
 
   private HttpResponse<String> post(HttpClient client, UUID company, String body) throws Exception {
+    return post(client, company, body, "manual-movement");
+  }
+
+  private HttpResponse<String> post(HttpClient client, UUID company, String body, String key)
+      throws Exception {
     var request =
         HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/cash-movements"))
             .header("Authorization", "Bearer test-token")
             .header("X-Company-Id", company.toString())
-            .header("Idempotency-Key", "manual-movement")
+            .header("Idempotency-Key", key)
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build();

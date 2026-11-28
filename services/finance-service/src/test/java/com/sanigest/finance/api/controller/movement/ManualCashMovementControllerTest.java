@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.sanigest.companyaccess.application.port.out.CompanyAccess;
+import com.sanigest.finance.api.security.CashAccess;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Document;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Options;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Result;
@@ -39,7 +40,8 @@ class ManualCashMovementControllerTest {
   void manualMovementsAuthorizeTheSelectedCompanyAndProtectDocuments() {
     var access = mock(CompanyAccess.class);
     var movements = mock(ManualCashMovements.class);
-    var controller = new ManualCashMovementController(movements, accessProvider(access));
+    var controller =
+        new ManualCashMovementController(movements, new CashAccess(accessProvider(access)));
     var request = new MockHttpServletRequest();
     request.addHeader("X-Company-Id", company.toString());
     var role =
@@ -73,7 +75,8 @@ class ManualCashMovementControllerTest {
   void manualMovementsUseAuthenticatedActorAndValidateMultipartDocuments() {
     var access = mock(CompanyAccess.class);
     var movements = mock(ManualCashMovements.class);
-    var controller = new ManualCashMovementController(movements, accessProvider(access));
+    var controller =
+        new ManualCashMovementController(movements, new CashAccess(accessProvider(access)));
     var request = new MockHttpServletRequest();
     request.addHeader("X-Company-Id", company.toString());
     request.addHeader("Idempotency-Key", "key");

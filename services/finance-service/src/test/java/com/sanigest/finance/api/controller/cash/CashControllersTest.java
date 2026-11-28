@@ -6,6 +6,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.sanigest.companyaccess.application.port.out.CompanyAccess;
+import com.sanigest.finance.api.security.CashAccess;
 import com.sanigest.finance.application.port.in.cash.PaymentAdmission;
 import com.sanigest.finance.application.port.in.cash.PaymentAdmission.ActiveShift;
 import com.sanigest.finance.application.usecase.cash.ActiveCashSummary;
@@ -13,6 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.server.ResponseStatusException;
@@ -26,7 +29,16 @@ class CashControllersTest {
   @Test
   void activeSummaryUsesSelectedCompanyAndAuthenticatedOperator() {
     var summary = mock(ActiveCashSummary.class);
-    var controller = new ActiveCashSummaryController(summary);
+    var companies = mock(CompanyAccess.class);
+    var access =
+        new CashAccess(
+            new ObjectProvider<>() {
+              @Override
+              public CompanyAccess getIfAvailable() {
+                return companies;
+              }
+            });
+    var controller = new ActiveCashSummaryController(summary, access);
     assertEquals(
         400,
         assertThrows(
@@ -35,6 +47,17 @@ class CashControllersTest {
             .getStatusCode()
             .value());
     verifyNoInteractions(summary);
+    assertEquals(
+        403,
+        assertThrows(ResponseStatusException.class, () -> controller.activeSummary(jwt, headers()))
+            .getStatusCode()
+            .value());
+    verifyNoInteractions(summary);
+    when(companies.membership(company, CompanyAccess.Scope.READ))
+        .thenReturn(
+            Optional.of(
+                new CompanyAccess.MembershipContext(
+                    company, CompanyAccess.MembershipRole.VIEWER, true)));
     when(summary.find(company, operator, "token")).thenReturn(Optional.empty());
     assertEquals(404, controller.activeSummary(jwt, headers()).getStatusCode().value());
   }
