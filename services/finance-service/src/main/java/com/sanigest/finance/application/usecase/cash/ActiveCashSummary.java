@@ -4,6 +4,7 @@ import com.sanigest.finance.application.dto.cash.CashSummary.Summary;
 import com.sanigest.finance.application.port.in.cash.PaymentAdmission;
 import com.sanigest.finance.application.port.out.integration.cash.PendingInvoices;
 import com.sanigest.finance.application.port.out.persistence.cash.CashSummaryLedger;
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,11 +27,14 @@ public class ActiveCashSummary {
         .find(companyId, operatorId)
         .map(shift -> {
           var amounts = movements.totals(companyId, shift.shiftId());
+          var totalOtherMethods =
+              amounts.otherMethods().values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
           return new Summary(
               shift.shiftId(),
               amounts.totalCollections(),
               pending,
               amounts.netCash(),
+              totalOtherMethods,
               amounts.otherMethods());
         });
   }

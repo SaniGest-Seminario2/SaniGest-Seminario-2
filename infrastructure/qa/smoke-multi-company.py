@@ -122,7 +122,8 @@ def verify_payment(compose, token, owner, company, other, invoice, sale, client)
         VALUES ('{company_uuid}', '{shift}', '{owner}', now());
         INSERT INTO finance.cash_accounts (company_id, id) VALUES ('{company_uuid}', '{account}');
         INSERT INTO finance.shift_payment_accounts (company_id, shift_id, method, account_id)
-        VALUES ('{company_uuid}', '{shift}', 'CASH', '{account}');
+        VALUES ('{company_uuid}', '{shift}', 'CASH', '{account}'),
+               ('{company_uuid}', '{shift}', 'TRANSFER', '{account}');
         COMMIT;
     """)
 
@@ -188,10 +189,11 @@ def verify_payment(compose, token, owner, company, other, invoice, sale, client)
         assert time.monotonic() < deadline, f"Payment did not reach Finance: {summary}"
         time.sleep(0.5)
     assert summary["shiftId"] == str(shift) and Decimal(str(summary["netCash"])) == Decimal("1.00")
+    assert Decimal(str(summary["totalOtherMethods"])) == 0
     exchange("cash-sessions/active/summary", token=token, tenant=other, status=404)
 
     remainder = {**data, "balance": str(balance),
-                 "lines": [{"amount": str(balance), "method": "CASH"}]}
+                 "lines": [{"amount": str(balance), "method": "TRANSFER", "reference": "QA-TRANSFER"}]}
     start = threading.Barrier(2)
 
     def finish(_):
@@ -210,6 +212,17 @@ def verify_payment(compose, token, owner, company, other, invoice, sale, client)
     assert get("receivables/all?status=PARTIALLY_PAID") == []
     assert {line["paymentId"] for line in get("cash-sessions/active/payments")} == {
         payment["paymentId"], settled[0]["paymentId"]}
+
+    deadline = time.monotonic() + 30
+    while True:
+        summary = get("cash-sessions/active/summary")
+        if Decimal(str(summary["totalCollections"])) == total:
+            break
+        assert time.monotonic() < deadline, f"Transfer did not reach Finance: {summary}"
+        time.sleep(0.5)
+    assert Decimal(str(summary["netCash"])) == Decimal("1.00")
+    assert Decimal(str(summary["otherMethods"]["TRANSFER"])) == balance
+    assert Decimal(str(summary["totalOtherMethods"])) == balance
 
 
 def verify_invoice_list_limit(compose, token, company, other, source_invoice):
