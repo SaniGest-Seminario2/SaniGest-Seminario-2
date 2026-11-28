@@ -573,7 +573,6 @@ def main(compose):
     exchange(f"clients/{client_a}", token=token, tenant=b, status=404, origin=CATALOG)
     warehouse = verify_inventory(token, a, b, item_a)
     payable = verify_expenses(token, a, b, item_a, warehouse)
-    exchange("invoices", token=token, tenant=a, data=sale, key=uuid.uuid4().hex, status=422)
     assert exchange("sales", token=token, tenant=a)["totalElements"] == 1
     if compose:
         verify_roles(compose, token, a, b)
@@ -602,10 +601,74 @@ def main(compose):
         assert summary["totalCash"] == summary["outstandingBalance"] == "0.00"
         assert exchange("invoices/collectible/all", token=token, tenant=a) == []
         verify_invoice_list_limit(compose, token, a, b, payable_invoice)
+        verify_sale_stock(compose, token, a, warehouse, item_a, sale)
     refresh = {"refreshToken": session["refreshToken"]}
     exchange("auth/logout", data=refresh, status=204)
     exchange("auth/refresh", data=refresh, status=401)
     print("Multi-company HTTP smoke passed")
+
+
+def verify_sale_stock(compose, token, company, warehouse, item, sale):
+    request = {**sale, "lines": [
+        {"catalogItemId": item, "quantity": qty, "unitPrice": 25} for qty in (7, 6)
+    ]}
+    start = threading.Barrier(2)
+    keys = [uuid.uuid4().hex, uuid.uuid4().hex]
+
+    def issue(key):
+        start.wait(timeout=10)
+        try:
+            return key, exchange("invoices", token=token, tenant=company, data=request,
+                                 key=key, status=201)
+        except AssertionError as failure:
+            assert "got 409 (INSUFFICIENT_STOCK)" in str(failure), failure
+            return key, None
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(issue, keys))
+    [(key, invoice)] = [(key, invoice) for key, invoice in results if invoice]
+    assert exchange("invoices", token=token, tenant=company, data=request,
+                    key=key, status=201) == invoice
+    path = f"inventory/stock/{item}/{warehouse}"
+    assert exchange(path, token=token, tenant=company)["onHand"] == "11.000"
+    cancel = f"sales/{invoice['saleId']}/cancel"
+    for reason in ("Venta anulada", "Reintento"):
+        exchange(cancel, token=token, tenant=company, data={"reason": reason})
+    deadline = time.monotonic() + 20
+    while exchange(path, token=token, tenant=company)["onHand"] != "24.000":
+        assert time.monotonic() < deadline, "Sale reversal did not restore stock"
+        time.sleep(0.25)
+    movements = exchange(f"inventory/movements?originType=SALE&originId={invoice['saleId']}",
+                         token=token, tenant=company)["content"]
+    assert {(row["movementType"], row["quantity"]) for row in movements} == {
+        ("SALE_ISSUE", "13.000"), ("SALE_REVERSAL", "13.000")}
+    assert len(movements) == 2
+
+    fixture(compose, "sanigest_sales", """
+        CREATE FUNCTION sales.test_reject_stock_invoice() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'test rollback after issue' USING ERRCODE = '23514'; END;
+        $$;
+        CREATE TRIGGER test_reject_stock_invoice BEFORE INSERT ON sales.internal_invoices
+        FOR EACH ROW EXECUTE FUNCTION sales.test_reject_stock_invoice();
+    """)
+    try:
+        failure = exchange("invoices", token=token, tenant=company, data=request,
+                           key=uuid.uuid4().hex, status=409)
+        assert failure["errorCode"] == "SALE_CONFLICT"
+        assert exchange(path, token=token, tenant=company)["onHand"] == "11.000"
+    finally:
+        fixture(compose, "sanigest_sales", """
+            DROP TRIGGER test_reject_stock_invoice ON sales.internal_invoices;
+            DROP FUNCTION sales.test_reject_stock_invoice();
+            UPDATE sales.sale_stock_intents i SET revert_after = clock_timestamp()
+            WHERE revert_after IS NOT NULL AND NOT EXISTS (
+                SELECT 1 FROM sales.sales s WHERE s.company_id = i.company_id AND s.id = i.sale_id
+            );
+        """)
+    deadline = time.monotonic() + 20
+    while exchange(path, token=token, tenant=company)["onHand"] != "24.000":
+        assert time.monotonic() < deadline, "Stock from the rolled-back sale was not restored"
+        time.sleep(0.25)
 
 
 def verify_inventory(token, company, other, item):

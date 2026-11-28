@@ -71,6 +71,11 @@ class SecurityConfiguration {
                     "/api/v1/inventory/adjustments",
                     "/internal/v1/inventory/purchase-receipts")
                 .authenticated()
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/internal/v1/inventory/companies/{company}/sales/{sale}/issue",
+                    "/internal/v1/inventory/companies/{company}/sales/{sale}/reverse")
+                .permitAll()
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/warehouses/{id}")
                 .authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/v1/inventory/stock/{itemId}/{warehouseId}")

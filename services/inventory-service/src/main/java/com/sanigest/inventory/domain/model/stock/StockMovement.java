@@ -25,7 +25,9 @@ public record StockMovement(
   public enum Type {
     INITIAL_STOCK,
     MANUAL_ADJUSTMENT,
-    PURCHASE_RECEIPT
+    PURCHASE_RECEIPT,
+    SALE_ISSUE,
+    SALE_REVERSAL
   }
 
   public enum Direction {
@@ -36,7 +38,8 @@ public record StockMovement(
   public enum Origin {
     STOCK_CONFIGURATION,
     MANUAL_ADJUSTMENT,
-    PURCHASE_RECEIPT
+    PURCHASE_RECEIPT,
+    SALE
   }
 
   public StockMovement {

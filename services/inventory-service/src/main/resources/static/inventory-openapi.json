@@ -1209,7 +1209,9 @@
               "enum": [
                 "INITIAL_STOCK",
                 "MANUAL_ADJUSTMENT",
-                "PURCHASE_RECEIPT"
+                "PURCHASE_RECEIPT",
+                "SALE_ISSUE",
+                "SALE_REVERSAL"
               ]
             }
           },
@@ -1232,7 +1234,8 @@
               "enum": [
                 "STOCK_CONFIGURATION",
                 "MANUAL_ADJUSTMENT",
-                "PURCHASE_RECEIPT"
+                "PURCHASE_RECEIPT",
+                "SALE"
               ]
             }
           },
@@ -1410,7 +1413,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Movement"
+                  "$ref": "#/components/schemas/AdjustmentMovement"
                 }
               }
             }
@@ -1783,84 +1786,35 @@
       },
       "Movement": {
         "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MovementFields"
           },
-          "catalogItemId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "warehouseId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "movementType": {
-            "type": "string",
-            "enum": [
-              "INITIAL_STOCK",
-              "MANUAL_ADJUSTMENT",
-              "PURCHASE_RECEIPT"
-            ]
-          },
-          "direction": {
-            "type": "string",
-            "enum": [
-              "IN",
-              "OUT"
-            ]
-          },
-          "quantity": {
-            "type": "string",
-            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
-            "example": "5.000"
-          },
-          "unitCode": {
-            "type": "string"
-          },
-          "originType": {
-            "type": "string",
-            "enum": [
-              "STOCK_CONFIGURATION",
-              "MANUAL_ADJUSTMENT",
-              "PURCHASE_RECEIPT"
-            ]
-          },
-          "originId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "effectId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "actorId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "reason": {
-            "type": "string"
-          },
-          "occurredAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "recordedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "sequence": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "balanceAfter": {
-            "type": "string",
-            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
-            "example": "5.000"
+          {
+            "type": "object",
+            "properties": {
+              "movementType": {
+                "type": "string",
+                "enum": [
+                  "INITIAL_STOCK",
+                  "MANUAL_ADJUSTMENT",
+                  "PURCHASE_RECEIPT",
+                  "SALE_ISSUE",
+                  "SALE_REVERSAL"
+                ]
+              },
+              "originType": {
+                "type": "string",
+                "enum": [
+                  "STOCK_CONFIGURATION",
+                  "MANUAL_ADJUSTMENT",
+                  "PURCHASE_RECEIPT",
+                  "SALE"
+                ]
+              }
+            }
           }
-        }
+        ]
       },
       "Summary": {
         "type": "object",
@@ -2023,6 +1977,100 @@
             "minimum": 0
           }
         }
+      },
+      "MovementFields": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "catalogItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "IN",
+              "OUT"
+            ]
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000"
+          },
+          "unitCode": {
+            "type": "string"
+          },
+          "originId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "effectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sequence": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "balanceAfter": {
+            "type": "string",
+            "pattern": "^[0-9]{1,12}(\\.[0-9]{1,3})?$",
+            "example": "5.000"
+          }
+        }
+      },
+      "AdjustmentMovement": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MovementFields"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "movementType": {
+                "type": "string",
+                "enum": [
+                  "INITIAL_STOCK",
+                  "MANUAL_ADJUSTMENT",
+                  "PURCHASE_RECEIPT"
+                ]
+              },
+              "originType": {
+                "type": "string",
+                "enum": [
+                  "STOCK_CONFIGURATION",
+                  "MANUAL_ADJUSTMENT",
+                  "PURCHASE_RECEIPT"
+                ]
+              }
+            }
+          }
+        ]
       }
     }
   }

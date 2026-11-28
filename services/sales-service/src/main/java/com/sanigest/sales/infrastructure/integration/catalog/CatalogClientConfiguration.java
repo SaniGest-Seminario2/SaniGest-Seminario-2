@@ -67,9 +67,13 @@ class CatalogClientConfiguration {
   @Bean
   InvoiceStock invoiceStock(
       @Value("${sanigest.inventory.origin:}") URI inventoryOrigin,
+      @Value("${SALE_STOCK_TOKEN:}") String stockToken,
       CatalogClientProperties timeouts,
       Environment environment,
       ObjectProvider<ObservationRegistry> observations) {
+    if (!stockToken.isBlank()) {
+      return (item, company) -> false;
+    }
     var properties =
         new CatalogClientProperties(
             inventoryOrigin, timeouts.connectTimeout(), timeouts.responseTimeout());

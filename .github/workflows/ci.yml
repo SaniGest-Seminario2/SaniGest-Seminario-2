@@ -281,6 +281,14 @@ jobs:
                 printf '%s\n' 'POST /api/v1/suppliers request property `creditDays` was restricted to a list of enum values'
               } > "$RUNNER_TEMP/catalog-oasdiff-err-ignore"
               set -- --err-ignore "$RUNNER_TEMP/catalog-oasdiff-err-ignore"
+            elif [ "${baseline##*/}" = inventory.json ]; then
+              # S2-465 adds sale movements to inventory history.
+              printf '%s\n' \
+                'GET /api/v1/inventory/movements added the new `SALE` enum value to the `content/items/originType` response property for the response status `200`' \
+                'GET /api/v1/inventory/movements added the new `SALE_ISSUE` enum value to the `content/items/movementType` response property for the response status `200`' \
+                'GET /api/v1/inventory/movements added the new `SALE_REVERSAL` enum value to the `content/items/movementType` response property for the response status `200`' \
+                > "$RUNNER_TEMP/inventory-oasdiff-err-ignore"
+              set -- --flatten-allof --err-ignore "$RUNNER_TEMP/inventory-oasdiff-err-ignore"
             elif [ "${baseline##*/}" = expense.json ]; then
               # S2-485 requires a warehouse. S2-352 exposes cancellations in historical detail.
               printf '%s\n' \
