@@ -58,6 +58,7 @@ class SecurityConfiguration {
                     HttpMethod.GET,
                     "/api/v1/warehouses",
                     "/api/v1/warehouses/{id}",
+                    "/api/v1/inventory/audit-log",
                     "/api/v1/inventory/options",
                     "/api/v1/inventory/stock",
                     "/api/v1/inventory/stock/{itemId}/{warehouseId}",

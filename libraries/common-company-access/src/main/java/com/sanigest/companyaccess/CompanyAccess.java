@@ -15,7 +15,8 @@ public interface CompanyAccess {
 
   enum Scope {
     READ,
-    WRITE
+    WRITE,
+    AUDIT
   }
 
   enum MembershipRole {
@@ -34,6 +35,14 @@ public interface CompanyAccess {
 
   /** Company resolves the active membership. The caller applies its operation policy. */
   Optional<MembershipContext> membership(UUID companyId, Scope scope);
+
+  /** Company grants audit access to owners and memberships with AUDIT_LOG_READ. */
+  default boolean canReadAudit(UUID companyId) {
+    return membership(companyId, Scope.AUDIT)
+        .filter(member -> companyId.equals(member.companyId()))
+        .filter(member -> member.role() == MembershipRole.OWNER || member.explicitGrant())
+        .isPresent();
+  }
 
   /** Company checks eligibility and the exact current delegation for the requested tenant. */
   boolean delegated(UUID companyId, Scope scope);

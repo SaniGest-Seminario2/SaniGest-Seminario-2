@@ -211,7 +211,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("16");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("17");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -237,7 +237,7 @@ class SalesServiceIT {
     assertThat(
             jdbc.queryForList(
                 """
-                SELECT table_name FROM information_schema.tables WHERE table_schema = 'sales'
+                SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'sales'
                 """,
                 String.class))
         .containsExactlyInAnyOrder(
@@ -368,8 +368,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(16);
-    assertThat(history.getLast()).containsEntry("version", "16").containsEntry("success", true);
+    assertThat(history).hasSize(17);
+    assertThat(history.getLast()).containsEntry("version", "17").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -437,12 +437,12 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(1);
-    assertThat(current.migrate().migrationsExecuted).isEqualTo(11);
+    assertThat(current.migrate().migrationsExecuted).isEqualTo(12);
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
         .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("16");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("17");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",

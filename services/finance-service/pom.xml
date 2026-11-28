@@ -17,6 +17,10 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.sanigest</groupId>
+            <artifactId>common-company-access</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         </dependency>

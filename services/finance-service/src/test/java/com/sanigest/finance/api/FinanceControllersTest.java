@@ -6,14 +6,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.sanigest.companyaccess.CompanyAccess;
 import com.sanigest.finance.application.ActiveCashSummary;
 import com.sanigest.finance.application.PaymentAdmission;
 import com.sanigest.finance.application.PaymentAdmission.ActiveShift;
 import com.sanigest.finance.infrastructure.FinancialProjections;
+import com.sanigest.security.CompanyAuditParameters;
+import com.sanigest.web.audit.AuditPage;
+import com.sanigest.web.audit.AuditPage.Reader;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.server.ResponseStatusException;
@@ -55,6 +61,40 @@ class FinanceControllersTest {
     verifyNoInteractions(summary);
     when(summary.find(company, operator, "token")).thenReturn(Optional.empty());
     assertEquals(404, controller.activeSummary(jwt, headers()).getStatusCode().value());
+  }
+
+  @Test
+  void financeAuditRequiresCompanyAuthorizationBeforeReading() {
+    var access = mock(CompanyAccess.class);
+    var reader = mock(Reader.class);
+    var query = new CompanyAuditParameters(null, null, null, null, null, null, null, null);
+    var controller = new AuditLogController(accessProvider(null), reader);
+    assertEquals(
+        503,
+        assertThrows(ResponseStatusException.class, () -> controller.get(headers(), query))
+            .getStatusCode()
+            .value());
+    var configured = new AuditLogController(accessProvider(access), reader);
+    assertEquals(
+        403,
+        assertThrows(ResponseStatusException.class, () -> configured.get(headers(), query))
+            .getStatusCode()
+            .value());
+    verifyNoInteractions(reader);
+
+    var page = new AuditPage(List.of(), 0, 20, false);
+    when(access.canReadAudit(company)).thenReturn(true);
+    when(reader.read(company, query.filters())).thenReturn(page);
+    assertEquals(page, configured.get(headers(), query).getBody());
+  }
+
+  private static ObjectProvider<CompanyAccess> accessProvider(CompanyAccess access) {
+    return new ObjectProvider<>() {
+      @Override
+      public CompanyAccess getIfAvailable() {
+        return access;
+      }
+    };
   }
 
   @Test

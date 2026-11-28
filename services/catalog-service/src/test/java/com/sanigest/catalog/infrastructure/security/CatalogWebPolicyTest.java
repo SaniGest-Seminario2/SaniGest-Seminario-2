@@ -147,6 +147,7 @@ class CatalogWebPolicyTest {
   }
 
   @Autowired MockMvc mvc;
+  @MockitoBean com.sanigest.web.audit.AuditPage.Reader auditEntries;
   @MockitoBean CatalogItemCommercialRepository itemCommercial;
   @MockitoBean JwtDecoder decoder;
   @MockitoBean ClientRepository clients;

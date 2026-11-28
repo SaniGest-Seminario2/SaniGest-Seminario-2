@@ -1,5 +1,7 @@
 package com.sanigest.company.application.usecase.audit;
 
+import static com.sanigest.company.application.usecase.access.ResolveCompanyAccess.AUDIT_LOG_READ;
+
 import com.sanigest.company.application.dto.AuditPage;
 import com.sanigest.company.application.exception.CompanyAccessDeniedException;
 import com.sanigest.company.application.port.out.persistence.CompanyAuditRepository;
@@ -7,6 +9,7 @@ import com.sanigest.company.application.port.out.persistence.MembershipRepositor
 import com.sanigest.company.application.usecase.access.OperationalCompanySelection;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.MembershipStatus;
+import com.sanigest.web.audit.AuditPage.Filters;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -16,8 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class GetCompanyAuditLogUseCase {
-  static final String AUDIT_LOG_READ = "AUDIT_LOG_READ";
-
   private final MembershipRepository memberships;
   private final CompanyAuditRepository audit;
 
@@ -34,9 +35,14 @@ public class GetCompanyAuditLogUseCase {
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public AuditPage get(
       UUID actorId, UUID requestedCompany, Instant from, Instant to, int page, int size) {
-    if (page < 0 || size < 1 || size > 100 || (from != null && to != null && from.isAfter(to))) {
-      throw new IllegalArgumentException("Invalid audit log filters");
-    }
+    return get(
+        actorId, requestedCompany, new Filters(from, to, null, null, null, null, page, size));
+  }
+
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+  public AuditPage get(UUID actorId, UUID requestedCompany, Filters filters) {
+    int page = filters.page();
+    int size = filters.size();
 
     var company =
         OperationalCompanySelection.profile(memberships, actorId, requestedCompany)
@@ -53,7 +59,7 @@ public class GetCompanyAuditLogUseCase {
       throw new CompanyAccessDeniedException();
     }
 
-    var rows = audit.findPage(company.companyId(), from, to, (long) page * size, size + 1);
+    var rows = audit.findPage(company.companyId(), filters);
     boolean hasNext = rows.size() > size;
     return new AuditPage(
         List.copyOf(rows.subList(0, Math.min(size, rows.size()))), page, size, hasNext);

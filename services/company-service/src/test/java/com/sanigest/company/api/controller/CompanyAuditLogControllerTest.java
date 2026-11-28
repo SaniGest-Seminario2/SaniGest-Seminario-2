@@ -14,6 +14,8 @@ import com.sanigest.company.domain.enums.AuditResult;
 import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.company.domain.model.CompanyAuditEvent;
+import com.sanigest.security.CompanyAuditParameters;
+import com.sanigest.web.audit.AuditPage.Filters;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -43,16 +45,21 @@ class CompanyAuditLogControllerTest {
             null,
             MembershipStatus.ACTIVE,
             null,
-            correlation);
+            correlation,
+            null);
     var auditLog = mock(GetCompanyAuditLogUseCase.class);
-    when(auditLog.get(actor, null, null, null, 2, 20))
+    when(auditLog.get(actor, null, new Filters(null, null, null, null, null, null, 2, 20)))
         .thenReturn(new AuditPage(List.of(event), 2, 20, true));
     var jwt = Jwt.withTokenValue("test").header("alg", "RS256").subject(actor.toString()).build();
 
     var response =
         new CompanyAuditLogController(
                 new RequireRegularAccount(token -> AccountType.REGULAR), auditLog)
-            .get(jwt, null, request(), null, null, 2, 20);
+            .get(
+                jwt,
+                null,
+                request(),
+                new CompanyAuditParameters(null, null, null, null, null, null, 2, 20));
 
     assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
     assertThat(response.getBody())
@@ -72,7 +79,9 @@ class CompanyAuditLogControllerTest {
                         null,
                         "ACTIVE",
                         null,
-                        correlation)),
+                        correlation,
+                        "MEMBERSHIP",
+                        user)),
                 2,
                 20,
                 true));

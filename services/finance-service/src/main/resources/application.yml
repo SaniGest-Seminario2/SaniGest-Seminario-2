@@ -51,6 +51,11 @@ server:
   shutdown: graceful
 
 sanigest:
+  company-access:
+    enabled: ${FINANCE_COMPANY_ACCESS_ENABLED:false}
+    origin: ${FINANCE_COMPANY_ACCESS_ORIGIN:http://localhost:8082}
+    issuer: ${FINANCE_COMPANY_ACCESS_ISSUER:finance-company-access}
+    private-key-location: ${FINANCE_COMPANY_ACCESS_PRIVATE_KEY_LOCATION:}
   finance:
     sales-origin: ${FINANCE_SALES_ORIGIN:http://localhost:8084}
     source-timeout: ${FINANCE_SOURCE_TIMEOUT:2s}

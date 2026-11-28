@@ -7,9 +7,9 @@ import com.sanigest.company.domain.enums.CompanyRole;
 import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.company.domain.model.AdvisorPermission;
 import com.sanigest.company.domain.model.CompanyAuditEvent;
+import com.sanigest.web.audit.AuditPage.Filters;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -32,8 +32,9 @@ class JdbcCompanyAuditRepository implements CompanyAuditRepository {
         """
         INSERT INTO company_audit_log (
           id, company_id, actor_id, target_user_id, operation, occurred_at, result,
-          previous_role, new_role, previous_status, new_status, advisor_module, advisor_scope, correlation_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          previous_role, new_role, previous_status, new_status, advisor_module,
+          advisor_scope, correlation_id, invitation_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         event.id(),
         event.companyId(),
@@ -48,26 +49,52 @@ class JdbcCompanyAuditRepository implements CompanyAuditRepository {
         enumName(event.newStatus()),
         event.advisorPermission() == null ? null : event.advisorPermission().module().name(),
         event.advisorPermission() == null ? null : event.advisorPermission().scope().name(),
-        event.correlationId());
+        event.correlationId(),
+        event.invitationId());
   }
 
   @Override
-  public List<CompanyAuditEvent> findPage(
-      UUID companyId, Instant from, Instant to, long offset, int limit) {
+  public List<CompanyAuditEvent> findPage(UUID companyId, Filters filters) {
     var sql = new StringBuilder("SELECT * FROM company_audit_log WHERE company_id = ?");
     var parameters = new ArrayList<>();
     parameters.add(companyId);
-    if (from != null) {
+    if (filters.from() != null) {
       sql.append(" AND occurred_at >= ?");
-      parameters.add(from.atOffset(ZoneOffset.UTC));
+      parameters.add(filters.from().atOffset(ZoneOffset.UTC));
     }
-    if (to != null) {
+    if (filters.to() != null) {
       sql.append(" AND occurred_at <= ?");
-      parameters.add(to.atOffset(ZoneOffset.UTC));
+      parameters.add(filters.to().atOffset(ZoneOffset.UTC));
+    }
+    if (filters.actorId() != null) {
+      sql.append(" AND actor_id = ?");
+      parameters.add(filters.actorId());
+    }
+    if (filters.operation() != null) {
+      sql.append(" AND operation = ?");
+      parameters.add(filters.operation());
+    }
+    if (filters.resourceType() != null) {
+      var operations =
+          java.util.Arrays.stream(AuditOperation.values())
+              .filter(operation -> operation.resourceType().equals(filters.resourceType()))
+              .map(AuditOperation::name)
+              .toList();
+      if (operations.isEmpty()) {
+        return List.of();
+      }
+      sql.append(" AND operation IN (")
+          .append(String.join(", ", java.util.Collections.nCopies(operations.size(), "?")))
+          .append(")");
+      parameters.addAll(operations);
+    }
+    if (filters.resourceId() != null) {
+      sql.append(" AND COALESCE(invitation_id, target_user_id) = ?");
+      parameters.add(filters.resourceId());
     }
     sql.append(" ORDER BY occurred_at DESC, id DESC LIMIT ? OFFSET ?");
-    parameters.add(limit);
-    parameters.add(offset);
+    parameters.add(filters.size() + 1);
+    parameters.add(filters.offset());
     return jdbc.query(sql.toString(), JdbcCompanyAuditRepository::event, parameters.toArray());
   }
 
@@ -85,7 +112,8 @@ class JdbcCompanyAuditRepository implements CompanyAuditRepository {
         readEnum(row, "previous_status", MembershipStatus.class),
         readEnum(row, "new_status", MembershipStatus.class),
         advisorPermission(row),
-        row.getString("correlation_id"));
+        row.getString("correlation_id"),
+        row.getObject("invitation_id", UUID.class));
   }
 
   private static AdvisorPermission advisorPermission(ResultSet row) throws SQLException {

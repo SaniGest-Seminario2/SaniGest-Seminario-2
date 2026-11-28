@@ -6,6 +6,7 @@ import com.sanigest.company.application.usecase.access.ResolveCompanyAccess;
 import com.sanigest.company.domain.model.AdvisorPermission;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
 import com.sanigest.companyaccess.CompanyAccess.Module;
+import com.sanigest.companyaccess.CompanyAccess.Scope;
 import com.sanigest.companyaccess.CompanyAccessProtocol;
 import com.sanigest.companyaccess.CompanyAccessProtocol.AccessMode;
 import com.sanigest.companyaccess.CompanyAccessProtocol.Query;
@@ -42,9 +43,11 @@ class CompanyAccessController {
     var query = Query.from(assertion);
     if (query.mode() == AccessMode.MEMBERSHIP) {
       UUID userId = regularUser(session, query.userId());
+      String permission = query.module().name() + "_" + query.scope().name();
       var membership =
-          access.membership(
-              userId, query.companyId(), query.module().name() + "_" + query.scope().name());
+          query.scope() == Scope.AUDIT
+              ? access.auditMembership(userId, query.companyId())
+              : access.membership(userId, query.companyId(), permission);
       return response(
           new Response(
               userId,
@@ -54,11 +57,9 @@ class CompanyAccessController {
               AccessMode.MEMBERSHIP,
               MembershipRole.valueOf(membership.role().name()),
               membership.explicitGrant(),
-              "SALES_WRITE".equals(query.module().name() + "_" + query.scope().name())
-                  ? membership.companyName()
-                  : null));
+              "SALES_WRITE".equals(permission) ? membership.companyName() : null));
     }
-    if (session != null || query.module() == Module.INVENTORY) {
+    if (session != null || query.module() == Module.INVENTORY || query.scope() == Scope.AUDIT) {
       throw new CompanyAccessDeniedException();
     }
     access.requireDelegation(

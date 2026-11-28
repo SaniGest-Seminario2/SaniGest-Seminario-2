@@ -52,6 +52,6 @@ public class ManageCompanyInvitationsUseCase {
       throw new CompanyConflictException("Invitation is no longer pending");
     }
     invitations.closePending(id, InvitationStatus.REVOKED);
-    audit.invitationChanged(company, actor, AuditOperation.INVITATION_REVOKED);
+    audit.invitationChanged(company, actor, id, AuditOperation.INVITATION_REVOKED);
   }
 }

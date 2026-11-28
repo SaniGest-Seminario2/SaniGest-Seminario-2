@@ -75,6 +75,14 @@ class JpaCatalogItemRepository implements CatalogItemRepository {
     if (affected != 1) {
       throw new CatalogItemAccessException(CATALOG_ITEM_UPDATE_CONFLICT);
     }
+    if (current.active() != updated.active()) {
+      historyActor.statusChanged(
+          companyId,
+          "CATALOG_ITEM",
+          id,
+          current.active() ? "ACTIVE" : "INACTIVE",
+          updated.active() ? "ACTIVE" : "INACTIVE");
+    }
     return updated;
   }
 

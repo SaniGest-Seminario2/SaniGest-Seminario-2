@@ -97,6 +97,8 @@ class JpaSupplierRepository implements SupplierRepository {
         throw new SupplierCommercialException(
             SupplierCommercialException.Reason.INCOMPATIBLE_SUPPLIER_ITEM);
       }
+      historyActor.statusChanged(
+          companyId, "SUPPLIER", id, current.status().name(), updated.status().name());
       return updated;
     } catch (DataIntegrityViolationException failure) {
       if (isDuplicateTaxId(failure)) {

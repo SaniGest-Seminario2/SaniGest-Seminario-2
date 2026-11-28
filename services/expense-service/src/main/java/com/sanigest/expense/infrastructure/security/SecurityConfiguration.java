@@ -58,6 +58,7 @@ class SecurityConfiguration {
                 .authenticated()
                 .requestMatchers(
                     HttpMethod.GET,
+                    "/api/v1/expenses/audit-log",
                     "/api/v1/expenses",
                     "/api/v1/expenses/*",
                     "/api/v1/payables",

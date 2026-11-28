@@ -48,7 +48,8 @@ public class CompanyAuditRecorder {
             previousStatus,
             newStatus,
             null,
-            RequestCorrelation.current()));
+            RequestCorrelation.current(),
+            null));
   }
 
   @Transactional(propagation = Propagation.MANDATORY)
@@ -72,11 +73,13 @@ public class CompanyAuditRecorder {
             null,
             null,
             permission,
-            RequestCorrelation.current()));
+            RequestCorrelation.current(),
+            null));
   }
 
   @Transactional(propagation = Propagation.MANDATORY)
-  public void invitationChanged(UUID company, UUID actor, AuditOperation operation) {
+  public void invitationChanged(
+      UUID company, UUID actor, UUID invitationId, AuditOperation operation) {
     repository.append(
         new CompanyAuditEvent(
             UUID.randomUUID(),
@@ -91,7 +94,8 @@ public class CompanyAuditRecorder {
             null,
             null,
             null,
-            RequestCorrelation.current()));
+            RequestCorrelation.current(),
+            invitationId));
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -110,6 +114,7 @@ public class CompanyAuditRecorder {
             null,
             null,
             null,
-            RequestCorrelation.current()));
+            RequestCorrelation.current(),
+            null));
   }
 }

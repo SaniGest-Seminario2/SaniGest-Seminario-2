@@ -49,10 +49,12 @@ services:
         {"sanigest":{"company-access":{"callers":{"catalog":{"issuer":"catalog-company-access","public-key":"file:/run/secrets/catalog-company-public.pem"},
         "inventory":{"issuer":"inventory-company-access","public-key":"file:/run/secrets/inventory-company-public.pem"},
         "sales":{"issuer":"sales-company-access","public-key":"file:/run/secrets/sales-company-public.pem"},
-        "expense":{"issuer":"expense-company-access","public-key":"file:/run/secrets/expense-company-public.pem"}}}}}
+        "expense":{"issuer":"expense-company-access","public-key":"file:/run/secrets/expense-company-public.pem"},
+        "finance":{"issuer":"finance-company-access","public-key":"file:/run/secrets/finance-company-public.pem"}}}}}
     volumes:
       - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/sales-company-public.pem:/run/secrets/sales-company-public.pem:ro
       - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/expense-company-public.pem:/run/secrets/expense-company-public.pem:ro
+      - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/finance-company-public.pem:/run/secrets/finance-company-public.pem:ro
 
   catalog-service:
     environment:
@@ -78,3 +80,12 @@ services:
       EXPENSE_COMPANY_ACCESS_PRIVATE_KEY_LOCATION: file:/run/secrets/expense-company-private.pem
     volumes:
       - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/expense-company-private.pem:/run/secrets/expense-company-private.pem:ro
+
+  finance-service:
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      FINANCE_COMPANY_ACCESS_ENABLED: "true"
+      FINANCE_COMPANY_ACCESS_ORIGIN: http://company-service:8080
+      FINANCE_COMPANY_ACCESS_PRIVATE_KEY_LOCATION: file:/run/secrets/finance-company-private.pem
+    volumes:
+      - ${COMPANY_ACCESS_KEYS_DIR:-./.secrets}/finance-company-private.pem:/run/secrets/finance-company-private.pem:ro

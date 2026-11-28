@@ -87,7 +87,10 @@ import tools.jackson.databind.ObjectMapper;
 @ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = "sanigest.company.multiple-memberships-enabled=true")
+    properties = {
+      "sanigest.company.multiple-memberships-enabled=true",
+      "springdoc.api-docs.enabled=true"
+    })
 class CompanyProfileIT {
   private static final String COMPANIES = "/api/v1/companies";
   private static final String ME = COMPANIES + "/me";
@@ -1994,6 +1997,18 @@ class CompanyProfileIT {
     assertThat(get(AUDIT + "?size=1", ownerJwt).body())
         .contains("MEMBER_REVOKED", "SUCCESS", "\"hasNext\":true")
         .doesNotContain("ROLE_CHANGED");
+    assertThat(
+            get(
+                    AUDIT
+                        + "?actorId="
+                        + owner
+                        + "&resourceType=MEMBERSHIP&resourceId="
+                        + member
+                        + "&operation=MEMBER_REVOKED",
+                    ownerJwt)
+                .body())
+        .contains("MEMBER_REVOKED", "\"resourceId\":\"" + member)
+        .doesNotContain("ROLE_CHANGED");
     assertThat(get(AUDIT + "?page=1&size=1", ownerJwt).body())
         .contains("ROLE_CHANGED", "\"hasNext\":false")
         .doesNotContain("MEMBER_REVOKED");
@@ -2004,6 +2019,38 @@ class CompanyProfileIT {
     assertThat(get(ME + "/users", ownerJwt).body()).contains(member.toString(), "REVOKED");
     assertThat(membershipCount(member)).isEqualTo(1);
     assertThat(deleteMember(member, ownerJwt).statusCode()).isEqualTo(404);
+  }
+
+  @Test
+  void documentsAuditFiltersAsOptionalQueryParameters() throws Exception {
+    var response = get("/v3/api-docs", null);
+    assertThat(response.statusCode()).isEqualTo(200);
+    var paths = new ObjectMapper().readTree(response.body()).path("paths");
+    for (var path : List.of(AUDIT, COMPANIES + "/{companyId}/audit-log")) {
+      var query =
+          paths
+              .path(path)
+              .path("get")
+              .path("parameters")
+              .valueStream()
+              .filter(parameter -> "query".equals(parameter.path("in").asString()))
+              .toList();
+      assertThat(query).allMatch(parameter -> !parameter.path("required").asBoolean());
+      assertThat(query)
+          .extracting(parameter -> parameter.path("name").asString())
+          .containsExactlyInAnyOrder(
+              "from", "to", "page", "size", "actorId", "operation", "resourceType", "resourceId");
+      assertThat(query)
+          .filteredOn(parameter -> "page".equals(parameter.path("name").asString()))
+          .singleElement()
+          .satisfies(
+              parameter -> assertThat(parameter.path("schema").path("default").asInt(-1)).isZero());
+      assertThat(query)
+          .filteredOn(parameter -> "size".equals(parameter.path("name").asString()))
+          .singleElement()
+          .satisfies(parameter ->
+              assertThat(parameter.path("schema").path("default").asInt(-1)).isEqualTo(20));
+    }
   }
 
   @Test
