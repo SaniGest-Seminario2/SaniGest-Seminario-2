@@ -25,11 +25,14 @@ class PostgresInvoiceRepository implements InvoiceRepository {
   private final JdbcTemplate jdbc;
   private final SaleRows sales;
   private final EntityManager entityManager;
+  private final SalesAudit audit;
 
-  PostgresInvoiceRepository(JdbcTemplate jdbc, SaleRows sales, EntityManager entityManager) {
+  PostgresInvoiceRepository(
+      JdbcTemplate jdbc, SaleRows sales, EntityManager entityManager, SalesAudit audit) {
     this.jdbc = jdbc;
     this.sales = sales;
     this.entityManager = entityManager;
+    this.audit = audit;
   }
 
   @Override
@@ -150,6 +153,12 @@ class PostgresInvoiceRepository implements InvoiceRepository {
         key,
         body);
 
+    audit.append(
+        invoice.company().id(),
+        invoice.issuedBy(),
+        SalesAudit.Operation.INVOICE_ISSUED,
+        invoice.id(),
+        invoice.status().name());
     var lines = invoice.lines();
     for (int position = 0; position < lines.size(); position++) {
       var line = lines.get(position);

@@ -12,12 +12,11 @@ import com.sanigest.expense.application.usecase.RegisterPayablePayment;
 import com.sanigest.expense.domain.model.PayablePayment.Details;
 import com.sanigest.expense.domain.model.PayablePayment.Result;
 import com.sanigest.expense.domain.model.PayablePayment.Status;
-import com.sanigest.web.HttpProblems;
+import com.sanigest.security.RequestCorrelation;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
-import org.slf4j.MDC;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Isolation;
@@ -103,6 +102,7 @@ class JdbcPayablePayments implements PayablePayments {
         payment.date().equals(businessTime.toLocalDate())
             ? registeredAt
             : payment.date().atStartOfDay(RegisterPayablePayment.BUSINESS_ZONE).toInstant();
+    String correlation = RequestCorrelation.current();
     outbox.enqueue(
         company,
         new PaymentEventV1(
@@ -112,7 +112,7 @@ class JdbcPayablePayments implements PayablePayments {
             occurredAt,
             company,
             id,
-            HttpProblems.traceId(MDC.get("traceId")),
+            correlation,
             id,
             null,
             payment.accountId(),
@@ -138,13 +138,30 @@ class JdbcPayablePayments implements PayablePayments {
             registeredAt,
             outstanding,
             outstanding.signum() == 0 ? Status.PAID : Status.PARTIALLY_PAID);
+    complete(company, result, correlation);
+    return result;
+  }
+
+  private void complete(UUID company, Result result, String correlation) {
     jdbc.sql(
             "UPDATE expense.payable_payments SET response_body = CAST(:response AS jsonb) WHERE id"
                 + " = :id")
         .param("response", json.writeValueAsString(result))
-        .param("id", id)
+        .param("id", result.paymentId())
         .update();
-    return result;
+    jdbc.sql(
+            """
+            INSERT INTO expense.audit_log
+                (id, company_id, actor_id, operation, resource_id, state, correlation_id)
+            VALUES (:id, :company, :actor, 'PAYABLE_PAYMENT_REGISTERED', :payment, :state, :trace)
+            """)
+        .param("id", UUID.randomUUID())
+        .param("company", company)
+        .param("actor", result.actorId())
+        .param("payment", result.paymentId())
+        .param("state", result.status().name())
+        .param("trace", correlation)
+        .update();
   }
 
   private Result replay(

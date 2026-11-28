@@ -27,6 +27,7 @@ class CompanyAuditLogControllerTest {
     var company = UUID.randomUUID();
     var user = UUID.randomUUID();
     var eventId = UUID.randomUUID();
+    var correlation = "a".repeat(32);
     var occurredAt = Instant.parse("2026-11-22T00:00:00Z");
     var event =
         new CompanyAuditEvent(
@@ -41,7 +42,8 @@ class CompanyAuditLogControllerTest {
             CompanyRole.VIEWER,
             null,
             MembershipStatus.ACTIVE,
-            null);
+            null,
+            correlation);
     var auditLog = mock(GetCompanyAuditLogUseCase.class);
     when(auditLog.get(actor, null, null, null, 2, 20))
         .thenReturn(new AuditPage(List.of(event), 2, 20, true));
@@ -69,7 +71,8 @@ class CompanyAuditLogControllerTest {
                         "VIEWER",
                         null,
                         "ACTIVE",
-                        null)),
+                        null,
+                        correlation)),
                 2,
                 20,
                 true));

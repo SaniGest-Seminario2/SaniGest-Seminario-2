@@ -3,6 +3,7 @@ package com.sanigest.expense.infrastructure.persistence;
 import com.sanigest.expense.application.ExpenseRegistration.Document;
 import com.sanigest.expense.application.ExpenseRegistration.FinancialStatus;
 import com.sanigest.expense.application.ExpenseStore;
+import com.sanigest.security.RequestCorrelation;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -75,6 +76,19 @@ class JdbcExpenseStore implements ExpenseStore {
           document.dueDate(),
           document.total());
     }
+    jdbc.update(
+        """
+        INSERT INTO expense.audit_log
+            (id, company_id, actor_id, operation, resource_id, state, correlation_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        UUID.randomUUID(),
+        key.companyId(),
+        key.actorId(),
+        document.operationType().name() + "_REGISTERED",
+        document.id(),
+        document.financialStatus().name(),
+        RequestCorrelation.current());
     return new Stored(requestHash, document, false);
   }
 

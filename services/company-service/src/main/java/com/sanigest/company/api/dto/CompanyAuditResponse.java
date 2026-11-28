@@ -29,7 +29,8 @@ public record CompanyAuditResponse(List<Entry> content, int page, int size, bool
       String newRole,
       String previousStatus,
       String newStatus,
-      @JsonInclude(JsonInclude.Include.NON_NULL) AdvisorPermission advisorPermission) {
+      @JsonInclude(JsonInclude.Include.NON_NULL) AdvisorPermission advisorPermission,
+      @JsonInclude(JsonInclude.Include.NON_NULL) String correlationId) {
 
     private static Entry from(CompanyAuditEvent event) {
       return new Entry(
@@ -44,7 +45,8 @@ public record CompanyAuditResponse(List<Entry> content, int page, int size, bool
           name(event.newRole()),
           name(event.previousStatus()),
           name(event.newStatus()),
-          event.advisorPermission());
+          event.advisorPermission(),
+          event.correlationId());
     }
 
     private static String name(Enum<?> value) {

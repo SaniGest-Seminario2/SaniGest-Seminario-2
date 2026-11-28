@@ -32,8 +32,8 @@ class JdbcCompanyAuditRepository implements CompanyAuditRepository {
         """
         INSERT INTO company_audit_log (
           id, company_id, actor_id, target_user_id, operation, occurred_at, result,
-          previous_role, new_role, previous_status, new_status, advisor_module, advisor_scope
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          previous_role, new_role, previous_status, new_status, advisor_module, advisor_scope, correlation_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         event.id(),
         event.companyId(),
@@ -47,7 +47,8 @@ class JdbcCompanyAuditRepository implements CompanyAuditRepository {
         enumName(event.previousStatus()),
         enumName(event.newStatus()),
         event.advisorPermission() == null ? null : event.advisorPermission().module().name(),
-        event.advisorPermission() == null ? null : event.advisorPermission().scope().name());
+        event.advisorPermission() == null ? null : event.advisorPermission().scope().name(),
+        event.correlationId());
   }
 
   @Override
@@ -83,7 +84,8 @@ class JdbcCompanyAuditRepository implements CompanyAuditRepository {
         readEnum(row, "new_role", CompanyRole.class),
         readEnum(row, "previous_status", MembershipStatus.class),
         readEnum(row, "new_status", MembershipStatus.class),
-        advisorPermission(row));
+        advisorPermission(row),
+        row.getString("correlation_id"));
   }
 
   private static AdvisorPermission advisorPermission(ResultSet row) throws SQLException {

@@ -4,6 +4,7 @@ import com.sanigest.expense.application.ExpenseFailure;
 import com.sanigest.expense.application.port.out.integration.CatalogReferences;
 import com.sanigest.expense.application.port.out.integration.InventoryReceipts;
 import com.sanigest.security.CompanySelector;
+import com.sanigest.security.RequestCorrelation;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
@@ -88,6 +89,7 @@ class ExpenseReferences implements CatalogReferences, InventoryReceipts {
               .headers(headers -> headers.setBearerAuth(token()))
               .header(CompanySelector.HEADER, entry.companyId().toString())
               .header("Idempotency-Key", entry.receiptLineId().toString())
+              .header("X-Trace-Id", RequestCorrelation.current())
               .body(
                   Map.of(
                       "catalogItemId", entry.itemId(),

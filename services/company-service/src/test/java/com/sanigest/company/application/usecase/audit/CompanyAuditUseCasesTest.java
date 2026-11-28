@@ -59,6 +59,8 @@ class CompanyAuditUseCasesTest {
     var success = captor.getAllValues().get(0);
     var rejection = captor.getAllValues().get(1);
     assertThat(success.id()).isNotNull().isNotEqualTo(rejection.id());
+    assertThat(success.correlationId()).matches("[0-9a-f]{32}");
+    assertThat(rejection.correlationId()).matches("[0-9a-f]{32}");
     assertThat(success)
         .isEqualTo(
             new CompanyAuditEvent(
@@ -73,7 +75,8 @@ class CompanyAuditUseCasesTest {
                 CompanyRole.ADMIN,
                 null,
                 null,
-                null));
+                null,
+                success.correlationId()));
     assertThat(rejection)
         .isEqualTo(
             new CompanyAuditEvent(
@@ -88,7 +91,8 @@ class CompanyAuditUseCasesTest {
                 null,
                 null,
                 null,
-                null));
+                null,
+                rejection.correlationId()));
   }
 
   @ParameterizedTest
@@ -111,6 +115,7 @@ class CompanyAuditUseCasesTest {
             null,
             MembershipStatus.ACTIVE,
             MembershipStatus.REVOKED,
+            null,
             null);
     when(repository.findPage(company, NOW, NOW, 2, 2)).thenReturn(List.of(event, event));
 

@@ -8,6 +8,7 @@ import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.company.domain.model.AdvisorPermission;
 import com.sanigest.company.domain.model.CompanyAuditEvent;
 import com.sanigest.company.domain.model.Membership;
+import com.sanigest.security.RequestCorrelation;
 import java.time.Clock;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -46,7 +47,8 @@ public class CompanyAuditRecorder {
             newRole,
             previousStatus,
             newStatus,
-            null));
+            null,
+            RequestCorrelation.current()));
   }
 
   @Transactional(propagation = Propagation.MANDATORY)
@@ -69,7 +71,8 @@ public class CompanyAuditRecorder {
             null,
             null,
             null,
-            permission));
+            permission,
+            RequestCorrelation.current()));
   }
 
   @Transactional(propagation = Propagation.MANDATORY)
@@ -87,7 +90,8 @@ public class CompanyAuditRecorder {
             null,
             null,
             null,
-            null));
+            null,
+            RequestCorrelation.current()));
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -105,6 +109,7 @@ public class CompanyAuditRecorder {
             null,
             null,
             null,
-            null));
+            null,
+            RequestCorrelation.current()));
   }
 }
