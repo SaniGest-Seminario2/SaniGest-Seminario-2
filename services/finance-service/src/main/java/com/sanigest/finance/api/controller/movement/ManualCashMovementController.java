@@ -3,7 +3,10 @@ package com.sanigest.finance.api.controller.movement;
 import com.sanigest.companyaccess.application.port.out.CompanyAccess.Scope;
 import com.sanigest.companyaccess.security.authentication.AuthenticatedActor;
 import com.sanigest.finance.api.security.CashAccess;
+import com.sanigest.finance.application.dto.movement.ManualMovement.AccountBalance;
+import com.sanigest.finance.application.dto.movement.ManualMovement.AccountOption;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Document;
+import com.sanigest.finance.application.dto.movement.ManualMovement.Method;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Options;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Request;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Result;
@@ -15,6 +18,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
@@ -28,6 +32,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -50,6 +55,19 @@ class ManualCashMovementController {
   @GetMapping("/api/v1/finance/options")
   Options options(HttpServletRequest http) {
     return movements.options(company(http, Scope.READ));
+  }
+
+  @GetMapping("/api/v1/accounts/options")
+  List<AccountOption> accountOptions(
+      HttpServletRequest http,
+      @RequestParam(required = false) Method method,
+      @RequestParam(required = false) String search) {
+    return movements.accountOptions(company(http, Scope.READ), method, search);
+  }
+
+  @GetMapping("/api/v1/financial-accounts")
+  List<AccountBalance> balances(HttpServletRequest http) {
+    return movements.balances(company(http, Scope.READ));
   }
 
   @PostMapping(path = MOVEMENTS, consumes = MediaType.APPLICATION_JSON_VALUE)
