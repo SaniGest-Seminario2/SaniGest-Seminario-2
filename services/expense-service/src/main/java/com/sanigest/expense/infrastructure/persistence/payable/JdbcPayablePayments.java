@@ -122,7 +122,9 @@ class JdbcPayablePayments implements PayablePayments {
             null,
             null,
             payable,
-            actor));
+            actor,
+            payment.reference(),
+            payment.notes()));
 
     var result =
         new Result(

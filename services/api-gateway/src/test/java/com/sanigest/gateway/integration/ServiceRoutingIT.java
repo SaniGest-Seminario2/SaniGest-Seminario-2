@@ -191,6 +191,9 @@ class ServiceRoutingIT {
   @Test
   void forwardsManualCashMovementWithExplicitCompany() throws Exception {
     assertCompanyScopedRoute("/api/v1/finance/options", "finance");
+    assertCompanyScopedRoute("/api/v1/cash-movements", "finance");
+    assertCompanyScopedRoute("/api/v1/cash-movements/all", "finance");
+    assertCompanyScopedRoute("/api/v1/cash-movements/summary", "finance");
     assertCompanyScopedRoute("/api/v1/cash-movements/" + TENANT + "/attachment", "finance");
     String path = "/api/v1/cash-movements";
     String token = "Bearer " + GatewayTestTokens.validToken();

@@ -33,17 +33,22 @@ public class ConfirmedPaymentConsumer {
     boolean reversal = event.eventType().isReversal();
     String origin = receivable ? "COBRO" : "PAGO";
     String direction = receivable != reversal ? "INFLOW" : "OUTFLOW";
-    // A single committed insert makes both replay and concurrent delivery safe.
+    // Register the account referenced by a confirmed payable even before its first manual use.
     int inserted =
         jdbc.sql(
                 """
+                WITH payable_account AS (
+                    INSERT INTO finance.cash_accounts (company_id, id)
+                    SELECT :company, :account WHERE :origin = 'PAGO' AND NOT :reversal
+                    ON CONFLICT DO NOTHING
+                )
                 INSERT INTO finance.cash_movements
                     (event_id, company_id, origin, direction, event_type, source_id,
                      payment_id, shift_id, account_id, method, amount, currency, occurred_at,
-                     document_id, actor_id, trace_id, original_event_id)
+                     document_id, actor_id, trace_id, original_event_id, reference, observations)
                 SELECT :event, :company, :origin, :direction, :type, :source,
                         :payment, :shift, :account, :method, :amount, :currency, :occurredAt,
-                        :document, :actor, :trace, :original
+                        :document, :actor, :trace, :original, :reference, :observations
                 WHERE NOT :reversal OR EXISTS (
                     SELECT 1 FROM finance.cash_movements
                     WHERE company_id = :company AND event_id = :original AND source_id = :originalSource
@@ -69,7 +74,9 @@ public class ConfirmedPaymentConsumer {
             .param("amount", event.amount().setScale(2, RoundingMode.UNNECESSARY))
             .param("currency", event.currency())
             .param("occurredAt", Timestamp.from(event.occurredAt()))
-            .param("document", event.documentId())
+            .param("reference", event.reference(), java.sql.Types.VARCHAR)
+            .param("observations", event.observations(), java.sql.Types.VARCHAR)
+            .param("document", event.documentId(), java.sql.Types.OTHER)
             .param("actor", event.actorId())
             .param("trace", event.traceId())
             .update();

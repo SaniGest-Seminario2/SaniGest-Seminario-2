@@ -30,6 +30,9 @@ class FinanceRoutesConfiguration {
                         "/api/v1/finance/options",
                         "/api/v1/accounts/options",
                         "/api/v1/financial-accounts",
+                        "/api/v1/cash-movements",
+                        "/api/v1/cash-movements/all",
+                        "/api/v1/cash-movements/summary",
                         "/api/v1/cash-movements/{id}/attachment")
                     .and()
                     .method(HttpMethod.GET)

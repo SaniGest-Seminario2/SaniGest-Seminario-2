@@ -6,6 +6,7 @@ import com.sanigest.finance.application.dto.movement.ManualMovement.AccountBalan
 import com.sanigest.finance.application.dto.movement.ManualMovement.AccountOption;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Category;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Document;
+import com.sanigest.finance.application.dto.movement.ManualMovement.Filters;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Method;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Option;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Options;
@@ -13,12 +14,14 @@ import com.sanigest.finance.application.dto.movement.ManualMovement.Request;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Result;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Type;
 import com.sanigest.finance.application.exception.movement.InvalidManualMovement;
+import com.sanigest.finance.application.port.in.movement.CashMovementQueries.Origin;
 import com.sanigest.finance.application.port.out.persistence.movement.ManualMovementStore;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 public class ManualCashMovements {
   private final ManualMovementStore store;
@@ -28,24 +31,49 @@ public class ManualCashMovements {
   }
 
   public Options options(UUID company) {
-    return new Options(
+    var types =
         List.of(
             option(Type.INCOME, "Ingreso"),
             option(Type.EXPENSE, "Egreso"),
-            option(Type.INTERNAL_TRANSFER, "Transferencia interna")),
+            option(Type.INTERNAL_TRANSFER, "Transferencia interna"));
+    var categories =
         List.of(
             option(Category.PARTNER_CONTRIBUTION, "Aportación de socio"),
             option(Category.LOAN_RECEIVED, "Préstamo recibido"),
             option(Category.BANK_INTEREST, "Intereses bancarios"),
-            option(Category.OTHER_INCOME, "Otros ingresos")),
+            option(Category.OTHER_INCOME, "Otros ingresos"));
+    var methods =
         List.of(
             option(Method.CASH, "Efectivo"),
             option(Method.CARD, "Tarjeta"),
             option(Method.TRANSFER, "Transferencia bancaria"),
-            option(Method.CHECK, "Cheque")),
+            option(Method.CHECK, "Cheque"));
+    var accounts =
         store.accounts(company).stream()
             .map(account -> new Option(account.id().toString(), account.name()))
-            .toList());
+            .toList();
+    var filters =
+        new Filters(
+            withAll("Todos", types),
+            List.of(
+                new Option("ALL", "Todos"),
+                option(Origin.CASH_SESSION, "Caja"),
+                option(Origin.RECEIVABLE_PAYMENT, "Cobro"),
+                option(Origin.PAYABLE_PAYMENT, "Cuenta por pagar"),
+                option(Origin.MANUAL, "Manual")),
+            withAll("Todos", methods),
+            Stream.concat(
+                    Stream.of(
+                        new Option("ALL", "Todas"),
+                        new Option("SALES", "Ventas"),
+                        new Option("SUPPLIES", "Suministros")),
+                    categories.stream())
+                .toList());
+    return new Options(types, categories, methods, accounts, filters);
+  }
+
+  private static List<Option> withAll(String label, List<Option> options) {
+    return Stream.concat(Stream.of(new Option("ALL", label)), options.stream()).toList();
   }
 
   public List<AccountOption> accountOptions(UUID company, Method method, String search) {

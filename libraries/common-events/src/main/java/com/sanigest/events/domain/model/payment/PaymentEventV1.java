@@ -30,7 +30,9 @@ public record PaymentEventV1(
     UUID originalEventId,
     UUID originalSourceId,
     UUID documentId,
-    UUID actorId) {
+    UUID actorId,
+    String reference,
+    String observations) {
 
   public static final int VERSION = 1;
 

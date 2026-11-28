@@ -16,7 +16,11 @@ import com.sanigest.finance.application.dto.movement.ManualMovement.Request;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Type;
 import com.sanigest.finance.application.exception.movement.InvalidManualMovement;
 import com.sanigest.finance.application.exception.movement.ManualMovementConflict;
+import com.sanigest.finance.application.port.in.movement.CashMovementQueries;
+import com.sanigest.finance.application.port.in.movement.CashMovementQueries.Criteria;
+import com.sanigest.finance.application.port.in.movement.CashMovementQueries.Origin;
 import com.sanigest.finance.application.usecase.movement.ManualCashMovements;
+import com.sanigest.finance.infrastructure.messaging.payment.ConfirmedPaymentConsumer;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -27,6 +31,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -60,6 +65,8 @@ class FinanceServiceIT {
   @LocalServerPort int port;
   @Autowired JdbcClient jdbc;
   @Autowired ManualCashMovements movements;
+  @Autowired CashMovementQueries movementQueries;
+  @Autowired ConfirmedPaymentConsumer paymentConsumer;
 
   @DynamicPropertySource
   static void database(DynamicPropertyRegistry registry) {
@@ -82,7 +89,11 @@ class FinanceServiceIT {
 
   @Test
   void flywayCreatesServiceTablesInPostgres() {
-    assertThat(jdbc.sql("select count(*) from finance.cash_shifts").query(Long.class).single())
+    assertThat(
+            jdbc.sql("select count(*) from finance.cash_shifts where company_id = :company")
+                .param("company", UUID.randomUUID())
+                .query(Long.class)
+                .single())
         .isZero();
   }
 
@@ -191,6 +202,7 @@ class FinanceServiceIT {
               .build();
       assertThat(client.send(options, HttpResponse.BodyHandlers.discarding()).statusCode())
           .isEqualTo(200);
+      assertMovementReadContract(client, company);
       var selector = get(client, company, "/api/v1/accounts/options?method=CASH&search=general");
       assertThat(selector.statusCode()).isEqualTo(200);
       var selected = json.readTree(selector.body());
@@ -225,7 +237,50 @@ class FinanceServiceIT {
                   .query(Integer.class)
                   .single())
           .isEqualTo(2);
+
+      assertAllMovementLimit(client, company, cash);
     }
+  }
+
+  private void assertAllMovementLimit(HttpClient client, UUID company, UUID cash) throws Exception {
+    jdbc.sql(
+            """
+            INSERT INTO finance.cash_movements
+              (event_id, company_id, event_type, source_id, payment_id, account_id,
+               method, amount, currency, occurred_at, origin, direction)
+            SELECT id, :company, 'CASH_SESSION', id, id, :account, 'CHECK', 1, 'DOP',
+                   '2026-11-28T15:00:00Z', 'CAJA', 'INFLOW'
+            FROM (SELECT gen_random_uuid() AS id FROM generate_series(1, 1001)) rows
+            """)
+        .param("company", company)
+        .param("account", cash)
+        .update();
+    var cashFilter = "?origin=CASH_SESSION&method=CHECK";
+    assertThat(get(client, company, "/api/v1/cash-movements/all" + cashFilter).statusCode())
+        .isEqualTo(422);
+    var cashPage = get(client, company, "/api/v1/cash-movements" + cashFilter);
+    assertThat(json.readTree(cashPage.body()).get("totalElements").asInt()).isEqualTo(1001);
+  }
+
+  private void assertMovementReadContract(HttpClient client, UUID company) throws Exception {
+    var list =
+        get(
+            client,
+            company,
+            "/api/v1/cash-movements?type=INCOME&origin=MANUAL&method=CASH&category=OTHER_INCOME");
+    assertThat(list.statusCode()).isEqualTo(200);
+    assertThat(json.readTree(list.body()).get("totalElements").asInt()).isEqualTo(1);
+    var all = get(client, company, "/api/v1/cash-movements/all?search=ref");
+    assertThat(all.statusCode()).isEqualTo(200);
+    assertThat(json.readTree(all.body())).isEqualTo(json.readTree(list.body()).get("content"));
+    var summary = get(client, company, "/api/v1/cash-movements/summary?from=2026-11-28");
+    assertThat(summary.statusCode()).isEqualTo(200);
+    assertThat(json.readTree(summary.body()).get("netFlow").asInt()).isEqualTo(100);
+    assertThat(get(client, company, "/api/v1/cash-movements?size=101").statusCode()).isEqualTo(400);
+    assertThat(get(client, company, "/api/v1/cash-movements?origin=unknown").statusCode())
+        .isEqualTo(400);
+    assertThat(get(client, UUID.randomUUID(), "/api/v1/cash-movements/all").statusCode())
+        .isEqualTo(403);
   }
 
   @Test
@@ -298,6 +353,164 @@ class FinanceServiceIT {
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build();
     return client.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  @Test
+  void filtersAndSummarizesConfirmedMovementsAcrossPages() {
+    UUID company = UUID.randomUUID();
+    UUID actor = UUID.randomUUID();
+    var accounts = movements.options(company).movementAccounts();
+    UUID cash = UUID.fromString(accounts.get(0).value());
+    UUID bank = UUID.fromString(accounts.get(2).value());
+    UUID card = UUID.fromString(accounts.get(4).value());
+    UUID payableAccount = UUID.fromString(accounts.get(3).value());
+
+    movements.register(company, actor, "prior", movement(Type.INCOME, cash, null, "100"), null);
+    var transfer =
+        movements.register(
+            company,
+            actor,
+            "transfer",
+            movement(Type.INTERNAL_TRANSFER, bank, cash, "30"),
+            new Document("application/pdf", new byte[] {1}));
+    UUID shift = UUID.randomUUID();
+    jdbc.sql(
+            """
+            INSERT INTO finance.cash_shifts (company_id, id, operator_id, opened_at)
+            VALUES (:company, :shift, :actor, '2026-11-29T12:00:00Z')
+            """)
+        .param("company", company)
+        .param("shift", shift)
+        .param("actor", actor)
+        .update();
+    jdbc.sql("INSERT INTO finance.cash_accounts (company_id, id) VALUES (:company, :card)")
+        .param("company", company)
+        .param("card", card)
+        .update();
+    projectWithReplays(
+        company,
+        card,
+        shift,
+        "sales.receivable-payment.v1",
+        "ReceivablePaymentRegisteredV1",
+        "CREDIT_CARD",
+        "50");
+    projectWithReplays(
+        company,
+        payableAccount,
+        null,
+        "expense.payable-payment.v1",
+        "PayablePaymentRegisteredV1",
+        "TRANSFER",
+        "20");
+
+    LocalDate day = LocalDate.of(2026, 11, 29);
+    var unfiltered = new Criteria("", null, null, null, null, null, day);
+    var rows = movementQueries.all(company, unfiltered);
+    var first = movementQueries.page(company, unfiltered, 0, 2);
+    assertThat(first.totalElements()).isEqualTo(4);
+    assertThat(first.content()).isEqualTo(rows.subList(0, 2));
+    assertThat(movementQueries.page(company, unfiltered, 1, 2).content())
+        .isEqualTo(rows.subList(2, 4));
+    assertThat(movementQueries.page(company, unfiltered, 2, 2).totalElements()).isEqualTo(4);
+
+    var transferOnly =
+        new Criteria(
+            "concepto",
+            Type.INTERNAL_TRANSFER,
+            Origin.MANUAL,
+            Method.CASH,
+            "OTHER_INCOME",
+            null,
+            null);
+    assertThat(movementQueries.all(company, transferOnly))
+        .singleElement()
+        .satisfies(row -> {
+          assertThat(row.id()).isEqualTo(transfer.id());
+          assertThat(row.accountId()).isEqualTo(cash);
+          assertThat(row.destinationAccountId()).isEqualTo(bank);
+          assertThat(row.documentUrl()).endsWith("/" + transfer.id() + "/attachment");
+        });
+    var sales =
+        new Criteria(
+            "bank-ref", Type.INCOME, Origin.RECEIVABLE_PAYMENT, Method.CARD, "SALES", day, day);
+    assertThat(movementQueries.all(company, sales))
+        .singleElement()
+        .satisfies(row -> {
+          assertThat(row.referenceId()).isNotNull();
+          assertThat(row.concept()).isNull();
+          assertThat(row.destinationAccountId()).isNull();
+          assertThat(row.receipt()).isNull();
+          assertThat(row.documentUrl()).startsWith("/api/v1/invoices/");
+        });
+    assertThat(
+            movementQueries.all(
+                company,
+                new Criteria(
+                    "",
+                    Type.EXPENSE,
+                    Origin.PAYABLE_PAYMENT,
+                    Method.TRANSFER,
+                    "SUPPLIES",
+                    day,
+                    day)))
+        .singleElement()
+        .satisfies(row -> assertThat(row.accountId()).isEqualTo(payableAccount));
+    assertMovementSummary(company, day, unfiltered);
+    assertThat(movementQueries.all(UUID.randomUUID(), unfiltered)).isEmpty();
+  }
+
+  private void assertMovementSummary(UUID company, LocalDate day, Criteria unfiltered) {
+    var summary =
+        movementQueries.summary(company, new Criteria("", null, null, null, null, day, day));
+    assertThat(summary.inflows()).isEqualByComparingTo("50");
+    assertThat(summary.outflows()).isEqualByComparingTo("20");
+    assertThat(summary.netFlow()).isEqualByComparingTo("30");
+    assertThat(summary.openingBalance()).isEqualByComparingTo("100");
+    assertThat(summary.closingBalance()).isEqualByComparingTo("130");
+    assertThat(summary.movementCount()).isEqualTo(2);
+    var allTime = movementQueries.summary(company, unfiltered);
+    assertThat(allTime.inflows()).isEqualByComparingTo("150");
+    assertThat(allTime.outflows()).isEqualByComparingTo("20");
+    assertThat(allTime.movementCount()).isEqualTo(4);
+  }
+
+  private void projectWithReplays(
+      UUID company,
+      UUID account,
+      UUID shift,
+      String topic,
+      String type,
+      String method,
+      String amount) {
+    UUID event = UUID.randomUUID();
+    String payload =
+        """
+        {"eventId":"%s","eventType":"%s","version":1,"occurredAt":"2026-11-29T12:05:00Z",
+         "companyId":"%s","sourceId":"%s","traceId":"test","paymentId":"%s","accountId":"%s",
+         "shiftId":%s,"method":"%s","amount":"%s","currency":"DOP","reference":"BANK-REF",
+         "documentId":"%s"}
+        """
+            .formatted(
+                event,
+                type,
+                company,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                account,
+                json.writeValueAsString(shift),
+                method,
+                amount,
+                UUID.randomUUID());
+    paymentConsumer.project(new ConsumerRecord<>(topic, 0, 0, company.toString(), payload));
+    paymentConsumer.project(new ConsumerRecord<>(topic, 0, 1, company.toString(), payload));
+    paymentConsumer.project(
+        new ConsumerRecord<>(
+            topic,
+            0,
+            2,
+            company.toString(),
+            payload.replace(event.toString(), UUID.randomUUID().toString())));
   }
 
   private static Request movement(Type type, UUID destination, UUID source, String amount) {

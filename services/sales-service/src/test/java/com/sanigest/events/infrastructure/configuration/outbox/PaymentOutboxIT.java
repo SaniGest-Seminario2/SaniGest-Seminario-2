@@ -189,6 +189,8 @@ class PaymentOutboxIT {
         original == null ? null : original.eventId(),
         original == null ? null : original.sourceId(),
         null,
+        null,
+        null,
         null);
   }
 

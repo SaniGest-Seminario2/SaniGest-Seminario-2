@@ -126,3 +126,31 @@ Acepta JSON o un formulario multipart con la parte JSON `movement`
 de hasta 1 MiB). La respuesta 201 incluye `id`, `origin`, `actorId`,
 `movement` y `documentUrl`. La misma clave y contenido devuelven el mismo
 identificador para ese actor y empresa. Cambiar el contenido devuelve 409.
+
+### Consulta de movimientos y flujo
+
+Las tres rutas GET de `/api/v1/cash-movements` requieren `X-Company-Id` y
+permiso de lectura financiera. Aceptan `search` (subcadena de concepto,
+referencia o ID de referencia sin distinguir mayúsculas), `type`, `origin`,
+`method`, `category`, `from` y `to`. Los filtros de selección admiten
+`ALL` o los códigos de `movementFilters` de `GET /api/v1/finance/options`.
+`CARD` incluye tarjetas de crédito y débito.
+
+La ruta base devuelve `content`, `page`, `size`, `totalElements` y
+`totalPages`. La primera página es 0 y el tamaño predeterminado es 20
+(máximo 100). `/all` devuelve un arreglo y responde 422 si coinciden más de
+1000 filas. Ambas rutas ordenan por instante descendente e ID ascendente.
+Una transferencia interna ocupa una fila con cuenta de origen y destino.
+Las filas conservan los identificadores y publican enlaces a los documentos
+cuando existe una ruta autorizada. La referencia bancaria y las
+observaciones de hechos históricos pueden ser nulas.
+
+`/summary` calcula `inflows`, `outflows`, `netFlow`, `openingBalance`,
+`closingBalance` y `movementCount` sobre el historial confirmado completo
+en DOP para la empresa y los filtros indicados. `from` y `to` son fechas
+inclusivas ISO en America/Santo_Domingo. El saldo inicial acumula el flujo
+anterior a `from` y es cero si se omite esa fecha. Sin `to`, el cálculo
+incluye todos los registros disponibles desde el inicio del período. El
+saldo final suma el flujo neto del período al saldo inicial. El conteo
+incluye las transferencias internas una vez y el flujo excluye sus dos
+asientos. Las reversiones afectan el flujo en la fecha de su registro.

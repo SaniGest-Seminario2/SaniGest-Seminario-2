@@ -69,6 +69,8 @@ class JdbcPaymentOutboxTest {
         null,
         null,
         null,
+        null,
+        null,
         null);
   }
 }
