@@ -8,6 +8,7 @@ import com.sanigest.company.application.usecase.access.RequireRegularAccount;
 import com.sanigest.company.application.usecase.audit.GetCompanyAuditLogUseCase;
 import com.sanigest.security.CompanyAuditParameters;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,7 +34,7 @@ class CompanyAuditLogController {
       @AuthenticationPrincipal Jwt jwt,
       @PathVariable(required = false) String companyId,
       HttpServletRequest http,
-      @ModelAttribute CompanyAuditParameters parameters) {
+      @ParameterObject @ModelAttribute CompanyAuditParameters parameters) {
     var result =
         auditLog.get(
             authenticatedUserId(jwt, regularAccount),

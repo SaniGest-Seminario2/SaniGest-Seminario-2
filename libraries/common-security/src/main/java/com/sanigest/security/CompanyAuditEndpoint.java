@@ -5,6 +5,7 @@ import com.sanigest.web.audit.AuditPage.Filters;
 import com.sanigest.web.audit.AuditPage.Reader;
 import java.util.UUID;
 import java.util.function.Predicate;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -25,7 +26,8 @@ public abstract class CompanyAuditEndpoint {
 
   @GetMapping
   public ResponseEntity<AuditPage> get(
-      @RequestHeader HttpHeaders headers, @ModelAttribute CompanyAuditParameters parameters) {
+      @RequestHeader HttpHeaders headers,
+      @ParameterObject @ModelAttribute CompanyAuditParameters parameters) {
     UUID company;
     Filters filters;
     try {

@@ -1,6 +1,7 @@
 package com.sanigest.security;
 
 import com.sanigest.web.audit.AuditPage.Filters;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -11,8 +12,8 @@ public record CompanyAuditParameters(
     String operation,
     String resourceType,
     UUID resourceId,
-    Integer page,
-    Integer size) {
+    @Schema(defaultValue = "0") Integer page,
+    @Schema(defaultValue = "20") Integer size) {
   public Filters filters() {
     return new Filters(
         from,
