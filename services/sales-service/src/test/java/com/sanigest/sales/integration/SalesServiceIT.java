@@ -211,7 +211,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("15");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("16");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -251,7 +251,8 @@ class SalesServiceIT {
             "invoice_number_sequences",
             "payment_outbox",
             "invoice_payments",
-            "invoice_payment_lines");
+            "invoice_payment_lines",
+            "audit_log");
 
     assertThat(
             jdbc.queryForList(
@@ -328,7 +329,9 @@ class SalesServiceIT {
             "invoice_payments_invoice_history_idx",
             "invoice_payments_company_id_operator_id_idempotency_key_key",
             "invoice_payment_lines_pkey",
-            "invoice_payment_lines_payment_id_position_key");
+            "invoice_payment_lines_payment_id_position_key",
+            "audit_log_pkey",
+            "audit_log_company_timeline");
     assertForeignKeys();
     assertMigrationHistory();
   }
@@ -365,8 +368,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(15);
-    assertThat(history.getLast()).containsEntry("version", "15").containsEntry("success", true);
+    assertThat(history).hasSize(16);
+    assertThat(history.getLast()).containsEntry("version", "16").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -434,12 +437,12 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(1);
-    assertThat(current.migrate().migrationsExecuted).isEqualTo(10);
+    assertThat(current.migrate().migrationsExecuted).isEqualTo(11);
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
         .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("15");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("16");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",
@@ -1258,6 +1261,26 @@ class SalesServiceIT {
       assertThat(replay.statusCode()).isEqualTo(201);
       assertThat(replay.body()).isEqualTo(creation.body());
       assertThat(countSales(fixture.company())).isEqualTo(1);
+      var audit =
+          jdbc.queryForList(
+              """
+              SELECT actor_id, operation, state, correlation_id FROM sales.audit_log
+              WHERE company_id = ? AND resource_id = ? ORDER BY occurred_at, id
+              """,
+              fixture.company(),
+              UUID.fromString(id));
+      assertThat(audit).hasSize(2);
+      assertThat(audit.getFirst())
+          .containsEntry("actor_id", fixture.user())
+          .containsEntry("operation", "SALE_REGISTERED")
+          .containsEntry("state", "REGISTERED");
+      assertThat(audit.getLast())
+          .containsEntry("actor_id", fixture.user())
+          .containsEntry("operation", "SALE_CANCELLED")
+          .containsEntry("state", "CANCELLED");
+      assertThat(audit)
+          .allSatisfy(
+              entry -> assertThat((String) entry.get("correlation_id")).matches("[0-9a-f]{32}"));
       CATALOG.verify(1, WireMock.getRequestedFor(WireMock.urlPathEqualTo(fixture.productPath())));
     }
   }

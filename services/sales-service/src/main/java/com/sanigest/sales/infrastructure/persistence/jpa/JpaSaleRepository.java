@@ -20,14 +20,19 @@ import org.springframework.transaction.annotation.Transactional;
 class JpaSaleRepository implements SaleRepository {
   private final EntityManager entityManager;
   private final SaleRows rows;
+  private final SalesAudit audit;
 
   private final PostgresReceivableRepository receivables;
 
   JpaSaleRepository(
-      EntityManager entityManager, SaleRows rows, PostgresReceivableRepository receivables) {
+      EntityManager entityManager,
+      SaleRows rows,
+      PostgresReceivableRepository receivables,
+      SalesAudit audit) {
     this.receivables = receivables;
     this.entityManager = entityManager;
     this.rows = rows;
+    this.audit = audit;
   }
 
   @Override
@@ -112,6 +117,12 @@ class JpaSaleRepository implements SaleRepository {
               != 1) {
             throw new SaleCancellationConflict();
           }
+          audit.append(
+              companyId,
+              cancellation.cancelledBy(),
+              SalesAudit.Operation.SALE_CANCELLED,
+              saleId,
+              cancelled.status().name());
           return cancelled;
         });
   }

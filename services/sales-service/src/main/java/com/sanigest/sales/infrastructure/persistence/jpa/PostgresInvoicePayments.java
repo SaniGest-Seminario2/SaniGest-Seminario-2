@@ -15,7 +15,7 @@ import com.sanigest.sales.domain.enums.PaymentMethod;
 import com.sanigest.sales.domain.enums.ReceivableStatus;
 import com.sanigest.sales.domain.model.InvoicePayment;
 import com.sanigest.sales.domain.model.Receivable;
-import com.sanigest.sales.observability.SalesRequestTrace;
+import com.sanigest.security.RequestCorrelation;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -35,6 +35,7 @@ class PostgresInvoicePayments implements InvoicePayments {
   private final SaleRows sales;
   private final PostgresReceivableRepository receivables;
   private final PaymentOutbox outbox;
+  private final SalesAudit audit;
   private final ObjectMapper json;
 
   PostgresInvoicePayments(
@@ -42,11 +43,13 @@ class PostgresInvoicePayments implements InvoicePayments {
       SaleRows sales,
       PostgresReceivableRepository receivables,
       PaymentOutbox outbox,
+      SalesAudit audit,
       ObjectMapper json) {
     this.jdbc = jdbc;
     this.sales = sales;
     this.receivables = receivables;
     this.outbox = outbox;
+    this.audit = audit;
     this.json = json;
   }
 
@@ -154,6 +157,12 @@ class PostgresInvoicePayments implements InvoicePayments {
             lines,
             request.notes());
     complete(result);
+    audit.append(
+        company,
+        operator,
+        SalesAudit.Operation.INVOICE_PAYMENT_REGISTERED,
+        payment,
+        balance.signum() == 0 ? "PAID" : "PARTIALLY_PAID");
     return result;
   }
 
@@ -196,7 +205,7 @@ class PostgresInvoicePayments implements InvoicePayments {
       InvoicePayment.Request request,
       PaymentAdmission.Admission admission,
       Instant registeredAt) {
-    String traceId = SalesRequestTrace.current();
+    String traceId = RequestCorrelation.current();
     List<InvoicePayment.AppliedLine> lines = new ArrayList<>();
     for (int index = 0; index < request.lines().size(); index++) {
       var line = request.lines().get(index);

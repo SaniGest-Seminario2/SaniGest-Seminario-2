@@ -13,6 +13,7 @@ import com.sanigest.inventory.domain.StockConfiguration;
 import com.sanigest.inventory.domain.StockKey;
 import com.sanigest.inventory.domain.StockMovement;
 import com.sanigest.inventory.domain.StockPosition;
+import com.sanigest.security.RequestCorrelation;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Optional;
@@ -90,9 +91,9 @@ class JdbcStockLedger implements StockLedger {
             """
             INSERT INTO inventory.stock_movements (company_id,catalog_item_id,warehouse_id,id,
                 movement_type,direction,quantity,unit_code,origin_type,origin_id,effect_id,actor_id,reason,
-                occurred_at,recorded_at,sequence,balance_after)
+                occurred_at,recorded_at,sequence,balance_after,correlation_id)
             VALUES (:company,:item,:warehouse,:id,:type,:direction,:quantity,:unit,:originType,:origin,
-                :effect,:actor,:reason,:occurred,:recorded,:sequence,:balance)
+                :effect,:actor,:reason,:occurred,:recorded,:sequence,:balance,:trace)
             """,
             value.key())
         .param("id", value.id())
@@ -109,6 +110,7 @@ class JdbcStockLedger implements StockLedger {
         .param("recorded", timestamp(value.recordedAt()))
         .param("sequence", value.sequence())
         .param("balance", value.balanceAfter())
+        .param("trace", RequestCorrelation.current())
         .update();
   }
 

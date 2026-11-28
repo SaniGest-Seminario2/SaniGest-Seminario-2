@@ -32,6 +32,7 @@ class PostgresSaleIdempotencyRepository implements SaleIdempotencyRepository {
 
   private final NamedParameterJdbcTemplate jdbc;
   private final EntityManager entityManager;
+  private final SalesAudit audit;
   private final TransactionTemplate transaction;
   private final MeterRegistry metrics;
   private final long retentionMillis;
@@ -40,12 +41,14 @@ class PostgresSaleIdempotencyRepository implements SaleIdempotencyRepository {
   PostgresSaleIdempotencyRepository(
       NamedParameterJdbcTemplate jdbc,
       EntityManager entityManager,
+      SalesAudit audit,
       PlatformTransactionManager manager,
       MeterRegistry metrics,
       @Value("${sanigest.sales.idempotency.retention}") Duration retention,
       @Value("${sanigest.sales.idempotency.lease}") Duration lease) {
     this.jdbc = jdbc;
     this.entityManager = entityManager;
+    this.audit = audit;
     this.metrics = metrics;
     this.retentionMillis = positiveMillis(retention);
     this.leaseMillis = positiveMillis(lease);
@@ -198,6 +201,12 @@ class PostgresSaleIdempotencyRepository implements SaleIdempotencyRepository {
     if (updated != 1) {
       throw new IdempotencyInProgress();
     }
+    audit.append(
+        request.companyId(),
+        request.actorId(),
+        SalesAudit.Operation.SALE_REGISTERED,
+        result.saleId(),
+        "REGISTERED");
     return result;
   }
 

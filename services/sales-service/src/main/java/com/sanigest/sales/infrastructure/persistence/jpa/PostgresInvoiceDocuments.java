@@ -51,11 +51,14 @@ class PostgresInvoiceDocuments implements InvoiceDocuments {
   private final JdbcClient jdbc;
   private final SaleRows saleRows;
   private final SaleRepository sales;
+  private final SalesAudit audit;
 
-  PostgresInvoiceDocuments(JdbcClient jdbc, SaleRows saleRows, SaleRepository sales) {
+  PostgresInvoiceDocuments(
+      JdbcClient jdbc, SaleRows saleRows, SaleRepository sales, SalesAudit audit) {
     this.jdbc = jdbc;
     this.saleRows = saleRows;
     this.sales = sales;
+    this.audit = audit;
   }
 
   @Override
@@ -131,6 +134,12 @@ class PostgresInvoiceDocuments implements InvoiceDocuments {
             .update();
     if (updated == 1) {
       sales.cancel(company, saleId, cancellation).orElseThrow(InvoiceConflict::new);
+      audit.append(
+          company,
+          cancellation.cancelledBy(),
+          SalesAudit.Operation.INVOICE_CANCELLED,
+          invoice,
+          "CANCELLED");
     }
     return find(company, invoice);
   }

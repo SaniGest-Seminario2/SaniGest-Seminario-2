@@ -20,4 +20,5 @@ public record CompanyAuditEvent(
     CompanyRole newRole,
     MembershipStatus previousStatus,
     MembershipStatus newStatus,
-    AdvisorPermission advisorPermission) {}
+    AdvisorPermission advisorPermission,
+    String correlationId) {}
