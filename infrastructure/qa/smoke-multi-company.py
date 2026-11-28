@@ -735,6 +735,38 @@ def verify_expenses(token, company, other, item, warehouse):
                           "supplierInvoiceNumber": "COMPRA-002",
                           "lines": [{**request["lines"][0], "receivedQuantity": "0"}]})
     assert cash["financialStatus"] == "PAYMENT_UNRECORDED" and cash["dueDate"] is None
+    pending_document = exchange("expenses", token=token, tenant=company, key=uuid.uuid4().hex,
+                                status=201, data={**request, "receiptStatus": "PENDING",
+                                "supplierInvoiceNumber": "COMPRA-ANULAR",
+                                "lines": [{**request["lines"][0], "receivedQuantity": "0"}]})
+    reason = {"reason": "Registro duplicado"}
+    historic_path = f"expenses/{pending_document['id']}"
+    cancel_path = f"{historic_path}/cancel"
+    assert exchange("payables", token=token, tenant=company)["totalElements"] == 2
+    assert exchange("expenses/summary", token=token, tenant=company)["operations"] == 3
+    exchange(cancel_path, token=token, tenant=other, data=reason, status=404)
+    exchange(cancel_path, token=token, tenant=company, data={"reason": " "}, status=400)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        list(executor.map(lambda body: exchange(cancel_path, token=token, tenant=company,
+                                                 data=body, status=204), (reason, reason)))
+    exchange(cancel_path, token=token, tenant=company, data={"reason": "Motivo nuevo"}, status=204)
+    historic = exchange(historic_path, token=token, tenant=company)
+    assert historic["status"] == "CANCELLED" and historic["outstandingAmount"] == 0
+    assert historic["cancellationReason"] == reason["reason"] and historic["cancelledAt"]
+    assert historic["lines"] == pending_document["lines"] and historic["attachmentIds"] == [attachment]
+    assert exchange("expenses?search=COMPRA-ANULAR", token=token, tenant=company)["totalElements"] == 0
+    assert exchange("expenses/all?search=COMPRA-ANULAR", token=token, tenant=company) == []
+    assert exchange("payables", token=token, tenant=company)["totalElements"] == 1
+    assert exchange("expenses/summary", token=token, tenant=company)["operations"] == 2
+    payment = exchange(f"payables/{pending_document['id']}/payments", token=token, tenant=company,
+                       key=uuid.uuid4().hex, status=409,
+                       data={"amount": "1.00", "method": "TRANSFER", "accountId": str(uuid.uuid4()),
+                             "date": business_date().isoformat(), "reference": "TRF-ANULADA"})
+    assert payment["errorCode"] == "PAYABLE_CANCELLED"
+    audit = exchange("expenses/audit-log?operation=EXPENSE_CANCELLED", token=token, tenant=company)
+    assert [entry["resourceId"] for entry in audit["content"]] == [pending_document["id"]]
+    assert exchange(f"{detail_path}/cancel", token=token, tenant=company, data=reason,
+                    status=409)["errorCode"] == "EXPENSE_HAS_RECEIPT"
     filters = urlencode({"search": "COMPRA-001", "operationType": "PURCHASE"})
     page = exchange(f"expenses?{filters}&size=1", token=token, tenant=company)
     assert page["totalElements"] == 1 and page["content"][0]["id"] == created["id"]
@@ -784,6 +816,8 @@ def verify_payable_payment(compose, token, owner, company, other, payable):
     with ThreadPoolExecutor(max_workers=2) as executor:
         first, replay = list(executor.map(lambda _: pay(), range(2)))
     assert first == replay and first["status"] == "PARTIALLY_PAID"
+    assert exchange(f"expenses/{payable}/cancel", token=token, tenant=company,
+                    data={"reason": "Con pagos"}, status=409)["errorCode"] == "EXPENSE_HAS_PAYMENTS"
     assert pay({**request, "amount": "10.0", "notes": " Abono "}) == first
     pay(tenant=other, status=404)
     assert Decimal(str(first["outstandingAmount"])) == Decimal("19.50")

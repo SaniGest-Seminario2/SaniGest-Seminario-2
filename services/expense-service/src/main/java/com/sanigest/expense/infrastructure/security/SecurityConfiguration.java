@@ -54,7 +54,11 @@ class SecurityConfiguration {
                 .permitAll()
                 .requestMatchers(HttpMethod.GET, "/actuator/info")
                 .permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/expenses", "/api/v1/payables/*/payments")
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/v1/expenses",
+                    "/api/v1/expenses/*/cancel",
+                    "/api/v1/payables/*/payments")
                 .authenticated()
                 .requestMatchers(
                     HttpMethod.GET,

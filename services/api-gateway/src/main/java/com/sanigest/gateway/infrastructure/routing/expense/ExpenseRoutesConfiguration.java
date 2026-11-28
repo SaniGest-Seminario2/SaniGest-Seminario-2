@@ -24,7 +24,10 @@ class ExpenseRoutesConfiguration {
             "expense",
             route ->
                 route
-                    .path("/api/v1/expenses", "/api/v1/payables/{id}/payments")
+                    .path(
+                        "/api/v1/expenses",
+                        "/api/v1/expenses/{id}/cancel",
+                        "/api/v1/payables/{id}/payments")
                     .and()
                     .method(HttpMethod.POST)
                     .metadata(RESPONSE_TIMEOUT_ATTR, 15_000)
