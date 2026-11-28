@@ -4,6 +4,7 @@ import com.sanigest.sales.application.dto.sale.SaleDetail;
 import com.sanigest.sales.application.dto.sale.SaleFinancials;
 import com.sanigest.sales.application.dto.sale.SalePage;
 import com.sanigest.sales.application.dto.sale.SaleSearch;
+import com.sanigest.sales.application.dto.sale.SaleTotals;
 import com.sanigest.sales.application.port.out.persistence.sale.SaleQueryRepository;
 import com.sanigest.sales.application.port.out.persistence.sale.SaleRepository;
 import com.sanigest.sales.domain.enums.receivable.ReceivableStatus;
@@ -59,15 +60,7 @@ class JpaSaleQueryRepository implements SaleQueryRepository {
   @Override
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public SalePage search(UUID companyId, SaleSearch criteria) {
-    var pattern =
-        criteria.search().isEmpty()
-            ? ""
-            : "%"
-                + criteria.search().replace("!", "!!").replace("%", "!%").replace("_", "!_")
-                + "%";
-    var status = criteria.status() == null ? "" : criteria.status().name();
-    var mode = criteria.mode() == null ? "" : criteria.mode().name();
-    var filter = new SaleRows.ListingFilter(pattern, status, mode, criteria.from(), criteria.to());
+    var filter = filter(criteria);
     long total = rows.countMatching(companyId, filter);
     List<SalePage.Item> content =
         criteria.offset() >= total
@@ -83,11 +76,36 @@ class JpaSaleQueryRepository implements SaleQueryRepository {
                         SaleMode.valueOf(row.getMode()),
                         SaleStatus.valueOf(row.getStatus()),
                         row.getTotal().setScale(2),
+                        row.getInvoiceId(),
                         row.getInvoiceNumber(),
                         paymentStatus(row.getPaymentStatus()),
                         money(row.getOutstandingBalance()),
                         money(row.getCollected())))
                 .toList();
     return new SalePage(content, criteria.page(), criteria.size(), total);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public SaleTotals totals(UUID companyId, SaleSearch criteria) {
+    var result = rows.totals(companyId, filter(criteria));
+    return new SaleTotals(
+        money(result.getTotalSales()),
+        money(result.getTotalCash()),
+        money(result.getTotalCredit()),
+        result.getOperations(),
+        money(result.getOutstandingBalance()));
+  }
+
+  private static SaleRows.ListingFilter filter(SaleSearch criteria) {
+    var pattern =
+        criteria.search().isEmpty()
+            ? ""
+            : "%"
+                + criteria.search().replace("!", "!!").replace("%", "!%").replace("_", "!_")
+                + "%";
+    var status = criteria.status() == null ? "" : criteria.status().name();
+    var mode = criteria.mode() == null ? "" : criteria.mode().name();
+    return new SaleRows.ListingFilter(pattern, status, mode, criteria.from(), criteria.to());
   }
 }

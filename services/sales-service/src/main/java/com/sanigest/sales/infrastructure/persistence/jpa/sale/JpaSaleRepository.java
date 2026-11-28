@@ -10,10 +10,12 @@ import com.sanigest.sales.domain.model.sale.SaleCancellation;
 import com.sanigest.sales.infrastructure.persistence.audit.SalesAudit;
 import com.sanigest.sales.infrastructure.persistence.jpa.receivable.PostgresReceivableRepository;
 import jakarta.persistence.EntityManager;
+import java.sql.Timestamp;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ class JpaSaleRepository implements SaleRepository {
   private final EntityManager entityManager;
   private final SaleRows rows;
   private final SalesAudit audit;
+  private final JdbcClient jdbc;
 
   private final PostgresReceivableRepository receivables;
 
@@ -30,7 +33,9 @@ class JpaSaleRepository implements SaleRepository {
       EntityManager entityManager,
       SaleRows rows,
       PostgresReceivableRepository receivables,
-      SalesAudit audit) {
+      SalesAudit audit,
+      JdbcClient jdbc) {
+    this.jdbc = jdbc;
     this.receivables = receivables;
     this.entityManager = entityManager;
     this.rows = rows;
@@ -99,9 +104,6 @@ class JpaSaleRepository implements SaleRepository {
           if (cancelled == sale) {
             return sale;
           }
-          if (rows.hasIssuedInvoice(companyId, saleId)) {
-            throw new SaleCancellationConflict();
-          }
           receivables
               .lockBySale(companyId, saleId)
               .ifPresent(receivable -> {
@@ -119,6 +121,7 @@ class JpaSaleRepository implements SaleRepository {
               != 1) {
             throw new SaleCancellationConflict();
           }
+          cancelInvoice(companyId, saleId, cancellation);
           audit.append(
               companyId,
               cancellation.cancelledBy(),
@@ -127,6 +130,31 @@ class JpaSaleRepository implements SaleRepository {
               cancelled.status().name());
           return cancelled;
         });
+  }
+
+  private void cancelInvoice(UUID companyId, UUID saleId, SaleCancellation cancellation) {
+    jdbc.sql(
+            """
+            UPDATE sales.internal_invoices
+               SET status = 'CANCELLED', cancelled_by = :actor, cancelled_at = :at,
+                   cancel_reason = :reason
+             WHERE company_id = :company AND sale_id = :sale AND status = 'ISSUED'
+            RETURNING id
+            """)
+        .param("actor", cancellation.cancelledBy())
+        .param("at", Timestamp.from(cancellation.cancelledAt()))
+        .param("reason", cancellation.cancelReason())
+        .param("company", companyId)
+        .param("sale", saleId)
+        .query(UUID.class)
+        .optional()
+        .ifPresent(invoice ->
+            audit.append(
+                companyId,
+                cancellation.cancelledBy(),
+                SalesAudit.Operation.INVOICE_CANCELLED,
+                invoice,
+                "CANCELLED"));
   }
 
   @Override

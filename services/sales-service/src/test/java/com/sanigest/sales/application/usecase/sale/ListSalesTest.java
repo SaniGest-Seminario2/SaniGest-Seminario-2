@@ -9,11 +9,15 @@ import static org.mockito.Mockito.when;
 
 import com.sanigest.sales.application.dto.sale.SalePage;
 import com.sanigest.sales.application.dto.sale.SaleSearch;
+import com.sanigest.sales.application.dto.sale.SaleTotals;
 import com.sanigest.sales.application.exception.sale.InvalidSaleQuery;
+import com.sanigest.sales.application.exception.sale.SaleListLimitExceeded;
 import com.sanigest.sales.application.exception.security.SalesAccessForbidden;
 import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
 import com.sanigest.sales.application.port.out.persistence.sale.SaleQueryRepository;
+import com.sanigest.sales.domain.enums.sale.SaleMode;
 import com.sanigest.sales.domain.enums.sale.SaleStatus;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -94,6 +98,31 @@ class ListSalesTest {
     assertThatThrownBy(() -> list.execute(null, null, null, null, page, size))
         .isInstanceOf(InvalidSaleQuery.class);
     verifyNoInteractions(repository);
+  }
+
+  @Test
+  void boundsTheUnpagedListAndUsesTheSameFiltersForTotals() {
+    when(authorization.requireMembership(SALES_READ)).thenReturn(companyId);
+    int limit = ListSales.MAX_UNPAGED_RESULTS;
+    var filter =
+        new SaleSearch("Factura", SaleStatus.REGISTERED, DATE, DATE, 0, limit, SaleMode.CREDIT);
+    when(repository.search(companyId, filter))
+        .thenReturn(new SalePage(List.of(), 0, limit, 0))
+        .thenReturn(new SalePage(List.of(), 0, limit, limit + 1));
+    assertThat(list.all(" Factura ", "registered", "credit", DATE, DATE)).isEmpty();
+    assertThatThrownBy(() -> list.all("Factura", "registered", "credit", DATE, DATE))
+        .isInstanceOf(SaleListLimitExceeded.class);
+
+    var zero = new BigDecimal("0.00");
+    var total = new BigDecimal("10.01");
+    var totals = new SaleTotals(total, zero, total, 2, zero);
+    when(repository.totals(
+            companyId,
+            new SaleSearch("Factura", SaleStatus.REGISTERED, DATE, DATE, 0, 1, SaleMode.CREDIT)))
+        .thenReturn(totals);
+    assertThat(list.summary("Factura", "registered", "credit", DATE, DATE).averageTicket())
+        .isEqualByComparingTo("5.01");
+    assertThat(new SaleTotals(zero, zero, zero, 0, zero).averageTicket()).isNull();
   }
 
   @Test

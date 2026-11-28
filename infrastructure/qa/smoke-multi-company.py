@@ -172,6 +172,12 @@ def verify_payment(compose, token, owner, company, other, invoice, sale, client)
     balance = Decimal(str(invoice["total"])) - Decimal("1.00")
     assert Decimal(str(payment["balance"])) == balance
     assert_state("PARTIALLY_PAID", "PARTIALLY_PAID", balance, Decimal("1.00"), True)
+    summary = get(f"sales/summary?{number}")
+    assert Decimal(summary["outstandingBalance"]) == balance
+    conflict = exchange(f"sales/{sale}/cancel", token=token, tenant=company, status=409,
+                        data={"reason": "Con cobro"})
+    assert conflict["errorCode"] == "SALE_CANCELLATION_CONFLICT"
+    assert_state("PARTIALLY_PAID", "PARTIALLY_PAID", balance, Decimal("1.00"), True)
     page = get("receivables?status=PARTIALLY_PAID&size=1")
     assert page["totalElements"] == 1 and page["content"] == get("receivables/all?status=PARTIALLY_PAID")
     assert get("receivables/all?status=PENDING") == []
@@ -227,9 +233,16 @@ def verify_payment(compose, token, owner, company, other, invoice, sale, client)
 
 def verify_invoice_list_limit(compose, token, company, other, source_invoice):
     source = uuid.UUID(source_invoice["id"])
+    no_invoice = uuid.uuid4()
     # Bulk fixtures exercise the real PostgreSQL query without 1,001 invoice issuance requests.
     fixture(compose, "sanigest_sales", f"""
         BEGIN;
+        INSERT INTO sales.sales
+        SELECT (jsonb_populate_record(s, jsonb_build_object(
+            'id', '{no_invoice}', 'code', 'V-2026-999999', 'client_name', 'Venta legado sin factura',
+            'mode', 'CASH'))).*
+        FROM sales.sales s JOIN sales.internal_invoices i ON i.sale_id = s.id
+        WHERE i.id = '{source}';
         CREATE TEMP TABLE invoice_list_fixture ON COMMIT DROP AS
         SELECT gen_random_uuid() AS invoice_id, gen_random_uuid() AS sale_id,
                'FAC-' || substring(i.number FROM 5 FOR 4) || '-' || (910000 + n) AS number
@@ -275,6 +288,23 @@ def verify_invoice_list_limit(compose, token, company, other, source_invoice):
         problem = get(f"/all?{search}", status=422)
         assert problem["errorCode"] == "INVOICE_LIST_LIMIT_EXCEEDED"
         assert exchange(f"{path}/all?{search}", token=token, tenant=other) == []
+
+    by_client = urlencode({"search": "sin factura", "mode": "CASH"})
+    row = exchange(f"sales/all?{by_client}", token=token, tenant=company)[0]
+    assert row["id"] == str(no_invoice) and row["invoiceId"] is None and row["invoiceNumber"] is None
+    assert row["paymentStatus"] is None and row["outstandingBalance"] is None and row["collectedAmount"] is None
+    query = "search=-910&mode=CREDIT"
+    rows = exchange(f"sales/all?{query}", token=token, tenant=company)
+    first = exchange(f"sales?{query}&size=10", token=token, tenant=company)
+    assert len(rows) == first["totalElements"] == 1000 and first["content"] == rows[:10]
+    summary = exchange(f"sales/summary?{query}", token=token, tenant=company)
+    assert summary["operations"] == 1000 and summary["totalCash"] == "0.00"
+    assert Decimal(summary["totalSales"]) == Decimal(source_invoice["total"]) * 1000
+    assert summary["totalCredit"] == summary["totalSales"] == summary["outstandingBalance"]
+    assert summary["averageTicket"] == source_invoice["total"]
+    problem = exchange("sales/all?search=-91", token=token, tenant=company, status=422)
+    assert problem["errorCode"] == "SALE_LIST_LIMIT_EXCEEDED"
+    assert exchange(f"sales/all?{query}", token=token, tenant=other) == []
 
 
 def main(compose):
@@ -494,8 +524,30 @@ def main(compose):
     exchange(direct_path, token=token, tenant=b, status=404)
     listed = exchange("invoices/collectible/all", token=token, tenant=a)
     assert direct["id"] in {row["id"] for row in listed}
+    query = urlencode({"search": direct["number"].lower(), "mode": "CREDIT",
+                       "from": detail["saleDate"], "to": detail["saleDate"]})
+    page = exchange(f"sales?{query}&size=1", token=token, tenant=a)
+    assert page["content"] == exchange(f"sales/all?{query}", token=token, tenant=a)
+    assert page["totalElements"] == 1 and page["content"][0]["invoiceId"] == direct["id"]
+    assert exchange(f"sales/summary?{query}", token=token, tenant=a)["averageTicket"] == direct["total"]
+    for suffix in ("", "/all", "/summary"):
+        for filters in ("mode=UNKNOWN", "from=2026-02-30", "from=2026-02-02&to=2026-02-01"):
+            exchange(f"sales{suffix}?{filters}", token=token, tenant=a, status=400)
+    cancel_sale = f"sales/{sale_id}/cancel"
+    exchange(cancel_sale, token=token, tenant=b, status=404, data={"reason": "Otra empresa"})
+    closed_sale = exchange(cancel_sale, token=token, tenant=a, data={"reason": "Smoke multiempresa"})
+    assert closed_sale["status"] == "CANCELLED"
+    assert exchange(cancel_sale, token=token, tenant=a, data={"reason": "Reintento"}) == closed_sale
+    for operation, resource in (("SALE_CANCELLED", sale_id), ("INVOICE_CANCELLED", direct["id"])):
+        audit = exchange(f"sales/audit-log?operation={operation}&resourceId={resource}",
+                         token=token, tenant=a)
+        assert [entry["resourceId"] for entry in audit["content"]] == [resource]
     cancelled = exchange(f"{direct_path}/cancel", token=token, tenant=a,
-                         data={"reason": "Smoke multiempresa"})
+                         data={"reason": "Reintento desde factura"})
+    assert cancelled["cancelReason"] == "Smoke multiempresa"
+    summary = exchange(f"sales/summary?{query}", token=token, tenant=a)
+    assert summary["operations"] == 0 and summary["averageTicket"] is None
+    assert summary["totalSales"] == summary["outstandingBalance"] == "0.00"
     assert cancelled["status"] == "CANCELLED" and cancelled["total"] == direct["total"]
     assert cancelled["paymentStatus"] == "CANCELLED"
     assert cancelled["outstandingBalance"] == cancelled["collectedAmount"] == "0.00"
@@ -544,6 +596,10 @@ def main(compose):
         assert zero_detail["total"] == zero_detail["outstandingBalance"] == zero_detail["collectedAmount"] == "0.00"
         zero_sale = exchange(f"sales/{zero['saleId']}", token=token, tenant=a)
         assert zero_sale["paymentStatus"] == "PAID" and zero_sale["outstandingBalance"] == "0.00"
+        summary = exchange("sales/summary", token=token, tenant=a)
+        assert summary["operations"] == 2 and summary["averageTicket"] == "12.50"
+        assert summary["totalSales"] == summary["totalCredit"] == "25.00"
+        assert summary["totalCash"] == summary["outstandingBalance"] == "0.00"
         assert exchange("invoices/collectible/all", token=token, tenant=a) == []
         verify_invoice_list_limit(compose, token, a, b, payable_invoice)
     refresh = {"refreshToken": session["refreshToken"]}
