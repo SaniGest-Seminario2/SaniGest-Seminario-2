@@ -371,7 +371,8 @@ class CatalogServiceIT {
             "V16__create_catalog_item_history.sql",
             "V17__preserve_required_commercial_fields.sql",
             "V18__require_commercial_fields_on_insert.sql",
-            "V19__add_regular_supplier_supply_type.sql");
+            "V19__add_regular_supplier_supply_type.sql",
+            "V20__audit_entries.sql");
     flyway.validate();
     assertThat(flyway.migrate().migrationsExecuted).isZero();
   }
@@ -2854,6 +2855,24 @@ class CatalogServiceIT {
       assertThat(successfulBody(patch(http, path + "/status", owner, "{\"active\":false}", null)))
           .isEqualTo(inactive);
       assertThat(itemRevision(id)).isEqualTo(revision);
+
+      var auditPath =
+          "/api/v1/catalog/audit-log?operation=STATUS_CHANGED"
+              + "&resourceType=CATALOG_ITEM&resourceId="
+              + id
+              + "&size=1";
+      var auditor = membershipToken(tenant, MembershipRole.VIEWER, true, Scope.AUDIT);
+      var foreignAuditor = membershipToken(otherTenant, MembershipRole.OWNER, false, Scope.AUDIT);
+      var unauthorized = membershipToken(tenant, MembershipRole.ADMIN, false, Scope.AUDIT);
+      var audit = successfulBody(get(http, auditPath, auditor));
+      assertThat(audit.path("hasNext").asBoolean()).isFalse();
+      var entry = audit.path("content").get(0);
+      assertThat(entry.path("resourceId").asString()).isEqualTo(id.toString());
+      assertThat(entry.path("previousState").asString()).isEqualTo("ACTIVE");
+      assertThat(entry.path("state").asString()).isEqualTo("INACTIVE");
+      assertThat(successfulBody(get(http, auditPath, foreignAuditor)).path("content").size())
+          .isZero();
+      assertThat(get(http, auditPath, unauthorized).statusCode()).isEqualTo(403);
 
       assertThat(successfulBody(patch(http, path + "/status", owner, "{\"active\":true}", null)))
           .isEqualTo(updated);

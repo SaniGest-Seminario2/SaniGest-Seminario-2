@@ -21,4 +21,9 @@ public record CompanyAuditEvent(
     MembershipStatus previousStatus,
     MembershipStatus newStatus,
     AdvisorPermission advisorPermission,
-    String correlationId) {}
+    String correlationId,
+    UUID invitationId) {
+  public UUID resourceId() {
+    return invitationId == null ? targetUserId : invitationId;
+  }
+}

@@ -48,6 +48,7 @@ class FinanceSecurity {
                 .permitAll()
                 .requestMatchers(
                     HttpMethod.GET,
+                    "/api/v1/finance/audit-log",
                     "/api/v1/cash-sessions/active/summary",
                     "/api/v1/dashboard/projection",
                     "/api/v1/reports/projection")

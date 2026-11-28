@@ -76,7 +76,8 @@ class CompanyAuditUseCasesTest {
                 null,
                 null,
                 null,
-                success.correlationId()));
+                success.correlationId(),
+                null));
     assertThat(rejection)
         .isEqualTo(
             new CompanyAuditEvent(
@@ -92,7 +93,8 @@ class CompanyAuditUseCasesTest {
                 null,
                 null,
                 null,
-                rejection.correlationId()));
+                rejection.correlationId(),
+                null));
   }
 
   @ParameterizedTest
@@ -100,7 +102,9 @@ class CompanyAuditUseCasesTest {
   void ownerAndExplicitAuditorCanReadUsingOnlyTheResolvedCompany(
       CompanyRole role, boolean granted) {
     var member = stubMembership(role, MembershipStatus.ACTIVE);
-    when(memberships.hasPermission(member, GetCompanyAuditLogUseCase.AUDIT_LOG_READ))
+    when(memberships.hasPermission(
+            member,
+            com.sanigest.company.application.usecase.access.ResolveCompanyAccess.AUDIT_LOG_READ))
         .thenReturn(granted);
     var event =
         new CompanyAuditEvent(
@@ -116,8 +120,12 @@ class CompanyAuditUseCasesTest {
             MembershipStatus.ACTIVE,
             MembershipStatus.REVOKED,
             null,
+            null,
             null);
-    when(repository.findPage(company, NOW, NOW, 2, 2)).thenReturn(List.of(event, event));
+    when(repository.findPage(
+            company,
+            new com.sanigest.web.audit.AuditPage.Filters(NOW, NOW, null, null, null, null, 2, 1)))
+        .thenReturn(List.of(event, event));
 
     var page = useCase.get(actor, NOW, NOW, 2, 1);
     assertThat(page.content()).containsExactly(event);

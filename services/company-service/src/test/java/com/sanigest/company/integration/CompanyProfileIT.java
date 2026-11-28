@@ -1994,6 +1994,18 @@ class CompanyProfileIT {
     assertThat(get(AUDIT + "?size=1", ownerJwt).body())
         .contains("MEMBER_REVOKED", "SUCCESS", "\"hasNext\":true")
         .doesNotContain("ROLE_CHANGED");
+    assertThat(
+            get(
+                    AUDIT
+                        + "?actorId="
+                        + owner
+                        + "&resourceType=MEMBERSHIP&resourceId="
+                        + member
+                        + "&operation=MEMBER_REVOKED",
+                    ownerJwt)
+                .body())
+        .contains("MEMBER_REVOKED", "\"resourceId\":\"" + member)
+        .doesNotContain("ROLE_CHANGED");
     assertThat(get(AUDIT + "?page=1&size=1", ownerJwt).body())
         .contains("ROLE_CHANGED", "\"hasNext\":false")
         .doesNotContain("MEMBER_REVOKED");

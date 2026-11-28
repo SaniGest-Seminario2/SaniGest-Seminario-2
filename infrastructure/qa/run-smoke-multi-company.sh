@@ -49,7 +49,7 @@ trap 'cleanup "$@"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-for pair in jwt catalog-company sales-company inventory-company expense-company; do
+for pair in jwt catalog-company sales-company inventory-company expense-company finance-company; do
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$keys/$pair-private.pem" 2>/dev/null
   openssl pkey -in "$keys/$pair-private.pem" -pubout -out "$keys/$pair-public.pem"
   # The host directory remains mode 0700. Compose mounts individual files for UID 10001.

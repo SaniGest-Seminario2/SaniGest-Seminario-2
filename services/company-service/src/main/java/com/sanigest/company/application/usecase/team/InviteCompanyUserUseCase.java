@@ -107,6 +107,7 @@ public class InviteCompanyUserUseCase {
     audit.invitationChanged(
         companyId,
         actor,
+        invitation.id(),
         replaced ? AuditOperation.INVITATION_REPLACED : AuditOperation.INVITATION_CREATED);
     delivery.ifPresent(adapter ->
         TransactionSynchronizationManager.registerSynchronization(

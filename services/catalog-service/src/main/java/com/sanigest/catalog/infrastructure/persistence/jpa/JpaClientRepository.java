@@ -26,7 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
 class JpaClientRepository implements ClientRepository {
   private final ClientRows rows;
 
-  JpaClientRepository(ClientRows rows) {
+  private final CatalogHistoryActor historyActor;
+
+  JpaClientRepository(ClientRows rows, CatalogHistoryActor historyActor) {
+    this.historyActor = historyActor;
     this.rows = rows;
   }
 
@@ -82,6 +85,10 @@ class JpaClientRepository implements ClientRepository {
               row.enforcesTaxKey() || taxChanged)
           != 1) {
         throw new ClientAccessException(CLIENT_UPDATE_CONFLICT);
+      }
+      if (current.status() != updated.status()) {
+        historyActor.statusChanged(
+            companyId, "CLIENT", id, current.status().name(), updated.status().name());
       }
       return updated;
     } catch (DataIntegrityViolationException failure) {

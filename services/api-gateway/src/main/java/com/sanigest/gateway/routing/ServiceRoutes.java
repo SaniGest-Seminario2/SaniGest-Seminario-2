@@ -96,6 +96,7 @@ public class ServiceRoutes {
             route ->
                 route
                     .path(
+                        "/api/v1/catalog/audit-log",
                         "/api/v1/catalog/options",
                         "/api/v1/clients",
                         "/api/v1/clients/all",
@@ -131,6 +132,7 @@ public class ServiceRoutes {
                 route
                     .path(
                         "/api/v1/sales",
+                        "/api/v1/sales/audit-log",
                         "/api/v1/sales/{id}",
                         "/api/v1/sales/{id}/cancel",
                         "/api/v1/sales/{id}/invoices",
@@ -161,6 +163,7 @@ public class ServiceRoutes {
                     .path(
                         "/api/v1/warehouses",
                         "/api/v1/warehouses/{id}",
+                        "/api/v1/inventory/audit-log",
                         "/api/v1/inventory/options",
                         "/api/v1/inventory/stock",
                         "/api/v1/inventory/stock/{itemId}/{warehouseId}",
@@ -216,7 +219,7 @@ public class ServiceRoutes {
             "finance",
             route ->
                 route
-                    .path("/api/v1/cash-sessions/active/summary")
+                    .path("/api/v1/cash-sessions/active/summary", "/api/v1/finance/audit-log")
                     .and()
                     .method(HttpMethod.GET)
                     .uri(destination(environment, "FINANCE_SERVICE_URL")))

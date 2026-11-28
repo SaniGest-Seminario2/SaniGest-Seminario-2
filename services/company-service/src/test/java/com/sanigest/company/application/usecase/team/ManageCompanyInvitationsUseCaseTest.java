@@ -60,7 +60,8 @@ class ManageCompanyInvitationsUseCaseTest {
         .thenReturn(Optional.of(invitation(NOW.plusSeconds(60))));
     useCase.revoke(actor, company, invitationId);
     verify(invitations).closePending(invitationId, InvitationStatus.REVOKED);
-    verify(audit).invitationChanged(company, actor, AuditOperation.INVITATION_REVOKED);
+    verify(audit)
+        .invitationChanged(company, actor, invitationId, AuditOperation.INVITATION_REVOKED);
   }
 
   private Invitation invitation(Instant expiresAt) {

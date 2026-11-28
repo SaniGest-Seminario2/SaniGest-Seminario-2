@@ -54,6 +54,7 @@ class SecurityConfiguration {
                 .permitAll()
                 .requestMatchers(
                     HttpMethod.GET,
+                    "/api/v1/sales/audit-log",
                     "/api/v1/sales",
                     "/api/v1/sales/{id}",
                     "/api/v1/receivables",

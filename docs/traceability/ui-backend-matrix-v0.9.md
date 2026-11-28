@@ -39,7 +39,7 @@ Base main `454eb69`. Rutas relativas a `/api/v1`. **Vigente** indica ruta presen
 | Cuentas y transferencias | GET/POST /financial-accounts; GET/PATCH /financial-accounts/{id}; POST /transfers | Finance | Pendiente | S2-467 |
 | Ingresos, egresos y CSV | GET/POST /cash-movements; GET /cash-movements/all; GET /cash-movements/{id}; GET /cash-movements/summary; GET /cash-movements/export | Finance | Pendiente | S2-349–351, S2-467, S2-469, S2-427 |
 | Dashboard y reportes | GET /dashboard/{summary,recent-activity,monthly-activity}; GET /reports/financial-summary | Finance | Pendiente | S2-353–356, S2-468, S2-428, S2-429 |
-| Auditoría por dominio | GET /companies/{companyId}/audit-log; consultas de otros dominios con ruta pendiente | Company y propietarios de efectos | Company vigente; extensión pendiente | S2-412, S2-341, S2-480 |
+| Auditoría por dominio | GET /companies/{companyId}/audit-log; GET /{catalog,sales,expenses,inventory,finance}/audit-log | Company, Catalog, Sales, Expense, Inventory y Finance | Consulta paginada por empresa y permiso de auditoría | S2-412, S2-341, S2-480 |
 
 Facturación fiscal, UI de asesores y analítica predictiva quedan fuera del alcance de pantallas v0.9. Conservar las concesiones existentes y sus controles. S2-423 alinea diseño con este contrato y S2-431 valida la integración frontend, OpenAPI y Postman.
 

@@ -137,15 +137,38 @@ class ServiceRoutingIT {
   }
 
   @Test
+  void routesCompanyScopedAuditLogsWithTheirFilters() throws Exception {
+    for (var entry :
+        Map.of(
+                "/api/v1/catalog/audit-log", "catalog",
+                "/api/v1/inventory/audit-log", "inventory",
+                "/api/v1/sales/audit-log", "sales",
+                "/api/v1/expenses/audit-log", "expense",
+                "/api/v1/finance/audit-log", "finance")
+            .entrySet()) {
+      assertCompanyScopedRoute(
+          entry.getKey() + "?resourceId=" + TENANT + "&page=1", entry.getValue());
+    }
+    var path = "/api/v1/companies/" + TENANT + "/audit-log?actorId=" + TENANT;
+    var response =
+        send(
+            request(gateway(), path)
+                .header("Authorization", "Bearer " + GatewayTestTokens.validToken())
+                .GET());
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(response.body()).isEqualTo("company GET " + path + " ");
+  }
+
+  @Test
   void routesActiveCashSummaryAndPaymentsOnlyWithCompanyContext() throws Exception {
-    assertCashRoute("/api/v1/cash-sessions/active/summary", "finance");
-    assertCashRoute("/api/v1/cash-sessions/active/payments", "sales");
+    assertCompanyScopedRoute("/api/v1/cash-sessions/active/summary", "finance");
+    assertCompanyScopedRoute("/api/v1/cash-sessions/active/payments", "sales");
   }
 
   @Test
   void routesFinancialProjectionsWithExplicitCompany() throws Exception {
-    assertCashRoute("/api/v1/dashboard/projection", "finance");
-    assertCashRoute("/api/v1/reports/projection", "finance");
+    assertCompanyScopedRoute("/api/v1/dashboard/projection", "finance");
+    assertCompanyScopedRoute("/api/v1/reports/projection", "finance");
 
     String path = "/api/v1/reports/projection/rebuild";
     String token = "Bearer " + GatewayTestTokens.validToken();
@@ -165,7 +188,7 @@ class ServiceRoutingIT {
     assertThat(rebuild.body()).isEqualTo("finance POST " + path + " ");
   }
 
-  private void assertCashRoute(String path, String service) throws Exception {
+  private void assertCompanyScopedRoute(String path, String service) throws Exception {
     String token = "Bearer " + GatewayTestTokens.validToken();
     var missingCompany = send(request(gateway(), path).header("Authorization", token).GET());
     assertThat(missingCompany.statusCode()).isEqualTo(400);
