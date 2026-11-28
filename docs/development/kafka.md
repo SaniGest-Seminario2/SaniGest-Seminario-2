@@ -15,12 +15,13 @@ offsets entre reinicios. La creación automática de topics está deshabilitada.
 | --- | --- | --- | --- |
 | `sales.receivable-payment.v1` | Sales → Finance | `companyId` | 7 días |
 | `expense.payable-payment.v1` | Expense → Finance | `companyId` | 7 días |
+| `finance.cash-movements.dlq.v1` | Finance → Operaciones | Topic, partición y offset de origen | 7 días |
 | `qa.smoke.v1` | CLI del smoke test | `qa-company` | 1 hora |
 
-Para desarrollo, aprovisiona los topics de cobros y pagos antes de iniciar Finance.
+Para desarrollo, aprovisiona los topics de cobros, pagos y cuarentena antes de iniciar Finance.
 
 ```sh
-for topic in sales.receivable-payment.v1 expense.payable-payment.v1; do
+for topic in sales.receivable-payment.v1 expense.payable-payment.v1 finance.cash-movements.dlq.v1; do
   docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh \
     --bootstrap-server kafka:29092 --create --if-not-exists \
     --topic "$topic" --partitions 1 --replication-factor 1 \
@@ -44,8 +45,7 @@ Finance usa el grupo estable `finance.cash-movements.v1` para ambos topics de pa
 Las réplicas comparten ese grupo. Otro consumidor lógico usa su propio grupo
 para mantener sus offsets independientes. El consumidor confirma el offset
 después de persistir el efecto idempotente. Un grupo nuevo de pruebas puede
-leer desde el inicio de los datos retenidos. Para un replay, detén el grupo,
-revisa los offsets y conserva el identificador original de cada evento.
+leer desde el inicio de los datos retenidos. Para recuperar un evento en cuarentena, usa el [runbook de pagos](../operations/payment-events.md).
 
 ```sh
 docker compose logs --tail 100 kafka

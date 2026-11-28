@@ -7,6 +7,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
@@ -21,7 +22,7 @@ class ConfirmedPaymentConsumer {
 
   @KafkaListener(topics = {"sales.receivable-payment.v1", "expense.payable-payment.v1"})
   void project(ConsumerRecord<String, String> record) {
-    var event = json.readValue(record.value(), PaymentEventV1.class);
+    var event = deserialize(record.value());
     boolean receivable = record.topic().equals("sales.receivable-payment.v1");
     if (!event.eventType().topic().equals(record.topic())
         || !event.companyId().toString().equals(record.key())
@@ -89,5 +90,19 @@ class ConfirmedPaymentConsumer {
             .single()) {
       throw new IllegalArgumentException("Reversal does not match an original payment");
     }
+  }
+
+  private PaymentEventV1 deserialize(String payload) {
+    if (payload != null) {
+      try {
+        var event = json.readValue(payload, PaymentEventV1.class);
+        if (event != null) {
+          return event;
+        }
+      } catch (JacksonException invalid) {
+        // Do not propagate parser messages that can include input data.
+      }
+    }
+    throw new IllegalArgumentException("Invalid payment event payload");
   }
 }
