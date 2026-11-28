@@ -84,6 +84,10 @@ def verify(origin, output, baseline):
             for status in ("400", "401", "403", "404", "409"):
                 example = responses[status]["content"]["application/problem+json"]["example"]
                 assert example["status"] == int(status) and example["errorCode"]
+        if name == "expense":
+            request = operation["requestBody"]["content"]["application/json"]["schema"]
+            body = spec["components"]["schemas"][request["$ref"].rsplit("/", 1)[-1]]
+            assert "warehouseId" in body["required"]
         print(f"OpenAPI valid: {name} ({len(spec['paths'])} paths)")
     print("Swagger UI and OpenAPI valid through Gateway")
 

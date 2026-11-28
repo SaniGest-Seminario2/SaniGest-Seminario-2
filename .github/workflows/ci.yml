@@ -267,6 +267,11 @@ jobs:
                 'POST /api/v1/companies/{companyId}/invitations the request property `name` became required' \
                 > "$RUNNER_TEMP/company-oasdiff-err-ignore"
               set -- --err-ignore "$RUNNER_TEMP/company-oasdiff-err-ignore"
+            elif [ "${baseline##*/}" = expense.json ]; then
+              # S2-485 requires an active warehouse for expense registration.
+              printf '%s\n' 'POST /api/v1/expenses the request property `warehouseId` became required' \
+                > "$RUNNER_TEMP/expense-oasdiff-err-ignore"
+              set -- --err-ignore "$RUNNER_TEMP/expense-oasdiff-err-ignore"
             else
               set --
             fi
