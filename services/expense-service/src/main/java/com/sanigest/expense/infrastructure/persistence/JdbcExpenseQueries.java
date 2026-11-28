@@ -1,8 +1,8 @@
 package com.sanigest.expense.infrastructure.persistence;
 
-import com.sanigest.expense.application.ExpenseQueries;
-import com.sanigest.expense.application.ExpenseRegistration.Document;
-import com.sanigest.expense.application.ExpenseRegistration.OperationType;
+import com.sanigest.expense.application.dto.ExpenseRegistration.Document;
+import com.sanigest.expense.application.dto.ExpenseRegistration.OperationType;
+import com.sanigest.expense.application.port.in.ExpenseQueries;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;

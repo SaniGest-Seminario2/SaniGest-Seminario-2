@@ -1,7 +1,7 @@
 package com.sanigest.inventory.application.port.out.persistence;
 
 import com.sanigest.inventory.application.dto.InventoryQueries;
-import com.sanigest.inventory.domain.Warehouse;
+import com.sanigest.inventory.domain.model.Warehouse;
 import java.util.Optional;
 import java.util.UUID;
 

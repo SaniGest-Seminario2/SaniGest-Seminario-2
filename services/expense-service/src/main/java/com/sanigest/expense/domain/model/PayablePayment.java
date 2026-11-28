@@ -4,9 +4,12 @@ import com.sanigest.events.payment.PaymentMethodV1;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.UUID;
 
 public final class PayablePayment {
+  public static final ZoneId BUSINESS_ZONE = ZoneId.of("America/Santo_Domingo");
+
   private PayablePayment() {}
 
   public record Details(

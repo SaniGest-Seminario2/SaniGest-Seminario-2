@@ -4,15 +4,15 @@
         "https://checkstyle.org/dtds/import_control_1_5.dtd">
 
 <import-control pkg="com.sanigest" strategyOnMismatch="allowed">
-    <subpackage name="company|identity|catalog|sales|inventory|expense" regex="true">
+    <subpackage name="company|identity|catalog|sales|inventory|expense|finance" regex="true">
         <subpackage name="domain">
-            <disallow pkg="com\.sanigest\.(company|identity|catalog|sales|inventory|expense)\.(api|application|infrastructure)" regex="true"/>
+            <disallow pkg="com\.sanigest\.(company|identity|catalog|sales|inventory|expense|finance)\.(api|application|infrastructure)" regex="true"/>
             <disallow pkg="org.springframework"/>
             <disallow pkg="org.hibernate"/>
             <disallow pkg="jakarta.persistence"/>
         </subpackage>
         <subpackage name="application">
-            <disallow pkg="com\.sanigest\.(company|identity|catalog|sales|inventory|expense)\.(api|infrastructure)" regex="true"/>
+            <disallow pkg="com\.sanigest\.(company|identity|catalog|sales|inventory|expense|finance)\.(api|infrastructure)" regex="true"/>
             <disallow pkg="org.springframework.dao"/>
             <disallow pkg="org.springframework.jdbc"/>
             <disallow pkg="org.springframework.data"/>
@@ -22,16 +22,19 @@
             <disallow pkg="jakarta.persistence"/>
         </subpackage>
         <subpackage name="api">
-            <disallow pkg="com\.sanigest\.(company|identity|catalog|sales|inventory|expense)\.infrastructure" regex="true"/>
+            <disallow pkg="com\.sanigest\.(company|identity|catalog|sales|inventory|expense|finance)\.infrastructure" regex="true"/>
             <subpackage name="controller">
-                <disallow pkg="com\.sanigest\.(company|identity|catalog|sales|inventory|expense)\.application\.port\.out\.persistence" regex="true"/>
+                <disallow pkg="com\.sanigest\.(company|identity|catalog|sales|inventory|expense|finance)\.application\.port\.out\.persistence" regex="true"/>
                 <disallow pkg="org.springframework.data"/>
                 <disallow pkg="org.springframework.jdbc"/>
                 <disallow pkg="jakarta.persistence"/>
             </subpackage>
         </subpackage>
         <subpackage name="infrastructure">
-            <disallow pkg="com\.sanigest\.(catalog|sales|inventory|expense)\.api" regex="true"/>
+            <disallow pkg="com\.sanigest\.(catalog|sales|inventory|expense|finance)\.api" regex="true"/>
+            <subpackage name="persistence|integration|messaging" regex="true">
+                <disallow pkg="com\.sanigest\.(expense|finance)\.application\.usecase" regex="true"/>
+            </subpackage>
         </subpackage>
     </subpackage>
 </import-control>

@@ -12,7 +12,7 @@ import com.sanigest.inventory.application.port.out.integration.InventoryAccess;
 import com.sanigest.inventory.application.port.out.integration.InventoryAccess.Operation;
 import com.sanigest.inventory.application.usecase.InventoryReads;
 import com.sanigest.inventory.application.usecase.StockOperations;
-import com.sanigest.inventory.domain.StockKey;
+import com.sanigest.inventory.domain.model.StockKey;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.UUID;

@@ -1,6 +1,6 @@
 package com.sanigest.expense.infrastructure.persistence;
 
-import com.sanigest.expense.application.FinancialSnapshot;
+import com.sanigest.expense.application.port.in.FinancialSnapshot;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;

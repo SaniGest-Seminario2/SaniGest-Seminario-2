@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.sanigest.events.payment.PaymentMethodV1;
-import com.sanigest.expense.application.ExpenseFailure;
+import com.sanigest.expense.application.exception.ExpenseFailure;
 import com.sanigest.expense.application.port.out.integration.InventoryReceipts.Entry;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;

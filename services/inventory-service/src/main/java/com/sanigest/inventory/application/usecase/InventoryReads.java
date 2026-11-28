@@ -4,8 +4,8 @@ import com.sanigest.inventory.application.dto.InventoryQueries;
 import com.sanigest.inventory.application.port.out.integration.CatalogInventoryClient;
 import com.sanigest.inventory.application.port.out.integration.CatalogInventoryClient.Item;
 import com.sanigest.inventory.application.port.out.persistence.StockLedger;
-import com.sanigest.inventory.domain.StockKey;
-import com.sanigest.inventory.domain.StockPosition;
+import com.sanigest.inventory.domain.model.StockKey;
+import com.sanigest.inventory.domain.model.StockPosition;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -44,7 +44,7 @@ public class InventoryReads {
 
   public record PositionDetail(String warehouseName, Optional<StockPosition> position, Item item) {}
 
-  public InventoryQueries.Page<com.sanigest.inventory.domain.StockMovement> movements(
+  public InventoryQueries.Page<com.sanigest.inventory.domain.model.StockMovement> movements(
       UUID company, InventoryQueries.Movements query) {
     return ledger.movements(company, query);
   }

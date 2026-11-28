@@ -1,8 +1,9 @@
 package com.sanigest.expense.infrastructure.persistence;
 
-import com.sanigest.expense.application.ExpenseRegistration.Document;
-import com.sanigest.expense.application.ExpenseRegistration.FinancialStatus;
-import com.sanigest.expense.application.ExpenseStore;
+import com.sanigest.expense.application.dto.ExpenseRegistration.Document;
+import com.sanigest.expense.application.dto.ExpenseRegistration.FinancialStatus;
+import com.sanigest.expense.application.dto.ExpenseRegistration.RegistrationKey;
+import com.sanigest.expense.application.port.out.persistence.ExpenseStore;
 import com.sanigest.security.RequestCorrelation;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,7 +23,7 @@ class JdbcExpenseStore implements ExpenseStore {
   }
 
   @Override
-  public Optional<Stored> find(Key key) {
+  public Optional<Stored> find(RegistrationKey key) {
     return jdbc
         .query(
             """
@@ -44,7 +45,7 @@ class JdbcExpenseStore implements ExpenseStore {
 
   @Override
   @Transactional
-  public Stored save(Key key, String requestHash, Document document) {
+  public Stored save(RegistrationKey key, String requestHash, Document document) {
     int created =
         jdbc.update(
             """
@@ -93,7 +94,7 @@ class JdbcExpenseStore implements ExpenseStore {
   }
 
   @Override
-  public void markInventorySynced(Key key, UUID expenseId) {
+  public void markInventorySynced(RegistrationKey key, UUID expenseId) {
     jdbc.update(
         """
         UPDATE expense.documents SET inventory_synced = TRUE

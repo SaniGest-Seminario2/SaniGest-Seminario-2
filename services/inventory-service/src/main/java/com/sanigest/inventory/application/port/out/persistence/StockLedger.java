@@ -2,9 +2,9 @@ package com.sanigest.inventory.application.port.out.persistence;
 
 import com.sanigest.inventory.application.dto.InventoryQueries;
 import com.sanigest.inventory.application.dto.InventoryQueries.StockEntry;
-import com.sanigest.inventory.domain.StockKey;
-import com.sanigest.inventory.domain.StockMovement;
-import com.sanigest.inventory.domain.StockPosition;
+import com.sanigest.inventory.domain.model.StockKey;
+import com.sanigest.inventory.domain.model.StockMovement;
+import com.sanigest.inventory.domain.model.StockPosition;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;

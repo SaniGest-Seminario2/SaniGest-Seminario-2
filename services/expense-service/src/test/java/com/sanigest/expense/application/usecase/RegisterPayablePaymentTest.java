@@ -5,7 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.sanigest.events.payment.PaymentMethodV1;
-import com.sanigest.expense.application.ExpenseFailure;
+import com.sanigest.expense.application.exception.ExpenseFailure;
+import com.sanigest.expense.domain.model.PayablePayment;
 import com.sanigest.expense.domain.model.PayablePayment.Details;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -14,7 +15,7 @@ import org.junit.jupiter.api.Test;
 
 class RegisterPayablePaymentTest {
   private final UUID id = UUID.randomUUID();
-  private final LocalDate today = LocalDate.now(RegisterPayablePayment.BUSINESS_ZONE);
+  private final LocalDate today = LocalDate.now(PayablePayment.BUSINESS_ZONE);
 
   @Test
   void normalizesValuesBeforeCheckingIdempotency() {

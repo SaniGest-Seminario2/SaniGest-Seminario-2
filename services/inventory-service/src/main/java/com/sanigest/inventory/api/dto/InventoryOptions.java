@@ -2,7 +2,7 @@ package com.sanigest.inventory.api.dto;
 
 import static com.sanigest.inventory.api.dto.ValueOption.of;
 
-import com.sanigest.inventory.domain.StockAvailability;
+import com.sanigest.inventory.domain.model.StockAvailability;
 import java.util.List;
 
 public record InventoryOptions(

@@ -10,7 +10,7 @@ import com.sanigest.inventory.application.dto.InventoryQueries.Sort;
 import com.sanigest.inventory.application.port.out.integration.InventoryAccess;
 import com.sanigest.inventory.application.port.out.integration.InventoryAccess.Operation;
 import com.sanigest.inventory.application.usecase.WarehouseOperations;
-import com.sanigest.inventory.domain.Warehouse;
+import com.sanigest.inventory.domain.model.Warehouse;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;

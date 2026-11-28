@@ -13,6 +13,11 @@
    `application/usecase`, sus datos de entrada y salida en `application/dto`
    y sus errores en `application/exception`. Define los contratos salientes en
    `application/port/out`, agrupados según la dependencia que representan.
+   La API invoca casos de uso o contratos de entrada definidos en
+   `application/port/in`. Cada adaptador traduce los errores de su proveedor
+   a errores de aplicación. La API convierte esos errores en respuestas HTTP.
+   Cuando un caso de uso es Java puro, regístralo en la configuración Spring
+   del servicio.
    Implementa esos contratos en `infrastructure` con adaptadores de
    persistencia, integración, mensajería o seguridad según la capacidad. Conserva el modelo y sus
    reglas en `domain/model` y los enums en `domain/enums`. Coloca las

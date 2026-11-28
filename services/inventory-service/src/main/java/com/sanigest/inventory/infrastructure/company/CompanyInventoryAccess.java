@@ -4,8 +4,8 @@ import com.sanigest.companyaccess.AuthenticatedActor;
 import com.sanigest.companyaccess.CompanyAccess;
 import com.sanigest.companyaccess.CompanyAccessUnavailable;
 import com.sanigest.inventory.application.port.out.integration.InventoryAccess;
-import com.sanigest.inventory.domain.InventoryViolation;
-import com.sanigest.inventory.domain.InventoryViolation.Kind;
+import com.sanigest.inventory.domain.exception.InventoryViolation;
+import com.sanigest.inventory.domain.exception.InventoryViolation.Kind;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 

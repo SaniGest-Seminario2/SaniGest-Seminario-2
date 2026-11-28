@@ -1,6 +1,6 @@
 package com.sanigest.inventory.api.controller;
 
-import com.sanigest.inventory.domain.InventoryViolation;
+import com.sanigest.inventory.domain.exception.InventoryViolation;
 import com.sanigest.security.CompanySelector;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collections;

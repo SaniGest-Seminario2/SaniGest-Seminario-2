@@ -8,11 +8,14 @@ import com.sanigest.companyaccess.CompanyAccess;
 import com.sanigest.companyaccess.CompanyAccess.MembershipContext;
 import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
 import com.sanigest.companyaccess.CompanyAccess.Scope;
-import com.sanigest.finance.application.ManualCashMovements;
-import com.sanigest.finance.application.ManualCashMovements.Category;
-import com.sanigest.finance.application.ManualCashMovements.Method;
-import com.sanigest.finance.application.ManualCashMovements.Request;
-import com.sanigest.finance.application.ManualCashMovements.Type;
+import com.sanigest.finance.application.dto.ManualMovement.Category;
+import com.sanigest.finance.application.dto.ManualMovement.Document;
+import com.sanigest.finance.application.dto.ManualMovement.Method;
+import com.sanigest.finance.application.dto.ManualMovement.Request;
+import com.sanigest.finance.application.dto.ManualMovement.Type;
+import com.sanigest.finance.application.exception.InvalidManualMovement;
+import com.sanigest.finance.application.exception.ManualMovementConflict;
+import com.sanigest.finance.application.usecase.ManualCashMovements;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -92,7 +95,7 @@ class FinanceServiceIT {
     movements.register(company, actor, "expense", movement(Type.EXPENSE, cash, null, "10"), null);
     var transfer = movement(Type.INTERNAL_TRANSFER, bank, cash, "30");
     var document =
-        new ManualCashMovements.Document(
+        new Document(
             "application/pdf", "%PDF-test".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
     var result = movements.register(company, actor, "transfer", transfer, document);
     assertThat(movements.register(company, actor, "transfer", transfer, document))
@@ -101,7 +104,7 @@ class FinanceServiceIT {
         .isEqualTo(document.content());
     assertThat(movements.document(UUID.randomUUID(), result.id())).isEmpty();
     assertThatThrownBy(() -> movements.register(company, actor, "transfer", transfer, null))
-        .isInstanceOf(ManualCashMovements.Conflict.class);
+        .isInstanceOf(ManualMovementConflict.class);
 
     assertThat(balance(company, cash)).isEqualByComparingTo("60");
     assertThat(balance(company, bank)).isEqualByComparingTo("30");
@@ -116,11 +119,11 @@ class FinanceServiceIT {
     assertThatThrownBy(() ->
             movements.register(
                 company, actor, "foreign", movement(Type.INCOME, foreign, null, "100"), null))
-        .isInstanceOf(ManualCashMovements.Invalid.class);
+        .isInstanceOf(InvalidManualMovement.class);
     assertThatThrownBy(() ->
             movements.register(
                 company, actor, "same", movement(Type.INTERNAL_TRANSFER, cash, cash, "30"), null))
-        .isInstanceOf(ManualCashMovements.Invalid.class);
+        .isInstanceOf(InvalidManualMovement.class);
   }
 
   @Test

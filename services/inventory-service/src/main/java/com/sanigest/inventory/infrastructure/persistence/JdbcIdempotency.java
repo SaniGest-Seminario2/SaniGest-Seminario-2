@@ -1,7 +1,7 @@
 package com.sanigest.inventory.infrastructure.persistence;
 
 import com.sanigest.inventory.application.port.out.persistence.Idempotency;
-import com.sanigest.inventory.domain.InventoryViolation;
+import com.sanigest.inventory.domain.exception.InventoryViolation;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;

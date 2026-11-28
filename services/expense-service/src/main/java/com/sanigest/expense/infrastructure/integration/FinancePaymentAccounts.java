@@ -1,7 +1,7 @@
 package com.sanigest.expense.infrastructure.integration;
 
 import com.sanigest.events.payment.PaymentMethodV1;
-import com.sanigest.expense.application.ExpenseFailure;
+import com.sanigest.expense.application.exception.ExpenseFailure;
 import com.sanigest.expense.application.port.out.integration.PaymentAccounts;
 import java.net.URI;
 import java.time.Duration;

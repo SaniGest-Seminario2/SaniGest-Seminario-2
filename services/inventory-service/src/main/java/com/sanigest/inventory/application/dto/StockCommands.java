@@ -1,7 +1,7 @@
 package com.sanigest.inventory.application.dto;
 
-import com.sanigest.inventory.domain.StockConfiguration;
-import com.sanigest.inventory.domain.StockMovement;
+import com.sanigest.inventory.domain.model.StockConfiguration;
+import com.sanigest.inventory.domain.model.StockMovement;
 import java.math.BigDecimal;
 
 public final class StockCommands {

@@ -1,6 +1,6 @@
 package com.sanigest.inventory.api.error;
 
-import com.sanigest.inventory.domain.InventoryViolation;
+import com.sanigest.inventory.domain.exception.InventoryViolation;
 import com.sanigest.inventory.observability.InventoryRequestTrace;
 import com.sanigest.security.CompanySelector;
 import com.sanigest.security.http.MvcProblems;

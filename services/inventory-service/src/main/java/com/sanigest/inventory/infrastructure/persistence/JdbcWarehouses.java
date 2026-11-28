@@ -6,8 +6,8 @@ import static com.sanigest.inventory.infrastructure.persistence.InventorySql.uui
 
 import com.sanigest.inventory.application.dto.InventoryQueries;
 import com.sanigest.inventory.application.port.out.persistence.Warehouses;
-import com.sanigest.inventory.domain.InventoryViolation;
-import com.sanigest.inventory.domain.Warehouse;
+import com.sanigest.inventory.domain.exception.InventoryViolation;
+import com.sanigest.inventory.domain.model.Warehouse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Optional;

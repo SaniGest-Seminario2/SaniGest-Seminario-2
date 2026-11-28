@@ -4,7 +4,7 @@ import com.sanigest.inventory.api.dto.InventoryRequests.PurchaseReceipt;
 import com.sanigest.inventory.application.port.out.integration.InventoryAccess;
 import com.sanigest.inventory.application.port.out.integration.InventoryAccess.Operation;
 import com.sanigest.inventory.application.usecase.StockOperations;
-import com.sanigest.inventory.domain.StockKey;
+import com.sanigest.inventory.domain.model.StockKey;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;

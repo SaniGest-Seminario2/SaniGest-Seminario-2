@@ -3,7 +3,7 @@ package com.sanigest.inventory.api.dto;
 import com.sanigest.inventory.application.dto.InventoryQueries;
 import com.sanigest.inventory.application.dto.InventoryQueries.Order;
 import com.sanigest.inventory.application.dto.InventoryQueries.Sort;
-import com.sanigest.inventory.domain.StockMovement;
+import com.sanigest.inventory.domain.model.StockMovement;
 import java.time.Instant;
 import java.util.UUID;
 

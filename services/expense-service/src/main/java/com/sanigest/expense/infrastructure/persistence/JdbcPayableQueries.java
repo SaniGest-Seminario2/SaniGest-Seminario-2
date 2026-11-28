@@ -1,6 +1,6 @@
 package com.sanigest.expense.infrastructure.persistence;
 
-import com.sanigest.expense.application.PayableQueries;
+import com.sanigest.expense.application.port.in.PayableQueries;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;

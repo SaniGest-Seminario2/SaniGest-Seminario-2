@@ -1,6 +1,6 @@
 package com.sanigest.expense.infrastructure.integration;
 
-import com.sanigest.expense.application.ExpenseFailure;
+import com.sanigest.expense.application.exception.ExpenseFailure;
 import com.sanigest.expense.application.port.out.integration.CatalogReferences;
 import com.sanigest.expense.application.port.out.integration.InventoryReceipts;
 import com.sanigest.security.CompanySelector;

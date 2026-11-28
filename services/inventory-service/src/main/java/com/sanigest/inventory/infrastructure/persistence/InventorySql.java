@@ -2,7 +2,7 @@ package com.sanigest.inventory.infrastructure.persistence;
 
 import com.sanigest.inventory.application.dto.InventoryQueries.Page;
 import com.sanigest.inventory.application.dto.InventoryQueries.Paging;
-import com.sanigest.inventory.domain.InventoryViolation;
+import com.sanigest.inventory.domain.exception.InventoryViolation;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;

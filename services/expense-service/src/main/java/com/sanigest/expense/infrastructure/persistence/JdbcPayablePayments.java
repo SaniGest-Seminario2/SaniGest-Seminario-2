@@ -4,11 +4,11 @@ import com.sanigest.events.outbox.PaymentOutbox;
 import com.sanigest.events.payment.FinancialWriteFingerprint;
 import com.sanigest.events.payment.PaymentEventTypeV1;
 import com.sanigest.events.payment.PaymentEventV1;
-import com.sanigest.expense.application.ExpenseFailure;
-import com.sanigest.expense.application.ExpenseFailure.Kind;
+import com.sanigest.expense.application.exception.ExpenseFailure;
+import com.sanigest.expense.application.exception.ExpenseFailure.Kind;
 import com.sanigest.expense.application.port.out.integration.PaymentAccounts;
 import com.sanigest.expense.application.port.out.persistence.PayablePayments;
-import com.sanigest.expense.application.usecase.RegisterPayablePayment;
+import com.sanigest.expense.domain.model.PayablePayment;
 import com.sanigest.expense.domain.model.PayablePayment.Details;
 import com.sanigest.expense.domain.model.PayablePayment.Result;
 import com.sanigest.expense.domain.model.PayablePayment.Status;
@@ -97,11 +97,11 @@ class JdbcPayablePayments implements PayablePayments {
         .update();
 
     var registeredAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
-    var businessTime = registeredAt.atZone(RegisterPayablePayment.BUSINESS_ZONE);
+    var businessTime = registeredAt.atZone(PayablePayment.BUSINESS_ZONE);
     var occurredAt =
         payment.date().equals(businessTime.toLocalDate())
             ? registeredAt
-            : payment.date().atStartOfDay(RegisterPayablePayment.BUSINESS_ZONE).toInstant();
+            : payment.date().atStartOfDay(PayablePayment.BUSINESS_ZONE).toInstant();
     String correlation = RequestCorrelation.current();
     outbox.enqueue(
         company,

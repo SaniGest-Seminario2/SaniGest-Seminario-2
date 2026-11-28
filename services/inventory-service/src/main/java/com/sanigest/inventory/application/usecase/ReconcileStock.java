@@ -1,7 +1,7 @@
 package com.sanigest.inventory.application.usecase;
 
 import com.sanigest.inventory.application.port.out.persistence.StockLedger;
-import com.sanigest.inventory.domain.StockKey;
+import com.sanigest.inventory.domain.model.StockKey;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
