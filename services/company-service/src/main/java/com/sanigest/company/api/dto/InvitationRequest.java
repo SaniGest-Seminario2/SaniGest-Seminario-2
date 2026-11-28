@@ -9,7 +9,7 @@ public record InvitationRequest(
     @NotBlank @Email @Size(max = 320) String email,
     @NotBlank @Pattern(regexp = "OPERATOR|VIEWER") String role,
     Boolean replace,
-    @Size(max = 160) String name) {
+    @NotBlank @Size(max = 160) String name) {
   public InvitationRequest {
     email = email == null ? null : email.strip();
     name = name == null ? null : name.strip();

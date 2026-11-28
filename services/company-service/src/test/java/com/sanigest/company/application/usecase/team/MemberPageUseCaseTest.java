@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.sanigest.company.application.dto.MemberSearchCriteria;
 import com.sanigest.company.application.exception.AuthorizationUnavailableException;
+import com.sanigest.company.application.exception.MemberListLimitException;
 import com.sanigest.company.application.port.out.integration.MemberIdentityDirectory;
 import com.sanigest.company.application.port.out.integration.MemberIdentityDirectory.Identity;
 import com.sanigest.company.application.port.out.persistence.MembershipRepository;
@@ -17,6 +18,7 @@ import com.sanigest.company.domain.enums.MembershipStatus;
 import com.sanigest.company.domain.model.Membership;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -33,13 +35,13 @@ class MemberPageUseCaseTest {
   @Test
   void appliesFiltersAndOffsetInSqlBeforeEnrichingWithoutSearch() {
     var criteria =
-        new MemberSearchCriteria(
-            null, MembershipStatus.ACTIVE, CompanyRole.ADMIN, 2, 3, "membershipId,desc");
+        new MemberSearchCriteria(null, "ACTIVE", CompanyRole.ADMIN, 2, 3, "membershipId,desc");
     var member = member();
     when(policy.requireAdministrator(actor, company, false)).thenReturn(company);
-    when(memberships.count(company, CompanyRole.ADMIN, MembershipStatus.ACTIVE)).thenReturn(7L);
+    when(memberships.count(company, CompanyRole.ADMIN, Set.of(MembershipStatus.ACTIVE)))
+        .thenReturn(7L);
     when(memberships.findBatch(
-            company, CompanyRole.ADMIN, MembershipStatus.ACTIVE, true, null, 3, 6))
+            company, CompanyRole.ADMIN, Set.of(MembershipStatus.ACTIVE), true, null, 3, 6))
         .thenReturn(List.of(member));
     when(directory.lookup(List.of(member.userId())))
         .thenReturn(Map.of(member.userId(), new Identity("María", "maria@example.com", false)));
@@ -62,7 +64,7 @@ class MemberPageUseCaseTest {
     var second = member();
     var other = member();
     when(policy.requireAdministrator(actor, company, false)).thenReturn(company);
-    when(memberships.findBatch(company, null, null, false, null, 100, 0))
+    when(memberships.findBatch(company, null, Set.of(), false, null, 100, 0))
         .thenReturn(List.of(first, second, other));
     when(directory.lookup(List.of(first.userId(), second.userId(), other.userId())))
         .thenReturn(
@@ -85,7 +87,7 @@ class MemberPageUseCaseTest {
     var criteria = new MemberSearchCriteria("x", null, null, 0, 20, "membershipId,asc");
     var member = member();
     when(policy.requireAdministrator(actor, company, false)).thenReturn(company);
-    when(memberships.findBatch(company, null, null, false, null, 100, 0))
+    when(memberships.findBatch(company, null, Set.of(), false, null, 100, 0))
         .thenReturn(List.of(member));
     assertThatThrownBy(() -> useCase.page(actor, company, criteria))
         .isInstanceOf(AuthorizationUnavailableException.class);
@@ -96,6 +98,17 @@ class MemberPageUseCaseTest {
     var criteria = new MemberSearchCriteria(null, null, null, 0, 1, "membershipId,asc");
     when(policy.requireAdministrator(actor, company, false)).thenReturn(company);
     assertThat(useCase.page(actor, company, criteria).items()).isEmpty();
+    verifyNoInteractions(directory);
+  }
+
+  @Test
+  void rejectsUnpaginatedQueriesOverTheLimitBeforeLookingUpIdentities() {
+    var criteria = new MemberSearchCriteria(null, "ALL", null, 0, 20, "membershipId,asc");
+    when(policy.requireAdministrator(actor, company, false)).thenReturn(company);
+    when(memberships.count(company, null, Set.of()))
+        .thenReturn((long) ListMyCompanyUsersUseCase.ALL_LIMIT + 1);
+    assertThatThrownBy(() -> useCase.all(actor, company, criteria))
+        .isInstanceOf(MemberListLimitException.class);
     verifyNoInteractions(directory);
   }
 

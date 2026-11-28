@@ -1,5 +1,7 @@
 package com.sanigest.company.api.controller;
 
+import com.sanigest.company.application.usecase.team.ListMyCompanyUsersUseCase;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +41,8 @@ final class CompanyTeamOpenApi {
         Map.<String, Object>of(
             "membershipId", UUID, "userId", UUID, "role", ROLES, "status", STATES);
     var summary = new LinkedHashMap<>(member);
+    summary.put("status", choices("ACTIVE", "INACTIVE"));
+    summary.put("membershipStatus", STATES);
     summary.put("name", Map.of("type", "string", "maxLength", 160, "nullable", true));
     summary.put("email", Map.of("type", "string", "format", "email", "nullable", true));
     var pending = new LinkedHashMap<>(INVITATION);
@@ -130,17 +134,41 @@ final class CompanyTeamOpenApi {
         "description",
         "Sin view conserva el array histórico. view=page habilita la página para OWNER o ADMIN de la empresa. "
             + "La búsqueda por nombre o email ignora mayúsculas y distingue acentos.");
-    result.put(
-        "parameters",
-        List.of(
-            query("view", choices("page")),
-            query("search", NAME),
-            query("status", STATES),
-            query("role", ROLES),
-            query("page", PAGE),
-            query("size", SIZE),
-            query("sort", choices("membershipId,asc", "membershipId,desc"))));
+    var parameters = new ArrayList<>(memberFilters());
+    parameters.addAll(
+        List.of(query("view", choices("page")), query("page", PAGE), query("size", SIZE)));
+    result.put("parameters", parameters);
     return result;
+  }
+
+  static Map<String, Object> allMembers(Map<String, Object> operation) {
+    var result =
+        response(
+            operation,
+            "200",
+            Map.of(
+                "type",
+                "array",
+                "items",
+                ref("CompanyMemberSummary"),
+                "maxItems",
+                ListMyCompanyUsersUseCase.ALL_LIMIT));
+    result.put(
+        "description",
+        "Para OWNER o ADMIN. Devuelve 400 con MEMBER_LIST_LIMIT_EXCEEDED si "
+            + "la consulta supera "
+            + ListMyCompanyUsersUseCase.ALL_LIMIT
+            + " miembros.");
+    result.put("parameters", memberFilters());
+    return result;
+  }
+
+  private static List<Map<String, Object>> memberFilters() {
+    return List.of(
+        query("search", NAME),
+        query("status", choices("ALL", "ACTIVE", "INACTIVE", "SUSPENDED", "REVOKED")),
+        query("role", ROLES),
+        query("sort", choices("membershipId,asc", "membershipId,desc")));
   }
 
   static Map<String, Object> invite(Map<String, Object> operation) {
@@ -161,7 +189,7 @@ final class CompanyTeamOpenApi {
                     INVITABLE_ROLES,
                     "replace",
                     Map.of("type", "boolean", "default", false)),
-                List.of("email", "role"))));
+                List.of("name", "email", "role"))));
     return result;
   }
 

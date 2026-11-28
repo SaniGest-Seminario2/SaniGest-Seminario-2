@@ -240,18 +240,19 @@ autenticada es REGULAR y está activa antes de resolver el contexto.
 
 | Método y subruta | Contrato |
 | --- | --- |
-| POST `/invitations` | Crea una invitación. Recibe email, rol OPERATOR o VIEWER, nombre opcional de hasta 160 caracteres y `replace` (por defecto false). Devuelve 201 con nombre opcional, correo normalizado, rol, estado y vencimiento. |
+| POST `/invitations` | Crea una invitación. Requiere nombre de hasta 160 caracteres, email y rol OPERATOR o VIEWER. `replace` es opcional y por defecto es false. Devuelve 201 con nombre, correo normalizado, rol, estado y vencimiento. |
 | GET `/invitations?page=0&size=20` | Array de invitaciones pendientes vigentes con nombre, email, rol, estado y fechas. Acceso de OWNER y ADMIN. |
 | DELETE `/invitations/{invitationId}` | Revoca una invitación pendiente de la empresa y devuelve 204. |
 | GET `/users` | Conserva el array histórico de identificadores, rol y estado para lectores autorizados. |
 | GET `/users?view=page` | Página de administración con `content`, `page`, `size`, `totalElements` y `totalPages`. Cada fila incluye ID de membresía, ID de usuario, nombre, email, rol y estado. |
+| GET `/users/all` | Array con las mismas filas, filtros y orden que la página. Devuelve 400 con `MEMBER_LIST_LIMIT_EXCEEDED` si hay más de 500 coincidencias. |
 | PATCH `/members/{userId}/role` | Cambia el rol según la política vigente. |
 | PATCH `/members/{userId}/status` | Recibe `{"status":"SUSPENDED"}` o `{"status":"ACTIVE"}` para suspender o reactivar. |
 | DELETE `/members/{userId}` | Revoca el acceso de la membresía seleccionada con 204. |
 
-La página enriquecida requiere OWNER o ADMIN activos de la empresa. Admite
+Ambas listas enriquecidas requieren OWNER o ADMIN activos de la empresa. Admiten
 `search` (subcadena de nombre o email, hasta 160 caracteres, sin distinguir
-mayúsculas y distinguiendo acentos), `status=ACTIVE|SUSPENDED|REVOKED`,
+mayúsculas y distinguiendo acentos), `status=ALL|ACTIVE|INACTIVE` (también acepta los filtros históricos SUSPENDED y REVOKED),
 `role=OWNER|ADMIN|OPERATOR|VIEWER`, `page` desde 0, `size` de 1 a 100
 (20 por defecto) y `sort=membershipId,asc|membershipId,desc`. El UUID de la
 membresía define un orden total. Company aplica rol y estado en SQL. Sin texto
@@ -261,8 +262,8 @@ lote, calcula el total de coincidencias y conserva solo la página pedida.
 La consulta mantiene una instantánea de membresías y lee datos de Identity
 vigentes en cada lote. La actualización concurrente de datos personales entre
 lotes puede cambiar los resultados. Una respuesta de Identity incompleta o
-indisponible devuelve 503. Los estados suspendido y revocado se exponen por
-separado. Las invitaciones pendientes se consultan mediante `/invitations`.
+indisponible devuelve 503. `status` proyecta SUSPENDED y REVOKED a INACTIVE.
+`membershipStatus` conserva el estado real. Las invitaciones pendientes se consultan mediante `/invitations`.
 
 La aceptación usa `POST /api/v1/invitations/{token}/accept` con la empresa
 obtenida de la invitación persistida. Company exige que Identity confirme que

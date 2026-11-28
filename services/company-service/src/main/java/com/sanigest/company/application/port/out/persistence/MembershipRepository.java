@@ -8,6 +8,7 @@ import com.sanigest.company.domain.model.Membership;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /** Membership persistence and the associated company profile projection. */
@@ -62,13 +63,13 @@ public interface MembershipRepository {
   List<Membership> findBatch(
       UUID companyId,
       CompanyRole role,
-      MembershipStatus status,
+      Set<MembershipStatus> statuses,
       boolean descending,
       UUID after,
       int limit,
       long offset);
 
-  long count(UUID companyId, CompanyRole role, MembershipStatus status);
+  long count(UUID companyId, CompanyRole role, Set<MembershipStatus> statuses);
 
   void insert(Membership membership);
 }

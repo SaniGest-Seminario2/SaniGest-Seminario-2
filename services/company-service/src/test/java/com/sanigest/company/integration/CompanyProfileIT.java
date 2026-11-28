@@ -1868,7 +1868,21 @@ class CompanyProfileIT {
     assertThat(get(companyPath + "/users?view=page&size=101", jwt).statusCode()).isEqualTo(400);
     assertThat(get(companyPath + "/users?view=page&sort=email,desc", jwt).statusCode())
         .isEqualTo(400);
-    assertThat(get(companyPath + "/users?view=page&status=INACTIVE", jwt).statusCode())
+    var all =
+        json.readTree(
+            get(companyPath + "/users/all?search=MAR%C3%8DA&status=ALL&role=OPERATOR", jwt).body());
+    assertThat(all.size()).isEqualTo(3);
+    assertThat(all.get(0)).isEqualTo(first.path("content").get(0));
+    assertThat(all.get(1)).isEqualTo(last.path("content").get(0));
+    var inactive = json.readTree(get(companyPath + "/users/all?status=INACTIVE", jwt).body());
+    assertThat(inactive.size()).isEqualTo(1);
+    assertThat(inactive.get(0).path("status").asString()).isEqualTo("INACTIVE");
+    assertThat(inactive.get(0).path("membershipStatus").asString()).isEqualTo("SUSPENDED");
+    assertThat(
+            json.readTree(get(companyPath + "/users?view=page&status=INACTIVE", jwt).body())
+                .path("content"))
+        .isEqualTo(inactive);
+    assertThat(get(companyPath + "/users?view=page&status=INVALID", jwt).statusCode())
         .isEqualTo(400);
     assertThat(get(companyPath + "/users?view=page&role=OWNER", jwt).statusCode()).isEqualTo(503);
   }
@@ -1910,6 +1924,22 @@ class CompanyProfileIT {
     String first = COMPANIES + "/" + createCompany(owner, jwt, "Primary Team", "123456836");
     String second =
         COMPANIES + "/" + companyId(register(jwt, "secondary-team", "Secondary Team", "123456837"));
+    assertThat(get(first + "/options", jwt).body())
+        .contains("OPERATOR", "VIEWER", "Todos", "Activo", "Inactivo");
+    for (String invalid :
+        List.of(
+            "{\"name\":\"  \",\"email\":\"valid@example.com\",\"role\":\"VIEWER\"}",
+            "{\"name\":\"Guest\",\"email\":\"invalid\",\"role\":\"VIEWER\"}",
+            "{\"name\":\"Guest\",\"email\":\"valid@example.com\",\"role\":\"OWNER\"}")) {
+      var request =
+          request(first + "/invitations")
+              .header("Authorization", "Bearer " + jwt)
+              .header("Content-Type", "application/json")
+              .POST(HttpRequest.BodyPublishers.ofString(invalid))
+              .build();
+      assertThat(http.send(request, HttpResponse.BodyHandlers.ofString()).statusCode())
+          .isEqualTo(400);
+    }
     var firstInvite = inviteRequest(first, jwt, email, "OPERATOR", false);
     var secondInvite = inviteRequest(second, jwt, email, "VIEWER", false);
     assertThat(http.send(firstInvite, HttpResponse.BodyHandlers.ofString()).statusCode())
@@ -1932,6 +1962,7 @@ class CompanyProfileIT {
         .isEqualTo(409);
     assertThat(patch(status, jwt, "{\"status\":\"SUSPENDED\"}").body()).contains("SUSPENDED");
     assertThat(get(first + "/users", guestJwt).statusCode()).isEqualTo(403);
+    assertThat(get(second + "/users", guestJwt).statusCode()).isEqualTo(200);
     assertThat(patch(status, jwt, "{\"status\":\"ACTIVE\"}").body()).contains("ACTIVE");
     assertThat(get(first + "/users", guestJwt).statusCode()).isEqualTo(200);
 
@@ -2325,7 +2356,7 @@ class CompanyProfileIT {
         .POST(
             HttpRequest.BodyPublishers.ofString(
                 """
-                {"email":"%s","role":"%s","replace":%s}
+                {"name":"Invited member","email":"%s","role":"%s","replace":%s}
                 """
                     .formatted(email, role, replace)))
         .build();

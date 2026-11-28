@@ -43,6 +43,13 @@ final class CompanyContextOpenApi {
             "get",
             CompanyTeamOpenApi.options(
                 operation("Consultar opciones de empresa como OWNER o ADMIN", "200", false))));
+    put(
+        paths,
+        COMPANIES + "/{companyId}/users/all",
+        false,
+        Map.of(
+            "get",
+            CompanyTeamOpenApi.allMembers(operation("Listar todos los miembros", "200", false))));
     for (String base : List.of(COMPANIES + "/me", COMPANIES + "/{companyId}")) {
       boolean legacy = base.endsWith("/me");
       put(
