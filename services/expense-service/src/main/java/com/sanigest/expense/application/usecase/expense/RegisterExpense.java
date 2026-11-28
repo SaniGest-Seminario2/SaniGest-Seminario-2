@@ -72,11 +72,13 @@ public class RegisterExpense {
             .filter(CatalogReferences.Supplier::active)
             .orElseThrow(() -> invalid("EXPENSE_INVALID_SUPPLIER"));
     var warehouse = request.warehouseId();
-    if (warehouse != null
-        && inventory
-            .findWarehouse(company, warehouse)
-            .filter(InventoryReceipts.Warehouse::active)
-            .isEmpty()) {
+    if (warehouse == null) {
+      throw invalid("EXPENSE_WAREHOUSE_REQUIRED");
+    }
+    if (inventory
+        .findWarehouse(company, warehouse)
+        .filter(InventoryReceipts.Warehouse::active)
+        .isEmpty()) {
       throw invalid("EXPENSE_INVALID_WAREHOUSE");
     }
 
@@ -149,9 +151,6 @@ public class RegisterExpense {
                           .filter(CatalogReferences.Item::active)
                           .filter(CatalogReferences.Item::purchasable)
                           .orElseThrow(() -> invalid("EXPENSE_INVALID_ITEM")));
-          if (item.product() && warehouse == null) {
-            throw invalid("EXPENSE_WAREHOUSE_REQUIRED");
-          }
           boolean tracked =
               item.product()
                   && tracking.computeIfAbsent(

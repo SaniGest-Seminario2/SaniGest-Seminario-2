@@ -135,6 +135,15 @@ class RegisterExpenseTest {
         warehouse,
         ReceiptStatus.PARTIAL,
         line("1", null, null));
+    verify(store, never()).save(any(), any(), any());
+  }
+
+  @Test
+  void requiresWarehouseEvenForPendingServiceLines() {
+    when(catalog.findItem(key.companyId(), item))
+        .thenReturn(
+            Optional.of(
+                new CatalogReferences.Item(item, "Service", true, true, false, false, null, null)));
     invalid(
         "EXPENSE_WAREHOUSE_REQUIRED",
         Mode.CREDIT,

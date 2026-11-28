@@ -7,6 +7,7 @@ import com.sanigest.expense.application.dto.expense.ExpenseRegistration.ReceiptS
 import com.sanigest.expense.application.dto.expense.ExpenseRegistration.ReceiptType;
 import com.sanigest.expense.application.dto.expense.ExpenseRegistration.Request;
 import com.sanigest.expense.application.dto.expense.ExpenseRegistration.Tax;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -26,7 +27,8 @@ public record CreateExpenseRequest(
     @NotNull Mode mode,
     @NotNull UUID supplierId,
     @NotBlank @Size(max = 100) String supplierInvoiceNumber,
-    UUID warehouseId,
+    @NotNull @Schema(description = "ID of an active warehouse in the selected company.")
+        UUID warehouseId,
     @NotNull ReceiptStatus receiptStatus,
     @Size(max = 30) String ncf,
     UUID attachmentId,

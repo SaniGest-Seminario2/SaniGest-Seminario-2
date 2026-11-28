@@ -681,6 +681,24 @@ def verify_expenses(token, company, other, item, warehouse):
     for field in ("operationType", "mode", "receiptType", "receiptStatus"):
         exchange("expenses", token=token, tenant=company, data={**request, field: "ALL"},
                  key=uuid.uuid4().hex, status=400)
+    inactive = exchange("warehouses", token=token, tenant=company, status=201,
+                        data={"code": "ALM-INACTIVO", "name": "Inactivo"})["id"]
+    exchange(f"warehouses/{inactive}", token=token, tenant=company, method="PATCH",
+             data={"status": "INACTIVE"})
+    foreign = exchange("warehouses", token=token, tenant=other, status=201,
+                       data={"code": "ALM-OTRO", "name": "Otra empresa"})["id"]
+    missing = {field: value for field, value in request.items() if field != "warehouseId"}
+    for invalid in (missing, {**request, "warehouseId": None}):
+        problem = exchange("expenses", token=token, tenant=company, data=invalid,
+                           key=uuid.uuid4().hex, status=400)
+        assert "warehouseId" in problem["errors"]
+    for invalid_warehouse in (inactive, foreign):
+        problem = exchange("expenses", token=token, tenant=company,
+                           data={**request, "warehouseId": invalid_warehouse},
+                           key=uuid.uuid4().hex, status=400)
+        assert problem["errorCode"] == "EXPENSE_INVALID_WAREHOUSE"
+    for path in ("expenses", "payables"):
+        assert exchange(path, token=token, tenant=company)["totalElements"] == 0
     key = uuid.uuid4().hex
     exchange("expenses", token=token, data=request, key=key, status=400)
     exchange("expenses", token=token, tenant=other, data=request, key=key, status=400)
