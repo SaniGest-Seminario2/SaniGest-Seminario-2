@@ -86,11 +86,8 @@ class SupplierController {
       @ParameterObject @ModelAttribute CommercialFilters filters,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = ListSuppliers.DEFAULT_SIZE) int size) {
-    if (filters.equals(new CommercialFilters(null, null, null, null))) {
-      return SupplierPageResponse.from(listSuppliers.execute(search, status, page, size));
-    }
     return SupplierPageResponse.from(
-        listSuppliers.execute(filters.criteria(search, status), page, size));
+        listSuppliers.withBalances(filters.criteria(search, status), page, size));
   }
 
   record CommercialFilters(
@@ -103,7 +100,7 @@ class SupplierController {
         throw new InvalidSupplierQueryException();
       }
       return new SupplierSearchCriteria(
-          search,
+          search == null ? null : search.strip(),
           ListSuppliers.parseStatus(status),
           supplyType,
           paymentTerms,
@@ -115,7 +112,8 @@ class SupplierController {
   @PostMapping("/api/v1/suppliers")
   @ResponseStatus(HttpStatus.CREATED)
   SupplierResponse create(@RequestBody JsonNode body) {
+    var request = CreateSupplierRequest.parse(body);
     return SupplierResponse.from(
-        createSupplier.execute(CreateSupplierRequest.parse(body).details()));
+        createSupplier.execute(request.details(), request.status(), request.items()));
   }
 }

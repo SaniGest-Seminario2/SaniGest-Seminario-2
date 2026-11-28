@@ -32,10 +32,6 @@ public final class SupplierPatchRequest {
     return parse(body);
   }
 
-  static SupplierPatch creation(JsonNode body) {
-    return parse(body);
-  }
-
   private static SupplierPatch parse(JsonNode body) {
     if (!body.isObject() || body.isEmpty() || !FIELDS.containsAll(body.propertyNames())) {
       throw new InvalidSupplierPatch();

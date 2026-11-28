@@ -57,6 +57,6 @@ class PayableController {
   List<SupplierBalance> supplierBalances(
       HttpServletRequest http,
       @RequestParam @Size(min = 1, max = 100) List<@NotNull UUID> supplierIds) {
-    return queries.supplierBalances(companies.require(http, Scope.READ), supplierIds);
+    return queries.supplierBalances(companies.requireSupplierBalanceRead(http), supplierIds);
   }
 }

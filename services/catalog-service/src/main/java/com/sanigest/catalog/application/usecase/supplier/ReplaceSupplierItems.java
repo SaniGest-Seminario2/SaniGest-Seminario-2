@@ -11,6 +11,7 @@ import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierIt
 import com.sanigest.catalog.domain.enums.supplier.SupplierStatus;
 import com.sanigest.catalog.domain.exception.supplier.InvalidSupplierPatch;
 import com.sanigest.catalog.domain.model.supplier.SupplierItemOffer;
+import com.sanigest.catalog.domain.model.supplier.SupplierProfile;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -42,7 +43,10 @@ public class ReplaceSupplierItems {
     var locked = items.lockItems(companyId, supplierId, ids);
     for (var offer : requested) {
       var item = locked.get(offer.catalogItemId());
-      validateOffer(supplier, item);
+      validateItem(supplier.profile(), item);
+      if (supplier.status() != SupplierStatus.ACTIVE) {
+        throw new SupplierCommercialException(INCOMPATIBLE_SUPPLIER_ITEM);
+      }
       if (offer.primary()
           && !replacePrimary
           && items.hasOtherPrimary(companyId, supplierId, offer.catalogItemId())) {
@@ -59,15 +63,13 @@ public class ReplaceSupplierItems {
     }
   }
 
-  private static void validateOffer(
-      SupplierItemRepository.LockedSupplier supplier, SupplierItemRepository.LockedItem item) {
+  static void validateItem(SupplierProfile profile, SupplierItemRepository.LockedItem item) {
     if (item == null) {
       throw new CatalogItemAccessException(CATALOG_ITEM_NOT_FOUND);
     }
-    if (supplier.status() != SupplierStatus.ACTIVE
-        || !item.active()
+    if (!item.active()
         || Boolean.FALSE.equals(item.availableForPurchase())
-        || !supplier.profile().supplies(item.type())) {
+        || !profile.supplies(item.type())) {
       throw new SupplierCommercialException(INCOMPATIBLE_SUPPLIER_ITEM);
     }
   }

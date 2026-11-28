@@ -18,34 +18,45 @@ public record SupplierItemsRequest(List<SupplierItemOffer> items, boolean replac
     if (!body.isObject() || !REQUEST_FIELDS.containsAll(body.propertyNames())) {
       throw new InvalidSupplierPatch();
     }
-    var entries = body.path("items");
-    if (!entries.isArray() || entries.size() > ReplaceSupplierItems.MAX_ITEMS) {
+    return new SupplierItemsRequest(
+        parseOffers(body.get("items"), false), flag(body.get("replacePrimary")));
+  }
+
+  static List<SupplierItemOffer> parseOffers(JsonNode entries, boolean allowNumericCost) {
+    if (entries == null || !entries.isArray() || entries.size() > ReplaceSupplierItems.MAX_ITEMS) {
       throw new InvalidSupplierPatch();
     }
     var items = new ArrayList<SupplierItemOffer>(entries.size());
     for (var entry : entries) {
-      items.add(offer(entry));
+      items.add(offer(entry, allowNumericCost));
     }
-    return new SupplierItemsRequest(List.copyOf(items), flag(body.get("replacePrimary")));
+    return List.copyOf(items);
   }
 
-  private static SupplierItemOffer offer(JsonNode entry) {
+  private static SupplierItemOffer offer(JsonNode entry, boolean allowNumericCost) {
     if (!entry.isObject() || !OFFER_FIELDS.containsAll(entry.propertyNames())) {
       throw new InvalidSupplierPatch();
     }
     try {
-      var cost = text(entry.get("offeredCost"));
-      if (cost != null && !cost.matches("[0-9]{1,15}([.][0-9]{1,4})?")) {
-        throw new InvalidSupplierPatch();
-      }
       return new SupplierItemOffer(
           SupplierPatchRequest.uuid(entry.path("catalogItemId")),
-          cost == null ? null : new BigDecimal(cost),
+          cost(entry.get("offeredCost"), allowNumericCost),
           text(entry.get("supplierReference")),
           flag(entry.get("primary")));
     } catch (IllegalArgumentException invalid) {
       throw new InvalidSupplierPatch();
     }
+  }
+
+  private static BigDecimal cost(JsonNode node, boolean allowNumericCost) {
+    if (allowNumericCost && node != null && node.isNumber()) {
+      return node.decimalValue();
+    }
+    var value = text(node);
+    if (value != null && !value.matches("[0-9]{1,15}([.][0-9]{1,4})?")) {
+      throw new InvalidSupplierPatch();
+    }
+    return value == null ? null : new BigDecimal(value);
   }
 
   private static String text(JsonNode node) {

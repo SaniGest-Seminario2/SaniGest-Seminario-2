@@ -31,7 +31,17 @@ public class ExpenseCompanyAccess {
         Collections.list(http.getHeaders(CompanySelector.HEADER)), null, true);
   }
 
+  public UUID requireSupplierBalanceRead(HttpServletRequest http) {
+    var companyId = select(http);
+    require(companyId, Scope.READ, true);
+    return companyId;
+  }
+
   public void require(UUID companyId, Scope scope) {
+    require(companyId, scope, false);
+  }
+
+  private void require(UUID companyId, Scope scope, boolean supplierBalances) {
     try {
       companies
           .getIfAvailable(() -> {
@@ -40,7 +50,8 @@ public class ExpenseCompanyAccess {
           .membership(companyId, scope)
           .filter(member -> companyId.equals(member.companyId()))
           .filter(member ->
-              member.role() == MembershipRole.OWNER
+              supplierBalances
+                  || member.role() == MembershipRole.OWNER
                   || member.role() == MembershipRole.ADMIN
                   || (scope == Scope.READ && member.explicitGrant()))
           .orElseThrow(ExpenseCompanyAccess::denied);

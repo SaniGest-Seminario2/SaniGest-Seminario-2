@@ -14,20 +14,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 class SupplierCommercialDtoTest {
   private final JsonMapper json = JsonMapper.shared();
 
   @Test
-  void defaultsPaymentTermsEvenForTheMinimalCreatePayload() {
-    var minimum =
-        create(
-            """
-            {"name":"Office","contact":"Alex"}
-            """);
-    assertThat(minimum.details().profile().paymentTerms()).isEqualTo(SupplierPaymentTerms.CASH);
-    assertThat(minimum.details().profile().supplyType()).isNull();
-
+  void requiresExplicitCreditDaysAndDefaultsPaymentTermsForNoCredit() {
+    var missing = createBody("{}");
+    missing.remove("creditDays");
+    assertThatThrownBy(() -> CreateSupplierRequest.parse(missing))
+        .isInstanceOf(InvalidSupplierPatch.class);
     var expanded =
         create(
             """
@@ -135,7 +132,21 @@ class SupplierCommercialDtoTest {
 
   private Supplier create(String input) {
     return Supplier.register(
-        UUID.randomUUID(), CreateSupplierRequest.parse(json.readTree(input)).details());
+        UUID.randomUUID(), CreateSupplierRequest.parse(createBody(input)).details());
+  }
+
+  private ObjectNode createBody(String overrides) {
+    var body =
+        (ObjectNode)
+            json.readTree(
+                """
+                {"name":"Office","contact":"Alex","taxId":"012345678","phone":"8095550118",
+                 "email":"supplier@example.do","supplyType":"BOTH","categoryId":"%s",
+                 "creditDays":null,"status":"ACTIVE","items":[{"catalogItemId":"%s",
+                 "offeredCost":"1.00","supplierReference":"SUP-1"}]}
+                """
+                    .formatted(UUID.randomUUID(), UUID.randomUUID()));
+    return body.setAll((ObjectNode) json.readTree(overrides));
   }
 
   private Supplier patch(Supplier supplier, String input) {

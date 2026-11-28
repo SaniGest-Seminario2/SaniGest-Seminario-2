@@ -1162,7 +1162,7 @@
       "post": {
         "operationId": "createSupplier",
         "summary": "Registrar un proveedor",
-        "description": "Requiere CATALOG_WRITE. Catalog asigna UUID, empresa autorizada y estado ACTIVE. Al omitir paymentTerms se aplica CASH.",
+        "description": "Requiere CATALOG_WRITE. Registra el proveedor y sus artículos en una sola transacción.",
         "security": [
           {
             "bearerAuth": []
@@ -1180,7 +1180,18 @@
                 "taxId": "131-12345-1",
                 "contact": "Laura Méndez",
                 "phone": "(809) 555-0118",
-                "email": "ventas@example.do"
+                "email": "ventas@example.do",
+                "supplyType": "REGULAR",
+                "categoryId": "c75407c1-aeb5-4b67-a545-74c508a3d1a1",
+                "creditDays": null,
+                "status": "ACTIVE",
+                "items": [
+                  {
+                    "catalogItemId": "195a2821-5d76-44f8-990e-77e3d5d9cde6",
+                    "offeredCost": "10.00",
+                    "supplierReference": "SUP-1"
+                  }
+                ]
               }
             }
           }
@@ -3803,7 +3814,15 @@
         "type": "object",
         "required": [
           "name",
-          "contact"
+          "contact",
+          "taxId",
+          "phone",
+          "email",
+          "supplyType",
+          "categoryId",
+          "creditDays",
+          "status",
+          "items"
         ],
         "properties": {
           "name": {
@@ -3815,7 +3834,6 @@
           },
           "taxId": {
             "type": "string",
-            "nullable": true,
             "maxLength": 64,
             "description": "Cédula de 11 dígitos o RNC de 9 dígitos. Se conservan los ceros iniciales y se retiran espacios y guiones."
           },
@@ -3828,13 +3846,11 @@
           },
           "phone": {
             "type": "string",
-            "nullable": true,
             "maxLength": 32,
             "pattern": "^\\+?(?=(?:[^0-9]*[0-9]){7})[0-9() .-]{7,32}$"
           },
           "email": {
             "type": "string",
-            "nullable": true,
             "format": "email",
             "maxLength": 320,
             "pattern": "^[^\\s@]+@[^\\s@.]+(?:\\.[^\\s@.]+)+$"
@@ -3851,8 +3867,7 @@
               "SERVICE",
               "BOTH",
               "REGULAR"
-            ],
-            "nullable": true
+            ]
           },
           "paymentTerms": {
             "type": "string",
@@ -3861,25 +3876,69 @@
               "CREDIT",
               "BOTH"
             ],
-            "description": "Al omitir el campo se aplica CASH. Null explícito es inválido.",
-            "default": "CASH"
+            "description": "Si se omite, CASH para No aplica y BOTH para un plazo en días."
           },
           "categoryId": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "creditDays": {
             "type": "integer",
             "format": "int32",
             "minimum": 0,
-            "description": "Null indica ausencia de plazo. Cero indica vencimiento inmediato. Requiere CREDIT o BOTH.",
-            "nullable": true
+            "description": "Campo obligatorio. Null representa No aplica.",
+            "nullable": true,
+            "enum": [
+              null,
+              15,
+              30,
+              60,
+              90
+            ]
           },
           "observations": {
             "type": "string",
             "maxLength": 1000,
             "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/SupplierStatus"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "required": [
+                "catalogItemId",
+                "offeredCost",
+                "supplierReference"
+              ],
+              "properties": {
+                "catalogItemId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "offeredCost": {
+                  "oneOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,15}([.][0-9]{1,4})?$"
+                    }
+                  ]
+                },
+                "supplierReference": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                }
+              }
+            }
           }
         },
         "additionalProperties": false
@@ -4117,7 +4176,8 @@
           "id",
           "name",
           "taxId",
-          "status"
+          "status",
+          "outstandingAmount"
         ],
         "properties": {
           "id": {
@@ -4187,6 +4247,11 @@
             ],
             "nullable": true,
             "description": "Tipo exacto del proveedor. Use este valor para editar el campo supplyType."
+          },
+          "outstandingAmount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Saldo pendiente consolidado por Expense para el proveedor. Cero cuando no tiene obligaciones pendientes."
           }
         }
       },

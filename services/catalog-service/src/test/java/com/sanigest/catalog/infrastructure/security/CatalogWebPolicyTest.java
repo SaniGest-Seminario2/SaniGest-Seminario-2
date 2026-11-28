@@ -28,6 +28,7 @@ import com.sanigest.catalog.application.dto.catalogitem.CatalogItemSummary;
 import com.sanigest.catalog.application.dto.client.ClientPage;
 import com.sanigest.catalog.application.dto.client.ClientReferences.Option;
 import com.sanigest.catalog.application.dto.supplier.SupplierPage;
+import com.sanigest.catalog.application.dto.supplier.SupplierSearchCriteria;
 import com.sanigest.catalog.application.exception.catalogitem.CatalogItemAccessException;
 import com.sanigest.catalog.application.exception.client.ClientAccessException;
 import com.sanigest.catalog.application.exception.client.ClientCreationException;
@@ -36,6 +37,7 @@ import com.sanigest.catalog.application.exception.security.CatalogAuthorizationU
 import com.sanigest.catalog.application.exception.supplier.SupplierAccessException;
 import com.sanigest.catalog.application.exception.supplier.SupplierCreationException;
 import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.integration.expense.SupplierBalances;
 import com.sanigest.catalog.application.port.out.integration.sales.SalesClientFinancials;
 import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemCommercialRepository;
 import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemRepository;
@@ -157,6 +159,9 @@ class CatalogWebPolicyTest {
   @MockitoBean SupplierRepository suppliers;
   @MockitoBean SupplierCategoryRepository supplierCategories;
   @MockitoBean SupplierItemRepository supplierItems;
+
+  @MockitoBean SupplierBalances supplierBalances;
+
   @MockitoBean CatalogAuthorization authorization;
   @MockitoBean SalesClientFinancials sales;
 
@@ -634,6 +639,11 @@ class CatalogWebPolicyTest {
         {"name":"Office","contact":"Laura","taxId":"  012345678 "}
         """;
 
+    given(supplierItems.lockItems(eq(companyId), any(), any()))
+        .willReturn(
+            java.util.Map.of(
+                SUPPLIER_ITEM,
+                new SupplierItemRepository.LockedItem(CatalogItemType.PRODUCT, true)));
     registerSupplier(body)
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").isString())
@@ -726,10 +736,12 @@ class CatalogWebPolicyTest {
         Supplier.register(companyId, new SupplierDetails("Office", "123", "Laura", null, null));
     given(authorization.membership(CATALOG_READ)).willReturn(Optional.of(companyId));
     given(authorization.membership(CATALOG_WRITE)).willReturn(Optional.of(companyId));
-    given(suppliers.search(companyId, null, null, 0, 20))
+    given(suppliers.search(eq(companyId), any(SupplierSearchCriteria.class), eq(0), eq(20)))
         .willReturn(
             new SupplierPage(
                 List.of(new SupplierPage.Item(supplier.id(), "Office", "123", ACTIVE)), 0, 20, 1));
+    given(supplierBalances.read(companyId, List.of(supplier.id())))
+        .willReturn(Map.of(supplier.id(), new BigDecimal("25.00")));
     var path = "/api/v1/suppliers/" + supplier.id();
     given(suppliers.find(companyId, supplier.id()))
         .willReturn(Optional.of(supplier), Optional.empty());
@@ -742,6 +754,7 @@ class CatalogWebPolicyTest {
     mvc.perform(get("/api/v1/suppliers").header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.content[0].id").value(supplier.id().toString()))
+        .andExpect(jsonPath("$.content[0].outstandingAmount").value(25.0))
         .andExpect(jsonPath("$.totalPages").value(1));
     mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer valid"))
         .andExpect(status().isOk())
@@ -764,12 +777,33 @@ class CatalogWebPolicyTest {
         .andExpect(jsonPath("$.errorCode").value("SUPPLIER_UPDATE_CONFLICT"));
   }
 
+  private static final UUID SUPPLIER_ITEM = UUID.randomUUID();
+
   private ResultActions registerSupplier(String body) throws Exception {
+    var request =
+        (tools.jackson.databind.node.ObjectNode)
+            tools.jackson.databind.json.JsonMapper.shared().readTree(body);
+    if (!request.has("taxId")) {
+      request.put("taxId", "012345678");
+    }
+    request
+        .put("phone", "8095550101")
+        .put("email", "supplier@example.do")
+        .put("supplyType", "PRODUCT")
+        .put("status", "ACTIVE")
+        .put("categoryId", UUID.randomUUID().toString())
+        .putNull("creditDays");
+    request
+        .putArray("items")
+        .addObject()
+        .put("catalogItemId", SUPPLIER_ITEM.toString())
+        .put("offeredCost", new BigDecimal("1.00"))
+        .put("supplierReference", "SUP-1");
     return mvc.perform(
         post("/api/v1/suppliers")
             .header(HttpHeaders.AUTHORIZATION, "Bearer valid")
             .contentType(MediaType.APPLICATION_JSON)
-            .content(body));
+            .content(request.toString()));
   }
 
   private ResultActions writeRequest(String path, String body) throws Exception {
