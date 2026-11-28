@@ -25,7 +25,7 @@ class ActiveCashSummaryTest {
     var invoices = mock(PendingInvoices.class);
     var admission = mock(PaymentAdmission.class);
     var movements = mock(CashSummaryLedger.class);
-    var methods = Map.of("TRANSFER", BigDecimal.TEN);
+    var methods = Map.of("TRANSFER", new BigDecimal("4.80"), "CHECK", new BigDecimal("5.20"));
     when(invoices.count(company, "token")).thenReturn(2L);
     when(admission.find(company, operator))
         .thenReturn(Optional.of(new PaymentAdmission.ActiveShift(shift, Map.of())));
@@ -33,7 +33,7 @@ class ActiveCashSummaryTest {
         .thenReturn(new Amounts(BigDecimal.TEN, BigDecimal.ZERO, methods));
 
     assertEquals(
-        new Summary(shift, BigDecimal.TEN, 2, BigDecimal.ZERO, methods),
+        new Summary(shift, BigDecimal.TEN, 2, BigDecimal.ZERO, new BigDecimal("10.00"), methods),
         new ActiveCashSummary(admission, movements, invoices)
             .find(company, operator, "token")
             .orElseThrow());
