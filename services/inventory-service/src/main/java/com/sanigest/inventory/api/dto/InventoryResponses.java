@@ -143,6 +143,56 @@ public final class InventoryResponses {
     }
   }
 
+  public record AdjustmentMovementView(
+      UUID id,
+      UUID catalogItemId,
+      UUID warehouseId,
+      AdjustmentMovementType movementType,
+      StockMovement.Direction direction,
+      String quantity,
+      String unitCode,
+      AdjustmentOriginType originType,
+      UUID originId,
+      UUID effectId,
+      UUID actorId,
+      String reason,
+      Instant occurredAt,
+      Instant recordedAt,
+      long sequence,
+      String balanceAfter) {
+    public static AdjustmentMovementView from(StockMovement value) {
+      return new AdjustmentMovementView(
+          value.id(),
+          value.key().catalogItemId(),
+          value.key().warehouseId(),
+          AdjustmentMovementType.valueOf(value.movementType().name()),
+          value.direction(),
+          decimal(value.quantity()),
+          value.unitCode(),
+          AdjustmentOriginType.valueOf(value.originType().name()),
+          value.originId(),
+          value.effectId(),
+          value.actorId(),
+          value.reason(),
+          value.occurredAt(),
+          value.recordedAt(),
+          value.sequence(),
+          decimal(value.balanceAfter()));
+    }
+  }
+
+  public enum AdjustmentMovementType {
+    INITIAL_STOCK,
+    MANUAL_ADJUSTMENT,
+    PURCHASE_RECEIPT
+  }
+
+  public enum AdjustmentOriginType {
+    STOCK_CONFIGURATION,
+    MANUAL_ADJUSTMENT,
+    PURCHASE_RECEIPT
+  }
+
   public record SummaryView(
       long activeWarehouses,
       long trackedPositions,

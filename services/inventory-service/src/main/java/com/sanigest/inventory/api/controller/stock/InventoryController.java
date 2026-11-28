@@ -1,6 +1,7 @@
 package com.sanigest.inventory.api.controller.stock;
 
 import com.sanigest.inventory.api.dto.InventoryRequests;
+import com.sanigest.inventory.api.dto.InventoryResponses.AdjustmentMovementView;
 import com.sanigest.inventory.api.dto.InventoryResponses.MovementView;
 import com.sanigest.inventory.api.dto.InventoryResponses.PageView;
 import com.sanigest.inventory.api.dto.InventoryResponses.StockView;
@@ -78,11 +79,11 @@ public class InventoryController {
 
   @PostMapping("/adjustments")
   @ResponseStatus(HttpStatus.CREATED)
-  MovementView adjust(
+  AdjustmentMovementView adjust(
       HttpServletRequest request, @Valid @RequestBody InventoryRequests.Adjust body) {
     var company = RequestContext.company(request);
     var actor = access.authorize(company, Operation.ADJUST_STOCK);
-    return MovementView.from(
+    return AdjustmentMovementView.from(
         stock.adjust(
             new StockKey(company, body.catalogItemId(), body.warehouseId()),
             actor,
