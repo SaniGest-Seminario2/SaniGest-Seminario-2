@@ -4,6 +4,7 @@ import com.sanigest.expense.application.dto.expense.ExpenseRegistration.Line;
 import com.sanigest.expense.application.dto.expense.ExpenseRegistration.OperationType;
 import com.sanigest.expense.application.exception.ExpenseFailure;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,13 @@ public interface ExpenseQueries {
     PAID,
     PENDING,
     PARTIALLY_PAID
+  }
+
+  enum DetailStatus {
+    PAID,
+    PENDING,
+    PARTIALLY_PAID,
+    CANCELLED
   }
 
   record Criteria(
@@ -58,9 +66,11 @@ public interface ExpenseQueries {
       BigDecimal total,
       BigDecimal paidAmount,
       BigDecimal outstandingAmount,
-      Status status,
+      DetailStatus status,
       List<Line> lines,
-      List<UUID> attachmentIds) {}
+      List<UUID> attachmentIds,
+      Instant cancelledAt,
+      String cancellationReason) {}
 
   record Summary(
       BigDecimal totalPurchases,

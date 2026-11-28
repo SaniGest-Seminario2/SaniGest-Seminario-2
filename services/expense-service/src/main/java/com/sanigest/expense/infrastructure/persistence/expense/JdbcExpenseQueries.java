@@ -4,6 +4,7 @@ import com.sanigest.expense.application.dto.expense.ExpenseRegistration.Document
 import com.sanigest.expense.application.dto.expense.ExpenseRegistration.OperationType;
 import com.sanigest.expense.application.port.in.expense.ExpenseQueries;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,6 +26,7 @@ class JdbcExpenseQueries implements ExpenseQueries {
           FROM jsonb_array_elements(d.snapshot -> 'lines') WITH ORDINALITY AS line(item, position)
       ) c
       WHERE d.company_id = :company
+        AND d.cancelled_at IS NULL
         AND (:operationType = 'ALL' OR d.operation_type = :operationType)
         AND (:status = 'ALL' OR d.status = :status)
         AND (CAST(:from AS date) IS NULL OR d.document_date >= CAST(:from AS date))
@@ -80,7 +82,7 @@ class JdbcExpenseQueries implements ExpenseQueries {
   public Optional<Detail> detail(UUID company, UUID id) {
     return jdbc.sql(
             """
-            SELECT snapshot, paid_amount, outstanding_amount, status
+            SELECT snapshot, paid_amount, outstanding_amount, status, cancelled_at, cancellation_reason
             FROM expense.document_balances
             WHERE company_id = :company AND id = :id
             """)
@@ -88,6 +90,7 @@ class JdbcExpenseQueries implements ExpenseQueries {
         .param("id", id)
         .query((row, index) -> {
           var document = json.readValue(row.getString("snapshot"), Document.class);
+          var cancelledAt = row.getObject("cancelled_at", OffsetDateTime.class);
           return new Detail(
               document.id(),
               document.supplierInvoiceNumber(),
@@ -98,9 +101,11 @@ class JdbcExpenseQueries implements ExpenseQueries {
               document.total(),
               row.getBigDecimal("paid_amount"),
               row.getBigDecimal("outstanding_amount"),
-              Status.valueOf(row.getString("status")),
+              DetailStatus.valueOf(row.getString("status")),
               document.lines(),
-              document.attachmentId() == null ? List.of() : List.of(document.attachmentId()));
+              document.attachmentId() == null ? List.of() : List.of(document.attachmentId()),
+              cancelledAt == null ? null : cancelledAt.toInstant(),
+              row.getString("cancellation_reason"));
         })
         .optional();
   }

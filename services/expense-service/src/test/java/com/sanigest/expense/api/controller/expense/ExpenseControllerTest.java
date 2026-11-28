@@ -16,6 +16,7 @@ import com.sanigest.expense.api.dto.expense.CreateExpenseRequest;
 import com.sanigest.expense.api.security.ExpenseCompanyAccess;
 import com.sanigest.expense.application.dto.expense.ExpenseRegistration.RegistrationKey;
 import com.sanigest.expense.application.exception.ExpenseFailure;
+import com.sanigest.expense.application.port.in.expense.CancelExpense;
 import com.sanigest.expense.application.port.in.expense.ExpenseQueries;
 import com.sanigest.expense.application.usecase.expense.RegisterExpense;
 import com.sanigest.security.api.request.company.CompanySelector;
@@ -59,7 +60,8 @@ class ExpenseControllerTest {
         .setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
     var http = request();
     var expenses = mock(RegisterExpense.class);
-    var controller = new ExpenseController(expenses, access, new JsonMapper());
+    var controller =
+        new ExpenseController(expenses, mock(CancelExpense.class), access, new JsonMapper());
     var body =
         new CreateExpenseRequest(
             null, null, null, null, null, null, null, null, null, null, null, List.of());
