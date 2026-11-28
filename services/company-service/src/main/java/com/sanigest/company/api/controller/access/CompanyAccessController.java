@@ -44,7 +44,8 @@ class CompanyAccessController {
     var query = Query.from(assertion);
     if (query.mode() == AccessMode.MEMBERSHIP) {
       UUID userId = regularUser(session, query.userId());
-      String permission = query.module().name() + "_" + query.scope().name();
+      String module = query.module() == Module.FINANCE ? "CASH" : query.module().name();
+      String permission = module + "_" + query.scope().name();
       var membership =
           query.scope() == Scope.AUDIT
               ? access.auditMembership(userId, query.companyId())
