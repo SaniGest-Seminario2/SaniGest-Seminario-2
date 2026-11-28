@@ -1965,7 +1965,13 @@ class SalesServiceIT {
       assertThat(conflict.statusCode()).isEqualTo(409);
       assertThat(conflict.body()).contains("IDEMPOTENCY_CONFLICT");
       assertThat(cancel(http, owner.bearer(), id, "{\"reason\":\"Duplicada\"}").statusCode())
-          .isEqualTo(409);
+          .isEqualTo(200);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT status FROM sales.internal_invoices WHERE sale_id = ?",
+                  String.class,
+                  UUID.fromString(id)))
+          .isEqualTo("CANCELLED");
       assertThat(cancel(http, owner.bearer(), second, "{\"reason\":\"Duplicada\"}").statusCode())
           .isEqualTo(200);
       assertThat(invoice(http, owner.bearer(), second, "new-key", "").statusCode()).isEqualTo(409);
@@ -2080,20 +2086,19 @@ class SalesServiceIT {
           race(
               () -> invoice(http, owner.bearer(), cancellationSale, "cancellation-race", ""),
               () -> cancel(http, owner.bearer(), cancellationSale, "{\"reason\":\"Duplicada\"}"));
-      assertThat(cancellation).extracting(HttpResponse::statusCode).contains(409);
       boolean issued = cancellation.getFirst().statusCode() == 201;
       assertThat(cancellation.getFirst().statusCode()).isEqualTo(issued ? 201 : 409);
-      assertThat(cancellation.getLast().statusCode()).isEqualTo(issued ? 409 : 200);
+      assertThat(cancellation.getLast().statusCode()).isEqualTo(200);
       var saleId = UUID.fromString(cancellationSale);
       assertThat(sales.findByCompanyIdAndId(owner.company(), saleId).orElseThrow().status())
-          .isEqualTo(issued ? SaleStatus.REGISTERED : SaleStatus.CANCELLED);
+          .isEqualTo(SaleStatus.CANCELLED);
       assertThat(
               jdbc.queryForObject(
                   "SELECT status FROM sales.receivables WHERE company_id = ? AND sale_id = ?",
                   String.class,
                   owner.company(),
                   saleId))
-          .isEqualTo(issued ? "OPEN" : "CANCELLED");
+          .isEqualTo("CANCELLED");
       assertThat(countInvoices(owner.company())).isEqualTo(issued ? 3 : 2);
     }
   }

@@ -22,6 +22,7 @@ public record SalePage(List<Item> content, int page, int size, long totalElement
       SaleMode mode,
       SaleStatus status,
       BigDecimal total,
+      UUID invoiceId,
       String invoiceNumber,
       ReceivableStatus paymentStatus,
       BigDecimal outstandingBalance,

@@ -25,6 +25,8 @@ class SalesRoutesConfiguration {
                     .path(
                         "/api/v1/sales",
                         "/api/v1/sales/audit-log",
+                        "/api/v1/sales/all",
+                        "/api/v1/sales/summary",
                         "/api/v1/sales/{id}",
                         "/api/v1/sales/{id}/cancel",
                         "/api/v1/sales/{id}/invoices",

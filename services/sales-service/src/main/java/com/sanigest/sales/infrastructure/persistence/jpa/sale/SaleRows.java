@@ -103,10 +103,14 @@ public interface SaleRows extends Repository<SaleRow, UUID> {
         AND s.sale_date BETWEEN :#{#filter.fromDate()} AND :#{#filter.toDate()}
         AND (:#{#filter.status()} = '' OR s.status = :#{#filter.status()})
         AND (:#{#filter.mode()} = '' OR s.mode = :#{#filter.mode()})
-        AND (:#{#filter.pattern()} = '' OR lower(s.client_name) LIKE lower(:#{#filter.pattern()}) ESCAPE '!')
+        AND (:#{#filter.pattern()} = ''
+             OR s.client_name ILIKE :#{#filter.pattern()} ESCAPE '!'
+             OR i.number ILIKE :#{#filter.pattern()} ESCAPE '!')
       """;
 
-  @Query(value = "SELECT count(*) FROM sales.sales s " + FILTER, nativeQuery = true)
+  @Query(
+      value = "SELECT count(*) FROM sales.sales s " + DOCUMENT_JOINS + FILTER,
+      nativeQuery = true)
   long countMatching(UUID companyId, ListingFilter filter);
 
   record ListingFilter(
@@ -117,7 +121,7 @@ public interface SaleRows extends Repository<SaleRow, UUID> {
           """
           SELECT s.id, s.code, s.client_id AS "clientId", s.client_name AS "clientName",
                  s.sale_date AS "saleDate", s.mode, s.status, s.total,
-                 i.number AS "invoiceNumber", payment.status AS "paymentStatus",
+                 i.id AS "invoiceId", i.number AS "invoiceNumber", payment.status AS "paymentStatus",
                  payment.outstanding AS "outstandingBalance", payment.collected AS "collected"
           FROM sales.sales s
           """
@@ -130,7 +134,37 @@ public interface SaleRows extends Repository<SaleRow, UUID> {
       nativeQuery = true)
   List<ListedSale> search(UUID companyId, ListingFilter filter, int size, long offset);
 
+  @Query(
+      value =
+          """
+          SELECT coalesce(sum(s.total), 0.00) AS "totalSales",
+                 coalesce(sum(s.total) FILTER (WHERE s.mode = 'CASH'), 0.00) AS "totalCash",
+                 coalesce(sum(s.total) FILTER (WHERE s.mode = 'CREDIT'), 0.00) AS "totalCredit",
+                 count(*) AS operations,
+                 coalesce(sum(payment.outstanding), 0.00) AS "outstandingBalance"
+          FROM sales.sales s
+          """
+              + DOCUMENT_JOINS
+              + FILTER
+              + " AND s.status = 'REGISTERED'",
+      nativeQuery = true)
+  SaleTotalsRow totals(UUID companyId, ListingFilter filter);
+
+  interface SaleTotalsRow {
+    BigDecimal getTotalSales();
+
+    BigDecimal getTotalCash();
+
+    BigDecimal getTotalCredit();
+
+    long getOperations();
+
+    BigDecimal getOutstandingBalance();
+  }
+
   interface ListedSale {
+    UUID getInvoiceId();
+
     UUID getId();
 
     String getCode();

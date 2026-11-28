@@ -124,11 +124,11 @@ paths:
     get:
       summary: Lista ventas de la empresa con SALES_READ.
       parameters:
-        - {name: search, in: query, schema: {type: string, maxLength: 250}}
-        - {name: status, in: query, schema: {type: string, enum: [ALL, REGISTERED, CANCELLED]}}
-        - {name: mode, in: query, schema: {type: string, enum: [ALL, CASH, CREDIT]}}
-        - {name: from, in: query, schema: {type: string, format: date}}
-        - {name: to, in: query, schema: {type: string, format: date}}
+        - &saleSearch {name: search, in: query, description: Cliente o número de factura, schema: {type: string, maxLength: 250}}
+        - &saleStatus {name: status, in: query, schema: {type: string, enum: [ALL, REGISTERED, CANCELLED]}}
+        - &saleMode {name: mode, in: query, schema: {type: string, enum: [ALL, CASH, CREDIT]}}
+        - &saleFrom {name: from, in: query, description: Fecha inicial inclusiva (YYYY-MM-DD), schema: {type: string, format: date}}
+        - &saleTo {name: to, in: query, description: Fecha final inclusiva (YYYY-MM-DD), schema: {type: string, format: date}}
         - {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}
         - {name: size, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
       responses:
@@ -142,6 +142,50 @@ paths:
         '403': {description: Permiso empresarial insuficiente.}
         '404': {description: Recurso ausente o fuera de la empresa autorizada.}
         '503': {description: Autorización o dependencia indisponible.}
+  /api/v1/sales/all:
+    get:
+      summary: Lista hasta 1000 ventas con los filtros y el orden del listado paginado.
+      parameters:
+        - $ref: '#/components/parameters/CompanySelector'
+        - *saleSearch
+        - *saleStatus
+        - *saleMode
+        - *saleFrom
+        - *saleTo
+      responses:
+        '200':
+          description: Ventas ordenadas por fecha e ID descendentes.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ListedSale'}}
+        '400': {$ref: '#/components/responses/InvalidContext'}
+        '401': {description: JWT inválido o ausente.}
+        '403': {description: Permiso empresarial insuficiente.}
+        '422':
+          description: SALE_LIST_LIMIT_EXCEEDED. Acote los filtros o use paginación.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /api/v1/sales/summary:
+    get:
+      summary: Calcula indicadores de todas las ventas elegibles antes de paginar.
+      description: Excluye ventas anuladas. El ticket promedio se redondea a dos decimales con HALF_UP.
+      parameters:
+        - $ref: '#/components/parameters/CompanySelector'
+        - *saleSearch
+        - *saleStatus
+        - *saleMode
+        - *saleFrom
+        - *saleTo
+      responses:
+        '200':
+          description: Indicadores de ventas.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SaleTotals'}
+        '400': {$ref: '#/components/responses/InvalidContext'}
+        '401': {description: JWT inválido o ausente.}
+        '403': {description: Permiso empresarial insuficiente.}
   /api/v1/sales/{id}:
     parameters:
       - $ref: '#/components/parameters/CompanySelector'
@@ -165,12 +209,27 @@ paths:
       - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
     post:
       summary: Cancela una venta con SALES_CANCEL (OWNER o ADMIN).
+      description: Anula la venta, factura y obligación en una transacción. Conserva su historial y devuelve 409 si existen cobros incompatibles.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, minLength: 1, maxLength: 500}
       responses:
         '200': {description: Operación completada.}
         '400': {$ref: '#/components/responses/InvalidContext'}
         '401': {description: JWT inválido o ausente.}
         '403': {description: Permiso empresarial insuficiente.}
         '404': {description: Recurso ausente o fuera de la empresa autorizada.}
+        '409':
+          description: SALE_CANCELLATION_CONFLICT.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
         '503': {description: Autorización o dependencia indisponible.}
   /api/v1/receivables/{id}:
     parameters:
@@ -512,6 +571,19 @@ components:
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
   schemas:
+    SaleTotals:
+      type: object
+      required: [totalSales, totalCash, totalCredit, operations, averageTicket, outstandingBalance]
+      properties:
+        totalSales: {$ref: '#/components/schemas/Amount'}
+        totalCash: {$ref: '#/components/schemas/Amount'}
+        totalCredit: {$ref: '#/components/schemas/Amount'}
+        operations: {type: integer, format: int64, minimum: 0}
+        averageTicket:
+          allOf:
+            - {$ref: '#/components/schemas/NullableAmount'}
+          description: Null si no hay operaciones.
+        outstandingBalance: {$ref: '#/components/schemas/Amount'}
     SalePage:
       type: object
       required: [content, page, size, totalElements, totalPages]
@@ -528,6 +600,7 @@ components:
         - $ref: '#/components/schemas/SaleSummary'
         - type: object
           properties:
+            invoiceId: {type: string, format: uuid, nullable: true}
             invoiceNumber: {type: string, nullable: true, example: FAC-2026-001}
             paymentStatus: {$ref: '#/components/schemas/PaymentStatus'}
             outstandingBalance:
@@ -537,7 +610,7 @@ components:
             collectedAmount:
               allOf:
                 - {$ref: '#/components/schemas/NullableAmount'}
-              description: Importe original menos saldo histórico.
+              description: Importe confirmado. Sin factura ni obligación no existe estado ni importe de pago.
     SaleSummary:
       type: object
       required: [id, code, client, saleDate, mode, status, total, currency]
@@ -557,7 +630,6 @@ components:
           required: [lines]
           properties:
             lines: {type: array, items: {$ref: '#/components/schemas/Line'}}
-            invoiceId: {type: string, format: uuid, nullable: true}
             dueDate: {type: string, format: date, nullable: true}
             cancellation:
               type: object

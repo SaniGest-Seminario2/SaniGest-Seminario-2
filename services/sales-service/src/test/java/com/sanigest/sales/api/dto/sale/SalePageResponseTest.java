@@ -26,6 +26,7 @@ class SalePageResponseTest {
             SaleMode.CASH,
             SaleStatus.REGISTERED,
             new BigDecimal("99999999999999999.99"),
+            UUID.randomUUID(),
             "FAC-000001",
             ReceivableStatus.OPEN,
             new BigDecimal("99999999999999999.99"),
@@ -33,6 +34,7 @@ class SalePageResponseTest {
     var json =
         new ObjectMapper().valueToTree(SalePageResponse.from(new SalePage(List.of(item), 2, 2, 5)));
     var summary = json.path("content").get(0);
+    assertThat(summary.path("invoiceId").asString()).isEqualTo(item.invoiceId().toString());
     assertThat(summary.path("id").asString()).isEqualTo(item.id().toString());
     assertThat(summary.path("client").path("id").asString()).isEqualTo(item.clientId().toString());
     assertThat(summary.path("client").path("name").asString()).isEqualTo(item.clientName());

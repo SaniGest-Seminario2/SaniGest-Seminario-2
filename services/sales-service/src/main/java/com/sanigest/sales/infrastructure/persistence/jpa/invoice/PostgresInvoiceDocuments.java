@@ -5,9 +5,7 @@ import com.sanigest.sales.application.exception.invoice.InvoiceConflict;
 import com.sanigest.sales.application.port.out.persistence.invoice.InvoiceDocuments;
 import com.sanigest.sales.application.port.out.persistence.sale.SaleRepository;
 import com.sanigest.sales.domain.model.sale.SaleCancellation;
-import com.sanigest.sales.infrastructure.persistence.audit.SalesAudit;
 import com.sanigest.sales.infrastructure.persistence.jpa.sale.SaleRows;
-import java.sql.Timestamp;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -51,16 +49,11 @@ class PostgresInvoiceDocuments implements InvoiceDocuments {
           'cancelReason', i.cancel_reason)))::text
       """;
   private final JdbcClient jdbc;
-  private final SaleRows saleRows;
   private final SaleRepository sales;
-  private final SalesAudit audit;
 
-  PostgresInvoiceDocuments(
-      JdbcClient jdbc, SaleRows saleRows, SaleRepository sales, SalesAudit audit) {
+  PostgresInvoiceDocuments(JdbcClient jdbc, SaleRepository sales) {
     this.jdbc = jdbc;
-    this.saleRows = saleRows;
     this.sales = sales;
-    this.audit = audit;
   }
 
   @Override
@@ -119,30 +112,7 @@ class PostgresInvoiceDocuments implements InvoiceDocuments {
       return Optional.empty();
     }
     UUID saleId = sale.orElseThrow();
-    saleRows.lockSale(company, saleId).orElseThrow(InvoiceConflict::new);
-    int updated =
-        jdbc.sql(
-                """
-                UPDATE sales.internal_invoices
-                   SET status = 'CANCELLED', cancelled_by = :actor, cancelled_at = :at,
-                       cancel_reason = :reason
-                 WHERE company_id = :company AND id = :id AND status = 'ISSUED'
-                """)
-            .param("company", company)
-            .param("id", invoice)
-            .param("actor", cancellation.cancelledBy())
-            .param("at", Timestamp.from(cancellation.cancelledAt()))
-            .param("reason", cancellation.cancelReason())
-            .update();
-    if (updated == 1) {
-      sales.cancel(company, saleId, cancellation).orElseThrow(InvoiceConflict::new);
-      audit.append(
-          company,
-          cancellation.cancelledBy(),
-          SalesAudit.Operation.INVOICE_CANCELLED,
-          invoice,
-          "CANCELLED");
-    }
+    sales.cancel(company, saleId, cancellation).orElseThrow(InvoiceConflict::new);
     return find(company, invoice);
   }
 }

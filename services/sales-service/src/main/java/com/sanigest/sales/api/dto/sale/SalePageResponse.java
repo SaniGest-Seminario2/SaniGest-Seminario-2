@@ -30,11 +30,12 @@ public record SalePageResponse(
       SaleStatus status,
       @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal total,
       String currency,
+      UUID invoiceId,
       String invoiceNumber,
       ReceivableStatus paymentStatus,
       @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal outstandingBalance,
       @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal collectedAmount) {
-    private static Item from(SalePage.Item item) {
+    public static Item from(SalePage.Item item) {
       return new Item(
           item.id(),
           item.code(),
@@ -44,6 +45,7 @@ public record SalePageResponse(
           item.status(),
           item.total(),
           "DOP",
+          item.invoiceId(),
           item.invoiceNumber(),
           item.paymentStatus(),
           item.outstandingBalance(),

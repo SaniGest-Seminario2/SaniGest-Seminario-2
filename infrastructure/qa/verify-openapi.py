@@ -70,6 +70,15 @@ def verify(origin, output, baseline):
             assert parameters["X-Company-Id"]["required"]
         if name == "sales":
             schemas = spec["components"]["schemas"]
+            for suffix in ("", "/all", "/summary"):
+                listing = spec["paths"][f"/api/v1/sales{suffix}"]["get"]
+                assert "200" in listing["responses"]
+                assert {"search", "status", "mode", "from", "to"} <= {
+                    param["name"] for param in listing["parameters"]
+                }
+            assert "422" in spec["paths"]["/api/v1/sales/all"]["get"]["responses"]
+            cancellation = spec["paths"]["/api/v1/sales/{id}/cancel"]["post"]["responses"]
+            assert {"200", "404", "409"} <= cancellation.keys()
 
             def request_line(post):
                 request = post["requestBody"]["content"]["application/json"]["schema"]
