@@ -1,12 +1,12 @@
 package com.sanigest.catalog.application.usecase.supplier;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
 
-import com.sanigest.catalog.application.dto.SupplierPage;
-import com.sanigest.catalog.application.dto.SupplierSearchCriteria;
-import com.sanigest.catalog.application.exception.InvalidSupplierQueryException;
-import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
-import com.sanigest.catalog.domain.enums.SupplierStatus;
+import com.sanigest.catalog.application.dto.supplier.SupplierPage;
+import com.sanigest.catalog.application.dto.supplier.SupplierSearchCriteria;
+import com.sanigest.catalog.application.exception.supplier.InvalidSupplierQueryException;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierRepository;
+import com.sanigest.catalog.domain.enums.supplier.SupplierStatus;
 import java.util.Locale;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,7 +32,8 @@ public class ListSuppliers {
     this.maxSize = maxSize;
   }
 
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public SupplierPage execute(String search, String status, int page, int size) {
     validate(search, page, size);
     var term = optionalFilter(search);
@@ -40,7 +41,8 @@ public class ListSuppliers {
     return suppliers.search(company.require(CATALOG_READ), term, state, page, size);
   }
 
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public SupplierPage execute(SupplierSearchCriteria filter, int page, int size) {
     validate(filter.search(), page, size);
     return suppliers.search(company.require(CATALOG_READ), filter, page, size);

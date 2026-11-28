@@ -1,16 +1,16 @@
 package com.sanigest.catalog.application.usecase.catalogitem;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
 
-import com.sanigest.catalog.application.dto.CatalogItemPage;
-import com.sanigest.catalog.application.exception.InvalidCatalogItemQuery;
-import com.sanigest.catalog.application.exception.InventoryLookupFailed;
-import com.sanigest.catalog.application.exception.InventoryLookupFailed.Reason;
-import com.sanigest.catalog.application.port.out.integration.InventoryAvailability;
-import com.sanigest.catalog.application.port.out.integration.InventoryAvailability.State;
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
-import com.sanigest.catalog.domain.enums.CatalogItemType;
-import com.sanigest.catalog.domain.model.CatalogItem;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemPage;
+import com.sanigest.catalog.application.exception.catalogitem.InvalidCatalogItemQuery;
+import com.sanigest.catalog.application.exception.inventory.InventoryLookupFailed;
+import com.sanigest.catalog.application.exception.inventory.InventoryLookupFailed.Reason;
+import com.sanigest.catalog.application.port.out.integration.inventory.InventoryAvailability;
+import com.sanigest.catalog.application.port.out.integration.inventory.InventoryAvailability.State;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemRepository;
+import com.sanigest.catalog.domain.enums.catalogitem.CatalogItemType;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItem;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;

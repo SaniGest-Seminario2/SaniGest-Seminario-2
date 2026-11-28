@@ -1,9 +1,9 @@
 package com.sanigest.inventory.infrastructure.integration.catalog;
 
-import com.sanigest.companyaccess.AuthenticatedActor;
-import com.sanigest.inventory.application.port.out.integration.CatalogInventoryClient;
-import com.sanigest.inventory.domain.InventoryViolation;
-import com.sanigest.inventory.domain.InventoryViolation.Kind;
+import com.sanigest.companyaccess.security.authentication.AuthenticatedActor;
+import com.sanigest.inventory.application.port.out.integration.catalog.CatalogInventoryClient;
+import com.sanigest.inventory.domain.exception.InventoryViolation;
+import com.sanigest.inventory.domain.exception.InventoryViolation.Kind;
 import com.sanigest.inventory.observability.InventoryRequestTrace;
 import java.util.List;
 import java.util.UUID;

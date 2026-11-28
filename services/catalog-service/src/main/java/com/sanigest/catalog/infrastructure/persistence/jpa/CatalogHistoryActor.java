@@ -1,21 +1,21 @@
 package com.sanigest.catalog.infrastructure.persistence.jpa;
 
-import com.sanigest.companyaccess.AuthenticatedActor;
-import com.sanigest.security.RequestCorrelation;
+import com.sanigest.companyaccess.security.authentication.AuthenticatedActor;
+import com.sanigest.security.api.observability.RequestCorrelation;
 import java.sql.Types;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
 @Component
-class CatalogHistoryActor {
+public class CatalogHistoryActor {
   private final JdbcClient jdbc;
 
   CatalogHistoryActor(JdbcClient jdbc) {
     this.jdbc = jdbc;
   }
 
-  void statusChanged(
+  public void statusChanged(
       UUID company, String resourceType, UUID resource, String before, String after) {
     if (before.equals(after)) {
       return;
@@ -40,7 +40,7 @@ class CatalogHistoryActor {
         .update();
   }
 
-  void bind() {
+  public void bind() {
     AuthenticatedActor.userId()
         .ifPresent(actor ->
             jdbc.sql("SELECT set_config('sanigest.catalog_actor', :actor, true)")

@@ -1,18 +1,18 @@
 package com.sanigest.sales.application.usecase.receivable;
 
-import static com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission.SALES_READ;
+import static com.sanigest.sales.application.port.out.integration.company.SalesAuthorization.Permission.SALES_READ;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.sales.application.dto.ReceivableDetail;
-import com.sanigest.sales.application.exception.ReceivableNotFound;
-import com.sanigest.sales.application.exception.SalesAccessForbidden;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.sales.application.port.out.persistence.ReceivableRepository;
-import com.sanigest.sales.domain.model.Receivable;
+import com.sanigest.sales.application.dto.receivable.ReceivableDetail;
+import com.sanigest.sales.application.exception.receivable.ReceivableNotFound;
+import com.sanigest.sales.application.exception.security.SalesAccessForbidden;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
+import com.sanigest.sales.application.port.out.persistence.receivable.ReceivableRepository;
+import com.sanigest.sales.domain.model.receivable.Receivable;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

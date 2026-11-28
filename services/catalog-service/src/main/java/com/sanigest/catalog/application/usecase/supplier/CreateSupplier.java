@@ -1,15 +1,15 @@
 package com.sanigest.catalog.application.usecase.supplier;
 
-import static com.sanigest.catalog.application.exception.SupplierCreationException.Reason.FORBIDDEN;
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.application.exception.supplier.SupplierCreationException.Reason.FORBIDDEN;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_WRITE;
 
-import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
-import com.sanigest.catalog.application.exception.SupplierCreationException;
-import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
-import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
-import com.sanigest.catalog.domain.exception.InvalidSupplierPatch;
-import com.sanigest.catalog.domain.model.Supplier;
-import com.sanigest.catalog.domain.model.SupplierDetails;
+import com.sanigest.catalog.application.exception.security.CatalogAuthorizationUnavailable;
+import com.sanigest.catalog.application.exception.supplier.SupplierCreationException;
+import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierRepository;
+import com.sanigest.catalog.domain.exception.supplier.InvalidSupplierPatch;
+import com.sanigest.catalog.domain.model.supplier.Supplier;
+import com.sanigest.catalog.domain.model.supplier.SupplierDetails;
 import java.util.Optional;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -25,7 +25,8 @@ public class CreateSupplier {
     this.suppliers = suppliers;
   }
 
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public Supplier execute(SupplierDetails details) {
     var companyId =
         authorization

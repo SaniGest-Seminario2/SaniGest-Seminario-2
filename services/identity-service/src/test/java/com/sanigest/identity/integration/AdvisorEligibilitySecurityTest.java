@@ -13,7 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.sanigest.identity.application.port.out.persistence.UserRepository;
+import com.sanigest.identity.application.port.out.persistence.account.UserRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;

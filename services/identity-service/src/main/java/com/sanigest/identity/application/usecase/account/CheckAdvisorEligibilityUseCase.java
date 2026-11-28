@@ -1,6 +1,6 @@
 package com.sanigest.identity.application.usecase.account;
 
-import com.sanigest.identity.application.port.out.persistence.UserRepository;
+import com.sanigest.identity.application.port.out.persistence.account.UserRepository;
 import com.sanigest.identity.domain.enums.AccountType;
 import com.sanigest.identity.domain.enums.UserStatus;
 import java.util.UUID;

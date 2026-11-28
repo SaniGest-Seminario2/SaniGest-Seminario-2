@@ -1,10 +1,10 @@
 package com.sanigest.company.application.usecase.advisor;
 
-import com.sanigest.company.application.port.out.persistence.AdvisorAccessRepository;
+import com.sanigest.company.application.port.out.persistence.advisor.AdvisorAccessRepository;
 import com.sanigest.company.application.usecase.audit.CompanyAuditRecorder;
-import com.sanigest.company.domain.enums.AuditOperation;
-import com.sanigest.company.domain.model.AdvisorAccess;
-import com.sanigest.company.domain.model.AdvisorPermission;
+import com.sanigest.company.domain.enums.audit.AuditOperation;
+import com.sanigest.company.domain.model.advisor.AdvisorAccess;
+import com.sanigest.company.domain.model.advisor.AdvisorPermission;
 import java.time.Clock;
 import java.util.List;
 import java.util.UUID;

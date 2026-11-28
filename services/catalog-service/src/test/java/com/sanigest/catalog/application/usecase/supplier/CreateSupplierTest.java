@@ -1,6 +1,6 @@
 package com.sanigest.catalog.application.usecase.supplier;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_WRITE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -8,14 +8,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
-import com.sanigest.catalog.application.exception.SupplierCreationException;
-import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
-import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
-import com.sanigest.catalog.domain.enums.SupplierPaymentTerms;
-import com.sanigest.catalog.domain.enums.SupplierStatus;
-import com.sanigest.catalog.domain.model.SupplierDetails;
-import com.sanigest.catalog.domain.model.SupplierProfile;
+import com.sanigest.catalog.application.exception.security.CatalogAuthorizationUnavailable;
+import com.sanigest.catalog.application.exception.supplier.SupplierCreationException;
+import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierRepository;
+import com.sanigest.catalog.domain.enums.supplier.SupplierPaymentTerms;
+import com.sanigest.catalog.domain.enums.supplier.SupplierStatus;
+import com.sanigest.catalog.domain.model.supplier.SupplierDetails;
+import com.sanigest.catalog.domain.model.supplier.SupplierProfile;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

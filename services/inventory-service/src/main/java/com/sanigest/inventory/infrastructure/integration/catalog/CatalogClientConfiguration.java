@@ -1,6 +1,6 @@
 package com.sanigest.inventory.infrastructure.integration.catalog;
 
-import com.sanigest.inventory.application.port.out.integration.CatalogInventoryClient;
+import com.sanigest.inventory.application.port.out.integration.catalog.CatalogInventoryClient;
 import io.micrometer.observation.ObservationRegistry;
 import java.net.ProxySelector;
 import java.net.URI;

@@ -1,6 +1,6 @@
 package com.sanigest.finance;
 
-import com.sanigest.web.OpenApiConfiguration;
+import com.sanigest.web.api.documentation.OpenApiConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Import;

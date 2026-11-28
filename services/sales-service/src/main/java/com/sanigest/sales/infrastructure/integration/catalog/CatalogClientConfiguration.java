@@ -1,12 +1,12 @@
 package com.sanigest.sales.infrastructure.integration.catalog;
 
-import com.sanigest.sales.application.exception.CatalogAccessDeniedException;
-import com.sanigest.sales.application.exception.CatalogResourceInvalidException;
-import com.sanigest.sales.application.exception.CatalogUnavailableException;
-import com.sanigest.sales.application.exception.InvoiceStockUnavailable;
-import com.sanigest.sales.application.port.out.integration.CatalogClient;
-import com.sanigest.sales.application.port.out.integration.InvoiceStock;
-import com.sanigest.web.RemoteCall;
+import com.sanigest.sales.application.exception.catalog.CatalogAccessDeniedException;
+import com.sanigest.sales.application.exception.catalog.CatalogResourceInvalidException;
+import com.sanigest.sales.application.exception.catalog.CatalogUnavailableException;
+import com.sanigest.sales.application.exception.invoice.InvoiceStockUnavailable;
+import com.sanigest.sales.application.port.out.integration.catalog.CatalogClient;
+import com.sanigest.sales.application.port.out.integration.catalog.InvoiceStock;
+import com.sanigest.web.infrastructure.integration.resilience.RemoteCall;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import java.net.ProxySelector;

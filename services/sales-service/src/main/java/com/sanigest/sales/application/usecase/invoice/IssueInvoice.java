@@ -1,15 +1,15 @@
 package com.sanigest.sales.application.usecase.invoice;
 
-import com.sanigest.sales.application.dto.CreateSaleCommand;
-import com.sanigest.sales.application.dto.CreatedSaleResponse;
-import com.sanigest.sales.application.exception.InvoiceCompanyUnavailable;
-import com.sanigest.sales.application.exception.InvoiceConflict;
-import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess;
-import com.sanigest.sales.application.port.out.persistence.InvoiceRepository;
-import com.sanigest.sales.application.port.out.persistence.InvoiceRepository.Request;
+import com.sanigest.sales.application.dto.sale.CreateSaleCommand;
+import com.sanigest.sales.application.dto.sale.CreatedSaleResponse;
+import com.sanigest.sales.application.exception.invoice.InvoiceCompanyUnavailable;
+import com.sanigest.sales.application.exception.invoice.InvoiceConflict;
+import com.sanigest.sales.application.port.out.integration.company.InvoiceCompanyAccess;
+import com.sanigest.sales.application.port.out.persistence.invoice.InvoiceRepository;
+import com.sanigest.sales.application.port.out.persistence.invoice.InvoiceRepository.Request;
 import com.sanigest.sales.application.usecase.sale.CreateSaleIdempotently;
-import com.sanigest.sales.domain.model.InternalInvoice;
-import com.sanigest.sales.domain.model.InternalInvoice.CompanySnapshot;
+import com.sanigest.sales.domain.model.invoice.InternalInvoice;
+import com.sanigest.sales.domain.model.invoice.InternalInvoice.CompanySnapshot;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;

@@ -2,14 +2,14 @@ package com.sanigest.company.application.usecase.audit;
 
 import static com.sanigest.company.application.usecase.access.ResolveCompanyAccess.AUDIT_LOG_READ;
 
-import com.sanigest.company.application.dto.AuditPage;
-import com.sanigest.company.application.exception.CompanyAccessDeniedException;
-import com.sanigest.company.application.port.out.persistence.CompanyAuditRepository;
-import com.sanigest.company.application.port.out.persistence.MembershipRepository;
+import com.sanigest.company.application.dto.audit.AuditPage;
+import com.sanigest.company.application.exception.access.CompanyAccessDeniedException;
+import com.sanigest.company.application.port.out.persistence.audit.CompanyAuditRepository;
+import com.sanigest.company.application.port.out.persistence.team.MembershipRepository;
 import com.sanigest.company.application.usecase.access.OperationalCompanySelection;
-import com.sanigest.company.domain.enums.CompanyRole;
-import com.sanigest.company.domain.enums.MembershipStatus;
-import com.sanigest.web.audit.AuditPage.Filters;
+import com.sanigest.company.domain.enums.team.CompanyRole;
+import com.sanigest.company.domain.enums.team.MembershipStatus;
+import com.sanigest.web.application.dto.audit.AuditPage.Filters;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;

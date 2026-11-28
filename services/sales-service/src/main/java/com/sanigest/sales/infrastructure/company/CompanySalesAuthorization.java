@@ -1,15 +1,15 @@
 package com.sanigest.sales.infrastructure.company;
 
-import com.sanigest.companyaccess.AuthenticatedActor;
-import com.sanigest.companyaccess.CompanyAccess;
-import com.sanigest.companyaccess.CompanyAccess.MembershipContext;
-import com.sanigest.companyaccess.CompanyAccess.Scope;
-import com.sanigest.companyaccess.CompanyAccessUnavailable;
-import com.sanigest.sales.application.exception.SalesAccessForbidden;
-import com.sanigest.sales.application.exception.SalesAuthorizationUnavailable;
-import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.security.CompanySelector;
+import com.sanigest.companyaccess.application.exception.CompanyAccessUnavailable;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.MembershipContext;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.Scope;
+import com.sanigest.companyaccess.security.authentication.AuthenticatedActor;
+import com.sanigest.sales.application.exception.security.SalesAccessForbidden;
+import com.sanigest.sales.application.exception.security.SalesAuthorizationUnavailable;
+import com.sanigest.sales.application.port.out.integration.company.InvoiceCompanyAccess;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
+import com.sanigest.security.api.request.company.CompanySelector;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;

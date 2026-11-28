@@ -1,14 +1,14 @@
 package com.sanigest.company.application.usecase.profile;
 
-import com.sanigest.company.application.dto.UpdatedCompany;
-import com.sanigest.company.application.exception.CompanyAccessDeniedException;
-import com.sanigest.company.application.exception.CompanyNotFoundException;
-import com.sanigest.company.application.port.out.persistence.CompanyRepository;
-import com.sanigest.company.application.port.out.persistence.MembershipRepository;
+import com.sanigest.company.application.dto.profile.UpdatedCompany;
+import com.sanigest.company.application.exception.access.CompanyAccessDeniedException;
+import com.sanigest.company.application.exception.profile.CompanyNotFoundException;
+import com.sanigest.company.application.port.out.persistence.profile.CompanyRepository;
+import com.sanigest.company.application.port.out.persistence.team.MembershipRepository;
 import com.sanigest.company.application.usecase.access.OperationalCompanySelection;
-import com.sanigest.company.domain.enums.CompanyRole;
-import com.sanigest.company.domain.enums.MembershipStatus;
-import com.sanigest.company.domain.model.Company.ProfilePatch;
+import com.sanigest.company.domain.enums.team.CompanyRole;
+import com.sanigest.company.domain.enums.team.MembershipStatus;
+import com.sanigest.company.domain.model.profile.Company.ProfilePatch;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

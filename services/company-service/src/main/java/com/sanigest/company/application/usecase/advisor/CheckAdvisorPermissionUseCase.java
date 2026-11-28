@@ -1,9 +1,9 @@
 package com.sanigest.company.application.usecase.advisor;
 
-import com.sanigest.company.application.exception.CompanyAccessDeniedException;
-import com.sanigest.company.application.port.out.integration.AdvisorEligibility;
-import com.sanigest.company.application.port.out.persistence.AdvisorAccessRepository;
-import com.sanigest.company.domain.model.AdvisorPermission;
+import com.sanigest.company.application.exception.access.CompanyAccessDeniedException;
+import com.sanigest.company.application.port.out.integration.advisor.AdvisorEligibility;
+import com.sanigest.company.application.port.out.persistence.advisor.AdvisorAccessRepository;
+import com.sanigest.company.domain.model.advisor.AdvisorPermission;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 

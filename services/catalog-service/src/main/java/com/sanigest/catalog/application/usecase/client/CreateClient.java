@@ -1,12 +1,12 @@
 package com.sanigest.catalog.application.usecase.client;
 
-import static com.sanigest.catalog.application.exception.ClientCreationException.Reason.FORBIDDEN;
+import static com.sanigest.catalog.application.exception.client.ClientCreationException.Reason.FORBIDDEN;
 
-import com.sanigest.catalog.application.exception.ClientCreationException;
-import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
-import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
-import com.sanigest.catalog.domain.model.Client;
-import com.sanigest.catalog.domain.model.ClientDetails;
+import com.sanigest.catalog.application.exception.client.ClientCreationException;
+import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientRepository;
+import com.sanigest.catalog.domain.model.client.Client;
+import com.sanigest.catalog.domain.model.client.ClientDetails;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +25,8 @@ public class CreateClient {
   }
 
   @Transactional
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public Client execute(ClientDetails details) {
     var companyId =
         company

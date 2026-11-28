@@ -1,11 +1,11 @@
 package com.sanigest.catalog.application.usecase.client;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_WRITE;
 
-import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
-import com.sanigest.catalog.domain.exception.InvalidClientPatch;
-import com.sanigest.catalog.domain.model.Client;
-import com.sanigest.catalog.domain.model.ClientPatch;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientRepository;
+import com.sanigest.catalog.domain.exception.client.InvalidClientPatch;
+import com.sanigest.catalog.domain.model.client.Client;
+import com.sanigest.catalog.domain.model.client.ClientPatch;
 import jakarta.validation.Validator;
 import java.util.UUID;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,7 +31,8 @@ public class UpdateClient {
   }
 
   @Transactional
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public Client execute(UUID id, ClientPatch patch) {
     var companyId = company.require(CATALOG_WRITE);
     patch.validateFields(validator);

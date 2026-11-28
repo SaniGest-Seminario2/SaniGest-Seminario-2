@@ -1,12 +1,12 @@
 package com.sanigest.catalog.application.usecase.client;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
 
-import com.sanigest.catalog.application.exception.InvalidClientQueryException;
-import com.sanigest.catalog.application.port.out.integration.SalesClientFinancials;
-import com.sanigest.catalog.application.port.out.integration.SalesClientFinancials.Statement;
-import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
-import com.sanigest.catalog.domain.model.Client;
+import com.sanigest.catalog.application.exception.client.InvalidClientQueryException;
+import com.sanigest.catalog.application.port.out.integration.sales.SalesClientFinancials;
+import com.sanigest.catalog.application.port.out.integration.sales.SalesClientFinancials.Statement;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientRepository;
+import com.sanigest.catalog.domain.model.client.Client;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -14,7 +14,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 @Service
-@PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+@PreAuthorize(
+    "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
 public class ClientFinancials {
   private final ClientCompany company;
   private final GetClient getClient;

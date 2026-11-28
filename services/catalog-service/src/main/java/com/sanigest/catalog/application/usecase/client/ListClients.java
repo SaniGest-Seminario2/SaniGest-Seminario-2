@@ -1,16 +1,16 @@
 package com.sanigest.catalog.application.usecase.client;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
 
-import com.sanigest.catalog.application.dto.ClientPage;
-import com.sanigest.catalog.application.dto.ClientSearchCriteria;
-import com.sanigest.catalog.application.exception.ClientAccessException;
-import com.sanigest.catalog.application.exception.ClientFinancialsUnavailable;
-import com.sanigest.catalog.application.exception.ClientListingForbiddenException;
-import com.sanigest.catalog.application.exception.InvalidClientQueryException;
-import com.sanigest.catalog.application.port.out.integration.SalesClientFinancials;
-import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
-import com.sanigest.catalog.domain.enums.ClientStatus;
+import com.sanigest.catalog.application.dto.client.ClientPage;
+import com.sanigest.catalog.application.dto.client.ClientSearchCriteria;
+import com.sanigest.catalog.application.exception.client.ClientAccessException;
+import com.sanigest.catalog.application.exception.client.ClientFinancialsUnavailable;
+import com.sanigest.catalog.application.exception.client.ClientListingForbiddenException;
+import com.sanigest.catalog.application.exception.client.InvalidClientQueryException;
+import com.sanigest.catalog.application.port.out.integration.sales.SalesClientFinancials;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientRepository;
+import com.sanigest.catalog.domain.enums.client.ClientStatus;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -43,7 +43,8 @@ public class ListClients {
     this.sales = sales;
   }
 
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public ClientPage execute(ClientSearchCriteria criteria, int page, int size) {
     if (page < 0 || size < 1 || size > maxSize) {
       throw new InvalidClientQueryException();
@@ -51,7 +52,8 @@ public class ListClients {
     return search(criteria, page, size);
   }
 
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public List<ClientPage.Item> all(ClientSearchCriteria criteria) {
     return search(criteria, 0, Integer.MAX_VALUE).content();
   }

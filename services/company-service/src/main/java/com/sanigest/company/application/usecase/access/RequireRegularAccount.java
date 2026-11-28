@@ -1,8 +1,8 @@
 package com.sanigest.company.application.usecase.access;
 
 import com.sanigest.company.application.account.AccountType;
-import com.sanigest.company.application.exception.CompanyAccessDeniedException;
-import com.sanigest.company.application.port.out.integration.CurrentAccount;
+import com.sanigest.company.application.exception.access.CompanyAccessDeniedException;
+import com.sanigest.company.application.port.out.integration.account.CurrentAccount;
 import org.springframework.stereotype.Service;
 
 @Service

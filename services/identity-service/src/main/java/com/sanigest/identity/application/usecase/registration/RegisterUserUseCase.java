@@ -1,13 +1,13 @@
 package com.sanigest.identity.application.usecase.registration;
 
-import com.sanigest.identity.application.dto.RegisterUserCommand;
-import com.sanigest.identity.application.dto.RegisteredUser;
-import com.sanigest.identity.application.exception.DuplicateEmailException;
-import com.sanigest.identity.application.exception.DuplicateUserEmailException;
-import com.sanigest.identity.application.port.out.persistence.UserRepository;
-import com.sanigest.identity.application.port.out.security.PasswordHasher;
-import com.sanigest.identity.domain.model.EmailAddress;
-import com.sanigest.identity.domain.model.User;
+import com.sanigest.identity.application.dto.registration.RegisterUserCommand;
+import com.sanigest.identity.application.dto.registration.RegisteredUser;
+import com.sanigest.identity.application.exception.registration.DuplicateEmailException;
+import com.sanigest.identity.application.exception.registration.DuplicateUserEmailException;
+import com.sanigest.identity.application.port.out.persistence.account.UserRepository;
+import com.sanigest.identity.application.port.out.security.password.PasswordHasher;
+import com.sanigest.identity.domain.model.account.EmailAddress;
+import com.sanigest.identity.domain.model.account.User;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;

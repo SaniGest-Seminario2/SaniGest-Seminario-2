@@ -1,10 +1,11 @@
 package com.sanigest.catalog.infrastructure.company;
 
-import com.sanigest.companyaccess.CompanyAccess;
-import com.sanigest.companyaccess.HttpCompanyAccess;
-import com.sanigest.companyaccess.HttpCompanyAccess.Settings;
-import com.sanigest.security.AccessTokens;
-import com.sanigest.security.CompanySelector;
+import com.sanigest.catalog.application.exception.security.CatalogAuthorizationUnavailable;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess;
+import com.sanigest.companyaccess.infrastructure.integration.http.HttpCompanyAccess;
+import com.sanigest.companyaccess.infrastructure.integration.http.HttpCompanyAccess.Settings;
+import com.sanigest.security.api.request.company.CompanySelector;
+import com.sanigest.security.token.AccessTokens;
 import io.micrometer.observation.ObservationRegistry;
 import java.io.IOException;
 import java.net.URI;
@@ -86,8 +87,7 @@ class CompanyAccessConfiguration {
     return new CompanyCatalogAuthorization(
         () ->
             access.getIfAvailable(() -> {
-              throw new com.sanigest.catalog.application.exception
-                  .CatalogAuthorizationUnavailable();
+              throw new CatalogAuthorizationUnavailable();
             }),
         CompanyAccessConfiguration::requestedCompany);
   }

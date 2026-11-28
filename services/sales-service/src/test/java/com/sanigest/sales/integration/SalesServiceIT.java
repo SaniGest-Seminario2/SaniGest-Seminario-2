@@ -3,8 +3,8 @@ package com.sanigest.sales.integration;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
-import static com.sanigest.companyaccess.CompanyAccessProtocol.PATH;
-import static com.sanigest.companyaccess.CompanyAccessProtocol.USER_ASSERTION;
+import static com.sanigest.companyaccess.infrastructure.integration.protocol.CompanyAccessProtocol.PATH;
+import static com.sanigest.companyaccess.infrastructure.integration.protocol.CompanyAccessProtocol.USER_ASSERTION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -16,23 +16,23 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sanigest.sales.SalesServiceApplication;
-import com.sanigest.sales.api.controller.SaleController;
-import com.sanigest.sales.application.exception.CatalogUnavailableException;
-import com.sanigest.sales.application.exception.IdempotencyInProgress;
-import com.sanigest.sales.application.port.out.integration.ActiveCashShifts;
-import com.sanigest.sales.application.port.out.integration.CatalogClient;
-import com.sanigest.sales.application.port.out.integration.InvoiceCompanyAccess.CompanyContext;
-import com.sanigest.sales.application.port.out.integration.PaymentAdmission;
-import com.sanigest.sales.application.port.out.persistence.InvoiceRepository;
-import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository;
-import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Claim;
-import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Request;
-import com.sanigest.sales.application.port.out.persistence.SaleRepository;
+import com.sanigest.sales.api.controller.sale.SaleController;
+import com.sanigest.sales.application.exception.catalog.CatalogUnavailableException;
+import com.sanigest.sales.application.exception.idempotency.IdempotencyInProgress;
+import com.sanigest.sales.application.port.out.integration.catalog.CatalogClient;
+import com.sanigest.sales.application.port.out.integration.company.InvoiceCompanyAccess.CompanyContext;
+import com.sanigest.sales.application.port.out.integration.finance.ActiveCashShifts;
+import com.sanigest.sales.application.port.out.integration.finance.PaymentAdmission;
+import com.sanigest.sales.application.port.out.persistence.invoice.InvoiceRepository;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleIdempotencyRepository;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleIdempotencyRepository.Claim;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleIdempotencyRepository.Request;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleRepository;
 import com.sanigest.sales.application.usecase.invoice.IssueInvoice;
-import com.sanigest.sales.domain.enums.SaleMode;
-import com.sanigest.sales.domain.enums.SaleStatus;
-import com.sanigest.sales.domain.model.Sale;
-import com.sanigest.sales.domain.model.SaleLine;
+import com.sanigest.sales.domain.enums.sale.SaleMode;
+import com.sanigest.sales.domain.enums.sale.SaleStatus;
+import com.sanigest.sales.domain.model.sale.Sale;
+import com.sanigest.sales.domain.model.sale.SaleLine;
 import jakarta.persistence.EntityManagerFactory;
 import java.math.BigDecimal;
 import java.net.URI;
@@ -940,7 +940,8 @@ class SalesServiceIT {
         var stored =
             secondInstance
                 .getBean(
-                    com.sanigest.sales.application.port.out.persistence.ReceivableRepository.class)
+                    com.sanigest.sales.application.port.out.persistence.receivable
+                        .ReceivableRepository.class)
                 .findByCompanyIdAndId(original.company(), id)
                 .orElseThrow();
         assertThat(stored.receivable().status().name()).isEqualTo("OPEN");

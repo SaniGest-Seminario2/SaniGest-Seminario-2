@@ -1,10 +1,10 @@
 package com.sanigest.identity.application.usecase.account;
 
-import com.sanigest.identity.application.dto.AuthenticatedUserProfile;
-import com.sanigest.identity.application.exception.AuthenticatedUserNotFoundException;
-import com.sanigest.identity.application.port.out.persistence.UserRepository;
+import com.sanigest.identity.application.dto.account.AuthenticatedUserProfile;
+import com.sanigest.identity.application.exception.account.AuthenticatedUserNotFoundException;
+import com.sanigest.identity.application.port.out.persistence.account.UserRepository;
 import com.sanigest.identity.domain.enums.UserStatus;
-import com.sanigest.identity.domain.model.User;
+import com.sanigest.identity.domain.model.account.User;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;

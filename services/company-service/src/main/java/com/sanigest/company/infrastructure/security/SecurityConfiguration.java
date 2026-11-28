@@ -1,8 +1,8 @@
 package com.sanigest.company.infrastructure.security;
 
-import com.sanigest.security.AccessTokens;
-import com.sanigest.security.http.ServletSecurityProblems;
-import com.sanigest.web.OpenApiConfiguration;
+import com.sanigest.security.api.error.ServletSecurityProblems;
+import com.sanigest.security.token.AccessTokens;
+import com.sanigest.web.api.documentation.OpenApiConfiguration;
 import jakarta.servlet.DispatcherType;
 import java.io.IOException;
 import org.springframework.beans.factory.annotation.Value;

@@ -3,9 +3,9 @@ package com.sanigest.company.integration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.sanigest.company.application.dto.CreateCompanyCommand;
-import com.sanigest.company.application.exception.CompanyAccessDeniedException;
-import com.sanigest.company.application.exception.CompanyConflictException;
+import com.sanigest.company.application.dto.profile.CreateCompanyCommand;
+import com.sanigest.company.application.exception.access.CompanyAccessDeniedException;
+import com.sanigest.company.application.exception.profile.CompanyConflictException;
 import com.sanigest.company.application.usecase.profile.CreateCompanyUseCase;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;

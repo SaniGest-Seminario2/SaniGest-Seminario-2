@@ -1,16 +1,16 @@
 package com.sanigest.catalog.application.usecase.supplier;
 
-import static com.sanigest.catalog.application.exception.CatalogItemAccessException.Reason.CATALOG_ITEM_NOT_FOUND;
-import static com.sanigest.catalog.application.exception.SupplierCommercialException.Reason.INCOMPATIBLE_SUPPLIER_ITEM;
-import static com.sanigest.catalog.application.exception.SupplierCommercialException.Reason.PRIMARY_SUPPLIER_CONFLICT;
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.application.exception.catalogitem.CatalogItemAccessException.Reason.CATALOG_ITEM_NOT_FOUND;
+import static com.sanigest.catalog.application.exception.supplier.SupplierCommercialException.Reason.INCOMPATIBLE_SUPPLIER_ITEM;
+import static com.sanigest.catalog.application.exception.supplier.SupplierCommercialException.Reason.PRIMARY_SUPPLIER_CONFLICT;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_WRITE;
 
-import com.sanigest.catalog.application.exception.CatalogItemAccessException;
-import com.sanigest.catalog.application.exception.SupplierCommercialException;
-import com.sanigest.catalog.application.port.out.persistence.SupplierItemRepository;
-import com.sanigest.catalog.domain.enums.SupplierStatus;
-import com.sanigest.catalog.domain.exception.InvalidSupplierPatch;
-import com.sanigest.catalog.domain.model.SupplierItemOffer;
+import com.sanigest.catalog.application.exception.catalogitem.CatalogItemAccessException;
+import com.sanigest.catalog.application.exception.supplier.SupplierCommercialException;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierItemRepository;
+import com.sanigest.catalog.domain.enums.supplier.SupplierStatus;
+import com.sanigest.catalog.domain.exception.supplier.InvalidSupplierPatch;
+import com.sanigest.catalog.domain.model.supplier.SupplierItemOffer;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,7 +29,8 @@ public class ReplaceSupplierItems {
   }
 
   @Transactional
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public void execute(UUID supplierId, List<SupplierItemOffer> requested, boolean replacePrimary) {
     var companyId = company.require(CATALOG_WRITE);
     var ids = requested.stream().map(SupplierItemOffer::catalogItemId).distinct().toList();

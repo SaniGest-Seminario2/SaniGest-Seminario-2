@@ -8,11 +8,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
-import com.sanigest.sales.application.exception.InvoicePaymentConflict;
-import com.sanigest.sales.application.exception.PaymentAdmissionUnavailable;
-import com.sanigest.sales.application.port.out.integration.PaymentAdmission;
-import com.sanigest.sales.domain.enums.PaymentMethod;
-import com.sanigest.sales.domain.model.InvoicePayment;
+import com.sanigest.sales.application.exception.payment.InvoicePaymentConflict;
+import com.sanigest.sales.application.exception.payment.PaymentAdmissionUnavailable;
+import com.sanigest.sales.application.port.out.integration.finance.PaymentAdmission;
+import com.sanigest.sales.domain.enums.payment.PaymentMethod;
+import com.sanigest.sales.domain.model.payment.InvoicePayment;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.util.List;

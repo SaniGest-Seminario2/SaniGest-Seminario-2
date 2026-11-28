@@ -1,9 +1,9 @@
 package com.sanigest.catalog.application.usecase.catalogitem;
 
-import static com.sanigest.catalog.application.exception.CatalogItemAccessException.Reason.CATALOG_ITEM_NOT_FOUND;
-import static com.sanigest.catalog.application.exception.CatalogItemAccessException.Reason.CATALOG_ITEM_UPDATE_CONFLICT;
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.application.exception.catalogitem.CatalogItemAccessException.Reason.CATALOG_ITEM_NOT_FOUND;
+import static com.sanigest.catalog.application.exception.catalogitem.CatalogItemAccessException.Reason.CATALOG_ITEM_UPDATE_CONFLICT;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_WRITE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -12,15 +12,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.catalog.application.dto.CatalogItemPage;
-import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
-import com.sanigest.catalog.application.exception.CatalogItemAccessException;
-import com.sanigest.catalog.application.exception.InvalidCatalogItemQuery;
-import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
-import com.sanigest.catalog.domain.enums.CatalogItemType;
-import com.sanigest.catalog.domain.model.CatalogItem;
-import com.sanigest.catalog.domain.model.CatalogItemPatch;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemPage;
+import com.sanigest.catalog.application.exception.catalogitem.CatalogItemAccessException;
+import com.sanigest.catalog.application.exception.catalogitem.InvalidCatalogItemQuery;
+import com.sanigest.catalog.application.exception.security.CatalogAuthorizationUnavailable;
+import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemRepository;
+import com.sanigest.catalog.domain.enums.catalogitem.CatalogItemType;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItem;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItemPatch;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -34,8 +34,8 @@ class ManageCatalogItemsTest {
   private final CatalogItemWritePolicy policy =
       new CatalogItemWritePolicy(
           mock(
-              com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository
-                  .class),
+              com.sanigest.catalog.application.port.out.persistence.catalogitem
+                  .CatalogItemCommercialRepository.class),
           new CatalogBusinessDate(java.time.Clock.systemUTC()),
           false);
   private final CatalogAuthorization authorization = mock(CatalogAuthorization.class);

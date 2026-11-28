@@ -1,6 +1,6 @@
 package com.sanigest.identity.api.controller.account;
 
-import com.sanigest.identity.application.exception.AuthenticatedUserNotFoundException;
+import com.sanigest.identity.application.exception.account.AuthenticatedUserNotFoundException;
 import com.sanigest.identity.application.usecase.account.GetAuthenticatedUserProfileUseCase;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;

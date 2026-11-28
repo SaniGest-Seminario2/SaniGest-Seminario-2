@@ -5,12 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.companyaccess.CompanyAccess;
-import com.sanigest.companyaccess.CompanyAccess.MembershipContext;
-import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
-import com.sanigest.companyaccess.CompanyAccess.Scope;
-import com.sanigest.companyaccess.CompanyAccessUnavailable;
-import com.sanigest.inventory.application.port.out.integration.InventoryAccess.Operation;
+import com.sanigest.companyaccess.application.exception.CompanyAccessUnavailable;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.MembershipContext;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.MembershipRole;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.Scope;
+import com.sanigest.inventory.application.port.out.integration.company.InventoryAccess.Operation;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;

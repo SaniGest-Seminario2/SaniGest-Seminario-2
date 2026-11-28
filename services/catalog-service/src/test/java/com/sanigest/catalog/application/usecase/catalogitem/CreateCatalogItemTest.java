@@ -1,7 +1,7 @@
 package com.sanigest.catalog.application.usecase.catalogitem;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
-import static com.sanigest.catalog.domain.enums.CatalogItemType.SERVICE;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.domain.enums.catalogitem.CatalogItemType.SERVICE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -9,13 +9,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
-import com.sanigest.catalog.application.exception.CatalogItemCreationForbidden;
-import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository;
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
-import com.sanigest.catalog.domain.exception.InvalidCatalogItem;
-import com.sanigest.catalog.domain.model.CatalogItemProfile;
+import com.sanigest.catalog.application.exception.catalogitem.CatalogItemCreationForbidden;
+import com.sanigest.catalog.application.exception.security.CatalogAuthorizationUnavailable;
+import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemCommercialRepository;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemRepository;
+import com.sanigest.catalog.domain.exception.catalogitem.InvalidCatalogItem;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItemProfile;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;

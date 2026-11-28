@@ -1,20 +1,20 @@
 package com.sanigest.catalog.application.usecase.client;
 
-import static com.sanigest.catalog.application.exception.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.exception.client.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.catalog.application.dto.ClientPage;
-import com.sanigest.catalog.application.dto.ClientSearchCriteria;
-import com.sanigest.catalog.application.exception.ClientCreationException;
-import com.sanigest.catalog.application.exception.InvalidClientQueryException;
-import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
-import com.sanigest.catalog.application.port.out.integration.SalesClientFinancials;
-import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
+import com.sanigest.catalog.application.dto.client.ClientPage;
+import com.sanigest.catalog.application.dto.client.ClientSearchCriteria;
+import com.sanigest.catalog.application.exception.client.ClientCreationException;
+import com.sanigest.catalog.application.exception.client.InvalidClientQueryException;
+import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.integration.sales.SalesClientFinancials;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

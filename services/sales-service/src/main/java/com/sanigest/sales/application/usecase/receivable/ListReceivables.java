@@ -1,14 +1,14 @@
 package com.sanigest.sales.application.usecase.receivable;
 
-import static com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission.SALES_READ;
+import static com.sanigest.sales.application.port.out.integration.company.SalesAuthorization.Permission.SALES_READ;
 
-import com.sanigest.sales.application.dto.ReceivableDetail;
-import com.sanigest.sales.application.dto.ReceivablePage;
-import com.sanigest.sales.application.dto.ReceivableSearch;
-import com.sanigest.sales.application.dto.ReceivableSearch.Filter;
-import com.sanigest.sales.application.exception.InvalidSaleQuery;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.sales.application.port.out.persistence.ReceivableRepository;
+import com.sanigest.sales.application.dto.receivable.ReceivableDetail;
+import com.sanigest.sales.application.dto.receivable.ReceivablePage;
+import com.sanigest.sales.application.dto.receivable.ReceivableSearch;
+import com.sanigest.sales.application.dto.receivable.ReceivableSearch.Filter;
+import com.sanigest.sales.application.exception.sale.InvalidSaleQuery;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
+import com.sanigest.sales.application.port.out.persistence.receivable.ReceivableRepository;
 import java.util.List;
 
 public final class ListReceivables {

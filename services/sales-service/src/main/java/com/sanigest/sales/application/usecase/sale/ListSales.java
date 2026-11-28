@@ -1,15 +1,15 @@
 package com.sanigest.sales.application.usecase.sale;
 
-import static com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission.SALES_READ;
+import static com.sanigest.sales.application.port.out.integration.company.SalesAuthorization.Permission.SALES_READ;
 
-import com.sanigest.sales.application.dto.SalePage;
-import com.sanigest.sales.application.dto.SaleSearch;
-import com.sanigest.sales.application.exception.InvalidSaleQuery;
-import com.sanigest.sales.application.exception.SalesAccessForbidden;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
-import com.sanigest.sales.domain.enums.SaleMode;
-import com.sanigest.sales.domain.enums.SaleStatus;
+import com.sanigest.sales.application.dto.sale.SalePage;
+import com.sanigest.sales.application.dto.sale.SaleSearch;
+import com.sanigest.sales.application.exception.sale.InvalidSaleQuery;
+import com.sanigest.sales.application.exception.security.SalesAccessForbidden;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleQueryRepository;
+import com.sanigest.sales.domain.enums.sale.SaleMode;
+import com.sanigest.sales.domain.enums.sale.SaleStatus;
 import java.time.LocalDate;
 import java.util.Locale;
 import java.util.UUID;

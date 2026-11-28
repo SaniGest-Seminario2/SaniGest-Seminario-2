@@ -8,8 +8,8 @@
 | [Catalog](catalog-service/README.md) | Reactor y Compose | Maestros comerciales y relaciones de suministro objetivo. `sanigest_catalog` |
 | [Sales](sales-service/README.md) | Reactor y Compose | Ventas, facturas internas y obligaciones; cobros objetivo. `sanigest_sales` |
 | [Inventory](inventory-service/README.md) | Reactor y Compose | Almacenes, control de existencias, ajustes y kardex. `sanigest_inventory` |
-| [Expense](../docs/roadmap/expense-service.md) | Base ejecutable; operaciones pendientes | Compras, gastos, recepciones, obligaciones y pagos. `sanigest_expense` |
-| [Finance](../docs/roadmap/finance-service.md) | Pendiente; base local reservada | Cuentas, caja, movimientos, transferencias y proyecciones. `sanigest_finance` |
+| [Expense](../docs/roadmap/expense-service.md) | Reactor y Compose | Compras, gastos, recepciones, obligaciones y pagos. `sanigest_expense` |
+| [Finance](../docs/roadmap/finance-service.md) | Reactor y Compose | Cuentas, caja, movimientos, transferencias y proyecciones. `sanigest_finance` |
 
 Los servicios de negocio organizan su código en API, aplicación, dominio e
 infraestructura y mantienen migraciones independientes. Consulta la

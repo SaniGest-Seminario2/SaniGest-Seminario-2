@@ -1,11 +1,11 @@
 package com.sanigest.company.application.usecase.access;
 
-import com.sanigest.company.application.exception.CompanyAccessDeniedException;
-import com.sanigest.company.application.port.out.persistence.MembershipRepository;
-import com.sanigest.company.application.port.out.persistence.MembershipRepository.ActiveAccess;
+import com.sanigest.company.application.exception.access.CompanyAccessDeniedException;
+import com.sanigest.company.application.port.out.persistence.team.MembershipRepository;
+import com.sanigest.company.application.port.out.persistence.team.MembershipRepository.ActiveAccess;
 import com.sanigest.company.application.usecase.advisor.CheckAdvisorPermissionUseCase;
-import com.sanigest.company.domain.enums.CompanyRole;
-import com.sanigest.company.domain.model.AdvisorPermission;
+import com.sanigest.company.domain.enums.team.CompanyRole;
+import com.sanigest.company.domain.model.advisor.AdvisorPermission;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 

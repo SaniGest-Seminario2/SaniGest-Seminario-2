@@ -1,24 +1,24 @@
 package com.sanigest.catalog.application.usecase.supplier;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_WRITE;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.catalog.application.exception.CatalogItemAccessException;
-import com.sanigest.catalog.application.exception.SupplierCommercialException;
-import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
-import com.sanigest.catalog.application.port.out.persistence.SupplierItemRepository;
-import com.sanigest.catalog.application.port.out.persistence.SupplierItemRepository.LockedItem;
-import com.sanigest.catalog.application.port.out.persistence.SupplierItemRepository.LockedSupplier;
-import com.sanigest.catalog.domain.enums.CatalogItemType;
-import com.sanigest.catalog.domain.enums.SupplierStatus;
-import com.sanigest.catalog.domain.enums.SupplierSupplyType;
-import com.sanigest.catalog.domain.exception.InvalidSupplierPatch;
-import com.sanigest.catalog.domain.model.SupplierItemOffer;
-import com.sanigest.catalog.domain.model.SupplierProfile;
+import com.sanigest.catalog.application.exception.catalogitem.CatalogItemAccessException;
+import com.sanigest.catalog.application.exception.supplier.SupplierCommercialException;
+import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierItemRepository;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierItemRepository.LockedItem;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierItemRepository.LockedSupplier;
+import com.sanigest.catalog.domain.enums.catalogitem.CatalogItemType;
+import com.sanigest.catalog.domain.enums.supplier.SupplierStatus;
+import com.sanigest.catalog.domain.enums.supplier.SupplierSupplyType;
+import com.sanigest.catalog.domain.exception.supplier.InvalidSupplierPatch;
+import com.sanigest.catalog.domain.model.supplier.SupplierItemOffer;
+import com.sanigest.catalog.domain.model.supplier.SupplierProfile;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

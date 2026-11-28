@@ -1,17 +1,17 @@
 package com.sanigest.sales.application.usecase.sale;
 
-import static com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission.SALES_WRITE;
+import static com.sanigest.sales.application.port.out.integration.company.SalesAuthorization.Permission.SALES_WRITE;
 
-import com.sanigest.sales.application.dto.CreateSaleCommand;
-import com.sanigest.sales.application.dto.CreatedSaleResponse;
-import com.sanigest.sales.application.exception.InvalidSaleRequest;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository;
-import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Claim;
-import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Replay;
-import com.sanigest.sales.application.port.out.persistence.SaleIdempotencyRepository.Request;
-import com.sanigest.sales.domain.model.InvoiceTaxRates;
-import com.sanigest.sales.domain.model.Sale;
+import com.sanigest.sales.application.dto.sale.CreateSaleCommand;
+import com.sanigest.sales.application.dto.sale.CreatedSaleResponse;
+import com.sanigest.sales.application.exception.sale.InvalidSaleRequest;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleIdempotencyRepository;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleIdempotencyRepository.Claim;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleIdempotencyRepository.Replay;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleIdempotencyRepository.Request;
+import com.sanigest.sales.domain.model.invoice.InvoiceTaxRates;
+import com.sanigest.sales.domain.model.sale.Sale;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;

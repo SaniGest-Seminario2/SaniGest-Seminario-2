@@ -1,10 +1,10 @@
 package com.sanigest.sales.application.usecase.sale;
 
-import com.sanigest.sales.application.dto.SaleDetail;
-import com.sanigest.sales.application.exception.SaleNotFound;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission;
-import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
+import com.sanigest.sales.application.dto.sale.SaleDetail;
+import com.sanigest.sales.application.exception.sale.SaleNotFound;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization.Permission;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleQueryRepository;
 import java.util.UUID;
 
 public final class GetSaleDetail {

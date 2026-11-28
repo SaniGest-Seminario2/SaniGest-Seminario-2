@@ -6,7 +6,8 @@ public record LoginResponse(
     long expiresIn,
     String refreshToken,
     long refreshExpiresIn) {
-  public static LoginResponse from(com.sanigest.identity.application.dto.AccessToken token) {
+  public static LoginResponse from(
+      com.sanigest.identity.application.dto.session.AccessToken token) {
     return new LoginResponse(
         token.value(),
         token.type(),

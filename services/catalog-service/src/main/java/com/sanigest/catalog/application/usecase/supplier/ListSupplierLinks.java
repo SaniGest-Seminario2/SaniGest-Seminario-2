@@ -1,13 +1,13 @@
 package com.sanigest.catalog.application.usecase.supplier;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
 
-import com.sanigest.catalog.application.dto.SupplierItemPage;
-import com.sanigest.catalog.application.dto.SupplierItemQuery;
-import com.sanigest.catalog.application.dto.SupplierItemQuery.Direction;
-import com.sanigest.catalog.application.exception.InvalidSupplierQueryException;
-import com.sanigest.catalog.application.port.out.persistence.SupplierItemRepository;
-import com.sanigest.catalog.domain.enums.SupplierStatus;
+import com.sanigest.catalog.application.dto.supplier.SupplierItemPage;
+import com.sanigest.catalog.application.dto.supplier.SupplierItemQuery;
+import com.sanigest.catalog.application.dto.supplier.SupplierItemQuery.Direction;
+import com.sanigest.catalog.application.exception.supplier.InvalidSupplierQueryException;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierItemRepository;
+import com.sanigest.catalog.domain.enums.supplier.SupplierStatus;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,7 +31,8 @@ public class ListSupplierLinks {
   }
 
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public SupplierItemPage execute(
       UUID id, Direction direction, String search, SupplierStatus status, int page, int size) {
     if (page < 0 || size < 1 || size > maxSize || (search != null && search.indexOf(0) >= 0)) {

@@ -1,16 +1,16 @@
 package com.sanigest.catalog.application.usecase.catalogitem;
 
-import static com.sanigest.catalog.domain.enums.CatalogItemType.SERVICE;
+import static com.sanigest.catalog.domain.enums.catalogitem.CatalogItemType.SERVICE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository;
-import com.sanigest.catalog.domain.exception.InvalidCatalogItem;
-import com.sanigest.catalog.domain.model.CatalogItem;
-import com.sanigest.catalog.domain.model.CatalogItemProfile;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemCommercialRepository;
+import com.sanigest.catalog.domain.exception.catalogitem.InvalidCatalogItem;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItem;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItemProfile;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;

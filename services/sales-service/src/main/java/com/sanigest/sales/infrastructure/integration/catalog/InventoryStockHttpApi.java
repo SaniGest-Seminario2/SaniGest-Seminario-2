@@ -1,7 +1,7 @@
 package com.sanigest.sales.infrastructure.integration.catalog;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.sanigest.security.CompanySelector;
+import com.sanigest.security.api.request.company.CompanySelector;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;

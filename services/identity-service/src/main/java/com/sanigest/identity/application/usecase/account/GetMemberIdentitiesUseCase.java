@@ -1,7 +1,7 @@
 package com.sanigest.identity.application.usecase.account;
 
-import com.sanigest.identity.application.port.out.persistence.UserRepository;
-import com.sanigest.identity.application.port.out.persistence.UserRepository.MemberIdentity;
+import com.sanigest.identity.application.port.out.persistence.account.UserRepository;
+import com.sanigest.identity.application.port.out.persistence.account.UserRepository.MemberIdentity;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;

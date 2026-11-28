@@ -1,11 +1,11 @@
 package com.sanigest.catalog.application.usecase.client;
 
-import com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository;
-import com.sanigest.catalog.application.port.out.persistence.ClientReferenceRepository;
-import com.sanigest.catalog.domain.enums.ClientStatus;
-import com.sanigest.catalog.domain.exception.InvalidClientPatch;
-import com.sanigest.catalog.domain.model.ClientDetails;
-import com.sanigest.catalog.domain.model.ClientProfile;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientCategoryRepository;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientReferenceRepository;
+import com.sanigest.catalog.domain.enums.client.ClientStatus;
+import com.sanigest.catalog.domain.exception.client.InvalidClientPatch;
+import com.sanigest.catalog.domain.model.client.ClientDetails;
+import com.sanigest.catalog.domain.model.client.ClientProfile;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Component;

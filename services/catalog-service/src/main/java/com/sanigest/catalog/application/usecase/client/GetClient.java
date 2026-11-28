@@ -1,11 +1,11 @@
 package com.sanigest.catalog.application.usecase.client;
 
-import static com.sanigest.catalog.application.exception.ClientAccessException.Reason.CLIENT_NOT_FOUND;
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.exception.client.ClientAccessException.Reason.CLIENT_NOT_FOUND;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
 
-import com.sanigest.catalog.application.exception.ClientAccessException;
-import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
-import com.sanigest.catalog.domain.model.Client;
+import com.sanigest.catalog.application.exception.client.ClientAccessException;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientRepository;
+import com.sanigest.catalog.domain.model.client.Client;
 import java.util.UUID;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -20,12 +20,14 @@ public class GetClient {
     this.clients = clients;
   }
 
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public Client execute(UUID id) {
     return execute(id, null);
   }
 
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public Client execute(UUID id, UUID expectedCompanyId) {
     UUID companyId = company.require(CATALOG_READ);
     if (expectedCompanyId != null && !companyId.equals(expectedCompanyId)) {

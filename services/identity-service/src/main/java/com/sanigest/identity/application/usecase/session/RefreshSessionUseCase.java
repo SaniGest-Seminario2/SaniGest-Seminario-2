@@ -1,14 +1,14 @@
 package com.sanigest.identity.application.usecase.session;
 
-import com.sanigest.identity.application.dto.AccessToken;
-import com.sanigest.identity.application.dto.IssuedRefreshToken;
-import com.sanigest.identity.application.exception.InvalidRefreshTokenException;
-import com.sanigest.identity.application.port.in.RefreshTokenService;
-import com.sanigest.identity.application.port.out.persistence.RefreshSessionRepository;
-import com.sanigest.identity.application.port.out.persistence.UserRepository;
-import com.sanigest.identity.application.port.out.security.TokenIssuer;
+import com.sanigest.identity.application.dto.session.AccessToken;
+import com.sanigest.identity.application.dto.session.IssuedRefreshToken;
+import com.sanigest.identity.application.exception.session.InvalidRefreshTokenException;
+import com.sanigest.identity.application.port.in.session.RefreshTokenService;
+import com.sanigest.identity.application.port.out.persistence.account.UserRepository;
+import com.sanigest.identity.application.port.out.persistence.session.RefreshSessionRepository;
+import com.sanigest.identity.application.port.out.security.token.TokenIssuer;
 import com.sanigest.identity.domain.enums.UserStatus;
-import com.sanigest.identity.domain.model.RefreshSession;
+import com.sanigest.identity.domain.model.session.RefreshSession;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

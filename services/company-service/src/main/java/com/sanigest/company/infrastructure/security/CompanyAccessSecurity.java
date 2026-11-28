@@ -1,10 +1,10 @@
 package com.sanigest.company.infrastructure.security;
 
-import com.sanigest.companyaccess.CompanyAccess.Module;
-import com.sanigest.companyaccess.CompanyAccessProtocol;
-import com.sanigest.companyaccess.CompanyAccessProtocol.Query;
-import com.sanigest.security.AccessTokens;
-import com.sanigest.security.http.ServletSecurityProblems;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.Module;
+import com.sanigest.companyaccess.infrastructure.integration.protocol.CompanyAccessProtocol;
+import com.sanigest.companyaccess.infrastructure.integration.protocol.CompanyAccessProtocol.Query;
+import com.sanigest.security.api.error.ServletSecurityProblems;
+import com.sanigest.security.token.AccessTokens;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Duration;

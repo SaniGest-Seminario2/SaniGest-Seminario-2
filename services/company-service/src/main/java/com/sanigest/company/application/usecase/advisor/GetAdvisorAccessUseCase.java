@@ -1,7 +1,7 @@
 package com.sanigest.company.application.usecase.advisor;
 
-import com.sanigest.company.application.port.out.persistence.AdvisorAccessRepository;
-import com.sanigest.company.domain.model.AdvisorAccess;
+import com.sanigest.company.application.port.out.persistence.advisor.AdvisorAccessRepository;
+import com.sanigest.company.domain.model.advisor.AdvisorAccess;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;

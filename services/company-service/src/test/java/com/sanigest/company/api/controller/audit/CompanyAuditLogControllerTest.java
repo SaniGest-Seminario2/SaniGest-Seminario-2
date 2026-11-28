@@ -1,0 +1,93 @@
+package com.sanigest.company.api.controller.audit;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import com.sanigest.company.api.dto.audit.CompanyAuditResponse;
+import com.sanigest.company.application.account.AccountType;
+import com.sanigest.company.application.dto.audit.AuditPage;
+import com.sanigest.company.application.usecase.access.RequireRegularAccount;
+import com.sanigest.company.application.usecase.audit.GetCompanyAuditLogUseCase;
+import com.sanigest.company.domain.enums.audit.AuditOperation;
+import com.sanigest.company.domain.enums.audit.AuditResult;
+import com.sanigest.company.domain.enums.team.CompanyRole;
+import com.sanigest.company.domain.enums.team.MembershipStatus;
+import com.sanigest.company.domain.model.audit.CompanyAuditEvent;
+import com.sanigest.security.api.dto.audit.CompanyAuditParameters;
+import com.sanigest.web.application.dto.audit.AuditPage.Filters;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.springframework.security.oauth2.jwt.Jwt;
+
+class CompanyAuditLogControllerTest {
+  @Test
+  void mapsAuditEntriesWithoutInventingPriorValues() {
+    var actor = UUID.randomUUID();
+    var company = UUID.randomUUID();
+    var user = UUID.randomUUID();
+    var eventId = UUID.randomUUID();
+    var correlation = "a".repeat(32);
+    var occurredAt = Instant.parse("2026-11-22T00:00:00Z");
+    var event =
+        new CompanyAuditEvent(
+            eventId,
+            company,
+            actor,
+            user,
+            AuditOperation.MEMBER_ACTIVATED,
+            occurredAt,
+            AuditResult.SUCCESS,
+            null,
+            CompanyRole.VIEWER,
+            null,
+            MembershipStatus.ACTIVE,
+            null,
+            correlation,
+            null);
+    var auditLog = mock(GetCompanyAuditLogUseCase.class);
+    when(auditLog.get(actor, null, new Filters(null, null, null, null, null, null, 2, 20)))
+        .thenReturn(new AuditPage(List.of(event), 2, 20, true));
+    var jwt = Jwt.withTokenValue("test").header("alg", "RS256").subject(actor.toString()).build();
+
+    var response =
+        new CompanyAuditLogController(
+                new RequireRegularAccount(token -> AccountType.REGULAR), auditLog)
+            .get(
+                jwt,
+                null,
+                request(),
+                new CompanyAuditParameters(null, null, null, null, null, null, 2, 20));
+
+    assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
+    assertThat(response.getBody())
+        .isEqualTo(
+            new CompanyAuditResponse(
+                List.of(
+                    new CompanyAuditResponse.Entry(
+                        eventId,
+                        company,
+                        actor,
+                        user,
+                        "MEMBER_ACTIVATED",
+                        occurredAt,
+                        "SUCCESS",
+                        null,
+                        "VIEWER",
+                        null,
+                        "ACTIVE",
+                        null,
+                        correlation,
+                        "MEMBERSHIP",
+                        user)),
+                2,
+                20,
+                true));
+  }
+
+  private static org.springframework.mock.web.MockHttpServletRequest request() {
+    return new org.springframework.mock.web.MockHttpServletRequest();
+  }
+}

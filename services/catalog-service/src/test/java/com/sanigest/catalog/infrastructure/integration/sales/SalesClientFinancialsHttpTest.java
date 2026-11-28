@@ -11,8 +11,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
-import com.sanigest.catalog.application.exception.ClientAccessException;
-import com.sanigest.catalog.application.exception.ClientFinancialsUnavailable;
+import com.sanigest.catalog.application.exception.client.ClientAccessException;
+import com.sanigest.catalog.application.exception.client.ClientFinancialsUnavailable;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;

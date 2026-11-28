@@ -1,10 +1,10 @@
 package com.sanigest.catalog.infrastructure.security;
 
-import static com.sanigest.catalog.application.exception.ClientAccessException.Reason.CLIENT_UPDATE_CONFLICT;
-import static com.sanigest.catalog.application.exception.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
-import static com.sanigest.catalog.domain.enums.SupplierStatus.ACTIVE;
+import static com.sanigest.catalog.application.exception.client.ClientAccessException.Reason.CLIENT_UPDATE_CONFLICT;
+import static com.sanigest.catalog.application.exception.client.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.domain.enums.supplier.SupplierStatus.ACTIVE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -18,33 +18,33 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.sanigest.catalog.application.dto.CatalogItemCommercialData;
-import com.sanigest.catalog.application.dto.CatalogItemHistory;
-import com.sanigest.catalog.application.dto.CatalogItemPage;
-import com.sanigest.catalog.application.dto.CatalogItemReferences.Tax;
-import com.sanigest.catalog.application.dto.CatalogItemReferences.Unit;
-import com.sanigest.catalog.application.dto.CatalogItemSearchCriteria;
-import com.sanigest.catalog.application.dto.CatalogItemSummary;
-import com.sanigest.catalog.application.dto.ClientPage;
-import com.sanigest.catalog.application.dto.ClientReferences.Option;
-import com.sanigest.catalog.application.dto.SupplierPage;
-import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
-import com.sanigest.catalog.application.exception.CatalogItemAccessException;
-import com.sanigest.catalog.application.exception.ClientAccessException;
-import com.sanigest.catalog.application.exception.ClientCreationException;
-import com.sanigest.catalog.application.exception.ClientFinancialsUnavailable;
-import com.sanigest.catalog.application.exception.SupplierAccessException;
-import com.sanigest.catalog.application.exception.SupplierCreationException;
-import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
-import com.sanigest.catalog.application.port.out.integration.SalesClientFinancials;
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository;
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
-import com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository;
-import com.sanigest.catalog.application.port.out.persistence.ClientReferenceRepository;
-import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
-import com.sanigest.catalog.application.port.out.persistence.SupplierCategoryRepository;
-import com.sanigest.catalog.application.port.out.persistence.SupplierItemRepository;
-import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemCommercialData;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemHistory;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemPage;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemReferences.Tax;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemReferences.Unit;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemSearchCriteria;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemSummary;
+import com.sanigest.catalog.application.dto.client.ClientPage;
+import com.sanigest.catalog.application.dto.client.ClientReferences.Option;
+import com.sanigest.catalog.application.dto.supplier.SupplierPage;
+import com.sanigest.catalog.application.exception.catalogitem.CatalogItemAccessException;
+import com.sanigest.catalog.application.exception.client.ClientAccessException;
+import com.sanigest.catalog.application.exception.client.ClientCreationException;
+import com.sanigest.catalog.application.exception.client.ClientFinancialsUnavailable;
+import com.sanigest.catalog.application.exception.security.CatalogAuthorizationUnavailable;
+import com.sanigest.catalog.application.exception.supplier.SupplierAccessException;
+import com.sanigest.catalog.application.exception.supplier.SupplierCreationException;
+import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.integration.sales.SalesClientFinancials;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemCommercialRepository;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemRepository;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientCategoryRepository;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientReferenceRepository;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientRepository;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierCategoryRepository;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierItemRepository;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierRepository;
 import com.sanigest.catalog.application.usecase.catalogitem.CatalogBusinessDate;
 import com.sanigest.catalog.application.usecase.catalogitem.CatalogItemCommercialQueries;
 import com.sanigest.catalog.application.usecase.catalogitem.CatalogItemCompany;
@@ -72,16 +72,16 @@ import com.sanigest.catalog.application.usecase.supplier.ReplaceSupplierItems;
 import com.sanigest.catalog.application.usecase.supplier.SupplierCategories;
 import com.sanigest.catalog.application.usecase.supplier.SupplierCompany;
 import com.sanigest.catalog.application.usecase.supplier.UpdateSupplier;
-import com.sanigest.catalog.domain.enums.CatalogItemType;
-import com.sanigest.catalog.domain.enums.ClientStatus;
-import com.sanigest.catalog.domain.model.CatalogItem;
-import com.sanigest.catalog.domain.model.CatalogItemCategory;
-import com.sanigest.catalog.domain.model.CatalogItemProfile;
-import com.sanigest.catalog.domain.model.Client;
-import com.sanigest.catalog.domain.model.ClientCategory;
-import com.sanigest.catalog.domain.model.ClientDetails;
-import com.sanigest.catalog.domain.model.Supplier;
-import com.sanigest.catalog.domain.model.SupplierDetails;
+import com.sanigest.catalog.domain.enums.catalogitem.CatalogItemType;
+import com.sanigest.catalog.domain.enums.client.ClientStatus;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItem;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItemCategory;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItemProfile;
+import com.sanigest.catalog.domain.model.client.Client;
+import com.sanigest.catalog.domain.model.client.ClientCategory;
+import com.sanigest.catalog.domain.model.client.ClientDetails;
+import com.sanigest.catalog.domain.model.supplier.Supplier;
+import com.sanigest.catalog.domain.model.supplier.SupplierDetails;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -147,7 +147,7 @@ class CatalogWebPolicyTest {
   }
 
   @Autowired MockMvc mvc;
-  @MockitoBean com.sanigest.web.audit.AuditPage.Reader auditEntries;
+  @MockitoBean com.sanigest.web.application.dto.audit.AuditPage.Reader auditEntries;
   @MockitoBean CatalogItemCommercialRepository itemCommercial;
   @MockitoBean JwtDecoder decoder;
   @MockitoBean ClientRepository clients;
@@ -161,7 +161,7 @@ class CatalogWebPolicyTest {
   @MockitoBean SalesClientFinancials sales;
 
   @MockitoBean
-  com.sanigest.catalog.application.port.out.integration.InventoryAvailability inventory;
+  com.sanigest.catalog.application.port.out.integration.inventory.InventoryAvailability inventory;
 
   @Test
   void createsAndReadsExpandedItemsThroughTheirPublishedContract() throws Exception {

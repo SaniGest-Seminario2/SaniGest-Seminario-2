@@ -1,13 +1,13 @@
 package com.sanigest.catalog.application.usecase.client;
 
-import static com.sanigest.catalog.application.exception.ClientAccessException.Reason.FORBIDDEN;
-import static com.sanigest.catalog.application.exception.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
+import static com.sanigest.catalog.application.exception.client.ClientAccessException.Reason.FORBIDDEN;
+import static com.sanigest.catalog.application.exception.client.ClientCreationException.Reason.AUTHORIZATION_UNAVAILABLE;
 
-import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
-import com.sanigest.catalog.application.exception.ClientAccessException;
-import com.sanigest.catalog.application.exception.ClientCreationException;
-import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
-import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission;
+import com.sanigest.catalog.application.exception.client.ClientAccessException;
+import com.sanigest.catalog.application.exception.client.ClientCreationException;
+import com.sanigest.catalog.application.exception.security.CatalogAuthorizationUnavailable;
+import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Component;

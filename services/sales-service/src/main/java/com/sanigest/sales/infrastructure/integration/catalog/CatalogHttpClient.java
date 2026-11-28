@@ -1,17 +1,17 @@
 package com.sanigest.sales.infrastructure.integration.catalog;
 
-import static com.sanigest.sales.application.exception.CatalogResourceInvalidException.Reason.INACTIVE;
-import static com.sanigest.sales.application.exception.CatalogResourceInvalidException.Reason.INVALID_REQUEST;
-import static com.sanigest.sales.application.exception.CatalogResourceInvalidException.Reason.INVALID_RESPONSE;
+import static com.sanigest.sales.application.exception.catalog.CatalogResourceInvalidException.Reason.INACTIVE;
+import static com.sanigest.sales.application.exception.catalog.CatalogResourceInvalidException.Reason.INVALID_REQUEST;
+import static com.sanigest.sales.application.exception.catalog.CatalogResourceInvalidException.Reason.INVALID_RESPONSE;
 
-import com.sanigest.sales.application.exception.CatalogResourceInvalidException;
-import com.sanigest.sales.application.exception.CatalogUnavailableException;
-import com.sanigest.sales.application.port.out.integration.CatalogClient;
-import com.sanigest.sales.domain.model.CatalogCustomerSnapshot;
-import com.sanigest.sales.domain.model.CatalogCustomerSnapshot.Status;
-import com.sanigest.sales.domain.model.CatalogItemSnapshot;
-import com.sanigest.sales.domain.model.CatalogItemSnapshot.Type;
-import com.sanigest.web.RemoteCall;
+import com.sanigest.sales.application.exception.catalog.CatalogResourceInvalidException;
+import com.sanigest.sales.application.exception.catalog.CatalogUnavailableException;
+import com.sanigest.sales.application.port.out.integration.catalog.CatalogClient;
+import com.sanigest.sales.domain.model.catalog.CatalogCustomerSnapshot;
+import com.sanigest.sales.domain.model.catalog.CatalogCustomerSnapshot.Status;
+import com.sanigest.sales.domain.model.catalog.CatalogItemSnapshot;
+import com.sanigest.sales.domain.model.catalog.CatalogItemSnapshot.Type;
+import com.sanigest.web.infrastructure.integration.resilience.RemoteCall;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Optional;

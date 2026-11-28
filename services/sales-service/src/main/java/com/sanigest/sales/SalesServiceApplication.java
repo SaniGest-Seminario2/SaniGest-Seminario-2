@@ -1,7 +1,7 @@
 package com.sanigest.sales;
 
-import com.sanigest.events.outbox.PaymentOutboxConfiguration;
-import com.sanigest.web.OpenApiConfiguration;
+import com.sanigest.events.infrastructure.configuration.outbox.PaymentOutboxConfiguration;
+import com.sanigest.web.api.documentation.OpenApiConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Import;
