@@ -4,6 +4,7 @@ import com.sanigest.catalog.application.exception.supplier.InvalidSupplierQueryE
 import com.sanigest.catalog.application.exception.supplier.SupplierAccessException;
 import com.sanigest.catalog.application.exception.supplier.SupplierCommercialException;
 import com.sanigest.catalog.application.exception.supplier.SupplierCreationException;
+import com.sanigest.catalog.application.port.out.integration.expense.SupplierBalances;
 import com.sanigest.catalog.domain.exception.supplier.InvalidSupplierPatch;
 import com.sanigest.web.api.error.HttpProblems;
 import org.springframework.core.annotation.Order;
@@ -18,6 +19,14 @@ class SupplierErrorHandler {
   @ExceptionHandler({InvalidSupplierQueryException.class, InvalidSupplierPatch.class})
   ProblemDetail invalidRequest() {
     return HttpProblems.create(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "The request is invalid");
+  }
+
+  @ExceptionHandler(SupplierBalances.Unavailable.class)
+  ProblemDetail balancesUnavailable() {
+    return HttpProblems.create(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "SUPPLIER_BALANCES_UNAVAILABLE",
+        "Supplier balances are unavailable");
   }
 
   @ExceptionHandler(SupplierAccessException.class)

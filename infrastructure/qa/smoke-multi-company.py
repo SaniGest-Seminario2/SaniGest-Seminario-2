@@ -325,9 +325,6 @@ def main(compose):
                       data={"phone": "8095550100"})
     assert edited["phone"] == "8095550100" and edited["categoryId"] == client["categoryId"]
     assert exchange("clients?clientType=NATURAL", token=token, tenant=a)["content"][0]["phone"] == edited["phone"]
-    supplier = exchange("suppliers", token=token, tenant=a, status=201,
-                        data={"name": "Proveedor A", "contact": "Contacto", "supplyType": "PRODUCT"})
-    assert supplier["paymentTerms"] == "CASH"
     exchange("catalog-items", token=token, tenant=a, status=400,
              data={"name": "Sin unidad", "type": "PRODUCT", "price": "25.00"})
     client_b = exchange("clients", token=token, tenant=b, data={"name": "Cliente B", "clientType": "LEGAL"}, status=201)["id"]
@@ -336,6 +333,10 @@ def main(compose):
         "taxClassificationCode": "ITBIS_18", "availableForPurchase": True,
     })["id"]
 
+    supplier = exchange("suppliers", token=token, tenant=a, status=201, data={
+        **supplier_request(token, a, item_a, "Proveedor A", "012345678"), "supplyType": "PRODUCT",
+    })
+    assert supplier["paymentTerms"] == "CASH"
     exchange(f"suppliers/{supplier['id']}/items", token=token, tenant=a, method="PUT", status=204,
              data={"items": [{"catalogItemId": item_a, "offeredCost": "15.0000", "primary": True}]})
     product = exchange(f"catalog-items/{item_a}", token=token, tenant=a)
@@ -607,6 +608,16 @@ def verify_inventory(token, company, other, item):
     return warehouse
 
 
+def supplier_request(token, company, item, name, tax_id):
+    categories = exchange("suppliers/categories", token=token, tenant=company)
+    return {
+        "name": name, "taxId": tax_id, "phone": "8095550118", "contact": "Compras",
+        "email": "supplier@example.do", "supplyType": "REGULAR", "categoryId": categories[0]["id"],
+        "creditDays": None, "status": "ACTIVE",
+        "items": [{"catalogItemId": item, "offeredCost": "10.00", "supplierReference": "SUP-1"}],
+    }
+
+
 def verify_expenses(token, company, other, item, warehouse):
     options = exchange("expenses/options", token=token, tenant=company)
     assert options["operationTypes"] == [
@@ -659,13 +670,28 @@ def verify_expenses(token, company, other, item, warehouse):
         exchange(f"expenses?status={option['value']}", token=token, tenant=company)
     for option in options["payableFilters"]:
         exchange(f"payables?status={option['value']}", token=token, tenant=company)
-    supplier = exchange("suppliers", token=token, tenant=company, status=201, data={
-        "name": "Proveedor a crédito", "contact": "Compras", "supplyType": "REGULAR",
-        "paymentTerms": "BOTH", "creditDays": 30,
+    supplier_input = {**supplier_request(token, company, item, "Proveedor a crédito", "012345679"),
+                      "paymentTerms": "BOTH", "creditDays": 30}
+    for field in ("name", "taxId", "phone", "contact", "email", "supplyType",
+                  "categoryId", "creditDays", "status", "items"):
+        invalid = {key: value for key, value in supplier_input.items() if key != field}
+        exchange("suppliers", token=token, tenant=company, data=invalid, status=400)
+    for field in ("catalogItemId", "offeredCost", "supplierReference"):
+        line = {key: value for key, value in supplier_input["items"][0].items() if key != field}
+        exchange("suppliers", token=token, tenant=company,
+                 data={**supplier_input, "items": [line]}, status=400)
+    foreign = exchange("suppliers/categories", token=token, tenant=other)[0]["id"]
+    exchange("suppliers", token=token, tenant=company,
+             data={**supplier_input, "categoryId": foreign}, status=400)
+    exchange("suppliers", token=token, tenant=company, status=404, data={
+        **supplier_input, "items": [{**supplier_input["items"][0], "catalogItemId": str(uuid.uuid4())}],
     })
+    supplier = exchange("suppliers", token=token, tenant=company, status=201, data=supplier_input)
+    assert exchange(f"suppliers/{supplier['id']}/items", token=token, tenant=company)["totalElements"] == 1
     detail = exchange(f"suppliers/{supplier['id']}", token=token, tenant=company)
     listed = exchange("suppliers?supplyType=REGULAR", token=token, tenant=company)["content"]
     assert [entry["id"] for entry in listed] == [supplier["id"]]
+    assert listed[0]["outstandingAmount"] == 0
     for record in (supplier, detail, *listed):
         assert record["supplyType"] == "BOTH" and record["supplyClassification"] == "REGULAR"
     issue_date = business_date()
@@ -713,6 +739,10 @@ def verify_expenses(token, company, other, item, warehouse):
     assert created["receiptStatus"] == "PARTIAL" and created["financialStatus"] == "OPEN"
     assert created["subtotal"] == 25 and created["tax"] == 4.5 and created["total"] == 29.5
     assert created["dueDate"] == (issue_date + timedelta(days=30)).isoformat()
+    search = urlencode({"search": "proveedor a crédito", "size": 1})
+    supplier_row = exchange(f"suppliers?{search}", token=token, tenant=company)
+    assert supplier_row["totalElements"] == 1
+    assert supplier_row["content"][0]["outstandingAmount"] == 29.5
     assert register() == created
     detail_path = f"expenses/{created['id']}"
     for origin in (None, EXPENSE):
@@ -838,6 +868,11 @@ def verify_payable_payment(compose, token, owner, company, other, payable):
         settled = [payment for payment in executor.map(finish, range(2)) if payment]
     assert len(settled) == 1 and settled[0]["status"] == "PAID"
     assert settled[0]["outstandingAmount"] == 0 and pay() == first
+    supplier = exchange("suppliers?supplyType=REGULAR", token=token, tenant=company)["content"][0]
+    assert supplier["outstandingAmount"] == 0
+    exchange(f"suppliers/{supplier['id']}/status", token=token, tenant=company,
+             method="PATCH", data={"status": "INACTIVE"})
+    assert exchange("suppliers/options?supplyType=REGULAR", token=token, tenant=company) == []
 
 
 if __name__ == "__main__":

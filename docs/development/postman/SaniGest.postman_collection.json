@@ -2518,10 +2518,10 @@
                 "suppliers"
               ]
             },
-            "description": "",
+            "description": "Usa un artículo disponible para compra de la misma empresa (itemId) y una categoría de proveedor (supplierCategoryId).",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Proveedor QA\",\n  \"contact\": \"Contacto QA\",\n  \"supplyType\": \"PRODUCT\",\n  \"categoryId\": \"{{supplierCategoryId}}\"\n}",
+              "raw": "{\n  \"name\": \"Proveedor QA\",\n  \"taxId\": \"012345678\",\n  \"contact\": \"Contacto QA\",\n  \"phone\": \"8095550118\",\n  \"email\": \"proveedor@example.do\",\n  \"supplyType\": \"PRODUCT\",\n  \"categoryId\": \"{{supplierCategoryId}}\",\n  \"creditDays\": null,\n  \"status\": \"ACTIVE\",\n  \"items\": [\n    {\n      \"catalogItemId\": \"{{itemId}}\",\n      \"offeredCost\": \"15.00\",\n      \"supplierReference\": \"QA-01\"\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"

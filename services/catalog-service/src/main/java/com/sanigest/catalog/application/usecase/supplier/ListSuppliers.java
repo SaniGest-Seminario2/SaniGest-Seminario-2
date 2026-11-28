@@ -5,9 +5,13 @@ import static com.sanigest.catalog.application.port.out.integration.company.Cata
 import com.sanigest.catalog.application.dto.supplier.SupplierPage;
 import com.sanigest.catalog.application.dto.supplier.SupplierSearchCriteria;
 import com.sanigest.catalog.application.exception.supplier.InvalidSupplierQueryException;
+import com.sanigest.catalog.application.port.out.integration.expense.SupplierBalances;
 import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierRepository;
 import com.sanigest.catalog.domain.enums.supplier.SupplierStatus;
+import java.math.BigDecimal;
 import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -19,16 +23,19 @@ public class ListSuppliers {
   private final SupplierCompany company;
   private final SupplierRepository suppliers;
   private final int maxSize;
+  private final SupplierBalances balances;
 
   ListSuppliers(
       SupplierCompany company,
       SupplierRepository suppliers,
+      SupplierBalances balances,
       @Value("${sanigest.catalog.suppliers.max-page-size:100}") int maxSize) {
     if (maxSize < Integer.parseInt(DEFAULT_SIZE)) {
       throw new IllegalArgumentException("The maximum supplier page size must allow the default");
     }
     this.company = company;
     this.suppliers = suppliers;
+    this.balances = balances;
     this.maxSize = maxSize;
   }
 
@@ -47,6 +54,18 @@ public class ListSuppliers {
     validate(filter.search(), page, size);
     return suppliers.search(company.require(CATALOG_READ), filter, page, size);
   }
+
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
+  public WithBalances withBalances(SupplierSearchCriteria filter, int page, int size) {
+    validate(filter.search(), page, size);
+    var companyId = company.require(CATALOG_READ);
+    var result = suppliers.search(companyId, filter, page, size);
+    var ids = result.content().stream().map(SupplierPage.Item::id).toList();
+    return new WithBalances(result, ids.isEmpty() ? Map.of() : balances.read(companyId, ids));
+  }
+
+  public record WithBalances(SupplierPage page, Map<UUID, BigDecimal> balances) {}
 
   public static SupplierStatus parseStatus(String status) {
     return parseOptionalStatus(optionalFilter(status));

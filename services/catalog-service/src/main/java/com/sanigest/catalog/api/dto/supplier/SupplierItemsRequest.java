@@ -34,18 +34,25 @@ public record SupplierItemsRequest(List<SupplierItemOffer> items, boolean replac
       throw new InvalidSupplierPatch();
     }
     try {
-      var cost = text(entry.get("offeredCost"));
-      if (cost != null && !cost.matches("[0-9]{1,15}([.][0-9]{1,4})?")) {
-        throw new InvalidSupplierPatch();
-      }
       return new SupplierItemOffer(
           SupplierPatchRequest.uuid(entry.path("catalogItemId")),
-          cost == null ? null : new BigDecimal(cost),
+          cost(entry.get("offeredCost")),
           text(entry.get("supplierReference")),
           flag(entry.get("primary")));
     } catch (IllegalArgumentException invalid) {
       throw new InvalidSupplierPatch();
     }
+  }
+
+  private static BigDecimal cost(JsonNode node) {
+    if (node != null && node.isNumber()) {
+      return node.decimalValue();
+    }
+    var value = text(node);
+    if (value != null && !value.matches("[0-9]{1,15}([.][0-9]{1,4})?")) {
+      throw new InvalidSupplierPatch();
+    }
+    return value == null ? null : new BigDecimal(value);
   }
 
   private static String text(JsonNode node) {

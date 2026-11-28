@@ -51,7 +51,7 @@ class ManageSupplierTest {
   private final SupplierRepository repository = mock(SupplierRepository.class);
   private final SupplierCompany company = new SupplierCompany(Optional.of(authorization));
   private final GetSupplier detail = new GetSupplier(company, repository);
-  private final ListSuppliers list = new ListSuppliers(company, repository, 100);
+  private final ListSuppliers list = new ListSuppliers(company, repository, mock(), 100);
   private final UpdateSupplier update = new UpdateSupplier(company, repository);
   private final ChangeSupplierStatus status = new ChangeSupplierStatus(company, repository);
 

@@ -26,10 +26,12 @@ import com.sanigest.catalog.application.exception.catalogitem.CatalogItemAccessE
 import com.sanigest.catalog.application.exception.client.ClientAccessException;
 import com.sanigest.catalog.application.exception.client.ClientCreationException;
 import com.sanigest.catalog.application.exception.supplier.SupplierAccessException;
+import com.sanigest.catalog.application.port.out.integration.expense.SupplierBalances;
 import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemCommercialRepository;
 import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemRepository;
 import com.sanigest.catalog.application.port.out.persistence.client.ClientCategoryRepository;
 import com.sanigest.catalog.application.port.out.persistence.client.ClientRepository;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierCategoryRepository;
 import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierRepository;
 import com.sanigest.catalog.application.usecase.catalogitem.ChangeCatalogItemStatus;
 import com.sanigest.catalog.application.usecase.catalogitem.CreateCatalogItem;
@@ -112,6 +114,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
@@ -186,6 +189,11 @@ class CatalogServiceIT {
   @Autowired UpdateSupplier updateSupplier;
   @Autowired ChangeSupplierStatus changeSupplierStatus;
   @Autowired SupplierRepository suppliers;
+
+  @Autowired SupplierCategoryRepository supplierCategories;
+
+  @MockitoBean SupplierBalances supplierBalances;
+
   @Autowired PlatformTransactionManager transactions;
   @Autowired CreateClient createClient;
   @Autowired ClientRepository clients;
@@ -1836,7 +1844,7 @@ class CatalogServiceIT {
   }
 
   @Test
-  void enforcesSupplierUniquenessOnlyForNonNullTaxIdsInTheSameCompany() throws Exception {
+  void enforcesSupplierTaxIdUniquenessWithinTheSameCompany() throws Exception {
     var company = UUID.randomUUID();
     var other = UUID.randomUUID();
     var a = authorizedToken(company);
@@ -1857,8 +1865,8 @@ class CatalogServiceIT {
       assertThat(postSupplier(http, b, withTax.formatted("012345679"), null).statusCode())
           .isEqualTo(201);
       assertThat(postSupplier(http, a, SUPPLIER_JSON, null).statusCode()).isEqualTo(201);
-      assertThat(postSupplier(http, a, withTax.formatted("   "), null).statusCode()).isEqualTo(201);
-      assertThat(supplierCount(company)).isEqualTo(3);
+      assertThat(postSupplier(http, a, withTax.formatted("   "), null).statusCode()).isEqualTo(400);
+      assertThat(supplierCount(company)).isEqualTo(2);
       assertThat(supplierCount(other)).isEqualTo(1);
     }
   }
@@ -1932,7 +1940,7 @@ class CatalogServiceIT {
   @Test
   void supplierUseCaseEnforcesMethodSecurityWithoutTheWebFilter() {
     var details = new SupplierDetails("Office", null, "Laura", null, null);
-    assertThatThrownBy(() -> createSupplier.execute(details))
+    assertThatThrownBy(() -> createSupplier.execute(details, SupplierStatus.ACTIVE, List.of()))
         .isInstanceOf(AccessDeniedException.class);
     var id = UUID.randomUUID();
     assertThatThrownBy(() -> listSuppliers.execute(null, null, 0, 20))
@@ -2262,8 +2270,8 @@ class CatalogServiceIT {
       var categories = successfulBody(get(http, SUPPLIERS + "/categories", owner));
       assertThat(categories.size()).isEqualTo(7);
       var category = categories.get(0).path("id").asString();
-      var a = createCommercialSupplier(http, owner, "A", category);
-      var b = createCommercialSupplier(http, owner, "B", category);
+      var a = createCommercialSupplier(owner, "A", category);
+      var b = createCommercialSupplier(owner, "B", category);
       var item = createdId(postItem(http, owner, PRODUCT_ITEM, null));
       var foreignItem = createdId(postItem(http, otherOwner, PRODUCT_ITEM, null));
       var linksA = SUPPLIERS + "/" + a + "/items";
@@ -2354,7 +2362,7 @@ class CatalogServiceIT {
               """
               {"name":"Distribución","contact":"Alex 100%%_!","taxId":"001-0000001-2",
                "email":"ventas@example.do","phone":"8095550100","address":"Santo Domingo",
-               "supplyType":"BOTH","paymentTerms":"BOTH","creditDays":0,"categoryId":"%s",
+               "supplyType":"BOTH","paymentTerms":"BOTH","creditDays":30,"categoryId":"%s",
                "observations":"Retirar"}
               """
                   .formatted(category),
@@ -2363,7 +2371,7 @@ class CatalogServiceIT {
       var path = SUPPLIERS + "/" + id;
       var detail = successfulBody(get(http, path, owner));
       assertThat(detail.path("taxId").asString()).isEqualTo("00100000012");
-      assertThat(detail.path("creditDays").asInt()).isZero();
+      assertThat(detail.path("creditDays").asInt()).isEqualTo(30);
       assertThat(detail.path("address").asString()).isEqualTo("Santo Domingo");
       assertThat(
               successfulBody(
@@ -2407,7 +2415,7 @@ class CatalogServiceIT {
   void retiresOmittedLinksAndRejectsIncompatibleReplacementAtomically() throws Exception {
     var owner = scopedCatalogOwner(UUID.randomUUID());
     try (var http = HttpClient.newHttpClient()) {
-      var supplier = createCommercialSupplier(http, owner, "A", null);
+      var supplier = createCommercialSupplier(owner, "A", null);
       var product = createdId(postItem(http, owner, PRODUCT_ITEM, null));
       var service = createdId(postItem(http, owner, SERVICE_ITEM, null));
       var path = SUPPLIERS + "/" + supplier;
@@ -2474,8 +2482,8 @@ class CatalogServiceIT {
           .containsExactlyInAnyOrder(201, 409);
       assertThat(supplierCount(tenant)).isEqualTo(1);
 
-      var a = createCommercialSupplier(http, owner, "A", null);
-      var b = createCommercialSupplier(http, owner, "B", null);
+      var a = createCommercialSupplier(owner, "A", null);
+      var b = createCommercialSupplier(owner, "B", null);
       var product = createdId(postItem(http, owner, PRODUCT_ITEM, null));
       var service = createdId(postItem(http, owner, SERVICE_ITEM, null));
       var linksA = SUPPLIERS + "/" + a + "/items";
@@ -2488,9 +2496,10 @@ class CatalogServiceIT {
           .containsExactly(204, 204);
       assertThat(
               jdbc.queryForObject(
-                  "SELECT count(*) FROM catalog.supplier_items WHERE company_id = ?",
+                  "SELECT count(*) FROM catalog.supplier_items WHERE company_id = ? AND catalog_item_id = ?",
                   Integer.class,
-                  tenant))
+                  tenant,
+                  UUID.fromString(product)))
           .isEqualTo(1);
       assertThat(
               race(
@@ -2563,7 +2572,7 @@ class CatalogServiceIT {
     stubScopedCatalogMembership(actor, companyB, MembershipRole.VIEWER, Scope.READ);
     stubScopedCatalogMembership(actor, companyB, MembershipRole.VIEWER, Scope.WRITE);
     try (var http = HttpClient.newHttpClient()) {
-      var supplier = createCommercialSupplier(http, owner, "A", null);
+      var supplier = createCommercialSupplier(owner, "A", null);
       var domestic = createdId(postItem(http, owner, PRODUCT_ITEM, null));
       var foreign = createdId(postItem(http, foreignOwner, PRODUCT_ITEM, null));
       var links = SUPPLIERS + "/" + supplier + "/items";
@@ -2589,7 +2598,7 @@ class CatalogServiceIT {
           .isInstanceOf(DataIntegrityViolationException.class);
       assertThatThrownBy(() -> jdbc.update(insert, companyA, supplierId, itemId))
           .isInstanceOf(DataIntegrityViolationException.class);
-      var another = UUID.fromString(createCommercialSupplier(http, owner, "Another", null));
+      var another = UUID.fromString(createCommercialSupplier(owner, "Another", null));
       assertThatThrownBy(() -> jdbc.update(insert, companyA, another, itemId))
           .isInstanceOf(DataIntegrityViolationException.class);
       assertThat(successfulBody(get(http, links, owner)).path("totalElements").asInt())
@@ -2616,18 +2625,20 @@ class CatalogServiceIT {
     }
   }
 
-  private String createCommercialSupplier(
-      HttpClient http, String token, String name, String category) throws Exception {
-    var body =
-        JsonMapper.shared()
-            .createObjectNode()
-            .put("name", name)
-            .put("contact", "Alex")
-            .put("supplyType", "BOTH");
-    if (category != null) {
-      body.put("categoryId", category);
-    }
-    return createdId(postSupplier(http, token, body.toString(), null));
+  private String createCommercialSupplier(String token, String name, String category) {
+    var company = SELECTORS.get(token);
+    var profile =
+        new SupplierProfile(
+            null,
+            SupplierSupplyType.BOTH,
+            SupplierPaymentTerms.CASH,
+            category == null ? null : UUID.fromString(category),
+            null,
+            null);
+    var supplier =
+        Supplier.register(company, new SupplierDetails(name, null, "Alex", null, null, profile));
+    suppliers.insert(supplier);
+    return supplier.id().toString();
   }
 
   private static String createdId(HttpResponse<String> response) {
@@ -2669,6 +2680,8 @@ class CatalogServiceIT {
 
   private HttpResponse<String> postSupplier(
       HttpClient http, String bearer, String body, UUID forgedCompany) throws Exception {
+    var company = bearer == null ? null : SELECTORS.get(bearer);
+    body = completeSupplierRequest(company == null ? new UUID(0, 0) : company, body);
     var suffix = forgedCompany == null ? "" : "?companyId=" + forgedCompany;
     var request =
         HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + SUPPLIERS + suffix))
@@ -2685,6 +2698,50 @@ class CatalogServiceIT {
               .toString());
     }
     return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private String completeSupplierRequest(UUID company, String body) {
+    var request = (tools.jackson.databind.node.ObjectNode) JsonMapper.shared().readTree(body);
+    var id = UUID.randomUUID();
+    if (!request.has("taxId")) {
+      request.put(
+          "taxId",
+          String.format(
+              java.util.Locale.ROOT, "%09d", Math.floorMod(id.hashCode(), 1_000_000_000)));
+    }
+    if (!request.has("phone")) {
+      request.put("phone", "8095550118");
+    }
+    if (!request.has("email")) {
+      request.put("email", "sales@example.do");
+    }
+    if (!request.has("supplyType")) {
+      request.put("supplyType", "BOTH");
+    }
+    if (!request.has("creditDays")) {
+      request.putNull("creditDays");
+    }
+    if (!request.has("status")) {
+      request.put("status", "ACTIVE");
+    }
+    if (!request.has("categoryId")) {
+      supplierCategories.initialize(company);
+      request.put("categoryId", supplierCategories.list(company).getFirst().id().toString());
+    }
+    var item =
+        CatalogItem.register(
+            company, "Supplier fixture " + id, CatalogItemType.PRODUCT, BigDecimal.ONE);
+    var profile = new CatalogItemProfile(null, null, null, "UNIT", null, "EXEMPT", false, true);
+    items.insert(
+        new CatalogItem(
+            item.id(), company, item.name(), item.type(), item.price(), true, null, profile));
+    request
+        .putArray("items")
+        .addObject()
+        .put("catalogItemId", item.id().toString())
+        .put("offeredCost", "1.00")
+        .put("supplierReference", "SUP-1");
+    return request.toString();
   }
 
   @Test
@@ -3176,7 +3233,7 @@ class CatalogServiceIT {
       assertThat(history.path("content").get(0).path("actorId").isNull()).isFalse();
       assertThat(history.path("content").get(0).path("operation").asString()).isEqualTo("UPDATE");
 
-      var supplier = createCommercialSupplier(http, owner, "Proveedor comercial", null);
+      var supplier = createCommercialSupplier(owner, "Proveedor comercial", null);
       var links = SUPPLIERS + "/" + supplier + "/items";
       assertThat(putSupplier(http, links, owner, offer(id, true, false)).statusCode())
           .isEqualTo(204);
@@ -3363,7 +3420,7 @@ class CatalogServiceIT {
               .path("id")
               .asString();
       var id = createdId(postItem(http, owner, commercialItem(category), null));
-      var supplier = createCommercialSupplier(http, owner, "Concurrent supplier", null);
+      var supplier = createCommercialSupplier(owner, "Concurrent supplier", null);
       var itemPath = CATALOG_ITEMS + "/" + id;
       var supplierPath = SUPPLIERS + "/" + supplier + "/items";
       var results =

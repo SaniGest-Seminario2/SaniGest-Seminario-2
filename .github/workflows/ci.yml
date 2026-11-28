@@ -267,6 +267,21 @@ jobs:
                 'POST /api/v1/companies/{companyId}/invitations the request property `name` became required' \
                 > "$RUNNER_TEMP/company-oasdiff-err-ignore"
               set -- --err-ignore "$RUNNER_TEMP/company-oasdiff-err-ignore"
+            elif [ "${baseline##*/}" = catalog.json ]; then
+              # S2-476 makes the supplier registration contract explicit.
+              {
+                for field in categoryId creditDays email phone supplyType taxId; do
+                  printf 'POST /api/v1/suppliers the request property `%s` became required\n' "$field"
+                done
+                for field in categoryId email phone supplyType taxId; do
+                  printf 'POST /api/v1/suppliers the request property `%s` became not nullable\n' "$field"
+                done
+                for field in items status; do
+                  printf 'POST /api/v1/suppliers added the new required request property `%s`\n' "$field"
+                done
+                printf '%s\n' 'POST /api/v1/suppliers request property `creditDays` was restricted to a list of enum values'
+              } > "$RUNNER_TEMP/catalog-oasdiff-err-ignore"
+              set -- --err-ignore "$RUNNER_TEMP/catalog-oasdiff-err-ignore"
             elif [ "${baseline##*/}" = expense.json ]; then
               # S2-485 requires a warehouse. S2-352 exposes cancellations in historical detail.
               printf '%s\n' \
