@@ -32,10 +32,9 @@ public record CreateSupplierRequest(
             && !CREDIT_DAYS.contains(details.profile().creditDays()))) {
       throw new InvalidSupplierPatch();
     }
-    var parsedItems = SupplierItemsRequest.parse(object.objectNode().set("items", items)).items();
     return new CreateSupplierRequest(
         details,
         SupplierPatchRequest.status(object.objectNode().set("status", status)),
-        parsedItems);
+        SupplierItemsRequest.parseOffers(items, true));
   }
 }
