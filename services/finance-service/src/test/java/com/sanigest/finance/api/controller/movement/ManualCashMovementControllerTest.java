@@ -55,7 +55,7 @@ class ManualCashMovementControllerTest {
     verifyNoInteractions(movements);
 
     when(access.membership(company, CompanyAccess.Scope.READ)).thenReturn(Optional.of(role));
-    var options = new Options(List.of(), List.of(), List.of(), List.of());
+    var options = new Options(List.of(), List.of(), List.of(), List.of(), null);
     when(movements.options(company)).thenReturn(options);
     assertEquals(options, controller.options(request));
     var id = UUID.randomUUID();

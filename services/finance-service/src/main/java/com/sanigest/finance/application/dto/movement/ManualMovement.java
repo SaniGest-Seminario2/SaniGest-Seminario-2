@@ -58,5 +58,9 @@ public final class ManualMovement {
       List<Option> movementTypes,
       List<Option> movementCategories,
       List<Option> movementMethods,
-      List<Option> movementAccounts) {}
+      List<Option> movementAccounts,
+      Filters movementFilters) {}
+
+  public record Filters(
+      List<Option> types, List<Option> origins, List<Option> methods, List<Option> categories) {}
 }

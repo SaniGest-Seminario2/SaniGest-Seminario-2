@@ -78,6 +78,8 @@
       "type": "string",
       "pattern": "^[A-Z]{3}$"
     },
+    "reference": {"type": "string"},
+    "observations": {"type": "string"},
     "documentId": {
       "type": "string",
       "format": "uuid"

@@ -235,7 +235,9 @@ class PostgresInvoicePayments implements InvoicePayments {
               null,
               null,
               invoiceId,
-              operator));
+              operator,
+              line.reference(),
+              null));
       jdbc.sql(
               """
               INSERT INTO sales.invoice_payment_lines (id, payment_id, position, method, amount, reference, account_id)
