@@ -15,8 +15,8 @@ public final class MemberPageResponse {
       String name,
       String email,
       CompanyRole role,
-      String status,
-      MembershipStatus membershipStatus) {
+      MembershipStatus status,
+      DisplayStatus displayStatus) {
     public static Item from(MemberPage.Item item) {
       var member = item.membership();
       return new Item(
@@ -25,9 +25,16 @@ public final class MemberPageResponse {
           item.name(),
           item.email(),
           member.role(),
-          member.status() == MembershipStatus.ACTIVE ? "ACTIVE" : "INACTIVE",
-          member.status());
+          member.status(),
+          member.status() == MembershipStatus.ACTIVE
+              ? DisplayStatus.ACTIVE
+              : DisplayStatus.INACTIVE);
     }
+  }
+
+  public enum DisplayStatus {
+    ACTIVE,
+    INACTIVE
   }
 
   public static PageResponse<MemberPageResponse.Item> from(MemberPage page) {

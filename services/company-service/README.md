@@ -262,8 +262,8 @@ lote, calcula el total de coincidencias y conserva solo la página pedida.
 La consulta mantiene una instantánea de membresías y lee datos de Identity
 vigentes en cada lote. La actualización concurrente de datos personales entre
 lotes puede cambiar los resultados. Una respuesta de Identity incompleta o
-indisponible devuelve 503. `status` proyecta SUSPENDED y REVOKED a INACTIVE.
-`membershipStatus` conserva el estado real. Las invitaciones pendientes se consultan mediante `/invitations`.
+indisponible devuelve 503. `displayStatus` proyecta SUSPENDED y REVOKED a INACTIVE.
+`status` conserva el estado real. Las invitaciones pendientes se consultan mediante `/invitations`.
 
 La aceptación usa `POST /api/v1/invitations/{token}/accept` con la empresa
 obtenida de la invitación persistida. Company exige que Identity confirme que

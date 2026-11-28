@@ -41,8 +41,7 @@ final class CompanyTeamOpenApi {
         Map.<String, Object>of(
             "membershipId", UUID, "userId", UUID, "role", ROLES, "status", STATES);
     var summary = new LinkedHashMap<>(member);
-    summary.put("status", choices("ACTIVE", "INACTIVE"));
-    summary.put("membershipStatus", STATES);
+    summary.put("displayStatus", choices("ACTIVE", "INACTIVE"));
     summary.put("name", Map.of("type", "string", "maxLength", 160, "nullable", true));
     summary.put("email", Map.of("type", "string", "format", "email", "nullable", true));
     var pending = new LinkedHashMap<>(INVITATION);

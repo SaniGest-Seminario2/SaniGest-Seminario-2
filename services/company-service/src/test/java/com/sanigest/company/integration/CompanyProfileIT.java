@@ -1876,8 +1876,8 @@ class CompanyProfileIT {
     assertThat(all.get(1)).isEqualTo(last.path("content").get(0));
     var inactive = json.readTree(get(companyPath + "/users/all?status=INACTIVE", jwt).body());
     assertThat(inactive.size()).isEqualTo(1);
-    assertThat(inactive.get(0).path("status").asString()).isEqualTo("INACTIVE");
-    assertThat(inactive.get(0).path("membershipStatus").asString()).isEqualTo("SUSPENDED");
+    assertThat(inactive.get(0).path("displayStatus").asString()).isEqualTo("INACTIVE");
+    assertThat(inactive.get(0).path("status").asString()).isEqualTo("SUSPENDED");
     assertThat(
             json.readTree(get(companyPath + "/users?view=page&status=INACTIVE", jwt).body())
                 .path("content"))
