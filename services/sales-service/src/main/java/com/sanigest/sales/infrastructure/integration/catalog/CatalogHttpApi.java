@@ -2,7 +2,7 @@ package com.sanigest.sales.infrastructure.integration.catalog;
 
 import com.sanigest.sales.infrastructure.integration.catalog.dto.CatalogCustomerResponse;
 import com.sanigest.sales.infrastructure.integration.catalog.dto.CatalogItemResponse;
-import com.sanigest.security.CompanySelector;
+import com.sanigest.security.api.request.company.CompanySelector;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;

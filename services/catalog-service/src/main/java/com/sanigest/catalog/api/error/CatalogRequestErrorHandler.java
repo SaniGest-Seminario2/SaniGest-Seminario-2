@@ -1,12 +1,12 @@
 package com.sanigest.catalog.api.error;
 
-import static com.sanigest.web.HttpProblems.create;
+import static com.sanigest.web.api.error.HttpProblems.create;
 
-import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
-import com.sanigest.catalog.application.exception.InvalidClientQueryException;
-import com.sanigest.catalog.domain.exception.InvalidClientPatch;
-import com.sanigest.catalog.domain.exception.InvalidSupplierDetails;
-import com.sanigest.security.CompanySelector.InvalidContext;
+import com.sanigest.catalog.application.exception.client.InvalidClientQueryException;
+import com.sanigest.catalog.application.exception.security.CatalogAuthorizationUnavailable;
+import com.sanigest.catalog.domain.exception.client.InvalidClientPatch;
+import com.sanigest.catalog.domain.exception.supplier.InvalidSupplierDetails;
+import com.sanigest.security.api.request.company.CompanySelector.InvalidContext;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;

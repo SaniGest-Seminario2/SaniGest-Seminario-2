@@ -1,11 +1,11 @@
 package com.sanigest.expense.infrastructure.configuration;
 
-import com.sanigest.expense.application.port.out.integration.CatalogReferences;
-import com.sanigest.expense.application.port.out.integration.InventoryReceipts;
-import com.sanigest.expense.application.port.out.persistence.ExpenseStore;
-import com.sanigest.expense.application.port.out.persistence.PayablePayments;
-import com.sanigest.expense.application.usecase.RegisterExpense;
-import com.sanigest.expense.application.usecase.RegisterPayablePayment;
+import com.sanigest.expense.application.port.out.integration.catalog.CatalogReferences;
+import com.sanigest.expense.application.port.out.integration.inventory.InventoryReceipts;
+import com.sanigest.expense.application.port.out.persistence.expense.ExpenseStore;
+import com.sanigest.expense.application.port.out.persistence.payable.PayablePayments;
+import com.sanigest.expense.application.usecase.expense.RegisterExpense;
+import com.sanigest.expense.application.usecase.payable.RegisterPayablePayment;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

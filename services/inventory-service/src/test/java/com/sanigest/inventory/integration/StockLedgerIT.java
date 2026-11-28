@@ -3,7 +3,7 @@ package com.sanigest.inventory.integration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.sanigest.inventory.domain.model.StockKey;
+import com.sanigest.inventory.domain.model.stock.StockKey;
 import java.util.UUID;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

@@ -7,8 +7,8 @@ import static org.mockito.Mockito.when;
 
 import com.sanigest.identity.api.dto.session.LoginResponse;
 import com.sanigest.identity.api.dto.session.RefreshRequest;
-import com.sanigest.identity.application.dto.AccessToken;
-import com.sanigest.identity.application.port.in.RefreshTokenService;
+import com.sanigest.identity.application.dto.session.AccessToken;
+import com.sanigest.identity.application.port.in.session.RefreshTokenService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 

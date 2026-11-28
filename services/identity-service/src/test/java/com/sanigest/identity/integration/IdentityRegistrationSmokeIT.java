@@ -2,7 +2,7 @@ package com.sanigest.identity.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.sanigest.identity.application.port.out.security.PasswordHasher;
+import com.sanigest.identity.application.port.out.security.password.PasswordHasher;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;

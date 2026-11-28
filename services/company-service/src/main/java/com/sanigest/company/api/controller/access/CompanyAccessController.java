@@ -1,0 +1,103 @@
+package com.sanigest.company.api.controller.access;
+
+import com.sanigest.company.api.security.CompanyActor;
+import com.sanigest.company.application.exception.access.CompanyAccessDeniedException;
+import com.sanigest.company.application.usecase.access.RequireRegularAccount;
+import com.sanigest.company.application.usecase.access.ResolveCompanyAccess;
+import com.sanigest.company.domain.model.advisor.AdvisorPermission;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.MembershipRole;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.Module;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.Scope;
+import com.sanigest.companyaccess.infrastructure.integration.protocol.CompanyAccessProtocol;
+import com.sanigest.companyaccess.infrastructure.integration.protocol.CompanyAccessProtocol.AccessMode;
+import com.sanigest.companyaccess.infrastructure.integration.protocol.CompanyAccessProtocol.Query;
+import com.sanigest.companyaccess.infrastructure.integration.protocol.CompanyAccessProtocol.Response;
+import java.util.UUID;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+class CompanyAccessController {
+  private final ResolveCompanyAccess access;
+  private final JwtDecoder userDecoder;
+  private final RequireRegularAccount regularAccount;
+
+  CompanyAccessController(
+      ResolveCompanyAccess access, JwtDecoder userDecoder, RequireRegularAccount regularAccount) {
+    this.access = access;
+    this.userDecoder = userDecoder;
+    this.regularAccount = regularAccount;
+  }
+
+  @GetMapping(CompanyAccessProtocol.PATH)
+  ResponseEntity<Response> resolve(
+      @AuthenticationPrincipal Jwt assertion,
+      @RequestHeader(name = CompanyAccessProtocol.USER_ASSERTION, required = false)
+          String session) {
+    var query = Query.from(assertion);
+    if (query.mode() == AccessMode.MEMBERSHIP) {
+      UUID userId = regularUser(session, query.userId());
+      String permission = query.module().name() + "_" + query.scope().name();
+      var membership =
+          query.scope() == Scope.AUDIT
+              ? access.auditMembership(userId, query.companyId())
+              : access.membership(userId, query.companyId(), permission);
+      return response(
+          new Response(
+              userId,
+              membership.companyId(),
+              query.module(),
+              query.scope(),
+              AccessMode.MEMBERSHIP,
+              MembershipRole.valueOf(membership.role().name()),
+              membership.explicitGrant(),
+              "SALES_WRITE".equals(permission) ? membership.companyName() : null));
+    }
+    if (session != null || query.module() == Module.INVENTORY || query.scope() == Scope.AUDIT) {
+      throw new CompanyAccessDeniedException();
+    }
+    access.requireDelegation(
+        query.userId(),
+        query.companyId(),
+        new AdvisorPermission(
+            AdvisorPermission.Module.valueOf(query.module().name()),
+            AdvisorPermission.Scope.valueOf(query.scope().name())));
+    return response(
+        new Response(
+            query.userId(),
+            query.companyId(),
+            query.module(),
+            query.scope(),
+            AccessMode.DELEGATED,
+            null,
+            null,
+            null));
+  }
+
+  private UUID regularUser(String session, UUID assertedUser) {
+    if (session == null || session.isBlank()) {
+      throw new CompanyAccessDeniedException();
+    }
+    Jwt verified;
+    try {
+      verified = userDecoder.decode(session);
+    } catch (JwtException invalid) {
+      throw new CompanyAccessDeniedException();
+    }
+    if (!assertedUser.equals(UUID.fromString(verified.getSubject()))) {
+      throw new CompanyAccessDeniedException();
+    }
+    return CompanyActor.authenticatedUserId(verified, regularAccount);
+  }
+
+  private static ResponseEntity<Response> response(Response response) {
+    return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(response);
+  }
+}

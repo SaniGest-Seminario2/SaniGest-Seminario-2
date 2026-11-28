@@ -1,13 +1,13 @@
 package com.sanigest.company.application.usecase.team;
 
-import com.sanigest.company.application.dto.MemberPage;
-import com.sanigest.company.application.dto.MemberSearchCriteria;
-import com.sanigest.company.application.exception.AuthorizationUnavailableException;
-import com.sanigest.company.application.exception.MemberListLimitException;
-import com.sanigest.company.application.port.out.integration.MemberIdentityDirectory;
-import com.sanigest.company.application.port.out.persistence.MembershipRepository;
+import com.sanigest.company.application.dto.team.MemberPage;
+import com.sanigest.company.application.dto.team.MemberSearchCriteria;
+import com.sanigest.company.application.exception.access.AuthorizationUnavailableException;
+import com.sanigest.company.application.exception.team.MemberListLimitException;
+import com.sanigest.company.application.port.out.integration.team.MemberIdentityDirectory;
+import com.sanigest.company.application.port.out.persistence.team.MembershipRepository;
 import com.sanigest.company.application.usecase.profile.GetMyCompanyUseCase;
-import com.sanigest.company.domain.model.Membership;
+import com.sanigest.company.domain.model.team.Membership;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;

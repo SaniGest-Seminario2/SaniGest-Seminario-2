@@ -1,6 +1,6 @@
 package com.sanigest.company.api.routing;
 
-import com.sanigest.security.CompanySelector;
+import com.sanigest.security.api.request.company.CompanySelector;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collections;
 import java.util.UUID;

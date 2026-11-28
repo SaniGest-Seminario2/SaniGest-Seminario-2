@@ -1,8 +1,8 @@
 package com.sanigest.sales.infrastructure.integration.catalog;
 
-import com.sanigest.sales.application.exception.CatalogAccessDeniedException;
-import com.sanigest.sales.application.exception.CatalogResourceInvalidException;
-import com.sanigest.sales.application.exception.CatalogUnavailableException;
+import com.sanigest.sales.application.exception.catalog.CatalogAccessDeniedException;
+import com.sanigest.sales.application.exception.catalog.CatalogResourceInvalidException;
+import com.sanigest.sales.application.exception.catalog.CatalogUnavailableException;
 
 final class CatalogHttpErrors {
   private CatalogHttpErrors() {}

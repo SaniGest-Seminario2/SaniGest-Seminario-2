@@ -7,8 +7,8 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.sanigest.company.application.exception.AuthorizationUnavailableException;
-import com.sanigest.security.AccessTokens;
+import com.sanigest.company.application.exception.access.AuthorizationUnavailableException;
+import com.sanigest.security.token.AccessTokens;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
@@ -31,7 +31,7 @@ import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.ObjectReader;
 
-final class IdentityServiceRequest {
+public final class IdentityServiceRequest {
   private static final Duration TIMEOUT = Duration.ofSeconds(2);
   private final int maxResponseBytes;
   private final String audience;
@@ -46,7 +46,7 @@ final class IdentityServiceRequest {
   private final ObjectReader responseReader;
   private final Clock clock;
 
-  IdentityServiceRequest(
+  public IdentityServiceRequest(
       URI origin,
       Credentials credentials,
       ResourceLoader resources,
@@ -109,7 +109,7 @@ final class IdentityServiceRequest {
     }
   }
 
-  tools.jackson.databind.JsonNode exchange(String path, HttpRequest.BodyPublisher body) {
+  public tools.jackson.databind.JsonNode exchange(String path, HttpRequest.BodyPublisher body) {
     if (signer == null || !inFlight.tryAcquire()) {
       throw new AuthorizationUnavailableException();
     }
@@ -177,7 +177,7 @@ final class IdentityServiceRequest {
     return jwt.serialize();
   }
 
-  record Credentials(String issuer, String keyLocation) {}
+  public record Credentials(String issuer, String keyLocation) {}
 
-  record Contract(String audience, String scope, int maxResponseBytes) {}
+  public record Contract(String audience, String scope, int maxResponseBytes) {}
 }

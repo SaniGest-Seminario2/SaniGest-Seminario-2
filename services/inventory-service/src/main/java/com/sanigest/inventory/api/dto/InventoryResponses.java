@@ -2,12 +2,12 @@ package com.sanigest.inventory.api.dto;
 
 import com.sanigest.inventory.application.dto.InventoryQueries.Page;
 import com.sanigest.inventory.application.dto.InventoryQueries.Summary;
-import com.sanigest.inventory.application.port.out.integration.CatalogInventoryClient.Item;
-import com.sanigest.inventory.domain.model.StockAvailability;
-import com.sanigest.inventory.domain.model.StockKey;
-import com.sanigest.inventory.domain.model.StockMovement;
-import com.sanigest.inventory.domain.model.StockPosition;
-import com.sanigest.inventory.domain.model.Warehouse;
+import com.sanigest.inventory.application.port.out.integration.catalog.CatalogInventoryClient.Item;
+import com.sanigest.inventory.domain.model.stock.StockAvailability;
+import com.sanigest.inventory.domain.model.stock.StockKey;
+import com.sanigest.inventory.domain.model.stock.StockMovement;
+import com.sanigest.inventory.domain.model.stock.StockPosition;
+import com.sanigest.inventory.domain.model.warehouse.Warehouse;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;

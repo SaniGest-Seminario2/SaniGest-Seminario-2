@@ -1,9 +1,9 @@
 package com.sanigest.expense.api.error;
 
 import com.sanigest.expense.application.exception.ExpenseFailure;
-import com.sanigest.security.CompanySelector;
-import com.sanigest.security.http.MvcProblems;
-import com.sanigest.web.HttpProblems;
+import com.sanigest.security.api.error.MvcProblems;
+import com.sanigest.security.api.request.company.CompanySelector;
+import com.sanigest.web.api.error.HttpProblems;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;

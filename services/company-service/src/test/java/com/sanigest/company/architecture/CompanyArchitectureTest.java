@@ -6,6 +6,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
+import com.sanigest.company.application.port.out.persistence.team.MembershipRepository.ActiveAccess;
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -26,8 +27,7 @@ class CompanyArchitectureTest {
   private static final String OUTGOING_PORTS = COMPANY + ".application.port.out..";
   private static final String PERSISTENCE_PORTS = COMPANY + ".application.port.out.persistence..";
   private static final String JDBC_ADAPTERS = COMPANY + ".infrastructure.persistence.jdbc..";
-  private static final String ACTIVE_ACCESS =
-      COMPANY + ".application.port.out.persistence.MembershipRepository$ActiveAccess";
+  private static final String ACTIVE_ACCESS = ActiveAccess.class.getName();
 
   private static final DescribedPredicate<JavaClass> PERSISTENCE =
       resideInAnyPackage(

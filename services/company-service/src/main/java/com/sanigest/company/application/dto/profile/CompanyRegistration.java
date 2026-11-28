@@ -1,0 +1,5 @@
+package com.sanigest.company.application.dto.profile;
+
+import java.util.UUID;
+
+public record CompanyRegistration(String hash, UUID companyId) {}

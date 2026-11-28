@@ -1,6 +1,6 @@
 package com.sanigest.sales.api.error;
 
-import com.sanigest.security.http.MvcProblems;
+import com.sanigest.security.api.error.MvcProblems;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.web.bind.annotation.RestControllerAdvice;

@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.company.application.dto.AuthorizedCompany;
-import com.sanigest.company.application.port.out.persistence.MembershipRepository;
-import com.sanigest.company.domain.enums.CompanyRole;
-import com.sanigest.company.domain.enums.MembershipStatus;
+import com.sanigest.company.application.dto.access.AuthorizedCompany;
+import com.sanigest.company.application.port.out.persistence.team.MembershipRepository;
+import com.sanigest.company.domain.enums.team.CompanyRole;
+import com.sanigest.company.domain.enums.team.MembershipStatus;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

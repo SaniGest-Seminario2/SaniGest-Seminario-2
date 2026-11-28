@@ -1,7 +1,7 @@
 package com.sanigest.sales.application.usecase.sale;
 
-import static com.sanigest.sales.application.exception.CatalogResourceInvalidException.Reason.NOT_FOUND_OR_NOT_VISIBLE;
-import static com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission.SALES_WRITE;
+import static com.sanigest.sales.application.exception.catalog.CatalogResourceInvalidException.Reason.NOT_FOUND_OR_NOT_VISIBLE;
+import static com.sanigest.sales.application.port.out.integration.company.SalesAuthorization.Permission.SALES_WRITE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -9,23 +9,23 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.sales.application.dto.CreateSaleCommand;
-import com.sanigest.sales.application.dto.CreateSaleCommand.Line;
-import com.sanigest.sales.application.exception.CatalogResourceInvalidException;
-import com.sanigest.sales.application.exception.CatalogUnavailableException;
-import com.sanigest.sales.application.exception.InvalidSaleRequest;
-import com.sanigest.sales.application.exception.SaleAmountNotRepresentable;
-import com.sanigest.sales.application.exception.SalesAccessForbidden;
-import com.sanigest.sales.application.port.out.integration.CatalogClient;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.sales.application.port.out.persistence.SaleRepository;
-import com.sanigest.sales.domain.enums.SaleMode;
-import com.sanigest.sales.domain.enums.SaleStatus;
-import com.sanigest.sales.domain.model.CatalogCustomerSnapshot;
-import com.sanigest.sales.domain.model.CatalogCustomerSnapshot.Status;
-import com.sanigest.sales.domain.model.CatalogItemSnapshot;
-import com.sanigest.sales.domain.model.CatalogItemSnapshot.Type;
-import com.sanigest.sales.domain.model.Sale;
+import com.sanigest.sales.application.dto.sale.CreateSaleCommand;
+import com.sanigest.sales.application.dto.sale.CreateSaleCommand.Line;
+import com.sanigest.sales.application.exception.catalog.CatalogResourceInvalidException;
+import com.sanigest.sales.application.exception.catalog.CatalogUnavailableException;
+import com.sanigest.sales.application.exception.sale.InvalidSaleRequest;
+import com.sanigest.sales.application.exception.sale.SaleAmountNotRepresentable;
+import com.sanigest.sales.application.exception.security.SalesAccessForbidden;
+import com.sanigest.sales.application.port.out.integration.catalog.CatalogClient;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleRepository;
+import com.sanigest.sales.domain.enums.sale.SaleMode;
+import com.sanigest.sales.domain.enums.sale.SaleStatus;
+import com.sanigest.sales.domain.model.catalog.CatalogCustomerSnapshot;
+import com.sanigest.sales.domain.model.catalog.CatalogCustomerSnapshot.Status;
+import com.sanigest.sales.domain.model.catalog.CatalogItemSnapshot;
+import com.sanigest.sales.domain.model.catalog.CatalogItemSnapshot.Type;
+import com.sanigest.sales.domain.model.sale.Sale;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -73,7 +73,8 @@ class CreateSaleTest {
     if (mode == SaleMode.CREDIT) {
       when(repository.register(any(), any()))
           .thenAnswer(invocation -> {
-            var obligation = invocation.<com.sanigest.sales.domain.model.Receivable>getArgument(1);
+            var obligation =
+                invocation.<com.sanigest.sales.domain.model.receivable.Receivable>getArgument(1);
             assertThat(obligation.totalAmount()).isEqualTo(new BigDecimal(total));
             assertThat(obligation.balance()).isEqualTo(obligation.totalAmount());
             assertThat(obligation.companyId()).isEqualTo(tenant);

@@ -1,6 +1,6 @@
 package com.sanigest.company;
 
-import com.sanigest.web.OpenApiConfiguration;
+import com.sanigest.web.api.documentation.OpenApiConfiguration;
 import java.time.Clock;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

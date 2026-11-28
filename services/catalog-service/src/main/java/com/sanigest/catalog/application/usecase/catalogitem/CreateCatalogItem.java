@@ -1,14 +1,14 @@
 package com.sanigest.catalog.application.usecase.catalogitem;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_WRITE;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_WRITE;
 
-import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
-import com.sanigest.catalog.application.exception.CatalogItemCreationForbidden;
-import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
-import com.sanigest.catalog.domain.enums.CatalogItemType;
-import com.sanigest.catalog.domain.model.CatalogItem;
-import com.sanigest.catalog.domain.model.CatalogItemProfile;
+import com.sanigest.catalog.application.exception.catalogitem.CatalogItemCreationForbidden;
+import com.sanigest.catalog.application.exception.security.CatalogAuthorizationUnavailable;
+import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemRepository;
+import com.sanigest.catalog.domain.enums.catalogitem.CatalogItemType;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItem;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItemProfile;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,7 +32,8 @@ public class CreateCatalogItem {
   }
 
   @Transactional
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public CatalogItem execute(
       String name,
       CatalogItemType type,

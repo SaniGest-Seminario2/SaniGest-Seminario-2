@@ -2,10 +2,10 @@ package com.sanigest.company.domain;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.sanigest.company.domain.enums.CompanyRole;
-import com.sanigest.company.domain.enums.MembershipStatus;
-import com.sanigest.company.domain.model.Company;
-import com.sanigest.company.domain.model.Membership;
+import com.sanigest.company.domain.enums.team.CompanyRole;
+import com.sanigest.company.domain.enums.team.MembershipStatus;
+import com.sanigest.company.domain.model.profile.Company;
+import com.sanigest.company.domain.model.team.Membership;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 

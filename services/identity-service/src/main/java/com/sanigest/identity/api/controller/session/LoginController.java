@@ -2,7 +2,7 @@ package com.sanigest.identity.api.controller.session;
 
 import com.sanigest.identity.api.dto.session.LoginRequest;
 import com.sanigest.identity.api.dto.session.LoginResponse;
-import com.sanigest.identity.application.dto.AccessToken;
+import com.sanigest.identity.application.dto.session.AccessToken;
 import com.sanigest.identity.application.usecase.session.LoginUseCase;
 import jakarta.validation.Valid;
 import java.util.Objects;

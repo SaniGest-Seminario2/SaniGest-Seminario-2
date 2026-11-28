@@ -1,12 +1,12 @@
 package com.sanigest.sales.application.usecase.sale;
 
-import com.sanigest.sales.application.exception.InvalidSaleRequest;
-import com.sanigest.sales.application.exception.SaleNotFound;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission;
-import com.sanigest.sales.application.port.out.persistence.SaleRepository;
-import com.sanigest.sales.domain.model.Sale;
-import com.sanigest.sales.domain.model.SaleCancellation;
+import com.sanigest.sales.application.exception.sale.InvalidSaleRequest;
+import com.sanigest.sales.application.exception.sale.SaleNotFound;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization.Permission;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleRepository;
+import com.sanigest.sales.domain.model.sale.Sale;
+import com.sanigest.sales.domain.model.sale.SaleCancellation;
 import java.time.Clock;
 import java.util.UUID;
 import java.util.function.Supplier;

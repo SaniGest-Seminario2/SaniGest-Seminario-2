@@ -1,14 +1,14 @@
 package com.sanigest.finance.infrastructure.configuration;
 
-import com.sanigest.finance.application.port.in.PaymentAdmission;
-import com.sanigest.finance.application.port.out.integration.FinancialSnapshotSources;
-import com.sanigest.finance.application.port.out.integration.PendingInvoices;
-import com.sanigest.finance.application.port.out.persistence.CashSummaryLedger;
-import com.sanigest.finance.application.port.out.persistence.FinancialProjectionStore;
-import com.sanigest.finance.application.port.out.persistence.ManualMovementStore;
-import com.sanigest.finance.application.usecase.ActiveCashSummary;
-import com.sanigest.finance.application.usecase.FinancialProjections;
-import com.sanigest.finance.application.usecase.ManualCashMovements;
+import com.sanigest.finance.application.port.in.cash.PaymentAdmission;
+import com.sanigest.finance.application.port.out.integration.cash.PendingInvoices;
+import com.sanigest.finance.application.port.out.integration.reporting.FinancialSnapshotSources;
+import com.sanigest.finance.application.port.out.persistence.cash.CashSummaryLedger;
+import com.sanigest.finance.application.port.out.persistence.movement.ManualMovementStore;
+import com.sanigest.finance.application.port.out.persistence.reporting.FinancialProjectionStore;
+import com.sanigest.finance.application.usecase.cash.ActiveCashSummary;
+import com.sanigest.finance.application.usecase.movement.ManualCashMovements;
+import com.sanigest.finance.application.usecase.reporting.FinancialProjections;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

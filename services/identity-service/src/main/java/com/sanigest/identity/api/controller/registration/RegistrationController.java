@@ -2,7 +2,7 @@ package com.sanigest.identity.api.controller.registration;
 
 import com.sanigest.identity.api.dto.registration.RegisterUserRequest;
 import com.sanigest.identity.api.dto.registration.RegisterUserResponse;
-import com.sanigest.identity.application.dto.RegisterUserCommand;
+import com.sanigest.identity.application.dto.registration.RegisterUserCommand;
 import com.sanigest.identity.application.usecase.registration.RegisterUserUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;

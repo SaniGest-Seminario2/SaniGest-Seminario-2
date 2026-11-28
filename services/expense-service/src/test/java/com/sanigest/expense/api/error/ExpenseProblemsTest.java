@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.sanigest.expense.application.exception.ExpenseFailure;
-import com.sanigest.security.CompanySelector;
+import com.sanigest.security.api.request.company.CompanySelector;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

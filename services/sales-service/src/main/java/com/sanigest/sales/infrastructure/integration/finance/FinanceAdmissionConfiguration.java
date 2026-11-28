@@ -1,11 +1,11 @@
 package com.sanigest.sales.infrastructure.integration.finance;
 
-import com.sanigest.sales.application.exception.InvoicePaymentConflict;
-import com.sanigest.sales.application.exception.PaymentAdmissionUnavailable;
-import com.sanigest.sales.application.port.out.integration.ActiveCashShifts;
-import com.sanigest.sales.application.port.out.integration.ActiveCashShifts.Shift;
-import com.sanigest.sales.application.port.out.integration.PaymentAdmission;
-import com.sanigest.sales.application.port.out.integration.PaymentAdmission.Admission;
+import com.sanigest.sales.application.exception.payment.InvoicePaymentConflict;
+import com.sanigest.sales.application.exception.payment.PaymentAdmissionUnavailable;
+import com.sanigest.sales.application.port.out.integration.finance.ActiveCashShifts;
+import com.sanigest.sales.application.port.out.integration.finance.ActiveCashShifts.Shift;
+import com.sanigest.sales.application.port.out.integration.finance.PaymentAdmission;
+import com.sanigest.sales.application.port.out.integration.finance.PaymentAdmission.Admission;
 import java.net.ProxySelector;
 import java.net.URI;
 import java.net.http.HttpClient;

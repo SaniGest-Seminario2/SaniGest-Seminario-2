@@ -1,9 +1,11 @@
 package com.sanigest.identity.infrastructure.security;
 
-import com.sanigest.identity.application.port.out.security.TokenIssuer;
-import com.sanigest.security.AccessTokens;
-import com.sanigest.security.http.ServletSecurityProblems;
-import com.sanigest.web.OpenApiConfiguration;
+import com.sanigest.identity.application.port.out.security.token.TokenIssuer;
+import com.sanigest.identity.infrastructure.security.token.JwtProperties;
+import com.sanigest.identity.infrastructure.security.token.JwtTokenIssuer;
+import com.sanigest.security.api.error.ServletSecurityProblems;
+import com.sanigest.security.token.AccessTokens;
+import com.sanigest.web.api.documentation.OpenApiConfiguration;
 import java.io.IOException;
 import java.security.interfaces.RSAPublicKey;
 import org.springframework.beans.factory.annotation.Value;

@@ -1,10 +1,10 @@
 package com.sanigest.inventory.infrastructure.company;
 
-import com.sanigest.companyaccess.CompanyAccess;
-import com.sanigest.companyaccess.HttpCompanyAccess;
-import com.sanigest.companyaccess.HttpCompanyAccess.Settings;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess;
+import com.sanigest.companyaccess.infrastructure.integration.http.HttpCompanyAccess;
+import com.sanigest.companyaccess.infrastructure.integration.http.HttpCompanyAccess.Settings;
 import com.sanigest.inventory.observability.InventoryRequestTrace;
-import com.sanigest.security.AccessTokens;
+import com.sanigest.security.token.AccessTokens;
 import io.micrometer.observation.ObservationRegistry;
 import java.io.IOException;
 import java.net.URI;

@@ -1,9 +1,9 @@
 package com.sanigest.catalog.infrastructure.integration.sales;
 
-import com.sanigest.catalog.application.exception.ClientAccessException;
-import com.sanigest.catalog.application.exception.ClientFinancialsUnavailable;
-import com.sanigest.catalog.application.port.out.integration.SalesClientFinancials;
-import com.sanigest.security.CompanySelector;
+import com.sanigest.catalog.application.exception.client.ClientAccessException;
+import com.sanigest.catalog.application.exception.client.ClientFinancialsUnavailable;
+import com.sanigest.catalog.application.port.out.integration.sales.SalesClientFinancials;
+import com.sanigest.security.api.request.company.CompanySelector;
 import java.math.BigDecimal;
 import java.net.http.HttpClient;
 import java.time.Duration;

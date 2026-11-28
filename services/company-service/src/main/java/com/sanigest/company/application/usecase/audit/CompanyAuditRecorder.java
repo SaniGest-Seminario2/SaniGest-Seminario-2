@@ -1,14 +1,14 @@
 package com.sanigest.company.application.usecase.audit;
 
-import com.sanigest.company.application.port.out.persistence.CompanyAuditRepository;
-import com.sanigest.company.domain.enums.AuditOperation;
-import com.sanigest.company.domain.enums.AuditResult;
-import com.sanigest.company.domain.enums.CompanyRole;
-import com.sanigest.company.domain.enums.MembershipStatus;
-import com.sanigest.company.domain.model.AdvisorPermission;
-import com.sanigest.company.domain.model.CompanyAuditEvent;
-import com.sanigest.company.domain.model.Membership;
-import com.sanigest.security.RequestCorrelation;
+import com.sanigest.company.application.port.out.persistence.audit.CompanyAuditRepository;
+import com.sanigest.company.domain.enums.audit.AuditOperation;
+import com.sanigest.company.domain.enums.audit.AuditResult;
+import com.sanigest.company.domain.enums.team.CompanyRole;
+import com.sanigest.company.domain.enums.team.MembershipStatus;
+import com.sanigest.company.domain.model.advisor.AdvisorPermission;
+import com.sanigest.company.domain.model.audit.CompanyAuditEvent;
+import com.sanigest.company.domain.model.team.Membership;
+import com.sanigest.security.api.observability.RequestCorrelation;
 import java.time.Clock;
 import java.util.UUID;
 import org.springframework.stereotype.Service;

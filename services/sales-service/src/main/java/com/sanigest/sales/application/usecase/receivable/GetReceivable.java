@@ -1,10 +1,10 @@
 package com.sanigest.sales.application.usecase.receivable;
 
-import com.sanigest.sales.application.dto.ReceivableDetail;
-import com.sanigest.sales.application.exception.ReceivableNotFound;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission;
-import com.sanigest.sales.application.port.out.persistence.ReceivableRepository;
+import com.sanigest.sales.application.dto.receivable.ReceivableDetail;
+import com.sanigest.sales.application.exception.receivable.ReceivableNotFound;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization.Permission;
+import com.sanigest.sales.application.port.out.persistence.receivable.ReceivableRepository;
 import java.util.UUID;
 
 public final class GetReceivable {

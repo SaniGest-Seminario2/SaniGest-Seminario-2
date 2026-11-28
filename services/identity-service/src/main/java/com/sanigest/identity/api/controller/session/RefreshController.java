@@ -2,7 +2,7 @@ package com.sanigest.identity.api.controller.session;
 
 import com.sanigest.identity.api.dto.session.LoginResponse;
 import com.sanigest.identity.api.dto.session.RefreshRequest;
-import com.sanigest.identity.application.port.in.RefreshTokenService;
+import com.sanigest.identity.application.port.in.session.RefreshTokenService;
 import jakarta.validation.Valid;
 import java.util.Objects;
 import org.springframework.context.annotation.Profile;

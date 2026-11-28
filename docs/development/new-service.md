@@ -25,6 +25,13 @@
    El caso de uso define el límite transaccional cuando coordina varias
    operaciones de persistencia. El adaptador puede delimitar la transacción
    de una operación atómica de su puerto y traduce los errores del proveedor.
+   Cuando una capa cubra varias funcionalidades, usa subpaquetes con el mismo
+   nombre en las capas que correspondan. Por ejemplo, en Expense, la gestión de
+   cuentas por pagar vive en `api/controller/payable`, `application/usecase/payable`
+   e `infrastructure/persistence/payable`. Mantén las utilidades que comparten
+   varias funcionalidades en la capa que las usa. En Gateway, las rutas de cada servicio se agrupan en
+   su subpaquete de `infrastructure/routing`. En las librerías, aplica la
+   misma convención a los contratos y adaptadores que el módulo ofrece.
    Refleja los paquetes en las pruebas unitarias y coloca las pruebas de
    integración en `integration`.
    Consulta [Company](../../services/company-service/README.md) (JDBC),

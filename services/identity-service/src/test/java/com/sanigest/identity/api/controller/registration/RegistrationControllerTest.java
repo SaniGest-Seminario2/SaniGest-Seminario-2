@@ -8,9 +8,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.sanigest.identity.application.dto.RegisterUserCommand;
-import com.sanigest.identity.application.dto.RegisteredUser;
-import com.sanigest.identity.application.exception.DuplicateEmailException;
+import com.sanigest.identity.application.dto.registration.RegisterUserCommand;
+import com.sanigest.identity.application.dto.registration.RegisteredUser;
+import com.sanigest.identity.application.exception.registration.DuplicateEmailException;
 import com.sanigest.identity.application.usecase.registration.RegisterUserUseCase;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

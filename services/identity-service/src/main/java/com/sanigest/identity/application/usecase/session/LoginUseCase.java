@@ -1,15 +1,15 @@
 package com.sanigest.identity.application.usecase.session;
 
-import com.sanigest.identity.application.dto.AccessToken;
-import com.sanigest.identity.application.dto.IssuedRefreshToken;
-import com.sanigest.identity.application.exception.InvalidCredentialsException;
-import com.sanigest.identity.application.port.in.RefreshTokenService;
-import com.sanigest.identity.application.port.out.persistence.UserRepository;
-import com.sanigest.identity.application.port.out.security.PasswordHasher;
-import com.sanigest.identity.application.port.out.security.TokenIssuer;
+import com.sanigest.identity.application.dto.session.AccessToken;
+import com.sanigest.identity.application.dto.session.IssuedRefreshToken;
+import com.sanigest.identity.application.exception.session.InvalidCredentialsException;
+import com.sanigest.identity.application.port.in.session.RefreshTokenService;
+import com.sanigest.identity.application.port.out.persistence.account.UserRepository;
+import com.sanigest.identity.application.port.out.security.password.PasswordHasher;
+import com.sanigest.identity.application.port.out.security.token.TokenIssuer;
 import com.sanigest.identity.domain.enums.UserStatus;
-import com.sanigest.identity.domain.model.EmailAddress;
-import com.sanigest.identity.domain.model.User;
+import com.sanigest.identity.domain.model.account.EmailAddress;
+import com.sanigest.identity.domain.model.account.User;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;

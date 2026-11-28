@@ -6,12 +6,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.company.application.dto.CompanyMembership;
-import com.sanigest.company.application.dto.CompanyProfile;
-import com.sanigest.company.application.exception.CompanyAccessDeniedException;
-import com.sanigest.company.application.exception.CompanyNotFoundException;
-import com.sanigest.company.application.port.out.persistence.MembershipRepository;
-import com.sanigest.company.domain.enums.MembershipStatus;
+import com.sanigest.company.application.dto.profile.CompanyProfile;
+import com.sanigest.company.application.dto.team.CompanyMembership;
+import com.sanigest.company.application.exception.access.CompanyAccessDeniedException;
+import com.sanigest.company.application.exception.profile.CompanyNotFoundException;
+import com.sanigest.company.application.port.out.persistence.team.MembershipRepository;
+import com.sanigest.company.domain.enums.team.MembershipStatus;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

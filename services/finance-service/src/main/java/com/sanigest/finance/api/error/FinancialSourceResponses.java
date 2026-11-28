@@ -1,6 +1,6 @@
 package com.sanigest.finance.api.error;
 
-import com.sanigest.finance.application.exception.FinancialSourceFailure;
+import com.sanigest.finance.application.exception.reporting.FinancialSourceFailure;
 import java.util.function.Supplier;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;

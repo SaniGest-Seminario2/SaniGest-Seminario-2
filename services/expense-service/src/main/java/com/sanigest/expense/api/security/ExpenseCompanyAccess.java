@@ -1,11 +1,11 @@
 package com.sanigest.expense.api.security;
 
-import com.sanigest.companyaccess.CompanyAccess;
-import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
-import com.sanigest.companyaccess.CompanyAccess.Scope;
-import com.sanigest.companyaccess.CompanyAccessUnavailable;
+import com.sanigest.companyaccess.application.exception.CompanyAccessUnavailable;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.MembershipRole;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.Scope;
 import com.sanigest.expense.application.exception.ExpenseFailure;
-import com.sanigest.security.CompanySelector;
+import com.sanigest.security.api.request.company.CompanySelector;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collections;
 import java.util.UUID;

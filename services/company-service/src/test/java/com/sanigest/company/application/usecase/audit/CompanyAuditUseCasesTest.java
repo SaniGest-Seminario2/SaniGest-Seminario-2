@@ -8,17 +8,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.company.application.dto.CompanyMembership;
-import com.sanigest.company.application.dto.CompanyProfile;
-import com.sanigest.company.application.exception.CompanyAccessDeniedException;
-import com.sanigest.company.application.port.out.persistence.CompanyAuditRepository;
-import com.sanigest.company.application.port.out.persistence.MembershipRepository;
-import com.sanigest.company.domain.enums.AuditOperation;
-import com.sanigest.company.domain.enums.AuditResult;
-import com.sanigest.company.domain.enums.CompanyRole;
-import com.sanigest.company.domain.enums.MembershipStatus;
-import com.sanigest.company.domain.model.CompanyAuditEvent;
-import com.sanigest.company.domain.model.Membership;
+import com.sanigest.company.application.dto.profile.CompanyProfile;
+import com.sanigest.company.application.dto.team.CompanyMembership;
+import com.sanigest.company.application.exception.access.CompanyAccessDeniedException;
+import com.sanigest.company.application.port.out.persistence.audit.CompanyAuditRepository;
+import com.sanigest.company.application.port.out.persistence.team.MembershipRepository;
+import com.sanigest.company.domain.enums.audit.AuditOperation;
+import com.sanigest.company.domain.enums.audit.AuditResult;
+import com.sanigest.company.domain.enums.team.CompanyRole;
+import com.sanigest.company.domain.enums.team.MembershipStatus;
+import com.sanigest.company.domain.model.audit.CompanyAuditEvent;
+import com.sanigest.company.domain.model.team.Membership;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -124,7 +124,8 @@ class CompanyAuditUseCasesTest {
             null);
     when(repository.findPage(
             company,
-            new com.sanigest.web.audit.AuditPage.Filters(NOW, NOW, null, null, null, null, 2, 1)))
+            new com.sanigest.web.application.dto.audit.AuditPage.Filters(
+                NOW, NOW, null, null, null, null, 2, 1)))
         .thenReturn(List.of(event, event));
 
     var page = useCase.get(actor, NOW, NOW, 2, 1);

@@ -1,13 +1,13 @@
 package com.sanigest.company.application.usecase.profile;
 
-import com.sanigest.company.application.dto.CreateCompanyCommand;
-import com.sanigest.company.application.exception.CompanyAccessDeniedException;
-import com.sanigest.company.application.exception.CompanyConflictException;
-import com.sanigest.company.application.port.out.persistence.CompanyRegistrationStore;
-import com.sanigest.company.domain.enums.CompanyRole;
-import com.sanigest.company.domain.enums.MembershipStatus;
-import com.sanigest.company.domain.model.Company;
-import com.sanigest.company.domain.model.Membership;
+import com.sanigest.company.application.dto.profile.CreateCompanyCommand;
+import com.sanigest.company.application.exception.access.CompanyAccessDeniedException;
+import com.sanigest.company.application.exception.profile.CompanyConflictException;
+import com.sanigest.company.application.port.out.persistence.profile.CompanyRegistrationStore;
+import com.sanigest.company.domain.enums.team.CompanyRole;
+import com.sanigest.company.domain.enums.team.MembershipStatus;
+import com.sanigest.company.domain.model.profile.Company;
+import com.sanigest.company.domain.model.team.Membership;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;

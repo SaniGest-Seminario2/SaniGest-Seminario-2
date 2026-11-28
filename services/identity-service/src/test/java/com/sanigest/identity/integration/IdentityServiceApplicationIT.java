@@ -3,9 +3,9 @@ package com.sanigest.identity.integration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.sanigest.identity.application.dto.RegisterUserCommand;
-import com.sanigest.identity.application.exception.DuplicateEmailException;
-import com.sanigest.identity.application.port.out.security.PasswordHasher;
+import com.sanigest.identity.application.dto.registration.RegisterUserCommand;
+import com.sanigest.identity.application.exception.registration.DuplicateEmailException;
+import com.sanigest.identity.application.port.out.security.password.PasswordHasher;
 import com.sanigest.identity.application.usecase.registration.RegisterUserUseCase;
 import java.net.URI;
 import java.net.http.HttpClient;

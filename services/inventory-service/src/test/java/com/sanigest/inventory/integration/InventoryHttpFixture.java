@@ -15,7 +15,7 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.sanigest.inventory.application.usecase.ReconcileStock;
+import com.sanigest.inventory.application.usecase.stock.ReconcileStock;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.math.BigDecimal;

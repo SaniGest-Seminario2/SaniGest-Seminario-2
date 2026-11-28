@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.identity.application.port.out.persistence.UserRepository;
+import com.sanigest.identity.application.port.out.persistence.account.UserRepository;
 import com.sanigest.identity.domain.enums.AccountType;
 import com.sanigest.identity.domain.enums.UserStatus;
-import com.sanigest.identity.domain.model.EmailAddress;
-import com.sanigest.identity.domain.model.User;
+import com.sanigest.identity.domain.model.account.EmailAddress;
+import com.sanigest.identity.domain.model.account.User;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;

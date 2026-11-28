@@ -4,8 +4,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
-import static com.sanigest.companyaccess.CompanyAccessProtocol.PATH;
-import static com.sanigest.companyaccess.CompanyAccessProtocol.USER_ASSERTION;
+import static com.sanigest.companyaccess.infrastructure.integration.protocol.CompanyAccessProtocol.PATH;
+import static com.sanigest.companyaccess.infrastructure.integration.protocol.CompanyAccessProtocol.USER_ASSERTION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -20,17 +20,17 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sanigest.catalog.CatalogServiceApplication;
-import com.sanigest.catalog.api.dto.ClientPatchRequest;
-import com.sanigest.catalog.application.dto.ClientSearchCriteria;
-import com.sanigest.catalog.application.exception.CatalogItemAccessException;
-import com.sanigest.catalog.application.exception.ClientAccessException;
-import com.sanigest.catalog.application.exception.ClientCreationException;
-import com.sanigest.catalog.application.exception.SupplierAccessException;
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository;
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
-import com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository;
-import com.sanigest.catalog.application.port.out.persistence.ClientRepository;
-import com.sanigest.catalog.application.port.out.persistence.SupplierRepository;
+import com.sanigest.catalog.api.dto.client.ClientPatchRequest;
+import com.sanigest.catalog.application.dto.client.ClientSearchCriteria;
+import com.sanigest.catalog.application.exception.catalogitem.CatalogItemAccessException;
+import com.sanigest.catalog.application.exception.client.ClientAccessException;
+import com.sanigest.catalog.application.exception.client.ClientCreationException;
+import com.sanigest.catalog.application.exception.supplier.SupplierAccessException;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemCommercialRepository;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemRepository;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientCategoryRepository;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientRepository;
+import com.sanigest.catalog.application.port.out.persistence.supplier.SupplierRepository;
 import com.sanigest.catalog.application.usecase.catalogitem.ChangeCatalogItemStatus;
 import com.sanigest.catalog.application.usecase.catalogitem.CreateCatalogItem;
 import com.sanigest.catalog.application.usecase.catalogitem.GetCatalogItem;
@@ -43,25 +43,25 @@ import com.sanigest.catalog.application.usecase.supplier.CreateSupplier;
 import com.sanigest.catalog.application.usecase.supplier.GetSupplier;
 import com.sanigest.catalog.application.usecase.supplier.ListSuppliers;
 import com.sanigest.catalog.application.usecase.supplier.UpdateSupplier;
-import com.sanigest.catalog.domain.enums.CatalogItemType;
-import com.sanigest.catalog.domain.enums.ClientPaymentTerms;
-import com.sanigest.catalog.domain.enums.ClientStatus;
-import com.sanigest.catalog.domain.enums.ClientType;
-import com.sanigest.catalog.domain.enums.SupplierPaymentTerms;
-import com.sanigest.catalog.domain.enums.SupplierStatus;
-import com.sanigest.catalog.domain.enums.SupplierSupplyType;
-import com.sanigest.catalog.domain.model.CatalogItem;
-import com.sanigest.catalog.domain.model.CatalogItemPatch;
-import com.sanigest.catalog.domain.model.CatalogItemProfile;
-import com.sanigest.catalog.domain.model.Client;
-import com.sanigest.catalog.domain.model.ClientDetails;
-import com.sanigest.catalog.domain.model.ClientProfile;
-import com.sanigest.catalog.domain.model.Supplier;
-import com.sanigest.catalog.domain.model.SupplierDetails;
-import com.sanigest.catalog.domain.model.SupplierPatch;
-import com.sanigest.catalog.domain.model.SupplierProfile;
-import com.sanigest.companyaccess.CompanyAccess.MembershipRole;
-import com.sanigest.companyaccess.CompanyAccess.Scope;
+import com.sanigest.catalog.domain.enums.catalogitem.CatalogItemType;
+import com.sanigest.catalog.domain.enums.client.ClientPaymentTerms;
+import com.sanigest.catalog.domain.enums.client.ClientStatus;
+import com.sanigest.catalog.domain.enums.client.ClientType;
+import com.sanigest.catalog.domain.enums.supplier.SupplierPaymentTerms;
+import com.sanigest.catalog.domain.enums.supplier.SupplierStatus;
+import com.sanigest.catalog.domain.enums.supplier.SupplierSupplyType;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItem;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItemPatch;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItemProfile;
+import com.sanigest.catalog.domain.model.client.Client;
+import com.sanigest.catalog.domain.model.client.ClientDetails;
+import com.sanigest.catalog.domain.model.client.ClientProfile;
+import com.sanigest.catalog.domain.model.supplier.Supplier;
+import com.sanigest.catalog.domain.model.supplier.SupplierDetails;
+import com.sanigest.catalog.domain.model.supplier.SupplierPatch;
+import com.sanigest.catalog.domain.model.supplier.SupplierProfile;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.MembershipRole;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.Scope;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
@@ -3250,7 +3250,7 @@ class CatalogServiceIT {
   @Tag("regression")
   void preservesExactCommercialAmountsInPostgres() {
     var profile =
-        new com.sanigest.catalog.domain.model.CatalogItemProfile(
+        new com.sanigest.catalog.domain.model.catalogitem.CatalogItemProfile(
             " exact ",
             "0001",
             null,

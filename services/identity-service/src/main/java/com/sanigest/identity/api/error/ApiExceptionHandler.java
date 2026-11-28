@@ -1,10 +1,10 @@
 package com.sanigest.identity.api.error;
 
-import com.sanigest.identity.application.exception.AuthenticatedUserNotFoundException;
-import com.sanigest.identity.application.exception.DuplicateEmailException;
-import com.sanigest.identity.application.exception.InvalidCredentialsException;
-import com.sanigest.identity.application.exception.InvalidRefreshTokenException;
-import com.sanigest.security.http.MvcProblems;
+import com.sanigest.identity.application.exception.account.AuthenticatedUserNotFoundException;
+import com.sanigest.identity.application.exception.registration.DuplicateEmailException;
+import com.sanigest.identity.application.exception.session.InvalidCredentialsException;
+import com.sanigest.identity.application.exception.session.InvalidRefreshTokenException;
+import com.sanigest.security.api.error.MvcProblems;
 import java.net.URI;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;

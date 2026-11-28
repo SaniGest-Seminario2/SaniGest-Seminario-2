@@ -1,9 +1,9 @@
 package com.sanigest.sales.application.usecase.client;
 
-import com.sanigest.sales.application.exception.InvalidSaleRequest;
-import com.sanigest.sales.application.exception.SalesAccessForbidden;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission;
+import com.sanigest.sales.application.exception.sale.InvalidSaleRequest;
+import com.sanigest.sales.application.exception.security.SalesAccessForbidden;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization.Permission;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;

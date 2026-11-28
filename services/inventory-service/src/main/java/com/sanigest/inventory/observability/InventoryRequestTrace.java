@@ -1,6 +1,6 @@
 package com.sanigest.inventory.observability;
 
-import com.sanigest.companyaccess.TraceIds;
+import com.sanigest.companyaccess.observability.TraceIds;
 import org.slf4j.MDC;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;

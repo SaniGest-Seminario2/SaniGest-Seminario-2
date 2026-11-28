@@ -1,12 +1,12 @@
 package com.sanigest.catalog.infrastructure.company;
 
-import com.sanigest.catalog.application.exception.CatalogAuthorizationUnavailable;
-import com.sanigest.catalog.application.port.out.integration.CatalogAuthorization;
-import com.sanigest.companyaccess.AuthenticatedActor;
-import com.sanigest.companyaccess.CompanyAccess;
-import com.sanigest.companyaccess.CompanyAccess.MembershipContext;
-import com.sanigest.companyaccess.CompanyAccess.Scope;
-import com.sanigest.companyaccess.CompanyAccessUnavailable;
+import com.sanigest.catalog.application.exception.security.CatalogAuthorizationUnavailable;
+import com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization;
+import com.sanigest.companyaccess.application.exception.CompanyAccessUnavailable;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.MembershipContext;
+import com.sanigest.companyaccess.application.port.out.CompanyAccess.Scope;
+import com.sanigest.companyaccess.security.authentication.AuthenticatedActor;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;

@@ -1,12 +1,12 @@
 package com.sanigest.company.application.usecase.team;
 
-import com.sanigest.company.application.exception.MemberNotFoundException;
-import com.sanigest.company.application.port.out.persistence.MembershipRepository;
+import com.sanigest.company.application.exception.team.MemberNotFoundException;
+import com.sanigest.company.application.port.out.persistence.team.MembershipRepository;
 import com.sanigest.company.application.usecase.audit.CompanyAuditRecorder;
-import com.sanigest.company.domain.enums.AuditOperation;
-import com.sanigest.company.domain.enums.CompanyRole;
-import com.sanigest.company.domain.enums.MembershipStatus;
-import com.sanigest.company.domain.model.Membership;
+import com.sanigest.company.domain.enums.audit.AuditOperation;
+import com.sanigest.company.domain.enums.team.CompanyRole;
+import com.sanigest.company.domain.enums.team.MembershipStatus;
+import com.sanigest.company.domain.model.team.Membership;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;

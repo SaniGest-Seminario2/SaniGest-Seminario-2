@@ -1,20 +1,20 @@
 package com.sanigest.catalog.application.usecase.catalogitem;
 
-import static com.sanigest.catalog.application.exception.CatalogItemAccessException.Reason.CATALOG_ITEM_NOT_FOUND;
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.exception.catalogitem.CatalogItemAccessException.Reason.CATALOG_ITEM_NOT_FOUND;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
 
-import com.sanigest.catalog.application.dto.CatalogItemCommercialData;
-import com.sanigest.catalog.application.dto.CatalogItemHistory;
-import com.sanigest.catalog.application.dto.CatalogItemPage;
-import com.sanigest.catalog.application.dto.CatalogItemReferences.Tax;
-import com.sanigest.catalog.application.dto.CatalogItemReferences.Unit;
-import com.sanigest.catalog.application.dto.CatalogItemSummary;
-import com.sanigest.catalog.application.exception.CatalogItemAccessException;
-import com.sanigest.catalog.application.exception.InvalidCatalogItemQuery;
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository;
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
-import com.sanigest.catalog.domain.model.CatalogItem;
-import com.sanigest.catalog.domain.model.CatalogItemCategory;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemCommercialData;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemHistory;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemPage;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemReferences.Tax;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemReferences.Unit;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemSummary;
+import com.sanigest.catalog.application.exception.catalogitem.CatalogItemAccessException;
+import com.sanigest.catalog.application.exception.catalogitem.InvalidCatalogItemQuery;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemCommercialRepository;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemRepository;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItem;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItemCategory;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -24,7 +24,8 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+@PreAuthorize(
+    "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
 public class CatalogItemCommercialQueries {
   private final CatalogItemCompany company;
   private final CatalogItemCommercialRepository commercial;

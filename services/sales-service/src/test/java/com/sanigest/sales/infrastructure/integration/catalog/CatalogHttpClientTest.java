@@ -16,12 +16,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
-import com.sanigest.sales.application.exception.CatalogAccessDeniedException;
-import com.sanigest.sales.application.exception.CatalogResourceInvalidException;
-import com.sanigest.sales.application.exception.CatalogUnavailableException;
-import com.sanigest.sales.application.port.out.integration.CatalogClient;
-import com.sanigest.sales.domain.model.CatalogCustomerSnapshot.Status;
-import com.sanigest.sales.domain.model.CatalogItemSnapshot.Type;
+import com.sanigest.sales.application.exception.catalog.CatalogAccessDeniedException;
+import com.sanigest.sales.application.exception.catalog.CatalogResourceInvalidException;
+import com.sanigest.sales.application.exception.catalog.CatalogUnavailableException;
+import com.sanigest.sales.application.port.out.integration.catalog.CatalogClient;
+import com.sanigest.sales.domain.model.catalog.CatalogCustomerSnapshot.Status;
+import com.sanigest.sales.domain.model.catalog.CatalogItemSnapshot.Type;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import java.math.BigDecimal;

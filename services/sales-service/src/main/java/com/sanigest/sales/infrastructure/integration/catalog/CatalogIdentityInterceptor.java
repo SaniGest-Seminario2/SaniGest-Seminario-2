@@ -1,8 +1,8 @@
 package com.sanigest.sales.infrastructure.integration.catalog;
 
-import com.sanigest.companyaccess.AuthenticatedActor;
-import com.sanigest.companyaccess.TraceIds;
-import com.sanigest.sales.application.exception.CatalogAccessDeniedException;
+import com.sanigest.companyaccess.observability.TraceIds;
+import com.sanigest.companyaccess.security.authentication.AuthenticatedActor;
+import com.sanigest.sales.application.exception.catalog.CatalogAccessDeniedException;
 import java.io.IOException;
 import java.net.URI;
 import java.util.UUID;

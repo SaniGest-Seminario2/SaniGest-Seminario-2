@@ -1,10 +1,10 @@
 package com.sanigest.inventory.application.dto;
 
 import com.sanigest.inventory.domain.exception.InventoryViolation;
-import com.sanigest.inventory.domain.model.StockAvailability;
-import com.sanigest.inventory.domain.model.StockMovement;
-import com.sanigest.inventory.domain.model.StockPosition;
-import com.sanigest.inventory.domain.model.Warehouse;
+import com.sanigest.inventory.domain.model.stock.StockAvailability;
+import com.sanigest.inventory.domain.model.stock.StockMovement;
+import com.sanigest.inventory.domain.model.stock.StockPosition;
+import com.sanigest.inventory.domain.model.warehouse.Warehouse;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;

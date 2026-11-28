@@ -11,6 +11,13 @@
 | common-observability | Candidato | Correlación, métricas y configuración técnica compartida. |
 | common-test-support | Candidato | Fixtures y arranque de infraestructura reutilizable para pruebas. |
 
+Los paquetes de cada librería reflejan sus responsabilidades. Por ejemplo,
+`common-events` define el contrato de pagos en `domain/model/payment` y
+`domain/enums/payment`, el puerto de escritura en
+`application/port/out/persistence` y los adaptadores de outbox en
+`infrastructure/persistence/outbox` e `infrastructure/messaging/outbox`.
+Las pruebas unitarias reflejan el paquete del código que ejercitan.
+
 Extraer un módulo cuando existan al menos dos consumidores concretos, un
 contrato estable y una reducción demostrable de duplicación técnica. Mantener
 la propiedad de reglas y datos en cada servicio. Una librería no distribuye

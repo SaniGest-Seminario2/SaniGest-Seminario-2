@@ -1,6 +1,6 @@
 package com.sanigest.sales.application.usecase.sale;
 
-import com.sanigest.sales.application.dto.CreateSaleCommand;
+import com.sanigest.sales.application.dto.sale.CreateSaleCommand;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

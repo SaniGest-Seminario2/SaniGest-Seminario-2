@@ -1,12 +1,12 @@
 package com.sanigest.catalog.application.usecase.catalogitem;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
 
-import com.sanigest.catalog.application.dto.CatalogItemPage;
-import com.sanigest.catalog.application.dto.CatalogItemSearchCriteria;
-import com.sanigest.catalog.application.exception.InvalidCatalogItemQuery;
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemRepository;
-import com.sanigest.catalog.domain.enums.CatalogItemType;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemPage;
+import com.sanigest.catalog.application.dto.catalogitem.CatalogItemSearchCriteria;
+import com.sanigest.catalog.application.exception.catalogitem.InvalidCatalogItemQuery;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemRepository;
+import com.sanigest.catalog.domain.enums.catalogitem.CatalogItemType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +23,8 @@ public class ListCatalogItems {
     this.items = items;
   }
 
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public CatalogItemPage execute(String type, String search, String active, int page, int size) {
     var companyId = company.require(CATALOG_READ);
     if (page < 0 || size < 1 || size > MAX_SIZE) {
@@ -36,7 +37,8 @@ public class ListCatalogItems {
     return items.search(companyId, parseType(type), term, parseActive(active), page, size);
   }
 
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public CatalogItemPage execute(
       String type, String search, String active, CommercialFilters filters, int page, int size) {
     var companyId = company.require(CATALOG_READ);
@@ -47,7 +49,8 @@ public class ListCatalogItems {
     return items.search(companyId, criteria(type, term, active, filters), page, size);
   }
 
-  @PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+  @PreAuthorize(
+      "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
   public void authorizeRead() {
     company.require(CATALOG_READ);
   }

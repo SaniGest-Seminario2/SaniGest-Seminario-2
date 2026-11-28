@@ -1,17 +1,17 @@
 package com.sanigest.sales.application.usecase.invoice;
 
-import static com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission.SALES_CANCEL;
-import static com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission.SALES_READ;
+import static com.sanigest.sales.application.port.out.integration.company.SalesAuthorization.Permission.SALES_CANCEL;
+import static com.sanigest.sales.application.port.out.integration.company.SalesAuthorization.Permission.SALES_READ;
 
-import com.sanigest.sales.application.dto.InvoicePage;
-import com.sanigest.sales.application.exception.InvalidSaleQuery;
-import com.sanigest.sales.application.exception.InvalidSaleRequest;
-import com.sanigest.sales.application.exception.InvoiceListLimitExceeded;
-import com.sanigest.sales.application.exception.InvoiceNotFound;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.sales.application.port.out.persistence.InvoiceDocuments;
-import com.sanigest.sales.application.port.out.persistence.InvoiceDocuments.Search;
-import com.sanigest.sales.domain.model.SaleCancellation;
+import com.sanigest.sales.application.dto.invoice.InvoicePage;
+import com.sanigest.sales.application.exception.invoice.InvoiceListLimitExceeded;
+import com.sanigest.sales.application.exception.invoice.InvoiceNotFound;
+import com.sanigest.sales.application.exception.sale.InvalidSaleQuery;
+import com.sanigest.sales.application.exception.sale.InvalidSaleRequest;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
+import com.sanigest.sales.application.port.out.persistence.invoice.InvoiceDocuments;
+import com.sanigest.sales.application.port.out.persistence.invoice.InvoiceDocuments.Search;
+import com.sanigest.sales.domain.model.sale.SaleCancellation;
 import java.time.Clock;
 import java.util.Locale;
 import java.util.Set;

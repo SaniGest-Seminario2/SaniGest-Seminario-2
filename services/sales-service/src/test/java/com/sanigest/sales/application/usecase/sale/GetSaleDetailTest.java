@@ -1,6 +1,6 @@
 package com.sanigest.sales.application.usecase.sale;
 
-import static com.sanigest.sales.application.port.out.integration.SalesAuthorization.Permission.SALES_READ;
+import static com.sanigest.sales.application.port.out.integration.company.SalesAuthorization.Permission.SALES_READ;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -8,17 +8,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.sales.application.dto.SaleDetail;
-import com.sanigest.sales.application.dto.SaleFinancials;
-import com.sanigest.sales.application.exception.SaleNotFound;
-import com.sanigest.sales.application.port.out.integration.SalesAuthorization;
-import com.sanigest.sales.application.port.out.persistence.SaleQueryRepository;
-import com.sanigest.sales.domain.enums.SaleMode;
-import com.sanigest.sales.domain.enums.SaleStatus;
-import com.sanigest.sales.domain.model.CatalogCustomerSnapshot;
-import com.sanigest.sales.domain.model.Sale;
-import com.sanigest.sales.domain.model.SaleCancellation;
-import com.sanigest.sales.domain.model.SaleLine;
+import com.sanigest.sales.application.dto.sale.SaleDetail;
+import com.sanigest.sales.application.dto.sale.SaleFinancials;
+import com.sanigest.sales.application.exception.sale.SaleNotFound;
+import com.sanigest.sales.application.port.out.integration.company.SalesAuthorization;
+import com.sanigest.sales.application.port.out.persistence.sale.SaleQueryRepository;
+import com.sanigest.sales.domain.enums.sale.SaleMode;
+import com.sanigest.sales.domain.enums.sale.SaleStatus;
+import com.sanigest.sales.domain.model.catalog.CatalogCustomerSnapshot;
+import com.sanigest.sales.domain.model.sale.Sale;
+import com.sanigest.sales.domain.model.sale.SaleCancellation;
+import com.sanigest.sales.domain.model.sale.SaleLine;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;

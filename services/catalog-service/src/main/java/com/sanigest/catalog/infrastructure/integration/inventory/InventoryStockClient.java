@@ -1,8 +1,8 @@
 package com.sanigest.catalog.infrastructure.integration.inventory;
 
-import com.sanigest.catalog.application.exception.InventoryLookupFailed;
-import com.sanigest.catalog.application.exception.InventoryLookupFailed.Reason;
-import com.sanigest.catalog.application.port.out.integration.InventoryAvailability;
+import com.sanigest.catalog.application.exception.inventory.InventoryLookupFailed;
+import com.sanigest.catalog.application.exception.inventory.InventoryLookupFailed.Reason;
+import com.sanigest.catalog.application.port.out.integration.inventory.InventoryAvailability;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.HashMap;

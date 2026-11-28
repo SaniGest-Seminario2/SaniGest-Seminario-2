@@ -1,2 +1,2 @@
-/** Database, messaging and external-system adapters for Company Service. */
-package com.sanigest.company.infrastructure;
+/** Company domain model and business invariants. */
+package com.sanigest.company.domain;

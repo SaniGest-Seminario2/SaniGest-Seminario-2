@@ -1,7 +1,7 @@
 package com.sanigest.company.application.usecase.profile;
 
-import com.sanigest.company.application.dto.AuthorizedCompany;
-import com.sanigest.company.application.port.out.persistence.MembershipRepository;
+import com.sanigest.company.application.dto.access.AuthorizedCompany;
+import com.sanigest.company.application.port.out.persistence.team.MembershipRepository;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;

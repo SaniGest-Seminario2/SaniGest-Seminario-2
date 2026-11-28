@@ -1,9 +1,9 @@
 package com.sanigest.company.application.usecase.access;
 
-import com.sanigest.company.application.dto.CompanyMembership;
-import com.sanigest.company.application.exception.CompanyAccessDeniedException;
-import com.sanigest.company.application.port.out.persistence.MembershipRepository;
-import com.sanigest.company.domain.model.Membership;
+import com.sanigest.company.application.dto.team.CompanyMembership;
+import com.sanigest.company.application.exception.access.CompanyAccessDeniedException;
+import com.sanigest.company.application.port.out.persistence.team.MembershipRepository;
+import com.sanigest.company.domain.model.team.Membership;
 import java.util.Optional;
 import java.util.UUID;
 

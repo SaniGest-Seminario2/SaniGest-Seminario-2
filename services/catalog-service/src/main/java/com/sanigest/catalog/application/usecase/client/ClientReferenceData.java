@@ -1,16 +1,17 @@
 package com.sanigest.catalog.application.usecase.client;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
 
-import com.sanigest.catalog.application.dto.ClientReferences.Option;
-import com.sanigest.catalog.application.dto.ClientReferences.ReceiptType;
-import com.sanigest.catalog.application.port.out.persistence.ClientReferenceRepository;
+import com.sanigest.catalog.application.dto.client.ClientReferences.Option;
+import com.sanigest.catalog.application.dto.client.ClientReferences.ReceiptType;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientReferenceRepository;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 @Service
-@PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+@PreAuthorize(
+    "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
 public class ClientReferenceData {
   private final ClientCompany company;
   private final ClientReferenceRepository references;

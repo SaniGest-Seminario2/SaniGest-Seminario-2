@@ -1,16 +1,17 @@
 package com.sanigest.catalog.application.usecase.client;
 
-import static com.sanigest.catalog.application.port.out.integration.CatalogAuthorization.Permission.CATALOG_READ;
+import static com.sanigest.catalog.application.port.out.integration.company.CatalogAuthorization.Permission.CATALOG_READ;
 
-import com.sanigest.catalog.application.port.out.persistence.ClientCategoryRepository;
-import com.sanigest.catalog.domain.model.ClientCategory;
+import com.sanigest.catalog.application.port.out.persistence.client.ClientCategoryRepository;
+import com.sanigest.catalog.domain.model.client.ClientCategory;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@PreAuthorize("T(com.sanigest.companyaccess.AuthenticatedActor).userId().isPresent()")
+@PreAuthorize(
+    "T(com.sanigest.companyaccess.security.authentication.AuthenticatedActor).userId().isPresent()")
 public class ClientCategories {
   private final ClientCompany company;
   private final ClientCategoryRepository categories;

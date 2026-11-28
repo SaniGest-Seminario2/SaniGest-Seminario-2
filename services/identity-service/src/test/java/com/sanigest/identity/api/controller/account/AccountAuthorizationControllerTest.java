@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.sanigest.identity.application.dto.AuthenticatedUserProfile;
-import com.sanigest.identity.application.exception.AuthenticatedUserNotFoundException;
+import com.sanigest.identity.application.dto.account.AuthenticatedUserProfile;
+import com.sanigest.identity.application.exception.account.AuthenticatedUserNotFoundException;
 import com.sanigest.identity.application.usecase.account.GetAuthenticatedUserProfileUseCase;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

@@ -1,9 +1,9 @@
 package com.sanigest.catalog.application.usecase.catalogitem;
 
-import com.sanigest.catalog.application.port.out.persistence.CatalogItemCommercialRepository;
-import com.sanigest.catalog.domain.exception.InvalidCatalogItem;
-import com.sanigest.catalog.domain.model.CatalogItem;
-import com.sanigest.catalog.domain.model.CatalogItemProfile;
+import com.sanigest.catalog.application.port.out.persistence.catalogitem.CatalogItemCommercialRepository;
+import com.sanigest.catalog.domain.exception.catalogitem.InvalidCatalogItem;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItem;
+import com.sanigest.catalog.domain.model.catalogitem.CatalogItemProfile;
 import java.math.BigDecimal;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Value;

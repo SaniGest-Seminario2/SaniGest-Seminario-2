@@ -1,11 +1,11 @@
 package com.sanigest.inventory.api.dto;
 
-import com.sanigest.inventory.application.dto.StockCommands;
-import com.sanigest.inventory.application.usecase.WarehouseOperations;
+import com.sanigest.inventory.application.dto.stock.StockCommands;
+import com.sanigest.inventory.application.usecase.warehouse.WarehouseOperations;
 import com.sanigest.inventory.domain.exception.InventoryViolation;
-import com.sanigest.inventory.domain.model.StockConfiguration;
-import com.sanigest.inventory.domain.model.StockMovement;
-import com.sanigest.inventory.domain.model.Warehouse;
+import com.sanigest.inventory.domain.model.stock.StockConfiguration;
+import com.sanigest.inventory.domain.model.stock.StockMovement;
+import com.sanigest.inventory.domain.model.warehouse.Warehouse;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;

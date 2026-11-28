@@ -1,12 +1,12 @@
 package com.sanigest.company.application.usecase.team;
 
-import com.sanigest.company.application.exception.CompanyConflictException;
-import com.sanigest.company.application.exception.InvitationNotFoundException;
-import com.sanigest.company.application.port.out.persistence.InvitationRepository;
+import com.sanigest.company.application.exception.profile.CompanyConflictException;
+import com.sanigest.company.application.exception.team.InvitationNotFoundException;
+import com.sanigest.company.application.port.out.persistence.team.InvitationRepository;
 import com.sanigest.company.application.usecase.audit.CompanyAuditRecorder;
-import com.sanigest.company.domain.enums.AuditOperation;
-import com.sanigest.company.domain.enums.InvitationStatus;
-import com.sanigest.company.domain.model.Invitation;
+import com.sanigest.company.domain.enums.audit.AuditOperation;
+import com.sanigest.company.domain.enums.team.InvitationStatus;
+import com.sanigest.company.domain.model.team.Invitation;
 import java.time.Clock;
 import java.util.List;
 import java.util.UUID;

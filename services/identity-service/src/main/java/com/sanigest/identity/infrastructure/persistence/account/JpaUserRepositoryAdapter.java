@@ -1,0 +1,71 @@
+package com.sanigest.identity.infrastructure.persistence.account;
+
+import com.sanigest.identity.application.exception.registration.DuplicateUserEmailException;
+import com.sanigest.identity.application.port.out.persistence.account.UserRepository;
+import com.sanigest.identity.domain.model.account.EmailAddress;
+import com.sanigest.identity.domain.model.account.User;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Repository;
+
+@Repository
+@Profile({"local", "test"})
+class JpaUserRepositoryAdapter implements UserRepository {
+
+  private final SpringDataUserRepository repository;
+
+  JpaUserRepositoryAdapter(SpringDataUserRepository repository) {
+    this.repository = Objects.requireNonNull(repository);
+  }
+
+  @Override
+  public boolean existsByEmail(EmailAddress email) {
+    return repository.existsByEmail(email.value());
+  }
+
+  @Override
+  public Optional<User> findByEmail(EmailAddress email) {
+    return repository.findByEmail(email.value()).map(JpaUserRepositoryAdapter::toDomain);
+  }
+
+  @Override
+  public Optional<User> findById(UUID id) {
+    return repository.findById(id).map(JpaUserRepositoryAdapter::toDomain);
+  }
+
+  @Override
+  public List<MemberIdentity> findMemberIdentities(Collection<UUID> ids) {
+    return repository.findMemberIdentities(ids);
+  }
+
+  @Override
+  public User save(User user) {
+    try {
+      UserJpaEntity saved = repository.saveAndFlush(toEntity(user));
+      return toDomain(saved);
+    } catch (DataIntegrityViolationException exception) {
+      throw new DuplicateUserEmailException(exception);
+    }
+  }
+
+  private static UserJpaEntity toEntity(User user) {
+    return new UserJpaEntity(user);
+  }
+
+  private static User toDomain(UserJpaEntity entity) {
+    return new User(
+        entity.getId(),
+        EmailAddress.of(entity.getEmail()),
+        entity.getPasswordHash(),
+        entity.getName(),
+        entity.getAccountType(),
+        entity.getStatus(),
+        entity.getCreatedAt(),
+        entity.getUpdatedAt());
+  }
+}

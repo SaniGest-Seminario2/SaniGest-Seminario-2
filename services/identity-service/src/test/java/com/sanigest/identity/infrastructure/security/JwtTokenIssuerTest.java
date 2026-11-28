@@ -2,7 +2,9 @@ package com.sanigest.identity.infrastructure.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.sanigest.identity.application.dto.AccessToken;
+import com.sanigest.identity.application.dto.session.AccessToken;
+import com.sanigest.identity.infrastructure.security.token.JwtProperties;
+import com.sanigest.identity.infrastructure.security.token.JwtTokenIssuer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
