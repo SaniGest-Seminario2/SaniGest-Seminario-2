@@ -37,6 +37,7 @@ class CompanyContextFilter implements GlobalFilter, Ordered {
           "expense-read",
           "payables",
           "finance",
+          "finance-movement-write",
           "finance-projection",
           "finance-projection-rebuild");
   private static final List<String> INTERNAL_HEADERS =

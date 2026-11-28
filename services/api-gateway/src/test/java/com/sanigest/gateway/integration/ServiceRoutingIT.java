@@ -188,6 +188,24 @@ class ServiceRoutingIT {
     assertThat(rebuild.body()).isEqualTo("finance POST " + path + " ");
   }
 
+  @Test
+  void forwardsManualCashMovementWithExplicitCompany() throws Exception {
+    assertCompanyScopedRoute("/api/v1/finance/options", "finance");
+    assertCompanyScopedRoute("/api/v1/cash-movements/" + TENANT + "/attachment", "finance");
+    String path = "/api/v1/cash-movements";
+    String token = "Bearer " + GatewayTestTokens.validToken();
+    var request =
+        request(gateway(), path)
+            .header("Authorization", token)
+            .header("Content-Type", "application/json")
+            .header("Idempotency-Key", "manual-movement")
+            .POST(HttpRequest.BodyPublishers.ofString("{}"));
+    assertThat(send(request).statusCode()).isEqualTo(400);
+    var response = send(request.header("X-Company-Id", TENANT));
+    assertThat(response.statusCode()).isEqualTo(422);
+    assertThat(response.body()).isEqualTo("finance POST " + path + " {}");
+  }
+
   private void assertCompanyScopedRoute(String path, String service) throws Exception {
     String token = "Bearer " + GatewayTestTokens.validToken();
     var missingCompany = send(request(gateway(), path).header("Authorization", token).GET());

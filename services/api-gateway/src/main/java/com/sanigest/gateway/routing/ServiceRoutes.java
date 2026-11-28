@@ -220,9 +220,21 @@ public class ServiceRoutes {
             "finance",
             route ->
                 route
-                    .path("/api/v1/cash-sessions/active/summary", "/api/v1/finance/audit-log")
+                    .path(
+                        "/api/v1/cash-sessions/active/summary",
+                        "/api/v1/finance/audit-log",
+                        "/api/v1/finance/options",
+                        "/api/v1/cash-movements/{id}/attachment")
                     .and()
                     .method(HttpMethod.GET)
+                    .uri(destination(environment, "FINANCE_SERVICE_URL")))
+        .route(
+            "finance-movement-write",
+            route ->
+                route
+                    .path("/api/v1/cash-movements")
+                    .and()
+                    .method(HttpMethod.POST)
                     .uri(destination(environment, "FINANCE_SERVICE_URL")))
         .route(
             "finance-projection",
