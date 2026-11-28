@@ -1,6 +1,9 @@
 package com.sanigest.finance.application.usecase.movement;
 
 import com.sanigest.events.application.idempotency.FinancialWriteFingerprint;
+import com.sanigest.finance.application.dto.movement.ManualMovement.Account;
+import com.sanigest.finance.application.dto.movement.ManualMovement.AccountBalance;
+import com.sanigest.finance.application.dto.movement.ManualMovement.AccountOption;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Category;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Document;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Method;
@@ -12,33 +15,12 @@ import com.sanigest.finance.application.dto.movement.ManualMovement.Type;
 import com.sanigest.finance.application.exception.movement.InvalidManualMovement;
 import com.sanigest.finance.application.port.out.persistence.movement.ManualMovementStore;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
 public class ManualCashMovements {
-  private enum Account {
-    GENERAL_CASH("Caja general"),
-    PETTY_CASH("Caja chica"),
-    BANCO_POPULAR("Banco Popular"),
-    BANRESERVAS("Banreservas"),
-    CLEARING_CARD("Tarjeta por liquidar");
-
-    private final String label;
-
-    Account(String label) {
-      this.label = label;
-    }
-
-    Option option(UUID company) {
-      UUID id =
-          UUID.nameUUIDFromBytes((company + ":finance:" + name()).getBytes(StandardCharsets.UTF_8));
-      return new Option(id.toString(), label);
-    }
-  }
-
   private final ManualMovementStore store;
 
   public ManualCashMovements(ManualMovementStore store) {
@@ -61,12 +43,27 @@ public class ManualCashMovements {
             option(Method.CARD, "Tarjeta"),
             option(Method.TRANSFER, "Transferencia bancaria"),
             option(Method.CHECK, "Cheque")),
-        Arrays.stream(Account.values()).map(account -> account.option(company)).toList());
+        store.accounts(company).stream()
+            .map(account -> new Option(account.id().toString(), account.name()))
+            .toList());
+  }
+
+  public List<AccountOption> accountOptions(UUID company, Method method, String search) {
+    String term = search == null ? "" : search.strip().toLowerCase(Locale.ROOT);
+    return store.accounts(company).stream()
+        .filter(account -> method == null || account.methods().contains(method))
+        .filter(account -> account.name().toLowerCase(Locale.ROOT).contains(term))
+        .map(account -> new AccountOption(account.id(), account.name()))
+        .toList();
+  }
+
+  public List<AccountBalance> balances(UUID company) {
+    return store.balances(company);
   }
 
   public Result register(UUID company, UUID actor, String key, Request request, Document document) {
     validate(request);
-    validateAccounts(company, request);
+    validateAccounts(store.accounts(company), request);
     String fingerprint =
         FinancialWriteFingerprint.v1(
             "manual-cash-movement",
@@ -98,10 +95,10 @@ public class ManualCashMovements {
     }
   }
 
-  private static void validateAccounts(UUID company, Request request) {
-    requireAccount(company, request.destinationAccountId(), "destinationAccountId");
+  private static void validateAccounts(List<Account> accounts, Request request) {
+    requireAccount(accounts, request.destinationAccountId(), "destinationAccountId");
     if (request.type() == Type.INTERNAL_TRANSFER) {
-      requireAccount(company, request.sourceAccountId(), "sourceAccountId");
+      requireAccount(accounts, request.sourceAccountId(), "sourceAccountId");
       if (request.sourceAccountId().equals(request.destinationAccountId())) {
         throw new InvalidManualMovement("sourceAccountId must differ from destinationAccountId");
       }
@@ -118,10 +115,9 @@ public class ManualCashMovements {
     return new Option(value.name(), label);
   }
 
-  private static void requireAccount(UUID company, UUID id, String field) {
+  private static void requireAccount(List<Account> accounts, UUID id, String field) {
     required(id, field);
-    if (Arrays.stream(Account.values())
-        .noneMatch(account -> account.option(company).value().equals(id.toString()))) {
+    if (accounts.stream().noneMatch(account -> account.id().equals(id))) {
       throw new InvalidManualMovement(field + " is not a cash account of the selected company");
     }
   }

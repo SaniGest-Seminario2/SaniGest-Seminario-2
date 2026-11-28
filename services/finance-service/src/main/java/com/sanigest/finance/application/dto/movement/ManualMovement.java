@@ -48,6 +48,12 @@ public final class ManualMovement {
 
   public record Option(String value, String label) {}
 
+  public record Account(UUID id, String name, List<Method> methods) {}
+
+  public record AccountOption(UUID id, String name) {}
+
+  public record AccountBalance(UUID id, String name, String currency, BigDecimal balance) {}
+
   public record Options(
       List<Option> movementTypes,
       List<Option> movementCategories,

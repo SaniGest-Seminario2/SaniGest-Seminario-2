@@ -8,6 +8,7 @@ import com.sanigest.companyaccess.application.port.out.CompanyAccess;
 import com.sanigest.companyaccess.application.port.out.CompanyAccess.MembershipContext;
 import com.sanigest.companyaccess.application.port.out.CompanyAccess.MembershipRole;
 import com.sanigest.companyaccess.application.port.out.CompanyAccess.Scope;
+import com.sanigest.finance.application.dto.movement.ManualMovement.AccountBalance;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Category;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Document;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Method;
@@ -21,6 +22,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -91,6 +93,10 @@ class FinanceServiceIT {
     var accounts = movements.options(company).movementAccounts();
     UUID cash = UUID.fromString(accounts.get(0).value());
     UUID bank = UUID.fromString(accounts.get(2).value());
+    assertThat(cash)
+        .isEqualTo(
+            UUID.nameUUIDFromBytes(
+                (company + ":finance:GENERAL_CASH").getBytes(StandardCharsets.UTF_8)));
     movements.register(company, actor, "income", movement(Type.INCOME, cash, null, "100"), null);
     movements.register(company, actor, "expense", movement(Type.EXPENSE, cash, null, "10"), null);
     var transfer = movement(Type.INTERNAL_TRANSFER, bank, cash, "30");
@@ -106,8 +112,14 @@ class FinanceServiceIT {
     assertThatThrownBy(() -> movements.register(company, actor, "transfer", transfer, null))
         .isInstanceOf(ManualMovementConflict.class);
 
-    assertThat(balance(company, cash)).isEqualByComparingTo("60");
-    assertThat(balance(company, bank)).isEqualByComparingTo("30");
+    var balances = movements.balances(company);
+    assertThat(balances.get(0).id()).isEqualTo(cash);
+    assertThat(balances.get(0).balance()).isEqualByComparingTo("60");
+    assertThat(balances.get(2).id()).isEqualTo(bank);
+    assertThat(balances.get(2).balance()).isEqualByComparingTo("30");
+    assertThat(movements.balances(UUID.randomUUID()))
+        .extracting(AccountBalance::balance)
+        .allSatisfy(balance -> assertThat(balance).isZero());
     assertThat(
             jdbc.sql("SELECT count(*) FROM finance.cash_movements WHERE manual_operation_id = :id")
                 .param("id", result.id())
@@ -179,6 +191,16 @@ class FinanceServiceIT {
               .build();
       assertThat(client.send(options, HttpResponse.BodyHandlers.discarding()).statusCode())
           .isEqualTo(200);
+      var selector = get(client, company, "/api/v1/accounts/options?method=CASH&search=general");
+      assertThat(selector.statusCode()).isEqualTo(200);
+      var selected = json.readTree(selector.body());
+      assertThat(selected.size()).isEqualTo(1);
+      assertThat(selected.get(0).get("id").asString()).isEqualTo(cash.toString());
+      var balances = get(client, company, "/api/v1/financial-accounts");
+      assertThat(balances.statusCode()).isEqualTo(200);
+      assertThat(json.readTree(balances.body()).get(0).get("balance").asInt()).isEqualTo(100);
+      assertThat(get(client, UUID.randomUUID(), "/api/v1/financial-accounts").statusCode())
+          .isEqualTo(403);
       assertThat(post(client, company, valid.toString()).statusCode()).isEqualTo(403);
 
       when(companyAccess.membership(company, Scope.WRITE))
@@ -252,6 +274,15 @@ class FinanceServiceIT {
     }
   }
 
+  private HttpResponse<String> get(HttpClient client, UUID company, String path) throws Exception {
+    var request =
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+            .header("Authorization", "Bearer test-token")
+            .header("X-Company-Id", company.toString())
+            .build();
+    return client.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
   private HttpResponse<String> post(HttpClient client, UUID company, String body) throws Exception {
     return post(client, company, body, "manual-movement");
   }
@@ -267,18 +298,6 @@ class FinanceServiceIT {
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build();
     return client.send(request, HttpResponse.BodyHandlers.ofString());
-  }
-
-  private BigDecimal balance(UUID company, UUID account) {
-    return jdbc.sql(
-            """
-            SELECT sum(CASE direction WHEN 'INFLOW' THEN amount ELSE -amount END)
-            FROM finance.cash_movements WHERE company_id = :company AND account_id = :account
-            """)
-        .param("company", company)
-        .param("account", account)
-        .query(BigDecimal.class)
-        .single();
   }
 
   private static Request movement(Type type, UUID destination, UUID source, String amount) {

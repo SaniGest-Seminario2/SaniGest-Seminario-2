@@ -1,10 +1,15 @@
 package com.sanigest.finance.infrastructure.persistence.movement;
 
+import com.sanigest.finance.application.dto.movement.ManualMovement.Account;
+import com.sanigest.finance.application.dto.movement.ManualMovement.AccountBalance;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Document;
+import com.sanigest.finance.application.dto.movement.ManualMovement.Method;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Request;
 import com.sanigest.finance.application.dto.movement.ManualMovement.Type;
 import com.sanigest.finance.application.exception.movement.ManualMovementConflict;
 import com.sanigest.finance.application.port.out.persistence.movement.ManualMovementStore;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.MDC;
@@ -21,6 +26,51 @@ class PostgresManualCashMovements implements ManualMovementStore {
   PostgresManualCashMovements(JdbcClient jdbc, ObjectMapper json) {
     this.jdbc = jdbc;
     this.json = json;
+  }
+
+  @Override
+  public List<Account> accounts(UUID company) {
+    return jdbc.sql(
+            """
+            SELECT id, name, methods
+            FROM finance.movement_accounts(:company)
+            ORDER BY display_order
+            """)
+        .param("company", company)
+        .query((row, index) ->
+            new Account(
+                row.getObject("id", UUID.class),
+                row.getString("name"),
+                Arrays.stream((String[]) row.getArray("methods").getArray())
+                    .map(Method::valueOf)
+                    .toList()))
+        .list();
+  }
+
+  @Override
+  public List<AccountBalance> balances(UUID company) {
+    return jdbc.sql(
+            """
+            SELECT account.id, account.name,
+                   COALESCE(SUM(CASE movement.direction
+                       WHEN 'INFLOW' THEN movement.amount
+                       WHEN 'OUTFLOW' THEN -movement.amount
+                   END), 0.00) AS balance
+            FROM finance.movement_accounts(:company) account
+            LEFT JOIN finance.cash_movements movement
+              ON movement.company_id = :company AND movement.account_id = account.id
+              AND movement.currency = 'DOP'
+            GROUP BY account.id, account.name, account.display_order
+            ORDER BY account.display_order
+            """)
+        .param("company", company)
+        .query((row, index) ->
+            new AccountBalance(
+                row.getObject("id", UUID.class),
+                row.getString("name"),
+                "DOP",
+                row.getBigDecimal("balance")))
+        .list();
   }
 
   @Override
