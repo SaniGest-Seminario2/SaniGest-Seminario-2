@@ -211,7 +211,7 @@ class SalesServiceIT {
         .isEqualTo("sanigest_sales");
     assertThat(jdbc.queryForObject("SELECT session_user", String.class))
         .isEqualTo("sanigest_sales");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("17");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("18");
 
     try (HttpClient client = HttpClient.newHttpClient()) {
       for (String path :
@@ -252,7 +252,8 @@ class SalesServiceIT {
             "payment_outbox",
             "invoice_payments",
             "invoice_payment_lines",
-            "audit_log");
+            "audit_log",
+            "sale_stock_intents");
 
     assertThat(
             jdbc.queryForList(
@@ -290,6 +291,12 @@ class SalesServiceIT {
             "sale_lines.discount:numeric:YES",
             "sale_lines.tax_rate:numeric:YES");
 
+    assertIndexes();
+    assertForeignKeys();
+    assertMigrationHistory();
+  }
+
+  private void assertIndexes() {
     assertThat(
             jdbc.queryForList(
                 """
@@ -331,9 +338,9 @@ class SalesServiceIT {
             "invoice_payment_lines_pkey",
             "invoice_payment_lines_payment_id_position_key",
             "audit_log_pkey",
-            "audit_log_company_timeline");
-    assertForeignKeys();
-    assertMigrationHistory();
+            "audit_log_company_timeline",
+            "sale_stock_intents_pkey",
+            "sale_stock_intents_due");
   }
 
   private void assertForeignKeys() {
@@ -368,8 +375,8 @@ class SalesServiceIT {
             SELECT installed_rank, version, checksum, installed_on, success
             FROM public.flyway_schema_history ORDER BY installed_rank
             """);
-    assertThat(history).hasSize(17);
-    assertThat(history.getLast()).containsEntry("version", "17").containsEntry("success", true);
+    assertThat(history).hasSize(18);
+    assertThat(history.getLast()).containsEntry("version", "18").containsEntry("success", true);
     assertThat(history.getFirst()).containsEntry("version", "1").containsEntry("success", true);
     assertThat(history.getFirst().get("checksum")).isInstanceOf(Integer.class);
     flyway.validate();
@@ -437,12 +444,12 @@ class SalesServiceIT {
     assertThat(
             Flyway.configure().dataSource(upgrade).target("5").load().migrate().migrationsExecuted)
         .isEqualTo(1);
-    assertThat(current.migrate().migrationsExecuted).isEqualTo(12);
+    assertThat(current.migrate().migrationsExecuted).isEqualTo(13);
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.internal_invoices", Long.class))
         .isZero();
     assertThat(legacy.queryForObject("SELECT count(*) FROM sales.receivables", Long.class))
         .isZero();
-    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("17");
+    assertThat(current.info().current().getVersion().getVersion()).isEqualTo("18");
     assertThat(
             legacy.queryForMap(
                 "SELECT status, cancelled_by, cancelled_at, cancel_reason FROM sales.sales WHERE id = ?",

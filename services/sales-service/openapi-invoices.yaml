@@ -265,8 +265,8 @@ paths:
         Registra la venta, la factura y la obligación positiva en una transacción.
         Aplica el precio y la tasa indicados en cada línea. Redondea a dos decimales la base después del descuento
         y calcula el ITBIS sobre esa base. La obligación CASH vence en la fecha comercial
-        y la CREDIT usa dueDate. Los productos con seguimiento de stock se rechazan
-        hasta habilitar la reserva de existencias. La misma clave y solicitud recuperan el mismo
+        y la CREDIT usa dueDate. Inventory registra la salida de los productos con seguimiento. Se requiere un único almacén
+        con seguimiento por artículo. Stock insuficiente o varios almacenes devuelven 409. La misma clave y solicitud recuperan el mismo
         documento durante la ventana de idempotencia de Sales.
       parameters:
         - $ref: '#/components/parameters/CompanySelector'

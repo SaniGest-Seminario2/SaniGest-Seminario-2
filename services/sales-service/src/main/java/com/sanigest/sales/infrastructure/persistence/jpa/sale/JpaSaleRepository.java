@@ -26,6 +26,7 @@ class JpaSaleRepository implements SaleRepository {
   private final SaleRows rows;
   private final SalesAudit audit;
   private final JdbcClient jdbc;
+  private final SaleStockIntents stock;
 
   private final PostgresReceivableRepository receivables;
 
@@ -34,7 +35,9 @@ class JpaSaleRepository implements SaleRepository {
       SaleRows rows,
       PostgresReceivableRepository receivables,
       SalesAudit audit,
-      JdbcClient jdbc) {
+      JdbcClient jdbc,
+      SaleStockIntents stock) {
+    this.stock = stock;
     this.jdbc = jdbc;
     this.receivables = receivables;
     this.entityManager = entityManager;
@@ -90,6 +93,7 @@ class JpaSaleRepository implements SaleRepository {
                     .getSingleResult())
             .longValue();
     Sale registered = sale.withCode(String.format(Locale.ROOT, "V-%04d-%03d", year, sequence));
+    stock.issue(registered);
     entityManager.persist(new SaleRow(registered));
     return registered;
   }
@@ -122,6 +126,7 @@ class JpaSaleRepository implements SaleRepository {
             throw new SaleCancellationConflict();
           }
           cancelInvoice(companyId, saleId, cancellation);
+          stock.cancel(sale, cancellation);
           audit.append(
               companyId,
               cancellation.cancelledBy(),

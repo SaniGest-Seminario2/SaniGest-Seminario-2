@@ -213,6 +213,7 @@ class StockTransaction {
           case INITIAL_STOCK -> Origin.STOCK_CONFIGURATION;
           case MANUAL_ADJUSTMENT -> Origin.MANUAL_ADJUSTMENT;
           case PURCHASE_RECEIPT -> Origin.PURCHASE_RECEIPT;
+          case SALE_ISSUE, SALE_REVERSAL -> Origin.SALE;
         };
     return new StockMovement(
         id,

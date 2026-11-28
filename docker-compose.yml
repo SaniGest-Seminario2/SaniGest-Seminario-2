@@ -264,6 +264,7 @@ services:
       JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
       SERVER_PORT: 8080
       SALES_CATALOG_ORIGIN: ${SALES_CATALOG_ORIGIN:-http://catalog-service:8080}
+      SALE_STOCK_TOKEN: ${SALE_STOCK_TOKEN:-}
       SALES_INVENTORY_ORIGIN: ${SALES_INVENTORY_ORIGIN:-http://inventory-service:8080}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SANIGEST_FINANCE_ENABLED: ${FINANCE_ADMISSION_ENABLED:-false}
@@ -303,6 +304,7 @@ services:
     image: sanigest/inventory-service:${SANIGEST_IMAGE_TAG:-local}
     profiles: [apps]
     environment:
+      SALE_STOCK_TOKEN: ${SALE_STOCK_TOKEN:-}
       SANIGEST_OPENAPI_ENABLED: ${SANIGEST_OPENAPI_ENABLED:-true}
       SPRING_PROFILES_ACTIVE: local
       JWT_ISSUER: ${JWT_ISSUER:-sanigest}

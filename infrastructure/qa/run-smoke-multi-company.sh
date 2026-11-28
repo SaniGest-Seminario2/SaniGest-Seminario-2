@@ -11,6 +11,7 @@ export SANIGEST_NETWORK_INTERNAL=false
 export SANIGEST_IMAGE_TAG="$project"
 export COMPANY_ACCESS_KEYS_DIR="$keys"
 export COMPANY_MULTIPLE_MEMBERSHIPS_ENABLED=true
+export SALE_STOCK_TOKEN=$(openssl rand -hex 32)
 export FINANCE_ADMISSION_ENABLED=true
 export FINANCE_ADMISSION_TOKEN=$(openssl rand -hex 32)
 export JWT_PUBLIC_KEY_FILE="$keys/jwt-public.pem"

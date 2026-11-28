@@ -11,6 +11,7 @@ import com.sanigest.sales.application.exception.catalog.CatalogUnavailableExcept
 import com.sanigest.sales.application.exception.idempotency.IdempotencyConflict;
 import com.sanigest.sales.application.exception.idempotency.IdempotencyInProgress;
 import com.sanigest.sales.application.exception.invoice.InvoiceCompanyUnavailable;
+import com.sanigest.sales.application.exception.invoice.InvoiceStockConflict;
 import com.sanigest.sales.application.exception.invoice.InvoiceStockUnavailable;
 import com.sanigest.sales.application.exception.sale.InvalidSaleRequest;
 import com.sanigest.sales.application.exception.sale.SaleAmountNotRepresentable;
@@ -36,6 +37,11 @@ class SaleErrorHandler {
         HttpStatus.SERVICE_UNAVAILABLE,
         "INVOICE_COMPANY_UNAVAILABLE",
         "Company snapshot could not be verified");
+  }
+
+  @ExceptionHandler(InvoiceStockConflict.class)
+  ProblemDetail stockConflict(InvoiceStockConflict failure) {
+    return problem(HttpStatus.CONFLICT, failure.getMessage(), "Inventory cannot fulfill the sale");
   }
 
   @ExceptionHandler(InvoiceStockUnavailable.class)
